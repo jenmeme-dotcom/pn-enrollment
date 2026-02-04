@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="Broward-Miami Health Institute Seal">
+  <defs>
+    <path id="topArc" d="M 90 300 A 210 210 0 0 1 510 300"/>
+    <path id="bottomArc" d="M 510 300 A 210 210 0 0 1 90 300"/>
+  </defs>
+
+  <circle cx="300" cy="300" r="294" fill="#003f66"/>
+  <circle cx="300" cy="300" r="287" fill="none" stroke="#000000" stroke-width="5"/>
+  <circle cx="300" cy="300" r="257" fill="none" stroke="#ffffff" stroke-width="10"/>
+  <circle cx="300" cy="300" r="220" fill="#ffffff"/>
+  <circle cx="300" cy="300" r="205" fill="none" stroke="#003f66" stroke-width="5"/>
+
+  <g fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="47" font-weight="700" letter-spacing="5">
+    <text>
+      <textPath href="#topArc" startOffset="50%" text-anchor="middle">BROWARD-MIAMI</textPath>
+    </text>
+    <text>
+      <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">HEALTH INSTITUTE</textPath>
+    </text>
+  </g>
+
+  <g transform="translate(300,300)">
+    <path d="M -145 -90 Q 0 -145 145 -90 Q 130 95 0 195 Q -130 95 -145 -90 Z" fill="#ef121a" stroke="#000000" stroke-width="4"/>
+    <rect x="-28" y="-42" width="56" height="130" rx="9" fill="#ffffff" stroke="#000000" stroke-width="4"/>
+    <rect x="-68" y="-2" width="136" height="50" rx="9" fill="#ffffff" stroke="#000000" stroke-width="4"/>
+  </g>
+</svg>
