@@ -9,7 +9,18 @@ const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const nodemailer = require("nodemailer");
 const { db, initialize, databaseFile } = require("./db");
-const { feeSchedule, tuitionNotes } = require("./catalog");
+const {
+  feeSchedule,
+  tuitionNotes,
+  catalogOperatingHours,
+  catalogAcademicCalendar,
+  catalogCredentialRequirements,
+  catalogAdmissions,
+  catalogGraduationRequirements,
+  catalogStudentRecords,
+  catalogAttendancePolicy,
+  catalogProgramSummaries
+} = require("./catalog");
 const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = require("./ui");
 
 initialize();
@@ -355,6 +366,20 @@ function renderTuitionFeesSection(courses = [], { compact = false } = {}) {
         ${tuitionNotes.map((note) => `<li>${escapeHtml(note)}</li>`).join("")}
       </ul>
     </section>
+  `;
+}
+
+function renderCatalogList(items = []) {
+  return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+}
+
+function renderCatalogDefinitionList(items = []) {
+  return `
+    <div class="catalog-definition-list">
+      ${items.map((item) => `
+        <p><strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(item.value)}</span></p>
+      `).join("")}
+    </div>
   `;
 }
 
@@ -709,11 +734,12 @@ app.post("/logout", (req, res) => {
 });
 
 app.get("/catalog", requireAuth, (req, res) => {
+  const catalogCourses = db.prepare("SELECT * FROM courses WHERE published = 1 ORDER BY category, title").all();
   const body = `
     <div class="page-head">
       <div>
         <h1>School Catalog</h1>
-        <p>Broward-Miami Health Institute Institution Catalog 2025-2026, Vol. III. Effective March 2025.</p>
+        <p>Broward-Miami Health Institute Institution Catalog 2025-2026, Vol. III. Effective March 2025. Structured details below are extracted from the current catalog PDF.</p>
       </div>
       <a class="button" href="/assets/bmhi-institution-catalog-2025-2026.pdf" target="_blank" rel="noopener">Open PDF</a>
     </div>
@@ -723,6 +749,66 @@ app.get("/catalog", requireAuth, (req, res) => {
       ${stat("Phone", institutePhone)}
       ${stat("Email", instituteEmail)}
       ${stat("FLDOE License", "#9021")}
+    </section>
+
+    <section class="grid cols-3 catalog-summary-grid" style="margin-top:18px">
+      <article class="card catalog-summary-card">
+        <h2>Hours of Operation</h2>
+        ${renderCatalogDefinitionList(catalogOperatingHours)}
+      </article>
+      <article class="card catalog-summary-card">
+        <h2>Admissions Checklist</h2>
+        ${renderCatalogList(catalogAdmissions)}
+      </article>
+      <article class="card catalog-summary-card">
+        <h2>Graduation Requirements</h2>
+        ${renderCatalogList(catalogGraduationRequirements)}
+      </article>
+    </section>
+
+    ${renderTuitionFeesSection(catalogCourses)}
+
+    <section class="grid cols-2 catalog-policy-grid" style="margin-top:18px">
+      <article class="card catalog-summary-card">
+        <h2>Credential Hours</h2>
+        <div class="catalog-definition-list">
+          ${catalogCredentialRequirements.map((row) => `
+            <p><strong>${escapeHtml(row.program)}</strong><span>${escapeHtml(row.hours)} clock hours · ${escapeHtml(row.credential)}</span></p>
+          `).join("")}
+        </div>
+      </article>
+      <article class="card catalog-summary-card">
+        <h2>Attendance Policy</h2>
+        ${renderCatalogList(catalogAttendancePolicy)}
+      </article>
+      <article class="card catalog-summary-card">
+        <h2>Student Records & FERPA</h2>
+        ${renderCatalogList(catalogStudentRecords)}
+      </article>
+      <article class="card catalog-summary-card">
+        <h2>2025-2026 Academic Calendar</h2>
+        <div class="catalog-calendar-list">
+          ${catalogAcademicCalendar.map((program) => `
+            <details>
+              <summary>${escapeHtml(program.program)}</summary>
+              ${renderCatalogList(program.sessions)}
+            </details>
+          `).join("")}
+        </div>
+      </article>
+    </section>
+
+    <section class="card catalog-summary-card" style="margin-top:18px">
+      <h2>Program Summaries</h2>
+      <div class="catalog-program-grid">
+        ${catalogProgramSummaries.map((program) => `
+          <article>
+            <h3>${escapeHtml(program.title)}</h3>
+            <p><strong>${escapeHtml(program.hours)} clock hours</strong></p>
+            <p>${escapeHtml(program.summary)}</p>
+          </article>
+        `).join("")}
+      </div>
     </section>
 
     <section class="card catalog-card">
