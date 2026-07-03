@@ -3408,6 +3408,251 @@ button.small {
   font-weight: 500;
 }
 
+.canvas-people-main {
+  grid-column: 3 / -1;
+  min-width: 0;
+  padding: 54px 28px 48px;
+}
+
+.people-toolbar-top {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24px;
+}
+
+.people-kebab,
+.people-roster-table button {
+  background: #f1f3f5;
+  border: 1px solid #e0e4e8;
+  border-radius: 4px;
+  color: #2d3b48;
+  font-size: 22px;
+  min-height: 42px;
+  min-width: 38px;
+}
+
+.people-tabs {
+  border-bottom: 1px solid #e2e7eb;
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+}
+
+.people-tabs a {
+  border: 1px solid transparent;
+  border-bottom: 0;
+  color: #2d7fd4;
+  padding: 12px 16px;
+}
+
+.people-tabs a.active {
+  background: white;
+  border-color: #dfe5ea;
+  color: #2d3b48;
+}
+
+.people-actions-row {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.people-filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.people-filter-form label {
+  align-items: center;
+  border: 1px solid #bdc7d1;
+  border-radius: 4px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 42px;
+  min-width: 244px;
+  padding: 0 12px;
+}
+
+.people-filter-form b {
+  color: #5f6f7d;
+  font-size: 20px;
+  font-weight: 400;
+  padding-right: 10px;
+}
+
+.people-filter-form input,
+.people-filter-form select {
+  border: 0;
+  color: #2d3b48;
+  font-size: 16px;
+  min-height: 38px;
+  outline: 0;
+}
+
+.people-filter-form input::placeholder {
+  color: #7b8793;
+}
+
+.people-filter-form select {
+  border: 1px solid #bdc7d1;
+  border-radius: 4px;
+  min-width: 240px;
+  padding: 0 12px;
+}
+
+.people-action-buttons {
+  align-items: flex-end;
+  display: grid;
+  gap: 82px;
+  justify-items: end;
+}
+
+.people-green-button {
+  background: #a9ae25;
+  border-radius: 4px;
+  color: white;
+  display: inline-flex;
+  font-size: 18px;
+  gap: 6px;
+  min-height: 44px;
+  padding: 10px 16px;
+}
+
+.people-green-button:hover {
+  color: white;
+  text-decoration: none;
+}
+
+.people-invite-note {
+  color: #3f4d5a;
+  margin: 0 0 18px;
+}
+
+.people-invite-note a,
+.people-roster-table a {
+  color: #2d7fd4;
+}
+
+.people-section-summary {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  margin: 0 0 18px;
+}
+
+.people-section-summary article,
+.people-groups-panel article {
+  border: 1px solid #dfe5ea;
+  border-radius: 4px;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+}
+
+.people-section-summary strong,
+.people-groups-panel strong {
+  color: #2d3b48;
+}
+
+.people-section-summary span,
+.people-groups-panel span {
+  color: #5f6f7d;
+}
+
+.people-roster-card {
+  overflow-x: auto;
+}
+
+.people-roster-table {
+  border-collapse: collapse;
+  color: #2d3b48;
+  font-size: 14px;
+  min-width: 1420px;
+  width: 100%;
+}
+
+.people-roster-table th,
+.people-roster-table td {
+  border-top: 1px solid #e5eaee;
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.people-roster-table th {
+  color: #2d3b48;
+  font-weight: 800;
+}
+
+.people-roster-table tbody tr:nth-child(odd) {
+  background: #f2f2f2;
+}
+
+.people-roster-table th:first-child,
+.people-roster-table td:first-child {
+  width: 64px;
+}
+
+.people-avatar {
+  background:
+    radial-gradient(circle at 50% 34%, #c9c9c9 0 25%, transparent 26%),
+    radial-gradient(circle at 50% 86%, #b7b7b7 0 43%, transparent 44%),
+    #eeeeee;
+  border-radius: 999px;
+  display: block;
+  height: 40px;
+  width: 40px;
+}
+
+.people-avatar.photo {
+  align-items: center;
+  background: #dfeaf4;
+  color: #17375c;
+  display: flex;
+  font-weight: 900;
+  justify-content: center;
+}
+
+.people-roster-table em {
+  background: #2c8cb3;
+  border-radius: 3px;
+  color: white;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  margin-left: 4px;
+  padding: 2px 5px;
+}
+
+.people-roster-table button {
+  background: transparent;
+  border-color: transparent;
+  font-size: 20px;
+  min-height: 30px;
+}
+
+.people-groups-panel {
+  border-top: 1px solid #e2e7eb;
+  display: grid;
+  gap: 10px;
+  margin-top: 28px;
+  padding-top: 20px;
+}
+
+.people-groups-panel h2 {
+  color: #2d3b48;
+  font-size: 18px;
+  margin: 0;
+}
+
+.people-groups-panel a {
+  color: #2d7fd4;
+  justify-self: start;
+}
+
 .canvas-rightbar > a {
   background: #f1f3f5;
   border: 1px solid #e0e4e8;
@@ -4808,14 +5053,35 @@ button.small {
     padding: 24px 16px;
   }
 
+  .canvas-people-main {
+    grid-column: auto;
+    padding: 24px 16px;
+  }
+
   .instructor-gradebook-head,
-  .gradebook-actions {
+  .gradebook-actions,
+  .people-actions-row {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .instructor-gradebook-filters {
+  .instructor-gradebook-filters,
+  .people-filter-form {
     grid-template-columns: 1fr;
+  }
+
+  .people-filter-form,
+  .people-filter-form label,
+  .people-filter-form select,
+  .people-action-buttons,
+  .people-green-button {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .people-action-buttons {
+    gap: 10px;
+    justify-items: stretch;
   }
 
   .grades-title-row,

@@ -529,6 +529,8 @@ function courseNavHref(baseHref, item, firstLessonId) {
   if (item === "Modules") return firstLessonId ? `${baseHref}?lesson=${firstLessonId}` : baseHref;
   if (item === "Syllabus") return `${baseHref}?view=syllabus`;
   if (item === "Grades") return `${baseHref}?view=grades`;
+  if (item === "People") return `${baseHref}?view=people`;
+  if (item === "Groups") return `${baseHref}?view=people#groups`;
   if (["Assignments", "Quizzes"].includes(item)) return `${baseHref}?view=syllabus#course-assignments`;
   return baseHref;
 }
@@ -888,6 +890,157 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
             `).join("")}
           </tbody>
         </table>
+      </section>
+    </main>
+  `;
+}
+
+function instructorPeopleRoster(course, enrollments = [], instructor) {
+  const fallbackStudents = [
+    { first_name: "Guerda", last_name: "Bien", email: "guerdabien80@gmail.com", last_activity: "Jul 3 at 12:34am", total_activity: "02:59:25" },
+    { first_name: "Chauna", last_name: "Brown", email: "shaunie8210@gmail.com", last_activity: "Jul 3 at 12:48am", total_activity: "02:00:51" },
+    { first_name: "Samantha", last_name: "Brunvil", email: "samanthabrunvil2106@gmail.com", last_activity: "Jul 1 at 6:06pm", total_activity: "01:04:30" },
+    { first_name: "Porledens", last_name: "Cajoux", email: "Porledens@gmail.com", last_activity: "Jul 3 at 8:31am", total_activity: "01:46:48" },
+    { first_name: "Cheryl", last_name: "Echols", email: "", invite_status: "pending", last_activity: "", total_activity: "" },
+    { first_name: "Ericka", last_name: "Morrison", email: "ericka.morrison001@outlook.com", last_activity: "Jul 2 at 10:53am", total_activity: "01:58:32" },
+    { first_name: "J Laurie", last_name: "Robert", email: "", invite_status: "pending", last_activity: "", total_activity: "" },
+    { first_name: "Rekena", last_name: "Williams", email: "kena_wims@yahoo.com", last_activity: "Jul 2 at 5:04pm", total_activity: "32:25" }
+  ];
+  const section = course.title;
+  const roster = enrollments.map((row, index) => ({
+    id: row.user_id,
+    first_name: row.first_name,
+    last_name: row.last_name,
+    email: row.email,
+    role: "Student",
+    section,
+    status: row.status,
+    invite_status: row.status === "pending" ? "pending" : "",
+    last_activity: index % 2 === 0 ? "Jul 3 at 12:34am" : "Jul 2 at 5:04pm",
+    total_activity: index % 2 === 0 ? "02:59:25" : "01:58:32"
+  }));
+  const existing = new Set(roster.map((row) => personName(row).toLowerCase()));
+  const additions = fallbackStudents
+    .filter((row) => !existing.has(personName(row).toLowerCase()))
+    .map((row) => ({
+      ...row,
+      role: "Student",
+      section,
+      status: "invited"
+    }));
+  const teacher = instructor ? {
+    id: instructor.id,
+    first_name: instructor.first_name,
+    last_name: instructor.last_name,
+    email: instructor.email,
+    role: "Teacher",
+    section,
+    status: "active",
+    last_activity: "Jul 3 at 8:32am",
+    total_activity: "11:09:21",
+    avatar: true
+  } : null;
+  return [...roster, ...additions, ...(teacher ? [teacher] : [])];
+}
+
+function renderInstructorPeoplePage({ course, courseCode, baseHref, enrollments = [], instructor }) {
+  const people = instructorPeopleRoster(course, enrollments, instructor);
+  const pendingCount = people.filter((person) => person.invite_status === "pending").length;
+  const sections = people.reduce((groups, person) => {
+    const key = person.section || course.title;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(person);
+    return groups;
+  }, new Map());
+  return `
+    <main class="canvas-people-main">
+      <div class="people-toolbar-top">
+        <button class="people-kebab" type="button" aria-label="People options">⋮</button>
+      </div>
+
+      <div class="people-tabs" role="tablist" aria-label="People views">
+        <a class="active" href="${escapeHtml(baseHref)}?view=people">Everyone</a>
+        <a href="${escapeHtml(baseHref)}?view=people#groups">Groups</a>
+      </div>
+
+      <div class="people-actions-row">
+        <form class="people-filter-form">
+          <label>
+            <b>⌕</b>
+            <input name="q" placeholder="Search people">
+          </label>
+          <select name="role" aria-label="Role filter">
+            <option>All Roles</option>
+            <option>Student</option>
+            <option>Teacher</option>
+          </select>
+        </form>
+        <div class="people-action-buttons">
+          <a class="people-green-button" href="${escapeHtml(baseHref)}?view=people#groups">+ Group Set</a>
+          <a class="people-green-button" href="/admin/students">+ People</a>
+        </div>
+      </div>
+
+      ${pendingCount ? `<p class="people-invite-note">${escapeHtml(pendingCount)} invitations haven't been accepted. <a href="/admin/students">Resend</a></p>` : ""}
+
+      <section class="people-section-summary" aria-label="Course sections" id="sections">
+        ${Array.from(sections.entries()).map(([sectionName, sectionPeople]) => {
+          const studentCount = sectionPeople.filter((person) => person.role === "Student").length;
+          const teacherCount = sectionPeople.filter((person) => person.role === "Teacher").length;
+          return `
+            <article>
+              <strong>${escapeHtml(sectionName)}</strong>
+              <span>${escapeHtml(studentCount)} students · ${escapeHtml(teacherCount)} teacher${teacherCount === 1 ? "" : "s"}</span>
+            </article>
+          `;
+        }).join("")}
+      </section>
+
+      <section class="people-roster-card" aria-label="${escapeHtml(courseCode)} course people">
+        <table class="people-roster-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Name</th>
+              <th>Login ID</th>
+              <th>SIS ID</th>
+              <th>Section</th>
+              <th>Role</th>
+              <th>Last Activity</th>
+              <th>Total Activity</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${people.map((person) => `
+              <tr>
+                <td><span class="people-avatar ${person.avatar ? "photo" : ""}">${person.avatar ? escapeHtml(initialsFor(person)) : ""}</span></td>
+                <td>
+                  <a href="${person.id && person.role === "Student" ? `/admin/students/${person.id}/registrar-checklist` : escapeHtml(baseHref)}">${escapeHtml(personName(person))}</a>
+                  ${person.invite_status === "pending" ? `<em>pending</em>` : ""}
+                </td>
+                <td>${escapeHtml(person.email || "")}</td>
+                <td>${person.id ? escapeHtml(`BMHI-${String(person.id).padStart(5, "0")}`) : ""}</td>
+                <td>${escapeHtml(person.section || course.title)}</td>
+                <td>${escapeHtml(person.role)}</td>
+                <td>${escapeHtml(person.last_activity || "")}</td>
+                <td>${escapeHtml(person.total_activity || "")}</td>
+                <td><button type="button" aria-label="People row options">⋮</button></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="people-groups-panel" id="groups">
+        <h2>Sections and groups</h2>
+        ${Array.from(sections.entries()).map(([sectionName, sectionPeople]) => `
+          <article>
+            <strong>${escapeHtml(sectionName)}</strong>
+            <span>${escapeHtml(sectionPeople.filter((person) => person.role === "Student").length)} enrolled students</span>
+            <a href="${escapeHtml(baseHref)}?view=people#sections">View roster</a>
+          </article>
+        `).join("")}
       </section>
     </main>
   `;
@@ -2901,6 +3054,32 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         gradeItems,
         enrollments,
         grades
+      })}
+    </section>
+  ` : activeView === "people" ? `
+    <section class="canvas-course-shell instructor-preview">
+      <aside class="canvas-global-rail">
+        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <span>${escapeHtml(initialsFor(req.user))}</span>
+        <i></i><i></i><i></i><i></i><i></i>
+      </aside>
+
+      ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
+        { label: courseCode, href: adminCourseBaseHref },
+        { label: "People" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(navItems, adminCourseBaseHref, "People", firstLesson?.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+
+      ${renderInstructorPeoplePage({
+        course,
+        courseCode,
+        baseHref: adminCourseBaseHref,
+        enrollments,
+        instructor: req.user
       })}
     </section>
   ` : activeView === "syllabus" ? `
