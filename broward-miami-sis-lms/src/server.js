@@ -1043,9 +1043,39 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
         <h2>Registrar checklist</h2>
         <p class="muted">Interactive student record review with uploads, notes, status tracking, and graduation readiness controls.</p>
         <div class="registrar-mini-list">
-          ${registrarChecklistItems.map((item) => `<span>${escapeHtml(item.title)}</span>`).join("")}
+          ${registrarChecklistItems.map((item) => `<a href="#registrar-upload-matrix">${escapeHtml(item.title)}</a>`).join("")}
+        </div>
+        <p class="muted registrar-mini-help">Select a student below, then click any checklist item to upload or review documents.</p>
+      </div>
+    </section>
+    <section class="table-card registrar-upload-matrix" id="registrar-upload-matrix" style="margin-top:18px">
+      <div class="table-card-head">
+        <div>
+          <h2>Actual Registrar Document Checklist</h2>
+          <p class="muted">Click an item to open that student file, upload documents, add notes, and mark status.</p>
         </div>
       </div>
+      <table>
+        <thead><tr><th>Student</th><th>Progress</th><th>Checklist upload buttons</th></tr></thead>
+        <tbody>
+          ${students.map((student) => `
+            <tr>
+              <td><strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br><span class="muted">${escapeHtml(student.email)}</span></td>
+              <td>
+                <strong>${escapeHtml(student.checklist_complete || 0)}/${escapeHtml(registrarChecklistItems.length)}</strong> ready<br>
+                <span class="muted">${escapeHtml(student.checklist_uploads || 0)} uploaded</span>
+              </td>
+              <td>
+                <div class="registrar-checklist-buttons">
+                  ${registrarChecklistItems.map((item) => `
+                    <a class="button small ghost" href="/admin/students/${student.id}/registrar-checklist#${escapeHtml(item.key)}">${escapeHtml(item.title)}</a>
+                  `).join("")}
+                </div>
+              </td>
+            </tr>
+          `).join("") || `<tr><td class="empty" colspan="3">Create a student first, then registrar upload buttons will appear here.</td></tr>`}
+        </tbody>
+      </table>
     </section>
     <section class="table-card" style="margin-top:18px">
       <table>
@@ -1062,7 +1092,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
               <td>
                 <strong>${escapeHtml(student.checklist_complete || 0)}/${escapeHtml(registrarChecklistItems.length)}</strong> ready<br>
                 <span class="muted">${escapeHtml(student.checklist_uploads || 0)} upload${Number(student.checklist_uploads || 0) === 1 ? "" : "s"}</span><br>
-                <a class="button small ghost" href="/admin/students/${student.id}/registrar-checklist">Checklist</a>
+                <a class="button small" href="/admin/students/${student.id}/registrar-checklist">Upload documents</a>
               </td>
               <td>${student.enrollment_count || 0} total<br><span class="muted">${student.completed_count || 0} completed</span></td>
               <td>
@@ -1126,6 +1156,9 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
         <h2>Student file status</h2>
         ${progressBar(progress.percent)}
         <p class="muted">Approved or waived items count toward readiness. Uploaded files stay attached to each checklist item for registrar review.</p>
+        <div class="registrar-mini-list registrar-anchor-list">
+          ${checklist.map((item) => `<a href="#${escapeHtml(item.item_key)}">${escapeHtml(item.title)}</a>`).join("")}
+        </div>
         <div class="registrar-timeline">
           ${enrollmentRows.map((row) => `<p><strong>${escapeHtml(row.title)}</strong><span>${escapeHtml(row.status)} · ${escapeHtml(row.progress)}% complete</span></p>`).join("") || `<p><strong>No enrollments</strong><span>Add the student to a course when ready.</span></p>`}
         </div>
@@ -1133,7 +1166,7 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
 
       <div class="registrar-checklist-grid">
         ${checklist.map((item) => `
-          <article class="card registrar-item ${escapeHtml(item.status)}">
+          <article class="card registrar-item ${escapeHtml(item.status)}" id="${escapeHtml(item.item_key)}">
             <div class="registrar-item-head">
               <div>
                 <h2>${escapeHtml(item.title)}</h2>

@@ -833,14 +833,46 @@ nav a {
   margin-top: 14px;
 }
 
-.registrar-mini-list span {
+.registrar-mini-list a {
   background: #eef5f7;
   border: 1px solid #d4e4e8;
   border-radius: 999px;
   color: var(--brand-dark);
+  display: inline-flex;
   font-size: 12px;
   font-weight: 800;
+  line-height: 1.2;
   padding: 6px 9px;
+  text-decoration: none;
+}
+
+.registrar-mini-list a:hover,
+.registrar-mini-list a:focus-visible {
+  background: #dff0f4;
+  border-color: #abcfd8;
+}
+
+.registrar-mini-help {
+  margin: 12px 0 0;
+}
+
+.registrar-upload-matrix table {
+  min-width: 900px;
+}
+
+.registrar-checklist-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 760px;
+}
+
+.registrar-checklist-buttons .button {
+  margin: 0;
+}
+
+.registrar-anchor-list {
+  margin-top: 12px;
 }
 
 .registrar-stats {
