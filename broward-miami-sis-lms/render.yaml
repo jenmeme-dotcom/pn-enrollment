@@ -20,6 +20,8 @@ services:
         value: /data/uploads
       - key: INSTITUTE_NAME
         value: Broward-Miami Health Institute
+      - key: INSTITUTE_ADDRESS
+        value: 6320 Miramar Pkwy Suite I, Miramar, FL 33023
       - key: INSTITUTE_WEBSITE
         value: https://www.browardmiamihi.com
       - key: PUBLIC_APP_URL

@@ -17,6 +17,7 @@ initialize();
 const app = express();
 const port = Number(process.env.PORT || 4321);
 const instituteName = process.env.INSTITUTE_NAME || "Broward-Miami Health Institute";
+const instituteAddress = process.env.INSTITUTE_ADDRESS || "6320 Miramar Pkwy Suite I, Miramar, FL 33023";
 const courseNavItems = ["Home", "Announcements", "Modules", "Assignments", "Discussions", "Grades", "People", "Pages", "Files", "Syllabus", "Outcomes", "Rubrics", "Quizzes", "Collaborations", "Course Analytics", "Settings"];
 const hideableCourseSections = courseNavItems.filter((item) => item !== "Home");
 const americanHeartAssociationSlugs = new Set([
@@ -716,7 +717,7 @@ app.get("/catalog", requireAuth, (req, res) => {
     </div>
 
     <section class="grid cols-4">
-      ${stat("Campus", "6320 Miramar Pkwy Suite I")}
+      ${stat("Campus", instituteAddress)}
       ${stat("Phone", "(754) 204-2704")}
       ${stat("Email", "Info@flcna.com")}
       ${stat("FLDOE License", "#9021")}
