@@ -528,7 +528,8 @@ function courseNavHref(baseHref, item, firstLessonId) {
   if (item === "Home") return baseHref;
   if (item === "Modules") return firstLessonId ? `${baseHref}?lesson=${firstLessonId}` : baseHref;
   if (item === "Syllabus") return `${baseHref}?view=syllabus`;
-  if (["Assignments", "Grades", "Quizzes"].includes(item)) return `${baseHref}?view=syllabus#course-assignments`;
+  if (item === "Grades") return `${baseHref}?view=grades`;
+  if (["Assignments", "Quizzes"].includes(item)) return `${baseHref}?view=syllabus#course-assignments`;
   return baseHref;
 }
 
@@ -563,13 +564,19 @@ function renderStudentCanvasRail(active = "courses") {
   `;
 }
 
-function renderStudentCanvasHeader(courseCode, baseHref) {
+function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = []) {
+  const crumbTrail = breadcrumbs.length ? breadcrumbs : [{ label: courseCode, href: baseHref }];
   return `
     <header class="canvas-populi-bar student-canvas-topbar">
       <a class="canvas-menu-button" href="${escapeHtml(baseHref)}" aria-label="Course menu">☰</a>
-      <strong>${escapeHtml(courseCode)}</strong>
+      <nav class="canvas-crumbs" aria-label="Course breadcrumbs">
+        ${crumbTrail.map((crumb, index) => `
+          ${index ? `<span>›</span>` : ""}
+          ${crumb.href ? `<a href="${escapeHtml(crumb.href)}">${escapeHtml(crumb.label)}</a>` : `<strong>${escapeHtml(crumb.label)}</strong>`}
+        `).join("")}
+      </nav>
       <span class="canvas-top-spacer"></span>
-      <a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=syllabus">Immersive Reader</a>
+      ${breadcrumbs.length ? "" : `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=syllabus">Immersive Reader</a>`}
     </header>
   `;
 }
@@ -635,6 +642,149 @@ function renderComingUp(lessons = [], baseHref = "#") {
         </article>
       `).join("") || `<p class="empty compact">Nothing coming up yet.</p>`}
     </section>
+  `;
+}
+
+function formatGradeDue(value) {
+  if (!value) return "";
+  const parsed = new Date(`${value}T23:59:00`);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return `${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(parsed)} by 11:59pm`;
+}
+
+function pnDiscussionGradeRows() {
+  return [
+    ["Week 1 Discussion: Nursing Identity, Purpose, and the Practical Nurse Role", "2026-06-28", 10, "missing"],
+    ["Week 2 Discussion: Nursing Then and Now, Reform, Education, and Public Trust", "2026-07-05", 10],
+    ["Week 3 Discussion: Caring, Comfort, Safety, Advocacy, and Healing", "2026-07-12", 10],
+    ["Week 4 Discussion: Health Care Teamwork, Scope, Delegation, and Communication", "2026-07-19", 10],
+    ["Week 5 Discussion: Ethics, Boundaries, Confidentiality, and Patient Rights", "2026-07-26", 10],
+    ["Week 6 Discussion: Legal Foundations, Privacy, Documentation, and Accountability", "2026-08-02", 10, "", true],
+    ["Week 7 Discussion: Culture, Health Equity, and Respectful Care", "2026-08-09", 10],
+    ["Week 8 Discussion: Safety, Quality, Infection Prevention, and the Nurse's Watchful Eye", "2026-08-16", 10],
+    ["Week 9 Discussion: Nursing Process and Clinical Judgment", "2026-08-23", 10],
+    ["Week 10 Discussion: Patient Teaching, Health Promotion, and Community Impact", "2026-08-30", 10],
+    ["Week 11 Discussion: Professionalism, Resilience, Leadership, and Lifelong Learning", "2026-09-06", 10]
+  ].map(([title, dueDate, points, status = "", highlighted = false]) => ({
+    title,
+    due_date: dueDate,
+    points_possible: points,
+    group: "Assignments",
+    status,
+    highlighted
+  }));
+}
+
+function studentGradebookRows(enrollment, gradeItems = [], grades = []) {
+  const scoreByItemId = new Map(grades.map((grade) => [grade.grade_item_id, grade.score]));
+  const savedRows = gradeItems.map((item) => ({
+    ...item,
+    group: item.title.toLowerCase().includes("elsevier") ? "Imported Assignments" : "Assignments",
+    score: scoreByItemId.has(item.id) ? scoreByItemId.get(item.id) : null
+  }));
+  if (enrollment.slug !== "introduction-to-nursing-practical-nursing") return savedRows;
+
+  const visibleSavedRows = savedRows.map((item) => {
+    if (item.title === "Class Participation and Professionalism") return { ...item, title: "Class Participation and Professionalism Acknowledgement" };
+    if (item.title === "Quiz 1: Weeks 1-2") return { ...item, title: "Quiz 1", points_possible: 20 };
+    return item;
+  });
+  const extraRows = [
+    { title: "Elsevier Adaptive Quizzing Quiz 1", points_possible: 100, group: "Imported Assignments", score: null },
+    { title: "Elsevier Adaptive Quizzing Quiz 2", points_possible: 100, group: "Imported Assignments", score: null },
+    { title: "Historical Nursing Leader Project: Legacy, Ethics, and Patient Care", points_possible: 100, group: "Assignments", score: null },
+    { title: "Nightingale Pledge Acknowledgement", points_possible: null, group: "Assignments", score: null, status: "info" }
+  ];
+  const preferredTitles = new Set([
+    "Class Participation and Professionalism Acknowledgement",
+    "Professional Beginning Reflection",
+    "Quiz 1"
+  ]);
+  const selectedSavedRows = visibleSavedRows.filter((item) => preferredTitles.has(item.title));
+  return [...pnDiscussionGradeRows(), ...extraRows, ...selectedSavedRows];
+}
+
+function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems = [], grades = [], student }) {
+  const rows = studentGradebookRows(enrollment, gradeItems, grades);
+  const scoredRows = rows.filter((row) => row.score !== null && row.score !== undefined && row.points_possible);
+  const earned = scoredRows.reduce((sum, row) => sum + Number(row.score || 0), 0);
+  const possible = scoredRows.reduce((sum, row) => sum + Number(row.points_possible || 0), 0);
+  const totalLabel = possible ? `${earned.toFixed(2)} / ${possible.toFixed(2)}` : "N/A (N/A)";
+  const studentLabel = personName(student);
+  const groupTotals = rows.reduce((groups, row) => {
+    const group = row.group || "Assignments";
+    const existing = groups.get(group) || { possible: 0, earned: 0 };
+    if (row.points_possible) existing.possible += Number(row.points_possible || 0);
+    if (row.score !== null && row.score !== undefined) existing.earned += Number(row.score || 0);
+    groups.set(group, existing);
+    return groups;
+  }, new Map());
+
+  return `
+    <main class="canvas-grades-main">
+      <section class="canvas-grades-content">
+        <div class="grades-title-row">
+          <h1>Grades for ${escapeHtml(studentLabel)}</h1>
+          <button class="canvas-print-button" type="button" onclick="window.print()">Print Grades</button>
+        </div>
+
+        <form class="grades-filter-row">
+          <label>
+            <strong>Arrange By</strong>
+            <select name="arrangeBy">
+              <option>Due Date</option>
+              <option>Assignment Group</option>
+              <option>Title</option>
+            </select>
+          </label>
+          <button type="button">Apply</button>
+        </form>
+
+        <div class="grades-tabs" role="tablist" aria-label="Grade views">
+          <button class="active" type="button">Assignments</button>
+          <button type="button">Learning Mastery</button>
+        </div>
+
+        <table class="canvas-grades-table">
+          <thead>
+            <tr><th>Name</th><th>Due</th><th>Submitted</th><th>Status</th><th>Score</th></tr>
+          </thead>
+          <tbody>
+            ${rows.map((row) => `
+              <tr class="${row.highlighted ? "highlighted" : ""}">
+                <td>
+                  <a href="${escapeHtml(baseHref)}?view=syllabus#course-assignments">${escapeHtml(row.title)}</a>
+                  <small>${escapeHtml(row.group || "Assignments")}</small>
+                </td>
+                <td>${escapeHtml(formatGradeDue(row.due_date))}</td>
+                <td></td>
+                <td>
+                  ${row.status === "missing" ? `<span class="grade-status missing">missing</span>` : row.status === "info" ? `<span class="grade-status info">!</span>` : ""}
+                </td>
+                <td>${row.points_possible ? `${row.score === null || row.score === undefined ? "-" : escapeHtml(row.score)} / ${escapeHtml(row.points_possible)}` : "-"}</td>
+              </tr>
+            `).join("")}
+            ${Array.from(groupTotals.entries()).map(([group, total]) => `
+              <tr class="grade-summary-row">
+                <td>${escapeHtml(group)}</td>
+                <td></td>
+                <td></td>
+                <td>N/A</td>
+                <td>${escapeHtml(total.earned.toFixed(2))} / ${escapeHtml(total.possible ? total.possible.toFixed(2) : "0.00")}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </section>
+
+      <aside class="grades-side-panel">
+        <strong>Total: ${escapeHtml(totalLabel)}</strong>
+        <button type="button">Show All Details</button>
+        <p><strong>Course assignments are not weighted.</strong></p>
+        <label><input type="checkbox" checked> Calculate based only on graded assignments</label>
+        <p>You can view your grades based on What-If scores so that you know how grades will be affected by upcoming or resubmitted assignments. You can test scores for an assignment that already includes a score, or an assignment that has yet to be graded.</p>
+      </aside>
+    </main>
   `;
 }
 
@@ -3936,6 +4086,12 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     WHERE course_id = ?
     ORDER BY due_date IS NULL, due_date, id
   `).all(enrollment.course_id);
+  const grades = db.prepare(`
+    SELECT g.*
+    FROM grades g
+    JOIN grade_items gi ON gi.id = g.grade_item_id
+    WHERE g.enrollment_id = ? AND gi.course_id = ?
+  `).all(enrollment.id, enrollment.course_id);
 
   const totalMinutes = lessons.reduce((total, lesson) => total + Number(lesson.duration_minutes || 0), 0);
   const courseCode = enrollment.slug === "introduction-to-nursing-practical-nursing"
@@ -4016,7 +4172,30 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       </nav>
     </aside>
   `;
-  const body = activeView === "syllabus" ? `
+  const body = activeView === "grades" ? `
+    <section class="canvas-course-shell canvas-grades-shell student-course-shell">
+      ${renderStudentCanvasRail("courses")}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+        { label: courseCode, href: courseBaseHref },
+        { label: "Grades", href: `${courseBaseHref}?view=grades` },
+        { label: personName(req.user) }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(studentCourseNavItems, courseBaseHref, "Grades", firstLesson.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+      ${courseOutlinePanel}
+      ${renderStudentGradesPage({
+        enrollment,
+        courseCode,
+        baseHref: courseBaseHref,
+        gradeItems,
+        grades,
+        student: req.user
+      })}
+    </section>
+  ` : activeView === "syllabus" ? `
     <section class="canvas-course-shell canvas-syllabus-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
       ${renderStudentCanvasHeader(courseCode, courseBaseHref)}
