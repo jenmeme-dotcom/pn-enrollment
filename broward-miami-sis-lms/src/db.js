@@ -63,6 +63,19 @@ function migrate() {
       position INTEGER NOT NULL DEFAULT 1
     );
 
+    CREATE TABLE IF NOT EXISTS course_imports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      file_original_name TEXT NOT NULL,
+      file_storage_name TEXT NOT NULL,
+      file_mime_type TEXT,
+      file_size INTEGER,
+      status TEXT NOT NULL DEFAULT 'uploaded' CHECK(status IN ('uploaded','reviewed','imported','failed')),
+      note TEXT,
+      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS enrollments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

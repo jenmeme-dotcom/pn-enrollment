@@ -31,8 +31,92 @@ const instituteName = process.env.INSTITUTE_NAME || "Broward-Miami Health Instit
 const instituteAddress = process.env.INSTITUTE_ADDRESS || "6320 Miramar Pkwy Suite I, Miramar, FL 33023";
 const institutePhone = process.env.INSTITUTE_PHONE || "954-248-0669";
 const instituteEmail = process.env.INSTITUTE_EMAIL || "support@browardmiamihi.com";
-const courseNavItems = ["Home", "Announcements", "Modules", "Assignments", "Discussions", "Grades", "People", "Pages", "Files", "Syllabus", "Outcomes", "Rubrics", "Quizzes", "Collaborations", "Course Analytics", "Settings"];
+const courseNavItems = [
+  "Home",
+  "Announcements",
+  "Modules",
+  "Assignments",
+  "Discussions",
+  "Grades",
+  "People",
+  "Pages",
+  "Files",
+  "Syllabus",
+  "Outcomes",
+  "Rubrics",
+  "Quizzes",
+  "Collaborations",
+  "Conferences",
+  "Groups",
+  "Calendar",
+  "Chat",
+  "Inbox",
+  "ePortfolios",
+  "Mastery Paths",
+  "Peer Reviews",
+  "Course Analytics",
+  "External Apps",
+  "Settings"
+];
 const hideableCourseSections = courseNavItems.filter((item) => item !== "Home");
+const lmsToolGroups = [
+  {
+    title: "Course content",
+    description: "Build structured, accessible learning experiences with reusable course materials.",
+    tools: [
+      { label: "Modules", section: "Modules", description: "Organize lessons, units, prerequisites, and completion order." },
+      { label: "Pages", section: "Pages", description: "Create rich instructional pages for readings, policies, and resources." },
+      { label: "Files", section: "Files", description: "Store handouts, forms, slides, videos, and course documents." },
+      { label: "Syllabus", section: "Syllabus", description: "Publish course expectations, pacing, grading, and required materials." },
+      { label: "Course Import Tool", adminOnly: true, description: "Upload existing LMS packages, Common Cartridge files, or bulk materials." }
+    ]
+  },
+  {
+    title: "Assessment and grading",
+    description: "Create graded work, feedback workflows, and progress records.",
+    tools: [
+      { label: "Assignments", section: "Assignments", description: "Build homework, skills checks, projects, and submission activities." },
+      { label: "Quizzes", section: "Quizzes", description: "Create knowledge checks, exams, and remediation assessments." },
+      { label: "Gradebook", section: "Grades", description: "Track scores, final grades, completion status, and reporting needs." },
+      { label: "SpeedGrader", adminOnly: true, description: "Review student submissions and provide instructor feedback." },
+      { label: "Peer Reviews", section: "Peer Reviews", description: "Support student-to-student feedback where appropriate." }
+    ]
+  },
+  {
+    title: "Communication and collaboration",
+    description: "Keep students, instructors, and course groups connected.",
+    tools: [
+      { label: "Announcements", section: "Announcements", description: "Post course news, reminders, and updates." },
+      { label: "Discussions", section: "Discussions", description: "Host guided course conversations and Q&A." },
+      { label: "Chat", section: "Chat", description: "Support real-time course interaction." },
+      { label: "Inbox", section: "Inbox", description: "Send and receive course messages inside the portal." },
+      { label: "Collaborations", section: "Collaborations", description: "Coordinate shared student or instructor work." },
+      { label: "Conferences", section: "Conferences", description: "Plan live virtual class meetings and reviews." },
+      { label: "Groups", section: "Groups", description: "Organize cohorts, lab teams, clinical groups, and project teams." },
+      { label: "ePortfolios", section: "ePortfolios", description: "Let students and instructors showcase work and artifacts." }
+    ]
+  },
+  {
+    title: "Outcomes and personalization",
+    description: "Connect course activities to measurable skills and individualized learning paths.",
+    tools: [
+      { label: "Outcomes", section: "Outcomes", description: "Attach institutional and program outcomes to course learning." },
+      { label: "Rubrics", section: "Rubrics", description: "Measure performance consistently across assignments and skills." },
+      { label: "Mastery Paths", section: "Mastery Paths", description: "Customize learning activities based on student performance." }
+    ]
+  },
+  {
+    title: "Analytics and integrations",
+    description: "Use data and external tools to support course management decisions.",
+    tools: [
+      { label: "Calendar", section: "Calendar", description: "Coordinate due dates, course meetings, and events." },
+      { label: "Course Analytics", section: "Course Analytics", description: "Monitor engagement, progress, completion, and student success signals." },
+      { label: "Canvas Data Services", adminOnly: true, description: "Prepare LMS usage data for institutional reporting and SQL-style analysis." },
+      { label: "External Apps (LTI Tools)", section: "External Apps", description: "Connect approved learning apps, assessment tools, and content repositories." },
+      { label: "App Center", adminOnly: true, description: "Maintain a library of approved external LMS apps and services." }
+    ]
+  }
+];
 const americanHeartAssociationSlugs = new Set([
   "basic-life-support",
   "advanced-cardiovascular-life-support",
@@ -55,11 +139,14 @@ const allowedUploadTypes = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
+  "application/zip",
+  "application/x-zip-compressed",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 ]);
+const allowedUploadExtensions = new Set([".pdf", ".jpg", ".jpeg", ".png", ".webp", ".doc", ".docx", ".xls", ".xlsx", ".zip", ".imscc"]);
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, callback) => callback(null, uploadDir),
@@ -70,8 +157,9 @@ const upload = multer({
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, callback) => {
-    if (allowedUploadTypes.has(file.mimetype)) return callback(null, true);
-    callback(new Error("Upload must be a PDF, image, Word document, or Excel file."));
+    const extension = path.extname(file.originalname || "").toLowerCase();
+    if (allowedUploadTypes.has(file.mimetype) || allowedUploadExtensions.has(extension)) return callback(null, true);
+    callback(new Error("Upload must be a PDF, image, Word document, Excel file, ZIP, or IMSCC package."));
   }
 });
 
@@ -395,6 +483,45 @@ function parseHiddenSections(course = {}) {
 function visibleCourseNavItems(course = {}) {
   const hidden = parseHiddenSections(course);
   return courseNavItems.filter((item) => item === "Home" || !hidden.has(item));
+}
+
+function toolStatus(course = {}, tool = {}) {
+  if (tool.adminOnly) return { label: "Admin tool", className: "neutral" };
+  if (!tool.section) return { label: "Enabled", className: "enabled" };
+  return parseHiddenSections(course).has(tool.section)
+    ? { label: "Hidden from students", className: "hidden" }
+    : { label: "Visible to students", className: "enabled" };
+}
+
+function renderLmsToolkit(course = {}, { compact = false } = {}) {
+  return `
+    <div class="${compact ? "lms-toolkit compact" : "lms-toolkit"}">
+      ${lmsToolGroups.map((group) => `
+        <article class="lms-tool-group">
+          <div class="lms-tool-group-head">
+            <div>
+              <h3>${escapeHtml(group.title)}</h3>
+              <p>${escapeHtml(group.description)}</p>
+            </div>
+          </div>
+          <div class="lms-tool-list">
+            ${group.tools.map((tool) => {
+              const status = toolStatus(course, tool);
+              return `
+                <div class="lms-tool-card">
+                  <div>
+                    <strong>${escapeHtml(tool.label)}</strong>
+                    <p>${escapeHtml(tool.description)}</p>
+                  </div>
+                  <span class="tool-status ${escapeHtml(status.className)}">${escapeHtml(status.label)}</span>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
 }
 
 function normalizeExternalUrl(value = "") {
@@ -1905,6 +2032,7 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
         <p>${escapeHtml(course.description)}</p>
       </div>
       <div class="actions">
+        <a class="button" href="/admin/courses/${course.id}/tools">Course Tools</a>
         <a class="button" href="/admin/courses/${course.id}/student-view">Student View</a>
         <a class="button ghost" href="/admin/courses/${course.id}">Instructor View</a>
         <a class="button ghost" href="/admin/courses">Back</a>
@@ -1914,6 +2042,16 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
       ${stat("Credential", course.credential_type)}
       ${stat("Clock hours", String(course.hours))}
       ${stat("Total cost", courseTotalCost(course) ? money(courseTotalCost(course)) : "Not set")}
+    </section>
+    <section class="card course-toolkit-card" style="margin-top:18px">
+      <div class="actions" style="justify-content:space-between">
+        <div>
+          <h2>Course Construction Toolkit</h2>
+          <p class="muted">Customize course content, assessment, collaboration, outcomes, analytics, and integrations for this course shell.</p>
+        </div>
+        <a class="button small" href="/admin/courses/${course.id}/tools">Open tools</a>
+      </div>
+      ${renderLmsToolkit(course, { compact: true })}
     </section>
     ${childCourses.length ? `
       <section class="card" style="margin-top:18px">
@@ -2052,6 +2190,112 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
   render(req, res, course.title, body);
 });
 
+app.get("/admin/courses/:id/tools", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!course) return res.status(404).send("Course not found");
+  const hiddenSections = parseHiddenSections(course);
+  const imports = db.prepare(`
+    SELECT ci.*, u.first_name, u.last_name
+    FROM course_imports ci
+    LEFT JOIN users u ON u.id = ci.uploaded_by
+    WHERE ci.course_id = ?
+    ORDER BY ci.uploaded_at DESC
+  `).all(course.id);
+  const importStatuses = ["uploaded", "reviewed", "imported", "failed"];
+
+  const body = `
+    <div class="page-head">
+      <div>
+        <h1>Course Construction Toolkit</h1>
+        <p>${escapeHtml(course.title)} tools for content, assessment, collaboration, outcomes, analytics, and integrations.</p>
+      </div>
+      <div class="actions">
+        <a class="button" href="/admin/courses/${course.id}/student-view">Student View</a>
+        <a class="button ghost" href="/admin/courses/${course.id}">Instructor View</a>
+        <a class="button ghost" href="/admin/courses">All Courses</a>
+      </div>
+    </div>
+
+    <section class="grid cols-3">
+      ${stat("Course", course.title)}
+      ${stat("Clock hours", String(course.hours))}
+      ${stat("Credential", course.credential_type)}
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <div class="actions" style="justify-content:space-between">
+        <div>
+          <h2>Built-in LMS tools</h2>
+          <p class="muted">Toggle student-facing tools below, then use this map to plan course design and instructor workflows.</p>
+        </div>
+        <a class="button small ghost" href="#course-import-tool">Course Import Tool</a>
+      </div>
+      ${renderLmsToolkit(course)}
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <h2>Student course navigation</h2>
+      <p class="muted">Home is always visible. These settings customize what students can access in this course shell.</p>
+      <form method="post" action="/admin/courses/${course.id}/sections">
+        <input type="hidden" name="redirectTo" value="/admin/courses/${course.id}/tools">
+        <div class="section-visibility-grid tool-customize-grid">
+          <label class="section-toggle locked">
+            <input type="checkbox" checked disabled>
+            <span>Home</span>
+            <small>Always visible</small>
+          </label>
+          ${hideableCourseSections.map((section) => `
+            <label class="section-toggle">
+              <input type="checkbox" name="visibleSections" value="${escapeHtml(section)}" ${hiddenSections.has(section) ? "" : "checked"}>
+              <span>${escapeHtml(section)}</span>
+              <small>${hiddenSections.has(section) ? "Hidden from students" : "Visible to students"}</small>
+            </label>
+          `).join("")}
+        </div>
+        <button type="submit">Save LMS tool visibility</button>
+      </form>
+    </section>
+
+    <section class="grid cols-2" style="margin-top:18px" id="course-import-tool">
+      <div class="card course-import-upload">
+        <h2>Course Import Tool</h2>
+        <p class="muted">Upload existing LMS packages or course materials for review before they are copied into modules, pages, assignments, quizzes, or files.</p>
+        <form method="post" action="/admin/courses/${course.id}/imports" enctype="multipart/form-data">
+          <label>LMS package or course material</label>
+          <input type="file" name="coursePackage" accept=".zip,.imscc,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp" required>
+          <label>Import notes</label>
+          <textarea name="note" placeholder="Example: PN Term 1 modules, quizzes, and skills checklists from prior LMS."></textarea>
+          <button type="submit">Upload course import</button>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Import history</h2>
+        <div class="course-import-list">
+          ${imports.map((item) => `
+            <form class="course-import-item" method="post" action="/admin/courses/${course.id}/imports/${item.id}">
+              <div class="course-import-head">
+                <div>
+                  <strong>${escapeHtml(item.file_original_name)}</strong>
+                  <small>${escapeHtml(formatBytes(item.file_size))} · Uploaded ${date(String(item.uploaded_at || "").slice(0, 10))}${item.first_name ? ` by ${escapeHtml(item.first_name)} ${escapeHtml(item.last_name)}` : ""}</small>
+                </div>
+                <a class="button small ghost" href="/admin/course-imports/${item.id}/download">Download</a>
+              </div>
+              <label>Status</label>
+              <select name="status">
+                ${importStatuses.map((status) => `<option value="${status}" ${item.status === status ? "selected" : ""}>${status}</option>`).join("")}
+              </select>
+              <label>Review notes</label>
+              <textarea name="note">${escapeHtml(item.note || "")}</textarea>
+              <button class="small" type="submit">Save import status</button>
+            </form>
+          `).join("") || `<p class="empty">No course imports uploaded yet.</p>`}
+        </div>
+      </div>
+    </section>
+  `;
+  render(req, res, `${course.title} Tools`, body);
+});
+
 app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(req.params.id));
   if (!course) return res.status(404).send("Course not found");
@@ -2160,6 +2404,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
           <p><span class="${course.published ? "published" : ""}"></span>${escapeHtml(course.published ? "Published" : "Unpublished")}</p>
           <small>Instructor preview</small>
         </div>
+        <a href="/admin/courses/${course.id}/tools">Course Construction Tools</a>
         <a href="/admin/courses/${course.id}">Edit Course Content</a>
         <a href="/admin/courses/${course.id}">Manage Enrollments</a>
         <a href="/admin/courses/${course.id}">Issue Credentials</a>
@@ -2205,7 +2450,62 @@ app.post("/admin/courses/:id/sections", requireAuth, requireRole("admin", "instr
   const hidden = hideableCourseSections.filter((section) => !visible.has(section));
   db.prepare("UPDATE courses SET hidden_sections = ? WHERE id = ?").run(JSON.stringify(hidden), course.id);
   flash(req, "Course section visibility updated.");
-  res.redirect(`/admin/courses/${course.id}`);
+  const redirectTo = String(req.body.redirectTo || "");
+  res.redirect(redirectTo.startsWith(`/admin/courses/${course.id}`) ? redirectTo : `/admin/courses/${course.id}`);
+});
+
+app.post("/admin/courses/:id/imports", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const course = db.prepare("SELECT id FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!course) return res.status(404).send("Course not found");
+
+  upload.single("coursePackage")(req, res, (error) => {
+    if (error) {
+      flash(req, error.message || "Upload failed.");
+      return res.redirect(`/admin/courses/${course.id}/tools`);
+    }
+    if (!req.file) {
+      flash(req, "Choose a course package or course material to upload.");
+      return res.redirect(`/admin/courses/${course.id}/tools`);
+    }
+    db.prepare(`
+      INSERT INTO course_imports (
+        course_id, file_original_name, file_storage_name, file_mime_type, file_size, note, uploaded_by
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      course.id,
+      req.file.originalname,
+      req.file.filename,
+      req.file.mimetype,
+      req.file.size,
+      String(req.body.note || "").trim(),
+      req.user.id
+    );
+    flash(req, "Course import uploaded for review.");
+    res.redirect(`/admin/courses/${course.id}/tools`);
+  });
+});
+
+app.post("/admin/courses/:id/imports/:importId", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const course = db.prepare("SELECT id FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!course) return res.status(404).send("Course not found");
+  const status = ["uploaded", "reviewed", "imported", "failed"].includes(req.body.status) ? req.body.status : "uploaded";
+  const result = db.prepare(`
+    UPDATE course_imports
+    SET status = ?, note = ?
+    WHERE id = ? AND course_id = ?
+  `).run(status, String(req.body.note || "").trim(), Number(req.params.importId), course.id);
+  if (!result.changes) return res.status(404).send("Course import not found");
+  flash(req, "Course import status updated.");
+  res.redirect(`/admin/courses/${course.id}/tools`);
+});
+
+app.get("/admin/course-imports/:id/download", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const item = db.prepare("SELECT * FROM course_imports WHERE id = ?").get(Number(req.params.id));
+  if (!item?.file_storage_name) return res.status(404).send("Course import not found");
+  const filePath = path.join(uploadDir, item.file_storage_name);
+  if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Course import file not found");
+  res.download(filePath, item.file_original_name || item.file_storage_name);
 });
 
 app.post("/admin/courses/:id/lessons", requireAuth, requireRole("admin", "instructor"), (req, res) => {

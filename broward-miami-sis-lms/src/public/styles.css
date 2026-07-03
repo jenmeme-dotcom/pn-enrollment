@@ -1500,6 +1500,133 @@ textarea {
   background: #f6f9fb;
 }
 
+.course-toolkit-card .lms-toolkit {
+  margin-top: 16px;
+}
+
+.lms-toolkit {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  margin-top: 18px;
+}
+
+.lms-toolkit.compact {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.lms-tool-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.lms-tool-group-head h3,
+.lms-tool-group-head p {
+  margin: 0;
+}
+
+.lms-tool-group-head h3 {
+  color: var(--ink);
+}
+
+.lms-tool-group-head p {
+  color: var(--muted);
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
+.lms-tool-list {
+  display: grid;
+  gap: 9px;
+}
+
+.lms-tool-card {
+  align-items: start;
+  background: #f8fbfc;
+  border: 1px solid #e5edf1;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 11px;
+}
+
+.lms-tool-card strong {
+  color: var(--ink);
+}
+
+.lms-tool-card p {
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 4px 0 0;
+}
+
+.tool-status {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.tool-status.enabled {
+  background: #eef8f1;
+  border-color: #b8d8ca;
+  color: #22613a;
+}
+
+.tool-status.hidden {
+  background: #fff6f2;
+  border-color: #f1c8b5;
+  color: #9a4a22;
+}
+
+.tool-status.neutral {
+  background: #f3f6f9;
+  color: #4d5b68;
+}
+
+.course-import-upload form,
+.course-import-list,
+.course-import-item {
+  display: grid;
+  gap: 10px;
+}
+
+.course-import-upload textarea,
+.course-import-item textarea {
+  min-height: 88px;
+}
+
+.course-import-list {
+  margin-top: 10px;
+}
+
+.course-import-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.course-import-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.course-import-head small {
+  color: var(--muted);
+  display: block;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
 .form-grid {
   display: grid;
   gap: 14px;
