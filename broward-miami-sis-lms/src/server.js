@@ -2407,7 +2407,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
     ["Email", req.user.email],
     ["Phone", req.user.phone || "Not on file"],
     ["Program", activeEnrollment?.title || "Not enrolled"],
-    ["Student Type", "Practical Nursing Student"],
+    ["Student Type", activeEnrollment ? `${activeEnrollment.category} Student` : "BMHI Student"],
     ["Status", req.user.status],
     ["Registered", date(req.user.created_at?.slice(0, 10))]
   ];
@@ -2804,7 +2804,7 @@ app.post("/student/financial-aid/:id/status", requireAuth, requireRole("student"
 
 app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, res) => {
   const enrollment = db.prepare(`
-    SELECT e.*, c.title, c.description, c.hours, c.credential_type, c.hidden_sections
+    SELECT e.*, c.title, c.slug, c.category, c.description, c.hours, c.credential_type, c.delivery_mode, c.hidden_sections
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     WHERE e.id = ? AND e.user_id = ?
@@ -2821,6 +2821,11 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   `).all(enrollment.course_id);
 
   const totalMinutes = lessons.reduce((total, lesson) => total + Number(lesson.duration_minutes || 0), 0);
+  const courseCode = enrollment.category === "Practical Nursing Course"
+    ? `PN-${String(enrollment.id).padStart(3, "0")}`
+    : `BMHI-${String(enrollment.id).padStart(3, "0")}`;
+  const courseHomeTitle = `${enrollment.title} Course Home`;
+  const courseFocus = enrollment.description || `${enrollment.title} coursework, lessons, assignments, attendance, progress tracking, and completion requirements.`;
   const moduleGroups = lessons.reduce((groups, lesson) => {
     const existing = groups.find((group) => group.id === lesson.module_id);
     if (existing) {
@@ -2915,7 +2920,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
           return `
             <div class="canvas-mini-head">
               <span></span>
-              <strong>${escapeHtml(enrollment.title.includes("Nursing") ? "PN 102" : "BMHI 101")}</strong>
+              <strong>${escapeHtml(courseCode)}</strong>
             </div>
             <article class="canvas-page-content">
               <p class="canvas-page-breadcrumb">
@@ -2973,14 +2978,14 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       <main class="canvas-course-main">
         <div class="canvas-mini-head">
           <span></span>
-          <strong>${escapeHtml(enrollment.title.includes("Nursing") ? "PN 102" : "BMHI 101")}</strong>
+          <strong>${escapeHtml(courseCode)}</strong>
         </div>
         <h1>${escapeHtml(enrollment.title)}</h1>
         <div class="canvas-rule"></div>
         <section class="canvas-home-card">
-          <h2>${escapeHtml(enrollment.title)} for Practical Nursing Students</h2>
+          <h2>${escapeHtml(courseHomeTitle)}</h2>
           <p>${escapeHtml(enrollment.description)}</p>
-          <p><strong>Course focus:</strong> Nursing history, nursing leaders, purpose of nursing, practical nurse role, ethics, legal responsibilities, professionalism, and student impact.</p>
+          <p><strong>Course focus:</strong> ${escapeHtml(courseFocus)}</p>
         </section>
 
         <section class="canvas-start">
@@ -3008,7 +3013,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         </section>
 
         <footer class="canvas-footer">
-          <strong>PN-INTRO</strong> | 12 Weeks | 3 Credits | ${escapeHtml(enrollment.hours)} Contact Hours | Practical Nursing Program
+          <strong>${escapeHtml(courseCode)}</strong> | ${escapeHtml(enrollment.hours)} Contact Hours | ${escapeHtml(enrollment.category)} | ${escapeHtml(enrollment.delivery_mode)}
         </footer>
       </main>
 
