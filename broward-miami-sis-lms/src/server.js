@@ -538,6 +538,72 @@ function renderCourseNav(navItems, baseHref, activeItem, firstLessonId) {
   `).join("");
 }
 
+function renderStartTiles(tiles = []) {
+  return `
+    <div class="start-tile-grid">
+      ${tiles.map((tile) => `
+        <a class="start-tile" href="${escapeHtml(tile.href)}">
+          <span class="${escapeHtml(tile.icon)}"></span>
+          <strong>${escapeHtml(tile.label)}</strong>
+        </a>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderCourseToDo(gradeItems = [], baseHref = "#") {
+  const items = gradeItems.slice(0, 3);
+  return `
+    <section class="canvas-task-panel">
+      <h2>To Do</h2>
+      ${items.map((item, index) => `
+        <article class="canvas-task-item">
+          <span>${escapeHtml(index + 1)}</span>
+          <div>
+            <a href="${escapeHtml(baseHref)}?view=syllabus#course-assignments">${escapeHtml(item.title)}</a>
+            <small>${escapeHtml(item.points_possible || 0)} points · ${item.due_date ? date(item.due_date) : "No Due Date"}</small>
+          </div>
+        </article>
+      `).join("") || `<p class="empty compact">No course tasks posted yet.</p>`}
+    </section>
+  `;
+}
+
+function renderComingUp(lessons = [], baseHref = "#") {
+  return `
+    <section class="canvas-task-panel">
+      <div class="task-panel-head">
+        <h2>Coming Up</h2>
+        <a href="${escapeHtml(baseHref)}?view=syllabus">View Calendar</a>
+      </div>
+      ${lessons.slice(0, 3).map((lesson, index) => `
+        <article class="canvas-upcoming-item">
+          <span>${escapeHtml(index + 1)}</span>
+          <div>
+            <a href="${escapeHtml(baseHref)}?lesson=${lesson.id}">${escapeHtml(lesson.title)}</a>
+            <small>${escapeHtml(lesson.duration_minutes)} minutes</small>
+          </div>
+        </article>
+      `).join("") || `<p class="empty compact">Nothing coming up yet.</p>`}
+    </section>
+  `;
+}
+
+function renderInstructorCourseActions(courseId) {
+  return `
+    <div class="canvas-action-stack">
+      <a href="/admin/courses/${courseId}/student-view">View as Student</a>
+      <a href="/admin/courses/${courseId}/tools#course-import-tool">Import Existing Content</a>
+      <a href="/admin/courses/${courseId}/tools#course-import-tool">Import from Commons</a>
+      <a href="/admin/courses/${courseId}/tools">Choose Home Page</a>
+      <a href="/admin/courses/${courseId}/tools">View Course Stream</a>
+      <a href="/admin/courses/${courseId}/tools">New Announcement</a>
+      <a href="/admin/courses/${courseId}/tools">Course Analytics</a>
+      <a href="/admin/courses/${courseId}/tools">View Course Notifications</a>
+    </div>
+  `;
+}
+
 function gradeItemType(title = "") {
   const lower = String(title).toLowerCase();
   if (lower.includes("quiz")) return "Quiz";
@@ -2465,6 +2531,12 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     WHERE m.course_id = ?
     ORDER BY m.position, l.position
   `).all(course.id);
+  const gradeItems = db.prepare(`
+    SELECT *
+    FROM grade_items
+    WHERE course_id = ?
+    ORDER BY due_date IS NULL, due_date, id
+  `).all(course.id);
 
   const moduleGroups = lessons.reduce((groups, lesson) => {
     const existing = groups.find((group) => group.id === lesson.module_id);
@@ -2483,7 +2555,49 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
 
   const firstLesson = lessons[0];
   const navItems = visibleCourseNavItems(course);
-  const body = `
+  const adminCourseBaseHref = `/admin/courses/${course.id}/student-view`;
+  const courseCode = course.slug === "introduction-to-nursing-practical-nursing" ? "PN 102" : `BMHI ${String(course.id).padStart(3, "0")}`;
+  const startTiles = [
+    { icon: "book", label: "Course Syllabus", href: `${adminCourseBaseHref}?view=syllabus` },
+    { icon: "brain", label: "Learning Modules", href: firstLesson ? `${adminCourseBaseHref}?lesson=${firstLesson.id}` : adminCourseBaseHref },
+    { icon: "check", label: "Assignments & Grades", href: `${adminCourseBaseHref}?view=syllabus#course-assignments` },
+    { icon: "question", label: "Course Q & A", href: firstLesson ? `${adminCourseBaseHref}?lesson=${firstLesson.id}` : adminCourseBaseHref }
+  ];
+  const activeView = String(req.query.view || "");
+  const body = activeView === "syllabus" ? `
+    <section class="canvas-course-shell canvas-syllabus-shell instructor-preview">
+      <aside class="canvas-global-rail">
+        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <span>${escapeHtml(initialsFor(req.user))}</span>
+        <i></i><i></i><i></i><i></i><i></i>
+      </aside>
+
+      <header class="canvas-populi-bar">
+        <a href="/admin/courses/${course.id}/student-view">${escapeHtml(courseCode)}</a>
+        <a href="/admin/courses/${course.id}">Instructor View</a>
+        <a href="/admin/courses/${course.id}">Edit Course</a>
+        <a href="/admin/courses">All Courses</a>
+        <span class="canvas-top-spacer"></span>
+        <a class="canvas-top-button" href="/admin/courses/${course.id}/student-view">View as Student</a>
+        <a class="canvas-top-button" href="/admin/courses/${course.id}/student-view?view=syllabus">Immersive Reader</a>
+      </header>
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(navItems, adminCourseBaseHref, "Syllabus", firstLesson?.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+      ${renderCourseSyllabus({
+        courseTitle: course.title,
+        courseDescription: course.description,
+        courseCode,
+        courseHours: course.hours,
+        courseCategory: course.category,
+        gradeItems,
+        lessons,
+        baseHref: adminCourseBaseHref
+      })}
+    </section>
+  ` : `
     <section class="canvas-course-shell instructor-preview">
       <aside class="canvas-global-rail">
         <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
@@ -2492,22 +2606,24 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
       </aside>
 
       <header class="canvas-populi-bar">
-        <a href="/admin/courses/${course.id}/student-view">Student View</a>
+        <a href="/admin/courses/${course.id}/student-view">${escapeHtml(courseCode)}</a>
         <a href="/admin/courses/${course.id}">Instructor View</a>
         <a href="/admin/courses/${course.id}">Edit Course</a>
         <a href="/admin/courses">All Courses</a>
+        <span class="canvas-top-spacer"></span>
+        <a class="canvas-top-button" href="/admin/courses/${course.id}/student-view">View as Student</a>
+        <a class="canvas-top-button" href="/admin/courses/${course.id}/student-view?view=syllabus">Immersive Reader</a>
       </header>
 
       <aside class="canvas-course-nav" id="canvas-course-navigation">
-        <a class="active" href="/admin/courses/${course.id}/student-view">Home</a>
-        ${navItems.slice(1).map((item) => `<a href="${item === "Modules" && firstLesson ? `/admin/courses/${course.id}/student-view?lesson=${firstLesson.id}` : `/admin/courses/${course.id}/student-view`}">${escapeHtml(item)}</a>`).join("")}
+        ${renderCourseNav(navItems, adminCourseBaseHref, "Home", firstLesson?.id)}
       </aside>
       <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
 
       <main class="canvas-course-main">
         <div class="canvas-mini-head">
           <span></span>
-          <strong>${escapeHtml(course.slug === "introduction-to-nursing-practical-nursing" ? "PN 102" : "BMHI 101")}</strong>
+          <strong>${escapeHtml(courseCode)}</strong>
         </div>
         <div class="preview-ribbon">
           <strong>Student View Preview</strong>
@@ -2525,19 +2641,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         <section class="canvas-start">
           <h2>Start Here</h2>
           <div class="canvas-rule thin"></div>
-          <div class="start-tile-grid">
-            ${[
-              ["book", "Course Syllabus"],
-              ["brain", "Learning Modules"],
-              ["check", "Assignments & Grades"],
-              ["question", "Course Q & A"]
-            ].map(([icon, label]) => `
-              <a class="start-tile" href="${firstLesson ? `/admin/courses/${course.id}/student-view?lesson=${firstLesson.id}` : `/admin/courses/${course.id}/student-view`}">
-                <span class="${icon}"></span>
-                <strong>${label}</strong>
-              </a>
-            `).join("")}
-          </div>
+          ${renderStartTiles(startTiles)}
         </section>
 
         <section class="canvas-modules">
@@ -2557,15 +2661,9 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
       </main>
 
       <aside class="canvas-rightbar">
-        <div class="canvas-status">
-          <h2>Course Status</h2>
-          <p><span class="${course.published ? "published" : ""}"></span>${escapeHtml(course.published ? "Published" : "Unpublished")}</p>
-          <small>Instructor preview</small>
-        </div>
-        <a href="/admin/courses/${course.id}/tools">Course Construction Tools</a>
-        <a href="/admin/courses/${course.id}">Edit Course Content</a>
-        <a href="/admin/courses/${course.id}">Manage Enrollments</a>
-        <a href="/admin/courses/${course.id}">Issue Credentials</a>
+        ${renderInstructorCourseActions(course.id)}
+        ${renderCourseToDo(gradeItems, adminCourseBaseHref)}
+        ${renderComingUp(lessons.slice(1), adminCourseBaseHref)}
       </aside>
     </section>
   `;
@@ -3988,14 +4086,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         <section class="canvas-start">
           <h2>Start Here</h2>
           <div class="canvas-rule thin"></div>
-          <div class="start-tile-grid">
-            ${startTiles.map((tile) => `
-              <a class="start-tile" href="${escapeHtml(tile.href)}">
-                <span class="${escapeHtml(tile.icon)}"></span>
-                <strong>${escapeHtml(tile.label)}</strong>
-              </a>
-            `).join("")}
-          </div>
+          ${renderStartTiles(startTiles)}
         </section>
 
         <section class="canvas-modules">
@@ -4021,15 +4112,13 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
           ${progressBar(enrollment.progress)}
           <small>${escapeHtml(enrollment.progress)}% complete</small>
         </div>
-        <a href="/student/enrollments/${enrollment.id}?lesson=${firstLesson.id}">View Course Stream</a>
-        <a href="/student/enrollments/${enrollment.id}?lesson=${firstLesson.id}">Course Analytics</a>
-        <a href="/student/profile">View Course Notifications</a>
-        <div class="coming-up">
-          <h2>Coming Up</h2>
-          ${upcomingLessons.map((lesson) => `
-            <p><a href="/student/enrollments/${enrollment.id}?lesson=${lesson.id}">${escapeHtml(lesson.title)}</a><br><span>${escapeHtml(lesson.duration_minutes)} minutes</span></p>
-          `).join("")}
+        <div class="canvas-action-stack student-actions">
+          <a href="/student/enrollments/${enrollment.id}?lesson=${firstLesson.id}">View Course Stream</a>
+          <a href="/student/enrollments/${enrollment.id}?view=syllabus#course-assignments">Assignments and Grades</a>
+          <a href="/student/profile">View Course Notifications</a>
         </div>
+        ${renderCourseToDo(gradeItems, courseBaseHref)}
+        ${renderComingUp(upcomingLessons.slice(1), courseBaseHref)}
       </aside>
     </section>
   `;
