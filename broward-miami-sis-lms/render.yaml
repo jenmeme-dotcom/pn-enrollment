@@ -16,6 +16,8 @@ services:
         value: 4321
       - key: DATABASE_FILE
         value: /data/bmhi.sqlite
+      - key: UPLOAD_DIR
+        value: /data/uploads
       - key: INSTITUTE_NAME
         value: Broward-Miami Health Institute
       - key: INSTITUTE_WEBSITE

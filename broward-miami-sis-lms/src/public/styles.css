@@ -826,6 +826,117 @@ nav a {
   font-size: 13px;
 }
 
+.registrar-mini-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.registrar-mini-list span {
+  background: #eef5f7;
+  border: 1px solid #d4e4e8;
+  border-radius: 999px;
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 6px 9px;
+}
+
+.registrar-stats {
+  margin-top: 18px;
+}
+
+.registrar-workbench {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(260px, 0.65fr) minmax(0, 1.35fr);
+  margin-top: 18px;
+}
+
+.registrar-overview {
+  position: sticky;
+  top: 128px;
+}
+
+.registrar-timeline,
+.registrar-checklist-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.registrar-timeline {
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.registrar-timeline p {
+  border-top: 1px solid var(--line);
+  margin: 0;
+  padding-top: 10px;
+}
+
+.registrar-timeline strong,
+.registrar-timeline span,
+.registrar-file strong,
+.registrar-file span {
+  display: block;
+}
+
+.registrar-timeline span,
+.registrar-file span,
+.registrar-file-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.registrar-item {
+  display: grid;
+  gap: 14px;
+}
+
+.registrar-item.approved {
+  border-color: #b8d8ca;
+}
+
+.registrar-item.missing {
+  border-color: #efc0c0;
+}
+
+.registrar-item-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.registrar-item-head h2,
+.registrar-item-head p {
+  margin: 0;
+}
+
+.registrar-item-head p {
+  color: var(--muted);
+  line-height: 1.45;
+  margin-top: 5px;
+}
+
+.registrar-form,
+.registrar-upload {
+  display: grid;
+  gap: 8px;
+}
+
+.registrar-file {
+  background: #f8fbfc;
+  border: 1px solid #e5edf1;
+  border-radius: 6px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
 .profile-note {
   color: var(--muted);
   line-height: 1.55;
@@ -3400,11 +3511,16 @@ button.small {
   .post-player,
   .post-body-grid,
   .lesson-bottom,
+  .registrar-workbench,
   .grid.cols-2,
   .grid.cols-3,
   .grid.cols-4,
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .registrar-overview {
+    position: static;
   }
 
   .canvas-course-shell {

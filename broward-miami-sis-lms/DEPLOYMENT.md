@@ -31,6 +31,7 @@ Render sets these through `render.yaml`:
 NODE_ENV=production
 PORT=4321
 DATABASE_FILE=/data/bmhi.sqlite
+UPLOAD_DIR=/data/uploads
 SESSION_SECRET=<generated>
 GHL_WEBHOOK_SECRET=<generated>
 INSTITUTE_NAME=Broward-Miami Health Institute
@@ -57,6 +58,6 @@ Use a real transactional mailbox/provider for `SMTP_FROM`. Gmail accounts usuall
 
 ## Data and Backups
 
-SQLite data lives at `/data/bmhi.sqlite`. Back up the Render disk regularly before using this with live student records.
+SQLite data lives at `/data/bmhi.sqlite`. Registrar checklist uploads live at `/data/uploads`. Back up the Render disk regularly before using this with live student records.
 
 For a larger production system, migrate to PostgreSQL, add automated backups, email-based password resets, audit logs, and admin password-management screens.

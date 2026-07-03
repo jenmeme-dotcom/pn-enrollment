@@ -204,6 +204,24 @@ function migrate() {
       external_delivered_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS student_record_checklist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      item_key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','received','approved','missing','waived')),
+      note TEXT,
+      file_original_name TEXT,
+      file_storage_name TEXT,
+      file_mime_type TEXT,
+      file_size INTEGER,
+      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      uploaded_at TEXT,
+      completed_at TEXT,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, item_key)
+    );
   `);
 
   const courseColumns = db.prepare("PRAGMA table_info(courses)").all().map((column) => column.name);

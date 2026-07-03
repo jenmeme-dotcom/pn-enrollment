@@ -1,11 +1,14 @@
 require("dotenv").config({ quiet: true });
 
 const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
 const express = require("express");
 const session = require("express-session");
 const bcrypt = require("bcryptjs");
+const multer = require("multer");
 const nodemailer = require("nodemailer");
-const { db, initialize } = require("./db");
+const { db, initialize, databaseFile } = require("./db");
 const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = require("./ui");
 
 initialize();
@@ -23,11 +26,39 @@ const americanHeartAssociationSlugs = new Set([
 const emailDeliveryEnabled = process.env.EMAIL_DELIVERY_ENABLED === "true";
 const emailFrom = process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@browardmiamihi.local";
 const externalBaseUrl = (process.env.PUBLIC_APP_URL || "https://bmhi-student-portal.onrender.com").replace(/\/+$/, "");
+const uploadDir = path.resolve(process.env.UPLOAD_DIR || path.join(path.dirname(databaseFile), "uploads"));
 let mailTransporter;
+
+fs.mkdirSync(uploadDir, { recursive: true });
 
 if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
   throw new Error("SESSION_SECRET is required in production.");
 }
+
+const allowedUploadTypes = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+]);
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => callback(null, uploadDir),
+    filename: (_req, file, callback) => {
+      const extension = path.extname(file.originalname || "").toLowerCase().slice(0, 12);
+      callback(null, `${crypto.randomUUID()}${extension}`);
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    if (allowedUploadTypes.has(file.mimetype)) return callback(null, true);
+    callback(new Error("Upload must be a PDF, image, Word document, or Excel file."));
+  }
+});
 
 app.set("trust proxy", 1);
 app.use(express.urlencoded({ extended: false }));
@@ -95,6 +126,59 @@ function classLockMessage(user) {
 
 function lockedButton(label = "Locked") {
   return `<span class="button small disabled" aria-disabled="true">${escapeHtml(label)}</span>`;
+}
+
+const registrarChecklistItems = [
+  { key: "admissions_documents", title: "Admissions documents", description: "Application, ID, enrollment agreement, entrance documents, and admissions forms." },
+  { key: "payment_plan", title: "Payment plan", description: "Tuition plan, payment status, financial clearance, and business office approval." },
+  { key: "clinical_requirements", title: "Clinical requirements", description: "Clinical eligibility documents, background requirements, compliance records, and site readiness." },
+  { key: "immunizations", title: "Immunizations", description: "Required immunization records, titers, health documents, and expiration tracking." },
+  { key: "signed_handbook", title: "Signed handbook", description: "Student handbook acknowledgement and policy agreement." },
+  { key: "transcript_upload", title: "Transcript upload", description: "Prior school transcripts, transfer records, and official academic documents." },
+  { key: "attendance_audit", title: "Attendance audit", description: "Attendance review, clock-hour audit, absence review, and makeup requirements." },
+  { key: "graduation_approval", title: "Graduation approval workflow", description: "Final registrar approval, credential readiness, account clearance, and graduation completion." }
+];
+const registrarStatuses = ["pending", "received", "approved", "missing", "waived"];
+
+function ensureRegistrarChecklist(userId) {
+  const insertItem = db.prepare(`
+    INSERT OR IGNORE INTO student_record_checklist (user_id, item_key, title)
+    VALUES (?, ?, ?)
+  `);
+  registrarChecklistItems.forEach((item) => insertItem.run(userId, item.key, item.title));
+}
+
+function registrarChecklistForStudent(userId) {
+  ensureRegistrarChecklist(userId);
+  const rows = db.prepare(`
+    SELECT *
+    FROM student_record_checklist
+    WHERE user_id = ?
+    ORDER BY CASE item_key
+      ${registrarChecklistItems.map((item, index) => `WHEN '${item.key}' THEN ${index}`).join(" ")}
+      ELSE 99
+    END
+  `).all(userId);
+  const descriptions = new Map(registrarChecklistItems.map((item) => [item.key, item.description]));
+  return rows.map((row) => ({ ...row, description: descriptions.get(row.item_key) || "" }));
+}
+
+function registrarProgress(rows = []) {
+  const complete = rows.filter((row) => ["approved", "waived"].includes(row.status)).length;
+  return { complete, total: registrarChecklistItems.length, percent: Math.round((complete / registrarChecklistItems.length) * 100) };
+}
+
+function formatBytes(value = 0) {
+  const bytes = Number(value || 0);
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isPathInside(parent, child) {
+  const relative = path.relative(parent, child);
+  return relative && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 function smtpReady() {
@@ -844,10 +928,14 @@ app.get("/admin/features/:slug", requireAuth, requireRole("admin"), (req, res) =
 app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const students = db.prepare(`
     SELECT u.*,
-      COUNT(e.id) AS enrollment_count,
-      SUM(CASE WHEN e.status = 'completed' THEN 1 ELSE 0 END) AS completed_count
+      COUNT(DISTINCT e.id) AS enrollment_count,
+      COUNT(DISTINCT CASE WHEN e.status = 'completed' THEN e.id END) AS completed_count,
+      COUNT(DISTINCT rc.id) AS checklist_count,
+      COUNT(DISTINCT CASE WHEN rc.status IN ('approved','waived') THEN rc.id END) AS checklist_complete,
+      COUNT(DISTINCT CASE WHEN rc.file_storage_name IS NOT NULL THEN rc.id END) AS checklist_uploads
     FROM users u
     LEFT JOIN enrollments e ON e.user_id = u.id
+    LEFT JOIN student_record_checklist rc ON rc.user_id = u.id
     WHERE u.role = 'student'
     GROUP BY u.id
     ORDER BY u.last_name, u.first_name
@@ -884,12 +972,15 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
       </form>
       <div class="card">
         <h2>Registrar checklist</h2>
-        <p class="muted">Recommended student records for the next phase: admissions documents, payment plan, clinical requirements, immunizations, signed handbook, transcript upload, attendance audit, and graduation approval workflow.</p>
+        <p class="muted">Interactive student record review with uploads, notes, status tracking, and graduation readiness controls.</p>
+        <div class="registrar-mini-list">
+          ${registrarChecklistItems.map((item) => `<span>${escapeHtml(item.title)}</span>`).join("")}
+        </div>
       </div>
     </section>
     <section class="table-card" style="margin-top:18px">
       <table>
-        <thead><tr><th>Name</th><th>Contact</th><th>Class access</th><th>Enrollments</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Contact</th><th>Class access</th><th>Registrar</th><th>Enrollments</th><th>Actions</th></tr></thead>
         <tbody>
           ${students.map((student) => `
             <tr>
@@ -898,6 +989,11 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
               <td>
                 <span class="pill ${student.organization_status === "not_organized" ? "orange" : ""}">${escapeHtml(student.organization_status === "not_organized" ? "Locked" : "Organized")}</span>
                 ${student.class_lock_reason ? `<br><span class="muted">${escapeHtml(student.class_lock_reason)}</span>` : ""}
+              </td>
+              <td>
+                <strong>${escapeHtml(student.checklist_complete || 0)}/${escapeHtml(registrarChecklistItems.length)}</strong> ready<br>
+                <span class="muted">${escapeHtml(student.checklist_uploads || 0)} upload${Number(student.checklist_uploads || 0) === 1 ? "" : "s"}</span><br>
+                <a class="button small ghost" href="/admin/students/${student.id}/registrar-checklist">Checklist</a>
               </td>
               <td>${student.enrollment_count || 0} total<br><span class="muted">${student.completed_count || 0} completed</span></td>
               <td>
@@ -915,12 +1011,167 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 </form>
               </td>
             </tr>
-          `).join("") || `<tr><td class="empty" colspan="5">No students yet.</td></tr>`}
+          `).join("") || `<tr><td class="empty" colspan="6">No students yet.</td></tr>`}
         </tbody>
       </table>
     </section>
   `;
   render(req, res, "Students", body);
+});
+
+app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const student = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
+  if (!student) return res.status(404).send("Student not found");
+  const checklist = registrarChecklistForStudent(student.id);
+  const progress = registrarProgress(checklist);
+  const enrollmentRows = db.prepare(`
+    SELECT e.*, c.title, c.category
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    WHERE e.user_id = ?
+    ORDER BY e.created_at DESC
+  `).all(student.id);
+
+  const body = `
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">Registrar Checklist</p>
+        <h1>${escapeHtml(student.first_name)} ${escapeHtml(student.last_name)}</h1>
+        <p>${escapeHtml(student.email)} · BMHI-${escapeHtml(String(student.id).padStart(5, "0"))}</p>
+      </div>
+      <div class="actions">
+        <a class="button ghost" href="/admin/students">Students</a>
+        <a class="button ghost" href="/admin/billing">Billing</a>
+      </div>
+    </div>
+
+    <section class="grid cols-4 registrar-stats">
+      ${stat("Ready items", `${progress.complete}/${progress.total}`)}
+      ${stat("Readiness", `${progress.percent}%`)}
+      ${stat("Uploaded files", String(checklist.filter((item) => item.file_storage_name).length))}
+      ${stat("Enrollments", String(enrollmentRows.length))}
+    </section>
+
+    <section class="registrar-workbench">
+      <article class="card registrar-overview">
+        <h2>Student file status</h2>
+        ${progressBar(progress.percent)}
+        <p class="muted">Approved or waived items count toward readiness. Uploaded files stay attached to each checklist item for registrar review.</p>
+        <div class="registrar-timeline">
+          ${enrollmentRows.map((row) => `<p><strong>${escapeHtml(row.title)}</strong><span>${escapeHtml(row.status)} · ${escapeHtml(row.progress)}% complete</span></p>`).join("") || `<p><strong>No enrollments</strong><span>Add the student to a course when ready.</span></p>`}
+        </div>
+      </article>
+
+      <div class="registrar-checklist-grid">
+        ${checklist.map((item) => `
+          <article class="card registrar-item ${escapeHtml(item.status)}">
+            <div class="registrar-item-head">
+              <div>
+                <h2>${escapeHtml(item.title)}</h2>
+                <p>${escapeHtml(item.description)}</p>
+              </div>
+              <span class="pill ${item.status === "missing" ? "orange" : item.status === "approved" ? "" : "orange"}">${escapeHtml(item.status)}</span>
+            </div>
+
+            <form class="registrar-form" method="post" action="/admin/students/${student.id}/registrar-checklist/${escapeHtml(item.item_key)}">
+              <label>Status</label>
+              <select name="status">
+                ${registrarStatuses.map((status) => `<option value="${status}" ${item.status === status ? "selected" : ""}>${status}</option>`).join("")}
+              </select>
+              <label>Staff note</label>
+              <textarea name="note" rows="3" placeholder="Add registrar notes, missing items, or review details.">${escapeHtml(item.note || "")}</textarea>
+              <button class="small" type="submit">Save review</button>
+            </form>
+
+            <form class="registrar-upload" method="post" action="/admin/students/${student.id}/registrar-checklist/${escapeHtml(item.item_key)}/upload" enctype="multipart/form-data">
+              <label>Upload file</label>
+              <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,application/pdf,image/*" required>
+              <button class="small ghost" type="submit">${item.file_storage_name ? "Replace file" : "Upload file"}</button>
+            </form>
+
+            ${item.file_storage_name ? `
+              <div class="registrar-file">
+                <strong>${escapeHtml(item.file_original_name || "Uploaded file")}</strong>
+                <span>${escapeHtml(formatBytes(item.file_size))} · ${escapeHtml(item.file_mime_type || "file")} · ${escapeHtml(item.uploaded_at ? formatMessageDate(item.uploaded_at) : "")}</span>
+                <a class="button small ghost" href="/admin/students/${student.id}/registrar-checklist/${escapeHtml(item.item_key)}/file">Download</a>
+              </div>
+            ` : `<p class="muted registrar-file-empty">No file uploaded yet.</p>`}
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
+  render(req, res, "Registrar Checklist", body);
+});
+
+app.post("/admin/students/:id/registrar-checklist/:itemKey", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const student = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
+  if (!student) return res.status(404).send("Student not found");
+  ensureRegistrarChecklist(student.id);
+  const itemKey = String(req.params.itemKey || "");
+  if (!registrarChecklistItems.some((item) => item.key === itemKey)) return res.status(404).send("Checklist item not found");
+  const status = registrarStatuses.includes(String(req.body.status || "")) ? String(req.body.status) : "pending";
+  db.prepare(`
+    UPDATE student_record_checklist
+    SET status = ?,
+      note = ?,
+      completed_at = CASE WHEN ? IN ('approved','waived') THEN COALESCE(completed_at, CURRENT_TIMESTAMP) ELSE NULL END,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = ? AND item_key = ?
+  `).run(status, String(req.body.note || "").trim(), status, student.id, itemKey);
+  flash(req, "Registrar checklist item updated.");
+  res.redirect(`/admin/students/${student.id}/registrar-checklist`);
+});
+
+app.post("/admin/students/:id/registrar-checklist/:itemKey/upload", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const student = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
+  if (!student) return res.status(404).send("Student not found");
+  const itemKey = String(req.params.itemKey || "");
+  if (!registrarChecklistItems.some((item) => item.key === itemKey)) return res.status(404).send("Checklist item not found");
+  ensureRegistrarChecklist(student.id);
+
+  upload.single("document")(req, res, (error) => {
+    if (error) {
+      flash(req, error.message || "Upload failed.");
+      return res.redirect(`/admin/students/${student.id}/registrar-checklist`);
+    }
+    if (!req.file) {
+      flash(req, "Choose a file to upload.");
+      return res.redirect(`/admin/students/${student.id}/registrar-checklist`);
+    }
+    const existing = db.prepare("SELECT file_storage_name FROM student_record_checklist WHERE user_id = ? AND item_key = ?").get(student.id, itemKey);
+    if (existing?.file_storage_name) {
+      const oldPath = path.join(uploadDir, existing.file_storage_name);
+      if (isPathInside(uploadDir, oldPath) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+    db.prepare(`
+      UPDATE student_record_checklist
+      SET file_original_name = ?,
+        file_storage_name = ?,
+        file_mime_type = ?,
+        file_size = ?,
+        uploaded_by = ?,
+        uploaded_at = CURRENT_TIMESTAMP,
+        status = CASE WHEN status = 'pending' THEN 'received' ELSE status END,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ? AND item_key = ?
+    `).run(req.file.originalname, req.file.filename, req.file.mimetype, req.file.size, req.user.id, student.id, itemKey);
+    flash(req, "Document uploaded to registrar checklist.");
+    res.redirect(`/admin/students/${student.id}/registrar-checklist`);
+  });
+});
+
+app.get("/admin/students/:id/registrar-checklist/:itemKey/file", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const item = db.prepare(`
+    SELECT rc.*
+    FROM student_record_checklist rc
+    JOIN users u ON u.id = rc.user_id
+    WHERE rc.user_id = ? AND rc.item_key = ? AND u.role = 'student'
+  `).get(Number(req.params.id), String(req.params.itemKey || ""));
+  if (!item?.file_storage_name) return res.status(404).send("File not found");
+  const filePath = path.join(uploadDir, item.file_storage_name);
+  if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("File not found");
+  res.download(filePath, item.file_original_name || item.file_storage_name);
 });
 
 app.post("/admin/students", requireAuth, requireRole("admin", "instructor"), (req, res) => {
