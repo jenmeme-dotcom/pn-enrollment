@@ -36,6 +36,8 @@ SESSION_SECRET=<generated>
 GHL_WEBHOOK_SECRET=<generated>
 INSTITUTE_NAME=Broward-Miami Health Institute
 INSTITUTE_ADDRESS=6320 Miramar Pkwy Suite I, Miramar, FL 33023
+INSTITUTE_PHONE=954-248-0669
+INSTITUTE_EMAIL=support@browardmiamihi.com
 INSTITUTE_WEBSITE=https://www.browardmiamihi.com
 PUBLIC_APP_URL=https://bmhi-student-portal.onrender.com
 ```

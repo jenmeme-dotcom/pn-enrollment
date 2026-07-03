@@ -22,6 +22,10 @@ services:
         value: Broward-Miami Health Institute
       - key: INSTITUTE_ADDRESS
         value: 6320 Miramar Pkwy Suite I, Miramar, FL 33023
+      - key: INSTITUTE_PHONE
+        value: 954-248-0669
+      - key: INSTITUTE_EMAIL
+        value: support@browardmiamihi.com
       - key: INSTITUTE_WEBSITE
         value: https://www.browardmiamihi.com
       - key: PUBLIC_APP_URL
