@@ -170,6 +170,47 @@ function renderTextWithLinks(value = "") {
   return output.replaceAll("\n", "<br>");
 }
 
+function personName(row = {}) {
+  return `${row.first_name || ""} ${row.last_name || ""}`.trim() || row.email || "User";
+}
+
+function formatMessageDate(value) {
+  if (!value) return "";
+  const normalized = String(value).includes("T") ? String(value) : String(value).replace(" ", "T");
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(parsed);
+}
+
+function messageList(messages, viewerId, emptyText) {
+  if (!messages.length) return `<p class="empty">${escapeHtml(emptyText)}</p>`;
+  return `
+    <div class="message-list">
+      ${messages.map((message) => {
+        const isIncoming = Number(message.recipient_id) === Number(viewerId);
+        const isUnread = isIncoming && !message.read_at;
+        return `
+          <article class="message-item ${isUnread ? "unread" : ""}">
+            <div class="message-head">
+              <div>
+                <h3>${isUnread ? `<span class="unread-dot" aria-label="Unread message"></span>` : ""}${escapeHtml(message.subject)}</h3>
+                <p>${escapeHtml(isIncoming ? `From ${message.sender_name}` : `To ${message.recipient_name}`)} · ${escapeHtml(formatMessageDate(message.created_at))}</p>
+              </div>
+              <span class="pill ${isUnread ? "orange" : ""}">${escapeHtml(isUnread ? "Unread" : isIncoming ? "Read" : "Sent")}</span>
+            </div>
+            <div class="message-body">${renderTextWithLinks(message.body)}</div>
+          </article>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
 function splitName(payload) {
   const firstName = payload.firstName || payload.first_name || payload.contact?.firstName || "";
   const lastName = payload.lastName || payload.last_name || payload.contact?.lastName || "";
@@ -482,6 +523,109 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
     </section>
   `;
   render(req, res, "Dashboard", body);
+});
+
+app.get("/admin/messages", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const students = db.prepare(`
+    SELECT id, first_name, last_name, email, status
+    FROM users
+    WHERE role = 'student' AND status = 'active'
+    ORDER BY last_name, first_name
+  `).all();
+  const unreadCount = db.prepare("SELECT COUNT(*) AS count FROM messages WHERE recipient_id = ? AND read_at IS NULL").get(req.user.id).count;
+  const inbox = db.prepare(`
+    SELECT m.*, s.first_name || ' ' || s.last_name AS sender_name, r.first_name || ' ' || r.last_name AS recipient_name
+    FROM messages m
+    JOIN users s ON s.id = m.sender_id
+    JOIN users r ON r.id = m.recipient_id
+    WHERE m.recipient_id = ?
+    ORDER BY m.created_at DESC
+    LIMIT 20
+  `).all(req.user.id);
+  const sent = db.prepare(`
+    SELECT m.*, s.first_name || ' ' || s.last_name AS sender_name, r.first_name || ' ' || r.last_name AS recipient_name
+    FROM messages m
+    JOIN users s ON s.id = m.sender_id
+    JOIN users r ON r.id = m.recipient_id
+    WHERE m.sender_id = ?
+    ORDER BY m.created_at DESC
+    LIMIT 20
+  `).all(req.user.id);
+  db.prepare("UPDATE messages SET read_at = CURRENT_TIMESTAMP WHERE recipient_id = ? AND read_at IS NULL").run(req.user.id);
+
+  const body = `
+    <div class="page-head">
+      <div>
+        <h1>Student Email</h1>
+        <p>Send portal messages to students, answer student questions, and keep school communications in one place.</p>
+      </div>
+      <a class="button ghost" href="/admin/students">Students</a>
+    </div>
+
+    <section class="grid cols-3">
+      ${stat("Active students", String(students.length))}
+      ${stat("Unread messages", String(unreadCount))}
+      ${stat("Sent messages", String(sent.length))}
+    </section>
+
+    <section class="grid cols-2 message-workspace">
+      <form class="card message-compose" method="post" action="/admin/messages">
+        <h2>Compose message</h2>
+        <label>To</label>
+        <select name="recipientId" required>
+          <option value="all_students">All active students</option>
+          ${students.map((student) => `<option value="${student.id}">${escapeHtml(personName(student))} · ${escapeHtml(student.email)}</option>`).join("")}
+        </select>
+        <label>Subject</label>
+        <input name="subject" maxlength="140" required placeholder="Registration reminder">
+        <label>Message</label>
+        <textarea name="body" rows="8" required placeholder="Write the student email message here."></textarea>
+        <button type="submit">Send message</button>
+      </form>
+
+      <article class="card">
+        <h2>Inbox</h2>
+        ${messageList(inbox, req.user.id, "No student replies yet.")}
+      </article>
+
+      <article class="card span-2">
+        <h2>Recently sent</h2>
+        ${messageList(sent, req.user.id, "No messages sent yet.")}
+      </article>
+    </section>
+  `;
+  render(req, res, "Student Email", body);
+});
+
+app.post("/admin/messages", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const recipientId = String(req.body.recipientId || "");
+  const subject = String(req.body.subject || "").trim().slice(0, 140);
+  const body = String(req.body.body || "").trim();
+  if (!subject || !body) {
+    flash(req, "Subject and message are required.");
+    return res.redirect("/admin/messages");
+  }
+
+  const insertMessage = db.prepare(`
+    INSERT INTO messages (sender_id, recipient_id, subject, body)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  if (recipientId === "all_students") {
+    const students = db.prepare("SELECT id FROM users WHERE role = 'student' AND status = 'active'").all();
+    students.forEach((student) => insertMessage.run(req.user.id, student.id, subject, body));
+    flash(req, `Message sent to ${students.length} active student${students.length === 1 ? "" : "s"}.`);
+    return res.redirect("/admin/messages");
+  }
+
+  const recipient = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'student' AND status = 'active'").get(Number(recipientId));
+  if (!recipient) {
+    flash(req, "Please choose an active student recipient.");
+    return res.redirect("/admin/messages");
+  }
+  insertMessage.run(req.user.id, recipient.id, subject, body);
+  flash(req, "Message sent.");
+  res.redirect("/admin/messages");
 });
 
 app.get("/admin/features", requireAuth, requireRole("admin"), (req, res) => {
@@ -1970,6 +2114,103 @@ app.get("/student/transcript", requireAuth, requireRole("student"), (req, res) =
     </section>
   `;
   render(req, res, "Transcript", body, { studentPortal: true, activeStudentNav: "transcript" });
+});
+
+app.get("/student/email", requireAuth, requireRole("student"), (req, res) => {
+  const staff = db.prepare(`
+    SELECT id, first_name, last_name, email, role
+    FROM users
+    WHERE role IN ('admin', 'instructor') AND status = 'active'
+    ORDER BY role, last_name, first_name
+  `).all();
+  const unreadCount = db.prepare("SELECT COUNT(*) AS count FROM messages WHERE recipient_id = ? AND read_at IS NULL").get(req.user.id).count;
+  const inbox = db.prepare(`
+    SELECT m.*, s.first_name || ' ' || s.last_name AS sender_name, r.first_name || ' ' || r.last_name AS recipient_name
+    FROM messages m
+    JOIN users s ON s.id = m.sender_id
+    JOIN users r ON r.id = m.recipient_id
+    WHERE m.recipient_id = ?
+    ORDER BY m.created_at DESC
+    LIMIT 20
+  `).all(req.user.id);
+  const sent = db.prepare(`
+    SELECT m.*, s.first_name || ' ' || s.last_name AS sender_name, r.first_name || ' ' || r.last_name AS recipient_name
+    FROM messages m
+    JOIN users s ON s.id = m.sender_id
+    JOIN users r ON r.id = m.recipient_id
+    WHERE m.sender_id = ?
+    ORDER BY m.created_at DESC
+    LIMIT 20
+  `).all(req.user.id);
+  db.prepare("UPDATE messages SET read_at = CURRENT_TIMESTAMP WHERE recipient_id = ? AND read_at IS NULL").run(req.user.id);
+
+  const body = `
+    <section class="student-registration">
+      <div class="financial-head">
+        <div>
+          <p class="eyebrow">Student Email</p>
+          <h1>Inbox</h1>
+          <p>Message BMHI staff about courses, registration, billing, records, or student support.</p>
+        </div>
+        <div class="financial-actions">
+          <a class="button ghost" href="/student">Dashboard</a>
+          <a class="button ghost" href="/student/profile">My Profile</a>
+        </div>
+      </div>
+
+      <section class="grid cols-3 registration-stats">
+        ${stat("Unread", String(unreadCount))}
+        ${stat("Inbox", String(inbox.length))}
+        ${stat("Sent", String(sent.length))}
+      </section>
+
+      <section class="grid cols-2 message-workspace">
+        <form class="student-panel message-compose" method="post" action="/student/email">
+          <h2>New message</h2>
+          <label>To</label>
+          <select name="recipientId" required>
+            ${staff.map((person) => `<option value="${person.id}">${escapeHtml(personName(person))} · ${escapeHtml(person.role)}</option>`).join("")}
+          </select>
+          <label>Subject</label>
+          <input name="subject" maxlength="140" required placeholder="Question about my course">
+          <label>Message</label>
+          <textarea name="body" rows="8" required placeholder="Write your message to BMHI staff."></textarea>
+          <button type="submit">Send message</button>
+        </form>
+
+        <article class="student-panel">
+          <h2>Inbox</h2>
+          ${messageList(inbox, req.user.id, "No messages yet.")}
+        </article>
+
+        <article class="student-panel span-2">
+          <h2>Sent</h2>
+          ${messageList(sent, req.user.id, "No sent messages yet.")}
+        </article>
+      </section>
+    </section>
+  `;
+  render(req, res, "Student Email", body, { studentPortal: true, activeStudentNav: "email" });
+});
+
+app.post("/student/email", requireAuth, requireRole("student"), (req, res) => {
+  const recipient = db.prepare(`
+    SELECT id
+    FROM users
+    WHERE id = ? AND role IN ('admin', 'instructor') AND status = 'active'
+  `).get(Number(req.body.recipientId));
+  const subject = String(req.body.subject || "").trim().slice(0, 140);
+  const body = String(req.body.body || "").trim();
+  if (!recipient || !subject || !body) {
+    flash(req, "Please choose a staff recipient and enter a subject and message.");
+    return res.redirect("/student/email");
+  }
+  db.prepare(`
+    INSERT INTO messages (sender_id, recipient_id, subject, body)
+    VALUES (?, ?, ?, ?)
+  `).run(req.user.id, recipient.id, subject, body);
+  flash(req, "Message sent to staff.");
+  res.redirect("/student/email");
 });
 
 app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {

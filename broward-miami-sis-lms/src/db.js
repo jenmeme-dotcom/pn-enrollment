@@ -191,6 +191,16 @@ function migrate() {
       message TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      read_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   const courseColumns = db.prepare("PRAGMA table_info(courses)").all().map((column) => column.name);
@@ -342,6 +352,24 @@ function seed() {
     INSERT OR IGNORE INTO billing_refund_policies (name, description, active)
     VALUES ('BMHI Standard Refund Policy', 'Refund eligibility is calculated from the signed enrollment agreement, catalog policy, attendance, charges posted, aid disbursed, payments applied, and official withdrawal date.', 1)
   `).run();
+
+  const adminUser = db.prepare("SELECT id FROM users WHERE email = ?").get("admin@browardmiamihi.local");
+  const welcomeMessage = db.prepare(`
+    SELECT id
+    FROM messages
+    WHERE sender_id = ? AND recipient_id = ? AND subject = 'Welcome to your BMHI student email'
+  `).get(adminUser.id, demoStudent.id);
+  if (!welcomeMessage) {
+    db.prepare(`
+      INSERT INTO messages (sender_id, recipient_id, subject, body)
+      VALUES (?, ?, ?, ?)
+    `).run(
+      adminUser.id,
+      demoStudent.id,
+      "Welcome to your BMHI student email",
+      "This inbox is for school messages, course questions, financial reminders, and registrar updates. You can reply to staff from the Student Email page."
+    );
+  }
 }
 
 function initialize() {
