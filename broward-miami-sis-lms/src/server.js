@@ -538,6 +538,42 @@ function renderCourseNav(navItems, baseHref, activeItem, firstLessonId) {
   `).join("");
 }
 
+function renderStudentCanvasRail(active = "courses") {
+  const items = [
+    { key: "account", label: "Account", href: "/student/profile", icon: "○" },
+    { key: "dashboard", label: "Dashboard", href: "/student", icon: "⌁" },
+    { key: "courses", label: "Courses", href: "/student/courses", icon: "▤" },
+    { key: "calendar", label: "Calendar", href: "/student/profile#attendance", icon: "▦" },
+    { key: "inbox", label: "Inbox", href: "/student/email", icon: "▧" },
+    { key: "history", label: "History", href: "/student/profile#timeline", icon: "◷" },
+    { key: "help", label: "Help", href: "/catalog", icon: "?" }
+  ];
+  return `
+    <aside class="canvas-global-rail student-canvas-rail">
+      <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+      <nav aria-label="Canvas global navigation">
+        ${items.map((item) => `
+          <a class="${item.key === active ? "active" : ""}" href="${escapeHtml(item.href)}">
+            <span>${escapeHtml(item.icon)}</span>
+            <strong>${escapeHtml(item.label)}</strong>
+          </a>
+        `).join("")}
+      </nav>
+    </aside>
+  `;
+}
+
+function renderStudentCanvasHeader(courseCode, baseHref) {
+  return `
+    <header class="canvas-populi-bar student-canvas-topbar">
+      <a class="canvas-menu-button" href="${escapeHtml(baseHref)}" aria-label="Course menu">☰</a>
+      <strong>${escapeHtml(courseCode)}</strong>
+      <span class="canvas-top-spacer"></span>
+      <a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=syllabus">Immersive Reader</a>
+    </header>
+  `;
+}
+
 function renderStartTiles(tiles = []) {
   return `
     <div class="start-tile-grid">
@@ -551,8 +587,19 @@ function renderStartTiles(tiles = []) {
   `;
 }
 
-function renderCourseToDo(gradeItems = [], baseHref = "#") {
-  const items = gradeItems.slice(0, 3);
+function renderCourseToDo(gradeItems = [], baseHref = "#", { limit = 3, courseTitle = "Course" } = {}) {
+  const fallbackItems = [
+    { title: "Week 1 Objectives and Learning Activity", points_possible: 0, due_date: "2026-06-22" },
+    { title: "Week 1 Discussion: Course Q & A", points_possible: 10, due_date: "2026-06-28" },
+    { title: "Week 2 Objectives and Learning Activity", points_possible: 0, due_date: "2026-06-29" },
+    { title: "The Nightingale Pledge Acknowledgement", points_possible: 0, due_date: "2026-06-30" },
+    { title: "Week 2 Discussion: Professionalism", points_possible: 10, due_date: "2026-07-05" },
+    { title: "Week 3 Objectives and Learning Activity", points_possible: 0, due_date: "2026-07-06" }
+  ];
+  const sourceItems = gradeItems.length >= limit
+    ? gradeItems
+    : [...gradeItems, ...fallbackItems].slice(0, limit);
+  const items = sourceItems.slice(0, limit);
   return `
     <section class="canvas-task-panel">
       <h2>To Do</h2>
@@ -561,8 +608,10 @@ function renderCourseToDo(gradeItems = [], baseHref = "#") {
           <span>${escapeHtml(index + 1)}</span>
           <div>
             <a href="${escapeHtml(baseHref)}?view=syllabus#course-assignments">${escapeHtml(item.title)}</a>
+            <em>${escapeHtml(courseTitle)}</em>
             <small>${escapeHtml(item.points_possible || 0)} points · ${item.due_date ? date(item.due_date) : "No Due Date"}</small>
           </div>
+          <b aria-hidden="true">×</b>
         </article>
       `).join("") || `<p class="empty compact">No course tasks posted yet.</p>`}
     </section>
@@ -2882,12 +2931,14 @@ app.get("/credentials/:id/print", requireAuth, (req, res) => {
 
 app.get("/student", requireAuth, requireRole("student"), (req, res) => {
   const enrollments = db.prepare(`
-    SELECT e.*, c.title, c.category, c.description, c.hours, c.credential_type, cr.id AS credential_id
+    SELECT e.*, c.title, c.slug, c.category, c.description, c.hours, c.credential_type, cr.id AS credential_id
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     LEFT JOIN credentials cr ON cr.enrollment_id = e.id
     WHERE e.user_id = ?
-    ORDER BY e.created_at DESC
+    ORDER BY
+      CASE WHEN c.slug = 'introduction-to-nursing-practical-nursing' THEN 0 ELSE 1 END,
+      e.created_at DESC
   `).all(req.user.id);
 
   const studentName = `${req.user.first_name} ${req.user.last_name}`.trim();
@@ -3020,12 +3071,13 @@ app.get("/student", requireAuth, requireRole("student"), (req, res) => {
 
 app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
   const enrollments = db.prepare(`
-    SELECT e.*, c.title, c.category, c.description, c.hours, c.credential_type, c.delivery_mode, cr.id AS credential_id
+    SELECT e.*, c.title, c.slug, c.category, c.description, c.hours, c.credential_type, c.delivery_mode, cr.id AS credential_id
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     LEFT JOIN credentials cr ON cr.enrollment_id = e.id
     WHERE e.user_id = ?
     ORDER BY
+      CASE WHEN c.slug = 'introduction-to-nursing-practical-nursing' THEN 0 ELSE 1 END,
       CASE e.status WHEN 'active' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
       e.created_at DESC
   `).all(req.user.id);
@@ -3886,11 +3938,17 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   `).all(enrollment.course_id);
 
   const totalMinutes = lessons.reduce((total, lesson) => total + Number(lesson.duration_minutes || 0), 0);
-  const courseCode = enrollment.category === "Practical Nursing Course"
-    ? `PN-${String(enrollment.id).padStart(3, "0")}`
-    : `BMHI-${String(enrollment.id).padStart(3, "0")}`;
-  const courseHomeTitle = `${enrollment.title} Course Home`;
-  const courseFocus = enrollment.description || `${enrollment.title} coursework, lessons, assignments, attendance, progress tracking, and completion requirements.`;
+  const courseCode = enrollment.slug === "introduction-to-nursing-practical-nursing"
+    ? "PN 102"
+    : enrollment.category === "Practical Nursing Course"
+      ? `PN-${String(enrollment.course_id).padStart(3, "0")}`
+      : `BMHI-${String(enrollment.course_id).padStart(3, "0")}`;
+  const courseHomeTitle = enrollment.slug === "introduction-to-nursing-practical-nursing"
+    ? "Introduction to Nursing for Practical Nursing Students"
+    : `${enrollment.title} Course Home`;
+  const courseFocus = enrollment.slug === "introduction-to-nursing-practical-nursing"
+    ? "Nursing history, nursing leaders, purpose of nursing, practical nurse role, ethics, legal responsibilities, professionalism, and student impact."
+    : enrollment.description || `${enrollment.title} coursework, lessons, assignments, attendance, progress tracking, and completion requirements.`;
   const moduleGroups = lessons.reduce((groups, lesson) => {
     const existing = groups.find((group) => group.id === lesson.module_id);
     if (existing) {
@@ -3925,7 +3983,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   const navItems = visibleCourseNavItems(enrollment);
   const courseBaseHref = `/student/enrollments/${enrollment.id}`;
   const activeView = String(req.query.view || "");
-  const populiItems = ["Home", "Files", "Calendar", "Email", "Financial", "Bookstore", "Library"];
+  const studentCourseNavItems = navItems.filter((item) => ["Home", "Modules", "Grades"].includes(item));
   const startTiles = [
     { icon: "book", label: "Course Syllabus", href: `${courseBaseHref}?view=syllabus` },
     { icon: "brain", label: "Learning Modules", href: `/student/enrollments/${enrollment.id}?lesson=${firstLesson.id}` },
@@ -3959,20 +4017,12 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     </aside>
   `;
   const body = activeView === "syllabus" ? `
-    <section class="canvas-course-shell canvas-syllabus-shell">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
-
-      <header class="canvas-populi-bar">
-        <a href="/student">Student Home</a>
-        ${populiItems.map((item) => `<a href="${item === "Home" ? "/student" : item === "Financial" ? "/student/financial" : "/student/profile"}">${escapeHtml(item)}</a>`).join("")}
-      </header>
+    <section class="canvas-course-shell canvas-syllabus-shell student-course-shell">
+      ${renderStudentCanvasRail("courses")}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref)}
 
       <aside class="canvas-course-nav" id="canvas-course-navigation">
-        ${renderCourseNav(navItems, courseBaseHref, "Syllabus", firstLesson.id)}
+        ${renderCourseNav(studentCourseNavItems, courseBaseHref, "Syllabus", firstLesson.id)}
       </aside>
       <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
       ${courseOutlinePanel}
@@ -3988,20 +4038,12 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       })}
     </section>
   ` : req.query.lesson ? `
-    <section class="canvas-course-shell canvas-lesson-shell">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
-
-      <header class="canvas-populi-bar">
-        <a href="/student">Student Home</a>
-        ${populiItems.map((item) => `<a href="${item === "Home" ? "/student" : item === "Financial" ? "/student/financial" : "/student/profile"}">${escapeHtml(item)}</a>`).join("")}
-      </header>
+    <section class="canvas-course-shell canvas-lesson-shell student-course-shell">
+      ${renderStudentCanvasRail("courses")}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref)}
 
       <aside class="canvas-course-nav" id="canvas-course-navigation">
-        ${renderCourseNav(navItems, courseBaseHref, "Modules", firstLesson.id)}
+        ${renderCourseNav(studentCourseNavItems, courseBaseHref, "Modules", firstLesson.id)}
       </aside>
       <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
       ${courseOutlinePanel}
@@ -4052,35 +4094,23 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       </main>
     </section>
   ` : `
-    <section class="canvas-course-shell">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
-
-      <header class="canvas-populi-bar">
-        <a href="/student">Student Home</a>
-        ${populiItems.map((item) => `<a href="${item === "Home" ? "/student" : item === "Financial" ? "/student/financial" : "/student/profile"}">${escapeHtml(item)}</a>`).join("")}
-      </header>
+    <section class="canvas-course-shell student-course-shell student-course-home">
+      ${renderStudentCanvasRail("courses")}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref)}
 
       <aside class="canvas-course-nav" id="canvas-course-navigation">
-        ${renderCourseNav(navItems, courseBaseHref, "Home", firstLesson.id)}
+        ${renderCourseNav(studentCourseNavItems, courseBaseHref, "Home", firstLesson.id)}
       </aside>
       <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
       ${courseOutlinePanel}
 
       <main class="canvas-course-main">
-        <div class="canvas-mini-head">
-          <span></span>
-          <strong>${escapeHtml(courseCode)}</strong>
-        </div>
         <h1>${escapeHtml(enrollment.title)}</h1>
         <div class="canvas-rule"></div>
         <section class="canvas-home-card">
           <h2>${escapeHtml(courseHomeTitle)}</h2>
           <p>${escapeHtml(enrollment.description)}</p>
-          <p><strong>Course focus:</strong> ${escapeHtml(courseFocus)}</p>
+          <p><strong>Course objectives:</strong> ${escapeHtml(courseFocus)}</p>
         </section>
 
         <section class="canvas-start">
@@ -4089,36 +4119,18 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
           ${renderStartTiles(startTiles)}
         </section>
 
-        <section class="canvas-modules">
-          <h2>Learning Modules</h2>
-          ${moduleGroups.slice(0, 6).map((module) => `
-            <article>
-              <strong>${escapeHtml(module.position)}. ${escapeHtml(module.title)}</strong>
-              <span>${escapeHtml(module.lessons.length)} lessons</span>
-              <a href="/student/enrollments/${enrollment.id}?lesson=${module.lessons[0].id}">Open</a>
-            </article>
-          `).join("")}
-        </section>
-
         <footer class="canvas-footer">
-          <strong>${escapeHtml(courseCode)}</strong> | ${escapeHtml(enrollment.hours)} Contact Hours | ${escapeHtml(enrollment.category)} | ${escapeHtml(enrollment.delivery_mode)}
+          <strong>${escapeHtml(courseCode)}</strong> | 12 Weeks | 3 Credits | ${escapeHtml(enrollment.hours)} Contact Hours | ${escapeHtml(enrollment.category)}
         </footer>
       </main>
 
       <aside class="canvas-rightbar">
-        <div class="canvas-status">
-          <h2>Course Status</h2>
-          <p><span class="${enrollment.status === "completed" ? "published" : ""}"></span>${escapeHtml(enrollment.status === "completed" ? "Completed" : "Active")}</p>
-          ${progressBar(enrollment.progress)}
-          <small>${escapeHtml(enrollment.progress)}% complete</small>
-        </div>
         <div class="canvas-action-stack student-actions">
           <a href="/student/enrollments/${enrollment.id}?lesson=${firstLesson.id}">View Course Stream</a>
-          <a href="/student/enrollments/${enrollment.id}?view=syllabus#course-assignments">Assignments and Grades</a>
+          <a href="/student/enrollments/${enrollment.id}?view=syllabus">View Course Calendar</a>
           <a href="/student/profile">View Course Notifications</a>
         </div>
-        ${renderCourseToDo(gradeItems, courseBaseHref)}
-        ${renderComingUp(upcomingLessons.slice(1), courseBaseHref)}
+        ${renderCourseToDo(gradeItems, courseBaseHref, { limit: 6, courseTitle: enrollment.title })}
       </aside>
     </section>
   `;

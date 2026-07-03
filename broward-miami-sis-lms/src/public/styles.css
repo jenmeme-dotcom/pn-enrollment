@@ -1988,6 +1988,11 @@ button.small {
   transition: grid-template-columns 180ms ease;
 }
 
+.student-course-shell {
+  grid-template-columns: 90px 214px minmax(0, 1fr) 280px;
+  grid-template-rows: 78px 1fr;
+}
+
 .canvas-global-rail {
   align-items: center;
   background: #17375c;
@@ -1998,6 +2003,11 @@ button.small {
   padding: 8px 0;
 }
 
+.student-canvas-rail {
+  gap: 10px;
+  padding: 6px 0 0;
+}
+
 .canvas-global-rail img {
   background: white;
   border-radius: 2px;
@@ -2006,6 +2016,40 @@ button.small {
   object-fit: contain;
   padding: 2px;
   width: 42px;
+}
+
+.student-canvas-rail img {
+  height: 74px;
+  width: 74px;
+}
+
+.student-canvas-rail nav {
+  display: grid;
+  width: 100%;
+}
+
+.student-canvas-rail a {
+  align-items: center;
+  color: white;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  padding: 9px 4px;
+  text-align: center;
+}
+
+.student-canvas-rail a.active {
+  background: white;
+  color: #b4b92d;
+}
+
+.student-canvas-rail a:hover {
+  background: rgba(255, 255, 255, 0.12);
+  text-decoration: none;
+}
+
+.student-canvas-rail a.active:hover {
+  background: white;
 }
 
 .canvas-global-rail span {
@@ -2019,6 +2063,22 @@ button.small {
   height: 34px;
   justify-content: center;
   width: 34px;
+}
+
+.student-canvas-rail a span {
+  background: transparent;
+  border: 2px solid currentColor;
+  color: inherit;
+  font-size: 18px;
+  height: 30px;
+  width: 30px;
+}
+
+.student-canvas-rail a strong {
+  color: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.15;
 }
 
 .canvas-global-rail i {
@@ -2038,6 +2098,24 @@ button.small {
   min-width: 0;
   overflow-x: auto;
   padding: 8px 24px;
+}
+
+.student-canvas-topbar {
+  min-height: 78px;
+  padding: 10px 18px 16px;
+}
+
+.student-canvas-topbar > strong {
+  color: #2d3b48;
+  font-size: 20px;
+  font-weight: 500;
+  padding-left: 4px;
+}
+
+.canvas-menu-button {
+  color: #2d7fd4;
+  font-size: 28px;
+  font-weight: 400;
 }
 
 .canvas-sidebar-toggle,
@@ -2070,6 +2148,15 @@ button.small {
   top: 78px;
   width: 28px;
   z-index: 8;
+}
+
+.student-course-shell .canvas-sidebar-toggle {
+  left: calc(90px + 214px - 14px);
+  top: 104px;
+}
+
+.student-course-home .canvas-course-main {
+  padding-top: 38px;
 }
 
 .canvas-sidebar-toggle:hover,
@@ -2409,6 +2496,24 @@ button.small {
 }
 
 .start-tile .question::before {
+  content: "?";
+}
+
+.student-course-home .start-tile .book::before {
+  content: "📖";
+}
+
+.student-course-home .start-tile .brain::before {
+  content: "🧠";
+}
+
+.student-course-home .start-tile .check::before {
+  color: #f2b700;
+  content: "✓";
+}
+
+.student-course-home .start-tile .question::before {
+  color: #d10000;
   content: "?";
 }
 
@@ -2801,7 +2906,7 @@ button.small {
   align-items: start;
   display: grid;
   gap: 10px;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .canvas-task-item > span,
@@ -2833,6 +2938,24 @@ button.small {
   font-size: 12px;
   line-height: 1.35;
   margin-top: 3px;
+}
+
+.canvas-task-item em,
+.canvas-upcoming-item em {
+  color: #4c5965;
+  display: block;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 850;
+  line-height: 1.35;
+  margin-top: 3px;
+}
+
+.canvas-task-item b {
+  color: #2d3b48;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1;
 }
 
 .canvas-rightbar > a {

@@ -358,10 +358,17 @@ function seed() {
 
   const demoStudent = db.prepare("SELECT id FROM users WHERE email = ?").get("student@browardmiamihi.local");
   const hha = db.prepare("SELECT id FROM courses WHERE slug = ?").get("home-health-aide");
+  const introNursing = db.prepare("SELECT id FROM courses WHERE slug = ?").get("introduction-to-nursing-practical-nursing");
   db.prepare(`
     INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)
     VALUES (?, ?, 'active', 35, 'seed', 'seed-demo')
   `).run(demoStudent.id, hha.id);
+  if (introNursing) {
+    db.prepare(`
+      INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)
+      VALUES (?, ?, 'active', 83, 'seed', 'seed-demo-pn102')
+    `).run(demoStudent.id, introNursing.id);
+  }
 
   const existingAward = db.prepare(`
     SELECT id FROM financial_aid_awards
