@@ -990,6 +990,13 @@ nav a {
   line-height: 1.2;
 }
 
+.program-cost {
+  color: var(--brand-dark) !important;
+  font-size: 13px;
+  font-weight: 800;
+  margin-top: 5px !important;
+}
+
 .program-card-head p,
 .program-subcourse small,
 .program-note {
@@ -1065,6 +1072,70 @@ nav a {
 
 .registration-stats .stat {
   border-radius: 4px;
+}
+
+.tuition-fees {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.tuition-fees.compact {
+  margin-top: 12px;
+}
+
+.tuition-heading {
+  align-items: end;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.tuition-heading h2,
+.tuition-heading p {
+  margin: 0;
+}
+
+.tuition-table-card,
+.fee-table-card {
+  overflow-x: auto;
+}
+
+.tuition-fees table {
+  min-width: 760px;
+}
+
+.tuition-fees thead th {
+  background: var(--brand-dark);
+  color: white;
+  font-size: 15px;
+}
+
+.tuition-fees tbody td:first-child {
+  color: #101828;
+}
+
+.tuition-fees tbody td:last-child {
+  color: #101828;
+}
+
+.fee-table-card {
+  justify-self: center;
+  max-width: 880px;
+  width: 100%;
+}
+
+.tuition-notes {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 24px;
+}
+
+.tuition-notes li {
+  color: #101828;
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .financial-term {

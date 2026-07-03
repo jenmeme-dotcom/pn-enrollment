@@ -36,6 +36,8 @@ function migrate() {
       description TEXT NOT NULL,
       hours INTEGER NOT NULL DEFAULT 0,
       tuition_cents INTEGER NOT NULL DEFAULT 0,
+      books_supplies_cents INTEGER NOT NULL DEFAULT 0,
+      registration_fee_cents INTEGER NOT NULL DEFAULT 0,
       credential_type TEXT NOT NULL DEFAULT 'Certificate',
       delivery_mode TEXT NOT NULL DEFAULT 'Campus / blended',
       published INTEGER NOT NULL DEFAULT 1,
@@ -228,6 +230,12 @@ function migrate() {
   if (!courseColumns.includes("hidden_sections")) {
     db.exec("ALTER TABLE courses ADD COLUMN hidden_sections TEXT NOT NULL DEFAULT '[]';");
   }
+  if (!courseColumns.includes("books_supplies_cents")) {
+    db.exec("ALTER TABLE courses ADD COLUMN books_supplies_cents INTEGER NOT NULL DEFAULT 0;");
+  }
+  if (!courseColumns.includes("registration_fee_cents")) {
+    db.exec("ALTER TABLE courses ADD COLUMN registration_fee_cents INTEGER NOT NULL DEFAULT 0;");
+  }
   const lessonColumns = db.prepare("PRAGMA table_info(lessons)").all().map((column) => column.name);
   if (!lessonColumns.includes("external_url")) {
     db.exec("ALTER TABLE lessons ADD COLUMN external_url TEXT;");
@@ -269,13 +277,16 @@ function seed() {
   `).run();
 
   const upsertCourse = db.prepare(`
-    INSERT INTO courses (title, slug, category, description, hours, credential_type, delivery_mode, ghl_product_keys)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO courses (title, slug, category, description, hours, tuition_cents, books_supplies_cents, registration_fee_cents, credential_type, delivery_mode, ghl_product_keys)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(slug) DO UPDATE SET
       title = excluded.title,
       category = excluded.category,
       description = excluded.description,
       hours = excluded.hours,
+      tuition_cents = excluded.tuition_cents,
+      books_supplies_cents = excluded.books_supplies_cents,
+      registration_fee_cents = excluded.registration_fee_cents,
       credential_type = excluded.credential_type,
       delivery_mode = excluded.delivery_mode,
       ghl_product_keys = excluded.ghl_product_keys
@@ -293,6 +304,9 @@ function seed() {
       course.category,
       course.description,
       course.hours,
+      course.tuitionCents || 0,
+      course.booksSuppliesCents || 0,
+      course.registrationFeeCents || 0,
       course.credentialType,
       course.deliveryMode,
       JSON.stringify(course.ghlProductKeys)

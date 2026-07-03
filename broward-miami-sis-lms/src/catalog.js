@@ -8,6 +8,9 @@ const courses = [
     slug: "practical-nursing",
     category: "Diploma Program",
     hours: 1350,
+    tuitionCents: 1400000,
+    booksSuppliesCents: 100000,
+    registrationFeeCents: 15000,
     credentialType: "Diploma",
     deliveryMode: "Campus / blended",
     description: "A diploma track for practical nursing students with clinical, theory, skills lab, assessments, and credential completion tracking.",
@@ -18,6 +21,9 @@ const courses = [
     slug: "home-health-aide",
     category: "Certificate Program",
     hours: 75,
+    tuitionCents: 45000,
+    booksSuppliesCents: 7500,
+    registrationFeeCents: 15000,
     credentialType: "Certificate",
     deliveryMode: "Campus / blended",
     description: "Home health aide training with lesson progression, attendance, competency records, and printable certificate support.",
@@ -28,6 +34,9 @@ const courses = [
     slug: "medical-assistant",
     category: "Diploma Program",
     hours: 900,
+    tuitionCents: 700000,
+    booksSuppliesCents: 42000,
+    registrationFeeCents: 15000,
     credentialType: "Diploma",
     deliveryMode: "Campus / blended",
     description: "Medical Assistant diploma program with modules for clinical skills, administrative procedures, externship, and graduation readiness.",
@@ -38,6 +47,9 @@ const courses = [
     slug: "patient-care-technician",
     category: "Diploma Program",
     hours: 600,
+    tuitionCents: 550000,
+    booksSuppliesCents: 20000,
+    registrationFeeCents: 15000,
     credentialType: "Diploma",
     deliveryMode: "Campus / blended",
     description: "Patient Care Technician diploma track with competency, attendance, gradebook, and credential issue workflows.",
@@ -48,6 +60,9 @@ const courses = [
     slug: "medical-billing-and-coding",
     category: "Diploma Program",
     hours: 600,
+    tuitionCents: 850000,
+    booksSuppliesCents: 85000,
+    registrationFeeCents: 15000,
     credentialType: "Diploma",
     deliveryMode: "Online / blended",
     description: "Medical billing and coding program for revenue cycle, coding systems, claim workflows, and assessment tracking.",
@@ -98,4 +113,17 @@ const courses = [
   introNursingCourse
 ];
 
-module.exports = { courses };
+const feeSchedule = [
+  { label: "Registration Fee", note: "non-refundable as per the refund policy", amountCents: 15000 },
+  { label: "Returned Checks", amountCents: 3500 },
+  { label: "Background Check", amountCents: 7500 },
+  { label: "Books, Supplies & Uniforms", amountCents: 7500 }
+];
+
+const tuitionNotes = [
+  "Students must allow two weeks for processing receipts which are requested to be sent by mail or fax.",
+  "Types of Payment: Visa, MasterCard, Bank Wire, Check or PayPal.",
+  "Tuition is subject to change."
+];
+
+module.exports = { courses, feeSchedule, tuitionNotes };

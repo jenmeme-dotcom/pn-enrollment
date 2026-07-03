@@ -9,6 +9,7 @@ const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const nodemailer = require("nodemailer");
 const { db, initialize, databaseFile } = require("./db");
+const { feeSchedule, tuitionNotes } = require("./catalog");
 const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = require("./ui");
 
 initialize();
@@ -287,6 +288,71 @@ function credentialNumber(enrollmentId) {
 
 function dollarsToCents(value) {
   return Math.round(Math.max(0, Number(String(value || "0").replace(/[^0-9.]/g, "")) || 0) * 100);
+}
+
+function courseTotalCost(course = {}) {
+  return Number(course.tuition_cents || 0) + Number(course.books_supplies_cents || 0) + Number(course.registration_fee_cents || 0);
+}
+
+function tuitionProgramRows(courses = []) {
+  const order = [
+    "practical-nursing",
+    "medical-billing-and-coding",
+    "medical-assistant",
+    "patient-care-technician",
+    "home-health-aide"
+  ];
+  const bySlug = new Map(courses.map((course) => [course.slug, course]));
+  return order.map((slug) => bySlug.get(slug)).filter(Boolean);
+}
+
+function renderTuitionFeesSection(courses = [], { compact = false } = {}) {
+  const programRows = tuitionProgramRows(courses);
+  return `
+    <section class="${compact ? "tuition-fees compact" : "tuition-fees"}">
+      <div class="tuition-heading">
+        <div>
+          <p class="eyebrow">Tuition & Fees</p>
+          <h2>Program Cost Schedule</h2>
+        </div>
+        <span class="pill">Subject to change</span>
+      </div>
+      <div class="table-card tuition-table-card">
+        <table>
+          <thead>
+            <tr><th>Program</th><th>Tuition</th><th>Books/Supplies</th><th>Registration Fee</th><th>Total Cost</th></tr>
+          </thead>
+          <tbody>
+            ${programRows.map((course) => `
+              <tr>
+                <td><strong>${escapeHtml(course.title)}</strong></td>
+                <td>${money(course.tuition_cents)}</td>
+                <td>${money(course.books_supplies_cents)}</td>
+                <td>${money(course.registration_fee_cents)}</td>
+                <td><strong>${money(courseTotalCost(course))}</strong></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div class="table-card fee-table-card">
+        <table>
+          <thead><tr><th>Fees</th><th>Cost</th></tr></thead>
+          <tbody>
+            ${feeSchedule.map((fee) => `
+              <tr>
+                <td><strong>${escapeHtml(fee.label)}</strong>${fee.note ? ` <em>(${escapeHtml(fee.note)})</em>` : ""}</td>
+                <td><strong>${money(fee.amountCents)}</strong></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+      <ul class="tuition-notes">
+        ${tuitionNotes.map((note) => `<li>${escapeHtml(note)}</li>`).join("")}
+      </ul>
+    </section>
+  `;
 }
 
 function parseHiddenSections(course = {}) {
@@ -1601,6 +1667,7 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
         <h2>${escapeHtml(course.title)}</h2>
         <p class="muted">${escapeHtml(course.description)}</p>
         <div class="meta"><span>${escapeHtml(course.category)}</span><span>${escapeHtml(course.delivery_mode)}</span></div>
+        ${courseTotalCost(course) ? `<p class="program-cost"><strong>${money(courseTotalCost(course))}</strong> total cost · ${money(course.tuition_cents)} tuition</p>` : ""}
         <p><strong>${escapeHtml(course.enrollments)}</strong> enrollments · <strong>${escapeHtml(course.credentials)}</strong> credentials</p>
         ${childCourses.length ? `
           <div class="program-subcourses admin-program-subcourses">
@@ -1640,6 +1707,7 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
       ${stat("AHA courses", String(americanHeartAssociationCourses.length))}
       ${stat("Enrollments", String(totalEnrollments))}
     </section>
+    ${renderTuitionFeesSection(courses)}
     <section class="grid cols-2 admin-program-grid" style="margin-top:18px">
       ${programCourses.map(renderProgramCard).join("")}
       ${americanHeartAssociationCourses.length ? renderCourseGroupCard({
@@ -1723,7 +1791,7 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
     <section class="grid cols-3">
       ${stat("Credential", course.credential_type)}
       ${stat("Clock hours", String(course.hours))}
-      ${stat("GHL keys", JSON.parse(course.ghl_product_keys || "[]").join(", "))}
+      ${stat("Total cost", courseTotalCost(course) ? money(courseTotalCost(course)) : "Not set")}
     </section>
     ${childCourses.length ? `
       <section class="card" style="margin-top:18px">
@@ -1759,6 +1827,9 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
           <div><label>Credential</label><input name="credentialType" value="${escapeHtml(course.credential_type)}"></div>
           <div><label>Delivery mode</label><input name="deliveryMode" value="${escapeHtml(course.delivery_mode)}"></div>
           <div><label>Category</label><input name="category" value="${escapeHtml(course.category)}"></div>
+          <div><label>Tuition</label><input name="tuition" value="${escapeHtml((Number(course.tuition_cents || 0) / 100).toFixed(2))}" inputmode="decimal"></div>
+          <div><label>Books/Supplies</label><input name="booksSupplies" value="${escapeHtml((Number(course.books_supplies_cents || 0) / 100).toFixed(2))}" inputmode="decimal"></div>
+          <div><label>Registration fee</label><input name="registrationFee" value="${escapeHtml((Number(course.registration_fee_cents || 0) / 100).toFixed(2))}" inputmode="decimal"></div>
           <div class="span-2"><label>Description</label><textarea name="description" required>${escapeHtml(course.description)}</textarea></div>
         </div>
         <button type="submit">Save course details</button>
@@ -1981,7 +2052,8 @@ app.post("/admin/courses/:id/details", requireAuth, requireRole("admin", "instru
   if (!course) return res.status(404).send("Course not found");
   db.prepare(`
     UPDATE courses
-    SET title = ?, category = ?, description = ?, hours = ?, credential_type = ?, delivery_mode = ?
+    SET title = ?, category = ?, description = ?, hours = ?, credential_type = ?, delivery_mode = ?,
+      tuition_cents = ?, books_supplies_cents = ?, registration_fee_cents = ?
     WHERE id = ?
   `).run(
     String(req.body.title || "").trim(),
@@ -1990,6 +2062,9 @@ app.post("/admin/courses/:id/details", requireAuth, requireRole("admin", "instru
     Number(req.body.hours || 0),
     String(req.body.credentialType || "").trim(),
     String(req.body.deliveryMode || "").trim(),
+    dollarsToCents(req.body.tuition),
+    dollarsToCents(req.body.booksSupplies),
+    dollarsToCents(req.body.registrationFee),
     course.id
   );
   flash(req, "Course details updated.");
@@ -2439,6 +2514,7 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
                     <div>
                       <h3>${escapeHtml(program.title)}</h3>
                       <p>${escapeHtml(program.category)} · ${escapeHtml(program.credential_type)} · ${escapeHtml(program.hours)} hours · ${escapeHtml(program.delivery_mode)}</p>
+                      ${courseTotalCost(program) ? `<p class="program-cost">${money(courseTotalCost(program))} total · ${money(program.tuition_cents)} tuition</p>` : ""}
                     </div>
                     ${program.isGroup ? `<span class="pill">Courses below</span>` : renderCourseAction(program)}
                   </div>
@@ -2489,6 +2565,7 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
           </table>
         </article>
       </section>
+      ${renderTuitionFeesSection(courses, { compact: true })}
     </section>
   `;
   render(req, res, "Registration", body, { studentPortal: true, activeStudentNav: "registration" });
