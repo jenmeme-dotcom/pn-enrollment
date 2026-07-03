@@ -1301,28 +1301,63 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
     GROUP BY c.id
     ORDER BY c.category, c.title
   `).all();
+  const programCourses = courses.filter((course) => course.category !== "Practical Nursing Course");
+  const practicalNursingCourses = courses.filter((course) => course.category === "Practical Nursing Course");
+  const totalEnrollments = courses.reduce((sum, course) => sum + Number(course.enrollments || 0), 0);
+  const totalCredentials = courses.reduce((sum, course) => sum + Number(course.credentials || 0), 0);
+  const renderProgramCard = (course) => {
+    const isPracticalNursing = course.slug === "practical-nursing";
+    const childCourses = isPracticalNursing ? practicalNursingCourses : [];
+    return `
+      <article class="card admin-program-card ${isPracticalNursing ? "featured" : ""}">
+        <div class="actions" style="justify-content:space-between">
+          <span class="pill ${course.credential_type === "Diploma" ? "orange" : ""}">${escapeHtml(course.credential_type)}</span>
+          <span class="muted">${escapeHtml(course.hours)} hours</span>
+        </div>
+        <h2>${escapeHtml(course.title)}</h2>
+        <p class="muted">${escapeHtml(course.description)}</p>
+        <div class="meta"><span>${escapeHtml(course.category)}</span><span>${escapeHtml(course.delivery_mode)}</span></div>
+        <p><strong>${escapeHtml(course.enrollments)}</strong> enrollments · <strong>${escapeHtml(course.credentials)}</strong> credentials</p>
+        ${childCourses.length ? `
+          <div class="program-subcourses admin-program-subcourses">
+            <h4>PN courses under this program</h4>
+            ${childCourses.map((child) => `
+              <div class="program-subcourse">
+                <div>
+                  <strong>${escapeHtml(child.title)}</strong>
+                  <small>${escapeHtml(child.hours)} hours · ${escapeHtml(child.credential_type)} · ${escapeHtml(child.enrollments)} enrollments</small>
+                </div>
+                <div class="actions">
+                  <a class="button small" href="/admin/courses/${child.id}">Manage</a>
+                  <a class="button small ghost" href="/admin/courses/${child.id}/student-view">Student View</a>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
+        <div class="actions">
+          <a class="button small" href="/admin/courses/${course.id}">Manage Program</a>
+          <a class="button small ghost" href="/admin/courses/${course.id}/student-view">Student View</a>
+        </div>
+      </article>
+    `;
+  };
 
   const body = `
     <div class="page-head">
       <div>
-        <h1>Course Catalog</h1>
-        <p>Canvas-style course shells seeded from Broward-Miami’s public program list, with modules, lessons, grade items, and GHL product mapping.</p>
+        <h1>Programs and Courses</h1>
+        <p>Manage BMHI programs from the Courses button. Practical Nursing includes its PN course shells directly under the program, alongside the other programs the school offers.</p>
       </div>
     </div>
-    <section class="grid cols-3">
-      ${courses.map((course) => `
-        <article class="card">
-          <div class="actions" style="justify-content:space-between">
-            <span class="pill ${course.credential_type === "Diploma" ? "orange" : ""}">${escapeHtml(course.credential_type)}</span>
-            <span class="muted">${course.hours} hours</span>
-          </div>
-          <h2>${escapeHtml(course.title)}</h2>
-          <p class="muted">${escapeHtml(course.description)}</p>
-          <div class="meta"><span>${escapeHtml(course.category)}</span><span>${escapeHtml(course.delivery_mode)}</span></div>
-          <p><strong>${course.enrollments}</strong> enrollments · <strong>${course.credentials}</strong> credentials</p>
-          <a class="button small" href="/admin/courses/${course.id}">Manage</a>
-        </article>
-      `).join("")}
+    <section class="grid cols-4">
+      ${stat("Programs offered", String(programCourses.length))}
+      ${stat("PN course shells", String(practicalNursingCourses.length))}
+      ${stat("Enrollments", String(totalEnrollments))}
+      ${stat("Credentials", String(totalCredentials))}
+    </section>
+    <section class="grid cols-2 admin-program-grid" style="margin-top:18px">
+      ${programCourses.map(renderProgramCard).join("")}
     </section>
   `;
   render(req, res, "Courses", body);
