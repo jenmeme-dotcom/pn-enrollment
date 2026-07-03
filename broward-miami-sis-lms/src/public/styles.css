@@ -3208,6 +3208,206 @@ button.small {
   margin-top: 4px;
 }
 
+.instructor-gradebook-shell {
+  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-rows: 76px 1fr;
+}
+
+.instructor-gradebook-shell .canvas-global-rail {
+  gap: 14px;
+}
+
+.instructor-gradebook-shell .canvas-global-rail img {
+  height: 54px;
+  width: 54px;
+}
+
+.instructor-gradebook-main {
+  grid-column: 2;
+  min-width: 0;
+  padding: 58px 28px 48px;
+}
+
+.instructor-gradebook-head {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.gradebook-switch {
+  color: #2d7fd4;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.gradebook-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.gradebook-actions button,
+.instructor-gradebook-filters > button {
+  background: #f1f3f5;
+  border: 1px solid #e0e4e8;
+  border-radius: 4px;
+  color: #2d3b48;
+  font-size: 16px;
+  min-height: 42px;
+  padding: 9px 14px;
+}
+
+.gradebook-actions button:first-child {
+  background: white;
+  border-color: transparent;
+  color: #2d7fd4;
+}
+
+.gradebook-actions button:last-child {
+  font-size: 20px;
+  min-width: 42px;
+  padding: 8px;
+}
+
+.instructor-gradebook-filters {
+  display: grid;
+  gap: 12px 14px;
+  grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
+  margin-bottom: 12px;
+}
+
+.instructor-gradebook-filters label {
+  color: #2d3b48;
+  display: grid;
+  gap: 10px;
+}
+
+.instructor-gradebook-filters label > span {
+  align-items: center;
+  border: 1px solid #bdc7d1;
+  border-radius: 4px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.instructor-gradebook-filters b,
+.instructor-gradebook-filters i {
+  color: #5f6f7d;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.instructor-gradebook-filters input {
+  border: 0;
+  color: #2d3b48;
+  font-size: 16px;
+  min-height: 38px;
+  outline: 0;
+}
+
+.instructor-gradebook-filters input::placeholder {
+  color: #7b8793;
+}
+
+.instructor-gradebook-filters > button {
+  justify-self: start;
+}
+
+.instructor-gradebook-scroll {
+  overflow: auto;
+  width: 100%;
+}
+
+.instructor-gradebook-table {
+  border-collapse: collapse;
+  color: #2d3b48;
+  font-size: 14px;
+  min-width: 1680px;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.instructor-gradebook-table th,
+.instructor-gradebook-table td {
+  border: 1px solid #edf0f2;
+  height: 38px;
+  padding: 8px 12px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.instructor-gradebook-table th {
+  background: #f2f2f2;
+  font-weight: 500;
+}
+
+.instructor-gradebook-table th:first-child,
+.instructor-gradebook-table td:first-child {
+  background: white;
+  position: sticky;
+  left: 0;
+  text-align: left;
+  width: 160px;
+  z-index: 2;
+}
+
+.instructor-gradebook-table th:first-child {
+  background: #f2f2f2;
+  font-weight: 800;
+  z-index: 3;
+}
+
+.instructor-gradebook-table th:not(:first-child) {
+  width: 210px;
+}
+
+.instructor-gradebook-table th span {
+  display: block;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.instructor-gradebook-table th small,
+.instructor-gradebook-table th em {
+  display: block;
+  font-size: 12px;
+  line-height: 1.15;
+}
+
+.instructor-gradebook-table th small {
+  color: #4d5964;
+}
+
+.instructor-gradebook-table th em {
+  color: #d12b2b;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.instructor-gradebook-table tbody tr:nth-child(even) td {
+  background: #f3f3f3;
+}
+
+.instructor-gradebook-table tbody tr:nth-child(even) td:first-child {
+  background: #f3f3f3;
+}
+
+.instructor-gradebook-table td:not(:first-child) {
+  background: #ededed;
+  color: #63717d;
+}
+
+.instructor-gradebook-table a {
+  color: #2d7fd4;
+  font-weight: 500;
+}
+
 .canvas-rightbar > a {
   background: #f1f3f5;
   border: 1px solid #e0e4e8;
@@ -4596,6 +4796,26 @@ button.small {
     grid-column: auto;
     grid-template-columns: 1fr;
     padding: 24px 16px;
+  }
+
+  .instructor-gradebook-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+
+  .instructor-gradebook-main {
+    grid-column: auto;
+    padding: 24px 16px;
+  }
+
+  .instructor-gradebook-head,
+  .gradebook-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .instructor-gradebook-filters {
+    grid-template-columns: 1fr;
   }
 
   .grades-title-row,
