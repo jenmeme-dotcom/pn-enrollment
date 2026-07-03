@@ -531,6 +531,7 @@ function courseNavHref(baseHref, item, firstLessonId) {
   if (item === "Grades") return `${baseHref}?view=grades`;
   if (item === "People") return `${baseHref}?view=people`;
   if (item === "Groups") return `${baseHref}?view=people#groups`;
+  if (item === "Settings") return `${baseHref}?view=settings`;
   if (["Assignments", "Quizzes"].includes(item)) return `${baseHref}?view=syllabus#course-assignments`;
   return baseHref;
 }
@@ -1042,6 +1043,217 @@ function renderInstructorPeoplePage({ course, courseCode, baseHref, enrollments 
           </article>
         `).join("")}
       </section>
+    </main>
+  `;
+}
+
+function renderInstructorSettingsPage({ course, courseCode, baseHref, enrollments = [], instructor }) {
+  const hiddenSections = parseHiddenSections(course);
+  const studentCount = enrollments.length;
+  const rightActions = [
+    ["Share to Commons", `${baseHref}?view=settings#apps`],
+    ["Course Statistics", `${baseHref}?view=grades`],
+    ["Course Calendar", `${baseHref}?view=syllabus`],
+    ["Conclude this Course", `${baseHref}?view=settings#feature-options`],
+    ["Delete this Course", `/admin/courses/${course.id}`],
+    ["Copy this Course", `/admin/courses/${course.id}`],
+    ["Import Course Content", `/admin/courses/${course.id}/tools#course-import-tool`],
+    ["Export Course Content", `/admin/courses/${course.id}/tools`],
+    ["Reset Course Content", `${baseHref}?view=settings#navigation`],
+    ["Validate Links in Content", `/admin/courses/${course.id}/tools`]
+  ];
+  return `
+    <main class="canvas-settings-main">
+      <section class="course-settings-content">
+        <nav class="settings-tabs" aria-label="Course settings">
+          <a class="active" href="${escapeHtml(baseHref)}?view=settings">Course Details</a>
+          <a href="${escapeHtml(baseHref)}?view=settings#sections">Sections</a>
+          <a href="${escapeHtml(baseHref)}?view=settings#navigation">Navigation</a>
+          <a href="/admin/courses/${course.id}/tools#course-import-tool">Apps</a>
+          <a href="${escapeHtml(baseHref)}?view=settings#feature-options">Feature Options</a>
+          <a href="/admin/courses/${course.id}/tools">Integrations</a>
+        </nav>
+
+        <form class="settings-details-form" method="post" action="/admin/courses/${course.id}/details">
+          <input type="hidden" name="redirectTo" value="${escapeHtml(baseHref)}?view=settings">
+          <div class="settings-title-row">
+            <h1>Course Details</h1>
+            <span class="published-status">Course is ${course.published ? "Published" : "Unpublished"} ●</span>
+          </div>
+
+          <div class="settings-field image-field">
+            <label>Image:</label>
+            <div class="settings-course-image">
+              <img src="/assets/bmhi-seal-blue.jpeg" alt="Course image">
+              <button type="button" aria-label="Edit course image">⋮</button>
+            </div>
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-title">Name:</label>
+            <input id="settings-title" name="title" value="${escapeHtml(course.title)}" required>
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-code">Course Code:</label>
+            <input id="settings-code" value="${escapeHtml(courseCode)}" readonly>
+          </div>
+
+          <div class="settings-field checkbox-field">
+            <label>Blueprint Course:</label>
+            <span><input type="checkbox" disabled> Enable course as a Blueprint Course</span>
+          </div>
+
+          <div class="settings-field checkbox-field">
+            <label>Course Template:</label>
+            <span><input type="checkbox" disabled> Enable course as a Course Template</span>
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-time-zone">Time Zone:</label>
+            <select id="settings-time-zone" name="timeZone">
+              <option>Eastern Time (US & Canada) (-05:00/-04:00)</option>
+            </select>
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-sis-id">SIS ID:</label>
+            <input id="settings-sis-id" value="${escapeHtml(`BMHI-${String(course.id).padStart(5, "0")}`)}" readonly>
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-subaccount">Subaccount:</label>
+            <select id="settings-subaccount" name="subaccount">
+              <option>Broward-Miami Health Institute</option>
+            </select>
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-term">Term:</label>
+            <select id="settings-term" name="term">
+              <option>Default Term</option>
+              <option>Practical Nursing Term</option>
+              <option>American Heart Association Term</option>
+            </select>
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-participation">Participation:</label>
+            <select id="settings-participation" name="participation">
+              <option>Course</option>
+              <option>Term</option>
+              <option>Section</option>
+            </select>
+            <p>Course participation is limited to <strong>course</strong> start and end dates. Any section dates created in the course may override course dates.</p>
+          </div>
+
+          <div class="settings-field date-field">
+            <label for="settings-start">Start</label>
+            <input id="settings-start" name="startDate" type="date">
+          </div>
+
+          <div class="settings-field date-field">
+            <label for="settings-end">End</label>
+            <input id="settings-end" name="endDate" type="date">
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-hours">Clock Hours:</label>
+            <input id="settings-hours" name="hours" type="number" min="0" value="${escapeHtml(course.hours)}">
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-credential">Credential:</label>
+            <input id="settings-credential" name="credentialType" value="${escapeHtml(course.credential_type)}">
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-delivery">Delivery Mode:</label>
+            <input id="settings-delivery" name="deliveryMode" value="${escapeHtml(course.delivery_mode)}">
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-category">Category:</label>
+            <input id="settings-category" name="category" value="${escapeHtml(course.category)}">
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-tuition">Tuition:</label>
+            <input id="settings-tuition" name="tuition" value="${escapeHtml((Number(course.tuition_cents || 0) / 100).toFixed(2))}" inputmode="decimal">
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-books">Books/Supplies:</label>
+            <input id="settings-books" name="booksSupplies" value="${escapeHtml((Number(course.books_supplies_cents || 0) / 100).toFixed(2))}" inputmode="decimal">
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-registration">Registration Fee:</label>
+            <input id="settings-registration" name="registrationFee" value="${escapeHtml((Number(course.registration_fee_cents || 0) / 100).toFixed(2))}" inputmode="decimal">
+          </div>
+
+          <div class="settings-field textarea-field">
+            <label for="settings-description">Description:</label>
+            <textarea id="settings-description" name="description" required>${escapeHtml(course.description)}</textarea>
+          </div>
+
+          <div class="settings-submit-bar">
+            <button type="submit">Update Course Details</button>
+          </div>
+        </form>
+
+        <section class="settings-section-panel" id="sections">
+          <h2>Sections</h2>
+          <div class="settings-section-card">
+            <strong>${escapeHtml(course.title)}</strong>
+            <span>${escapeHtml(studentCount)} enrolled students · ${instructor ? "1 teacher" : "0 teachers"}</span>
+          </div>
+        </section>
+
+        <section class="settings-section-panel" id="navigation">
+          <h2>Navigation</h2>
+          <p>Choose which course navigation sections students can see. Home is always visible.</p>
+          <form method="post" action="/admin/courses/${course.id}/sections">
+            <input type="hidden" name="redirectTo" value="${escapeHtml(baseHref)}?view=settings#navigation">
+            <div class="settings-navigation-grid">
+              <label class="section-toggle locked">
+                <input type="checkbox" checked disabled>
+                <span>Home</span>
+                <small>Always visible</small>
+              </label>
+              ${hideableCourseSections.map((section) => `
+                <label class="section-toggle">
+                  <input type="checkbox" name="visibleSections" value="${escapeHtml(section)}" ${hiddenSections.has(section) ? "" : "checked"}>
+                  <span>${escapeHtml(section)}</span>
+                  <small>${hiddenSections.has(section) ? "Hidden from students" : "Visible to students"}</small>
+                </label>
+              `).join("")}
+            </div>
+            <button type="submit">Save Navigation</button>
+          </form>
+        </section>
+
+        <section class="settings-section-panel" id="feature-options">
+          <h2>Feature Options</h2>
+          <div class="feature-option-list">
+            <label><input type="checkbox" checked> New course analytics</label>
+            <label><input type="checkbox" checked> Student view preview</label>
+            <label><input type="checkbox"> Require module completion order</label>
+          </div>
+        </section>
+      </section>
+
+      <aside class="settings-side-panel">
+        ${rightActions.map(([label, href]) => `<a href="${escapeHtml(href)}">${escapeHtml(label)}</a>`).join("")}
+        <section>
+          <h2>Current Users</h2>
+          <p><strong>Students:</strong><span>${escapeHtml(studentCount)}</span></p>
+          <p><strong>Teachers:</strong><span>${instructor ? "1" : "None"}</span></p>
+          <p><strong>TAs:</strong><span>None</span></p>
+          <p><strong>Designers:</strong><span>None</span></p>
+          <p><strong>Observers:</strong><span>None</span></p>
+        </section>
+      </aside>
     </main>
   `;
 }
@@ -3024,7 +3236,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   }, []);
 
   const firstLesson = lessons[0];
-  const navItems = visibleCourseNavItems(course);
+  const navItems = courseNavItems;
   const adminCourseBaseHref = `/admin/courses/${course.id}/student-view`;
   const courseCode = course.slug === "introduction-to-nursing-practical-nursing" ? "PN 102" : `BMHI ${String(course.id).padStart(3, "0")}`;
   const startTiles = [
@@ -3075,6 +3287,32 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
       <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
 
       ${renderInstructorPeoplePage({
+        course,
+        courseCode,
+        baseHref: adminCourseBaseHref,
+        enrollments,
+        instructor: req.user
+      })}
+    </section>
+  ` : activeView === "settings" ? `
+    <section class="canvas-course-shell instructor-preview">
+      <aside class="canvas-global-rail">
+        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <span>${escapeHtml(initialsFor(req.user))}</span>
+        <i></i><i></i><i></i><i></i><i></i>
+      </aside>
+
+      ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
+        { label: courseCode, href: adminCourseBaseHref },
+        { label: "Settings" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(navItems, adminCourseBaseHref, "Settings", firstLesson?.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+
+      ${renderInstructorSettingsPage({
         course,
         courseCode,
         baseHref: adminCourseBaseHref,
@@ -3209,7 +3447,8 @@ app.post("/admin/courses/:id/details", requireAuth, requireRole("admin", "instru
     course.id
   );
   flash(req, "Course details updated.");
-  res.redirect(`/admin/courses/${course.id}`);
+  const redirectTo = String(req.body.redirectTo || "");
+  res.redirect(redirectTo.startsWith(`/admin/courses/${course.id}`) ? redirectTo : `/admin/courses/${course.id}`);
 });
 
 app.post("/admin/courses/:id/sections", requireAuth, requireRole("admin", "instructor"), (req, res) => {
