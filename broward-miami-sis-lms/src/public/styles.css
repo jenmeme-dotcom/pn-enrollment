@@ -2504,6 +2504,193 @@ button.small {
   padding: 18px 0 0;
 }
 
+.canvas-syllabus-main {
+  grid-column: 3 / 5;
+  padding-right: clamp(28px, 4vw, 52px);
+}
+
+.canvas-syllabus-main .canvas-mini-head {
+  justify-content: space-between;
+}
+
+.immersive-reader {
+  background: #f8fafc;
+  border-color: #d4dbe2;
+  color: #2d3b48;
+  min-height: 36px;
+}
+
+.syllabus-layout {
+  align-items: start;
+  display: grid;
+  gap: 40px;
+  grid-template-columns: minmax(0, 1fr) 280px;
+}
+
+.syllabus-content {
+  display: grid;
+  gap: 22px;
+}
+
+.syllabus-title-row {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.syllabus-title-row h1 {
+  color: #2d3b48;
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 400;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.syllabus-card {
+  border: 1px solid #d9e4ec;
+  border-radius: 8px;
+  display: grid;
+  gap: 16px;
+  padding: 24px 26px;
+}
+
+.syllabus-card h2,
+.syllabus-card h3,
+.syllabus-card p {
+  margin: 0;
+}
+
+.syllabus-card h2 {
+  color: #103f56;
+  font-size: clamp(26px, 3vw, 38px);
+  font-weight: 500;
+}
+
+.syllabus-card h3 {
+  color: #103f56;
+  font-size: clamp(22px, 2.5vw, 30px);
+  font-weight: 500;
+}
+
+.syllabus-card p {
+  color: #2f4050;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.syllabus-table {
+  border-collapse: collapse;
+  color: #2d3b48;
+  font-size: 18px;
+  width: 100%;
+}
+
+.syllabus-table th,
+.syllabus-table td {
+  border: 1px solid #c4ccd3;
+  padding: 12px 14px;
+}
+
+.syllabus-table th {
+  background: #e8f2f7;
+  font-weight: 850;
+  text-align: center;
+}
+
+.syllabus-table td:last-child,
+.syllabus-table th:last-child {
+  text-align: center;
+  width: 150px;
+}
+
+.syllabus-details {
+  display: grid;
+  gap: 10px;
+}
+
+.syllabus-details p {
+  border-bottom: 1px solid #e4eaf0;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding-bottom: 10px;
+}
+
+.syllabus-side {
+  display: grid;
+  gap: 24px;
+  padding-top: 50px;
+}
+
+.syllabus-calendar {
+  border: 1px solid #dde4ea;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.syllabus-calendar-head {
+  align-items: center;
+  border-bottom: 1px solid #dde4ea;
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.syllabus-calendar-head span {
+  color: #7c8995;
+  font-size: 28px;
+}
+
+.syllabus-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  padding: 8px 10px 12px;
+}
+
+.syllabus-calendar-grid span {
+  align-items: center;
+  color: #4c5b68;
+  display: flex;
+  font-size: 16px;
+  height: 28px;
+  justify-content: center;
+}
+
+.syllabus-calendar-grid span.muted {
+  color: #8a98a5;
+}
+
+.syllabus-calendar-grid span.shaded {
+  background: #edf2f4;
+  border-radius: 5px;
+}
+
+.syllabus-calendar-grid span.today {
+  background: #f5d7de;
+  border-radius: 5px;
+  color: #5b2b35;
+}
+
+.syllabus-side-note {
+  border-bottom: 1px solid #dde4ea;
+  border-top: 1px solid #dde4ea;
+  color: #2d3b48;
+  padding: 18px 0;
+}
+
+.syllabus-side-note strong {
+  display: block;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.syllabus-side-note p {
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 8px 0 0;
+}
+
 .canvas-rightbar {
   grid-column: 4;
   padding: 90px 26px 30px 18px;
@@ -3917,6 +4104,41 @@ button.small {
 
   .canvas-course-main {
     padding: 24px 16px;
+  }
+
+  .canvas-syllabus-main {
+    grid-column: auto;
+    padding: 24px 16px;
+  }
+
+  .canvas-syllabus-main .canvas-mini-head,
+  .syllabus-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .syllabus-layout {
+    gap: 22px;
+    grid-template-columns: 1fr;
+  }
+
+  .syllabus-card {
+    padding: 18px 16px;
+  }
+
+  .syllabus-card p,
+  .syllabus-table {
+    font-size: 16px;
+  }
+
+  .syllabus-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .syllabus-side {
+    padding-top: 0;
   }
 
   .lesson-sidebar-toggle {

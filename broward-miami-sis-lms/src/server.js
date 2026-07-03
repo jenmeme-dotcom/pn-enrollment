@@ -524,6 +524,164 @@ function renderLmsToolkit(course = {}, { compact = false } = {}) {
   `;
 }
 
+function courseNavHref(baseHref, item, firstLessonId) {
+  if (item === "Home") return baseHref;
+  if (item === "Modules") return firstLessonId ? `${baseHref}?lesson=${firstLessonId}` : baseHref;
+  if (item === "Syllabus") return `${baseHref}?view=syllabus`;
+  if (["Assignments", "Grades", "Quizzes"].includes(item)) return `${baseHref}?view=syllabus#course-assignments`;
+  return baseHref;
+}
+
+function renderCourseNav(navItems, baseHref, activeItem, firstLessonId) {
+  return navItems.map((item) => `
+    <a class="${item === activeItem ? "active" : ""}" href="${escapeHtml(courseNavHref(baseHref, item, firstLessonId))}">${escapeHtml(item)}</a>
+  `).join("");
+}
+
+function gradeItemType(title = "") {
+  const lower = String(title).toLowerCase();
+  if (lower.includes("quiz")) return "Quiz";
+  if (lower.includes("exam") || lower.includes("final assessment") || lower.includes("test")) return "Exam";
+  if (lower.includes("skill") || lower.includes("competency") || lower.includes("lab")) return "Skills competency";
+  if (lower.includes("reflection")) return "Written reflection";
+  if (lower.includes("project")) return "Project / presentation";
+  if (lower.includes("presentation")) return "Presentation";
+  if (lower.includes("plan")) return "Written plan";
+  if (lower.includes("application")) return "Application assignment";
+  if (lower.includes("professional") || lower.includes("handbook") || lower.includes("acknowledgement")) return "Professionalism / acknowledgement";
+  return "Course assignment";
+}
+
+function gradeTallyRows(gradeItems = []) {
+  const rows = new Map();
+  gradeItems.forEach((item) => {
+    const type = gradeItemType(item.title);
+    rows.set(type, (rows.get(type) || 0) + Number(item.points_possible || 0));
+  });
+  return Array.from(rows.entries()).map(([type, points]) => ({ type, points }));
+}
+
+function renderMiniCalendar({ year = 2026, monthIndex = 6 } = {}) {
+  const monthName = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(year, monthIndex, 1));
+  const firstDay = new Date(year, monthIndex, 1).getDay();
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const previousMonthDays = new Date(year, monthIndex, 0).getDate();
+  const cells = [];
+  for (let index = 0; index < 42; index += 1) {
+    const dayNumber = index - firstDay + 1;
+    if (dayNumber < 1) {
+      cells.push({ label: previousMonthDays + dayNumber, muted: true });
+    } else if (dayNumber > daysInMonth) {
+      cells.push({ label: dayNumber - daysInMonth, muted: true });
+    } else {
+      cells.push({ label: dayNumber, today: dayNumber === 3, shaded: [6, 13, 20, 27].includes(dayNumber) });
+    }
+  }
+  return `
+    <section class="syllabus-calendar" aria-label="${escapeHtml(monthName)} calendar">
+      <div class="syllabus-calendar-head">
+        <span>&lt;</span>
+        <strong>${escapeHtml(monthName)}</strong>
+        <span>&gt;</span>
+      </div>
+      <div class="syllabus-calendar-grid">
+        ${cells.map((cell) => `<span class="${cell.muted ? "muted" : ""} ${cell.today ? "today" : ""} ${cell.shaded ? "shaded" : ""}">${escapeHtml(cell.label)}</span>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, courseHours, courseCategory, gradeItems = [], lessons = [], baseHref }) {
+  const tallyRows = gradeTallyRows(gradeItems);
+  const totalPoints = gradeItems.reduce((sum, item) => sum + Number(item.points_possible || 0), 0);
+  const assignmentRows = gradeItems.length ? gradeItems : [
+    { title: "Module Quiz", points_possible: 100, due_date: null },
+    { title: "Skills Competency", points_possible: 100, due_date: null },
+    { title: "Final Assessment", points_possible: 100, due_date: null }
+  ];
+  const upcomingRows = lessons.slice(0, 6);
+  return `
+    <main class="canvas-course-main canvas-syllabus-main">
+      <div class="canvas-mini-head">
+        <span></span>
+        <strong>${escapeHtml(courseCode)} &gt; Syllabus</strong>
+        <button class="immersive-reader" type="button">Immersive Reader</button>
+      </div>
+      <div class="syllabus-layout">
+        <article class="syllabus-content">
+          <div class="syllabus-title-row">
+            <h1>Course Syllabus</h1>
+            <a class="button ghost small" href="${escapeHtml(baseHref)}">Jump to Today</a>
+          </div>
+
+          <section class="syllabus-card" id="course-assignments">
+            <h2>Course Assignments and Grade Tally</h2>
+            <p>This syllabus section summarizes the assignments currently built in the BMHI LMS. Students should use the weekly Modules and course Calendar for detailed directions, opening dates, and due dates.</p>
+            <p><strong>Total course points currently listed:</strong> ${escapeHtml(totalPoints || 300)} points</p>
+
+            <h3>Grade Tally by Assignment Type</h3>
+            <table class="syllabus-table">
+              <thead><tr><th>Assignment Type</th><th>Points</th></tr></thead>
+              <tbody>
+                ${(tallyRows.length ? tallyRows : gradeTallyRows(assignmentRows)).map((row) => `
+                  <tr><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.points)}</td></tr>
+                `).join("")}
+              </tbody>
+            </table>
+
+            <h3>Assignment Summary</h3>
+            <table class="syllabus-table">
+              <thead><tr><th>Assignment</th><th>Due Date</th><th>Points</th></tr></thead>
+              <tbody>
+                ${assignmentRows.map((item) => `
+                  <tr>
+                    <td>${escapeHtml(item.title)}</td>
+                    <td>${item.due_date ? date(item.due_date) : "Posted in course modules"}</td>
+                    <td>${escapeHtml(item.points_possible || 0)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </section>
+
+          <section class="syllabus-card">
+            <h2>Course Overview</h2>
+            <p>${escapeHtml(courseDescription)}</p>
+            <div class="syllabus-details">
+              <p><strong>Course code</strong><span>${escapeHtml(courseCode)}</span></p>
+              <p><strong>Clock hours</strong><span>${escapeHtml(courseHours)}</span></p>
+              <p><strong>Program area</strong><span>${escapeHtml(courseCategory)}</span></p>
+            </div>
+          </section>
+
+          <section class="syllabus-card">
+            <h2>Course Summary</h2>
+            <table class="syllabus-table">
+              <thead><tr><th>Date</th><th>Details</th></tr></thead>
+              <tbody>
+                ${upcomingRows.map((lesson) => `
+                  <tr>
+                    <td>${escapeHtml(lesson.duration_minutes)} minutes</td>
+                    <td><a href="${escapeHtml(baseHref)}?lesson=${lesson.id}">${escapeHtml(lesson.title)}</a></td>
+                  </tr>
+                `).join("") || `<tr><td colspan="2" class="empty">Course summary will appear as modules are added.</td></tr>`}
+              </tbody>
+            </table>
+          </section>
+        </article>
+
+        <aside class="syllabus-side">
+          ${renderMiniCalendar()}
+          <div class="syllabus-side-note">
+            <strong>Course assignments are not weighted.</strong>
+            <p>Points are calculated from the assignment items currently listed for this course.</p>
+          </div>
+        </aside>
+      </div>
+    </main>
+  `;
+}
+
 function normalizeExternalUrl(value = "") {
   const raw = String(value || "").trim();
   if (!raw) return null;
@@ -3622,6 +3780,12 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     WHERE m.course_id = ?
     ORDER BY m.position, l.position
   `).all(enrollment.course_id);
+  const gradeItems = db.prepare(`
+    SELECT *
+    FROM grade_items
+    WHERE course_id = ?
+    ORDER BY due_date IS NULL, due_date, id
+  `).all(enrollment.course_id);
 
   const totalMinutes = lessons.reduce((total, lesson) => total + Number(lesson.duration_minutes || 0), 0);
   const courseCode = enrollment.category === "Practical Nursing Course"
@@ -3661,11 +3825,13 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   const firstLesson = lessons[0];
   const upcomingLessons = lessons.slice(0, 3);
   const navItems = visibleCourseNavItems(enrollment);
+  const courseBaseHref = `/student/enrollments/${enrollment.id}`;
+  const activeView = String(req.query.view || "");
   const populiItems = ["Home", "Files", "Calendar", "Email", "Financial", "Bookstore", "Library"];
   const startTiles = [
-    { icon: "book", label: "Course Syllabus", href: `/student/enrollments/${enrollment.id}?lesson=${firstLesson.id}` },
+    { icon: "book", label: "Course Syllabus", href: `${courseBaseHref}?view=syllabus` },
     { icon: "brain", label: "Learning Modules", href: `/student/enrollments/${enrollment.id}?lesson=${firstLesson.id}` },
-    { icon: "check", label: "Assignments & Grades", href: `/student/enrollments/${enrollment.id}?lesson=${firstLesson.id}` },
+    { icon: "check", label: "Assignments & Grades", href: `${courseBaseHref}?view=syllabus#course-assignments` },
     { icon: "question", label: "Course Q & A", href: `/student/enrollments/${enrollment.id}?lesson=${firstLesson.id}` }
   ];
   const currentLessonId = Number(req.query.lesson || 0);
@@ -3694,7 +3860,36 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       </nav>
     </aside>
   `;
-  const body = req.query.lesson ? `
+  const body = activeView === "syllabus" ? `
+    <section class="canvas-course-shell canvas-syllabus-shell">
+      <aside class="canvas-global-rail">
+        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <span>${escapeHtml(initialsFor(req.user))}</span>
+        <i></i><i></i><i></i><i></i><i></i>
+      </aside>
+
+      <header class="canvas-populi-bar">
+        <a href="/student">Student Home</a>
+        ${populiItems.map((item) => `<a href="${item === "Home" ? "/student" : item === "Financial" ? "/student/financial" : "/student/profile"}">${escapeHtml(item)}</a>`).join("")}
+      </header>
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(navItems, courseBaseHref, "Syllabus", firstLesson.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+      ${courseOutlinePanel}
+      ${renderCourseSyllabus({
+        courseTitle: enrollment.title,
+        courseDescription: enrollment.description,
+        courseCode,
+        courseHours: enrollment.hours,
+        courseCategory: enrollment.category,
+        gradeItems,
+        lessons,
+        baseHref: courseBaseHref
+      })}
+    </section>
+  ` : req.query.lesson ? `
     <section class="canvas-course-shell canvas-lesson-shell">
       <aside class="canvas-global-rail">
         <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
@@ -3708,7 +3903,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       </header>
 
       <aside class="canvas-course-nav" id="canvas-course-navigation">
-        ${navItems.map((item) => `<a class="${item === "Modules" ? "active" : ""}" href="/student/enrollments/${enrollment.id}">${escapeHtml(item)}</a>`).join("")}
+        ${renderCourseNav(navItems, courseBaseHref, "Modules", firstLesson.id)}
       </aside>
       <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
       ${courseOutlinePanel}
@@ -3772,8 +3967,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       </header>
 
       <aside class="canvas-course-nav" id="canvas-course-navigation">
-        <a class="active" href="/student/enrollments/${enrollment.id}">Home</a>
-        ${navItems.slice(1).map((item) => `<a href="/student/enrollments/${enrollment.id}">${escapeHtml(item)}</a>`).join("")}
+        ${renderCourseNav(navItems, courseBaseHref, "Home", firstLesson.id)}
       </aside>
       <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
       ${courseOutlinePanel}
