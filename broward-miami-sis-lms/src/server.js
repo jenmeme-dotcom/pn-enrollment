@@ -15,6 +15,11 @@ const port = Number(process.env.PORT || 4321);
 const instituteName = process.env.INSTITUTE_NAME || "Broward-Miami Health Institute";
 const courseNavItems = ["Home", "Announcements", "Modules", "Assignments", "Discussions", "Grades", "People", "Pages", "Files", "Syllabus", "Outcomes", "Rubrics", "Quizzes", "Collaborations", "Course Analytics", "Settings"];
 const hideableCourseSections = courseNavItems.filter((item) => item !== "Home");
+const americanHeartAssociationSlugs = new Set([
+  "basic-life-support",
+  "advanced-cardiovascular-life-support",
+  "pediatric-advanced-life-support"
+]);
 const emailDeliveryEnabled = process.env.EMAIL_DELIVERY_ENABLED === "true";
 const emailFrom = process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@browardmiamihi.local";
 const externalBaseUrl = (process.env.PUBLIC_APP_URL || "https://bmhi-student-portal.onrender.com").replace(/\/+$/, "");
@@ -1301,10 +1306,38 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
     GROUP BY c.id
     ORDER BY c.category, c.title
   `).all();
-  const programCourses = courses.filter((course) => course.category !== "Practical Nursing Course");
+  const programCourses = courses.filter((course) => course.category !== "Practical Nursing Course" && !americanHeartAssociationSlugs.has(course.slug));
   const practicalNursingCourses = courses.filter((course) => course.category === "Practical Nursing Course");
+  const americanHeartAssociationCourses = courses.filter((course) => americanHeartAssociationSlugs.has(course.slug));
   const totalEnrollments = courses.reduce((sum, course) => sum + Number(course.enrollments || 0), 0);
   const totalCredentials = courses.reduce((sum, course) => sum + Number(course.credentials || 0), 0);
+  const renderCourseGroupCard = ({ title, description, category, credentialType, deliveryMode, childLabel, childCourses }) => `
+    <article class="card admin-program-card featured">
+      <div class="actions" style="justify-content:space-between">
+        <span class="pill">${escapeHtml(credentialType)}</span>
+        <span class="muted">${escapeHtml(String(childCourses.length))} courses</span>
+      </div>
+      <h2>${escapeHtml(title)}</h2>
+      <p class="muted">${escapeHtml(description)}</p>
+      <div class="meta"><span>${escapeHtml(category)}</span><span>${escapeHtml(deliveryMode)}</span></div>
+      <p><strong>${escapeHtml(childCourses.reduce((sum, course) => sum + Number(course.enrollments || 0), 0))}</strong> enrollments · <strong>${escapeHtml(childCourses.reduce((sum, course) => sum + Number(course.credentials || 0), 0))}</strong> credentials</p>
+      <div class="program-subcourses admin-program-subcourses">
+        <h4>${escapeHtml(childLabel)}</h4>
+        ${childCourses.map((child) => `
+          <div class="program-subcourse">
+            <div>
+              <strong>${escapeHtml(child.title)}</strong>
+              <small>${escapeHtml(child.hours)} hours · ${escapeHtml(child.credential_type)} · ${escapeHtml(child.enrollments)} enrollments</small>
+            </div>
+            <div class="actions">
+              <a class="button small" href="/admin/courses/${child.id}">Manage</a>
+              <a class="button small ghost" href="/admin/courses/${child.id}/student-view">Student View</a>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </article>
+  `;
   const renderProgramCard = (course) => {
     const isPracticalNursing = course.slug === "practical-nursing";
     const childCourses = isPracticalNursing ? practicalNursingCourses : [];
@@ -1347,17 +1380,26 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
     <div class="page-head">
       <div>
         <h1>Programs and Courses</h1>
-        <p>Manage BMHI programs from the Courses button. Practical Nursing includes its PN course shells directly under the program, alongside the other programs the school offers.</p>
+        <p>Manage BMHI programs from the Courses button. Practical Nursing and American Heart Association courses are grouped into their own sections alongside the other programs the school offers.</p>
       </div>
     </div>
     <section class="grid cols-4">
-      ${stat("Programs offered", String(programCourses.length))}
+      ${stat("Program sections", String(programCourses.length + (americanHeartAssociationCourses.length ? 1 : 0)))}
       ${stat("PN course shells", String(practicalNursingCourses.length))}
+      ${stat("AHA courses", String(americanHeartAssociationCourses.length))}
       ${stat("Enrollments", String(totalEnrollments))}
-      ${stat("Credentials", String(totalCredentials))}
     </section>
     <section class="grid cols-2 admin-program-grid" style="margin-top:18px">
       ${programCourses.map(renderProgramCard).join("")}
+      ${americanHeartAssociationCourses.length ? renderCourseGroupCard({
+        title: "American Heart Association",
+        description: "BLS, ACLS, and PALS certification course shells for roster management, lesson access, completion tracking, and certificates.",
+        category: "Continuing Education",
+        credentialType: "Certificate",
+        deliveryMode: "Campus",
+        childLabel: "American Heart Association courses",
+        childCourses: americanHeartAssociationCourses
+      }) : ""}
     </section>
   `;
   render(req, res, "Courses", body);
@@ -2064,20 +2106,31 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
     "medical-assistant": ["medical-assistant"],
     "patient-care-technician": ["patient-care-technician"],
     "medical-billing-and-coding": ["medical-billing-and-coding"],
-    "cna-exam-prep": ["cna-exam-prep"],
-    "basic-life-support": ["basic-life-support"],
-    "advanced-cardiovascular-life-support": ["advanced-cardiovascular-life-support"],
-    "pediatric-advanced-life-support": ["pediatric-advanced-life-support"]
+    "cna-exam-prep": ["cna-exam-prep"]
   };
+  const americanHeartAssociationCourses = courses.filter((course) => americanHeartAssociationSlugs.has(course.slug));
   const programCourses = courses
-    .filter((course) => course.category !== "Practical Nursing Course")
+    .filter((course) => course.category !== "Practical Nursing Course" && !americanHeartAssociationSlugs.has(course.slug))
     .map((program) => ({
       ...program,
       subCourses: (programCourseSlugs[program.slug] || [program.slug])
         .map((slug) => courseBySlug.get(slug))
         .filter(Boolean)
-    }));
-  const availablePrograms = programCourses.filter((program) => !enrolledCourseIds.has(program.id));
+    }))
+    .concat(americanHeartAssociationCourses.length ? [{
+      id: "american-heart-association",
+      isGroup: true,
+      title: "American Heart Association",
+      category: "Continuing Education",
+      credential_type: "Certificate",
+      hours: americanHeartAssociationCourses.reduce((sum, course) => sum + Number(course.hours || 0), 0),
+      delivery_mode: "Campus",
+      subCourses: americanHeartAssociationCourses
+    }] : []);
+  const availablePrograms = programCourses.filter((program) => {
+    if (program.isGroup) return program.subCourses.some((course) => !enrolledCourseIds.has(course.id));
+    return !enrolledCourseIds.has(program.id);
+  });
   const availableSubCourseCount = programCourses.reduce(
     (count, program) => count + program.subCourses.filter((course) => !enrolledCourseIds.has(course.id)).length,
     0
@@ -2128,7 +2181,7 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
           <h2>Available Programs</h2>
           <div class="program-list">
             ${programCourses.map((program) => {
-              const programEnrollment = courseEnrollmentByCourseId.get(program.id);
+              const programEnrollment = program.isGroup ? null : courseEnrollmentByCourseId.get(program.id);
               return `
                 <section class="program-card">
                   <div class="program-card-head">
@@ -2136,10 +2189,10 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
                       <h3>${escapeHtml(program.title)}</h3>
                       <p>${escapeHtml(program.category)} · ${escapeHtml(program.credential_type)} · ${escapeHtml(program.hours)} hours · ${escapeHtml(program.delivery_mode)}</p>
                     </div>
-                    ${renderCourseAction(program)}
+                    ${program.isGroup ? `<span class="pill">Courses below</span>` : renderCourseAction(program)}
                   </div>
                   <div class="program-subcourses">
-                    <h4>Courses in this program</h4>
+                    <h4>${escapeHtml(program.isGroup ? "American Heart Association courses" : "Courses in this program")}</h4>
                     ${program.subCourses.map((course) => {
                       const isProgramShell = course.id === program.id;
                       const enrollment = courseEnrollmentByCourseId.get(course.id);
