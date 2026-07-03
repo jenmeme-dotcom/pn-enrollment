@@ -1,0 +1,24 @@
+{
+  "name": "broward-miami-sis-lms",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first Student Information System and Learning Management System for Broward-Miami Health Institute.",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --no-warnings --watch src/server.js",
+    "start": "node --no-warnings src/server.js",
+    "seed": "node --no-warnings src/seed.js",
+    "build:canvas:fundamentals": "node --no-warnings scripts/build-fundamentals-canvas.js",
+    "build:canvas:intro-nursing": "node --no-warnings scripts/build-intro-nursing-canvas.js",
+    "publish:canvas:intro-nursing": "node --no-warnings scripts/publish-intro-nursing-to-canvas.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "express-session": "^1.18.2"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

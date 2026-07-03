@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: broward-miami-sis-lms
+    env: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    disk:
+      name: bmhi-sis-lms-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4321
+      - key: DATABASE_FILE
+        value: /data/bmhi.sqlite
+      - key: INSTITUTE_NAME
+        value: Broward-Miami Health Institute
+      - key: INSTITUTE_WEBSITE
+        value: https://www.browardmiamihi.com
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GHL_WEBHOOK_SECRET
+        generateValue: true

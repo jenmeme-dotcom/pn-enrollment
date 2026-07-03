@@ -1,0 +1,273 @@
+{
+  "course": {
+    "name": "Introduction to Nursing for Practical Nursing Students",
+    "course_code": "PN-INTRO",
+    "license": "private",
+    "is_public": false
+  },
+  "pages": [
+    {
+      "title": "Course Home",
+      "published": true,
+      "front_page": true,
+      "file": "course-home.html"
+    },
+    {
+      "title": "Course Syllabus",
+      "published": true,
+      "file": "course-syllabus.html"
+    },
+    {
+      "title": "Weekly Course Schedule",
+      "published": true,
+      "file": "weekly-schedule.html"
+    }
+  ],
+  "modules": [
+    {
+      "title": "Orientation and Course Resources",
+      "lessons": [
+        {
+          "title": "Course Welcome and Expectations",
+          "content": "A 12-week introduction to nursing course for practical nursing students that explores the history and purpose of nursing, influential nursing leaders, the practical nurse role today, ethical and legal responsibilities, professional identity, and the impact students can make in patient care and the community.\n\nStudents review course expectations, grading, attendance, professional conduct, and the purpose of this introductory course in the practical nursing sequence."
+        },
+        {
+          "title": "How This Course Builds a Practical Nurse",
+          "content": "This course helps students connect nursing history, nursing leaders, ethical/legal responsibilities, communication, patient safety, and personal purpose before moving deeper into skills and clinical courses."
+        }
+      ]
+    },
+    {
+      "title": "Week 1: Welcome to Nursing: Identity, Purpose, and the Practical Nurse Role",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students begin forming a professional nursing identity by examining what nursing is, why it matters, and how practical nurses contribute to safe, compassionate care.\n\nNursing leaders: Florence Nightingale and Clara Barton\n\nTopics: Course orientation and expectations; What nursing meant historically and what nursing means today; The practical nurse as caregiver, communicator, advocate, team member, and lifelong learner; Florence Nightingale's work in sanitation, observation, data, and reform; Clara Barton's service, disaster response, and humanitarian leadership."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Define nursing in student-friendly language and compare it with common public assumptions.\n- Describe the purpose of nursing in hospitals, long-term care, home care, clinics, and community settings.\n- Identify basic expectations of a practical nursing student, including attendance, preparation, conduct, and accountability.\n\nLearning activity: Class discussion: 'Why nursing?' Students write a one-page professional beginning reflection on the kind of nurse they hope to become.\n\nAssessment: Professional Beginning Reflection."
+        }
+      ]
+    },
+    {
+      "title": "Week 2: Nursing Then and Now: Caregiving, Reform, Education, and Public Trust",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students compare nursing in earlier eras with today's profession and discuss how access, race, gender, public health, and education shaped the field.\n\nNursing leaders: Mary Seacole, Mary Eliza Mahoney, and Lillian Wald\n\nTopics: Nursing before formal schools and licensing; Hospital training schools, community health, and the growth of professional standards; Mary Seacole's battlefield care and resilience; Mary Eliza Mahoney as the first professionally trained Black nurse in the United States; Lillian Wald, public health nursing, settlement work, and care for vulnerable communities."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Summarize major changes in nursing education, infection control, technology, documentation, and patient rights.\n- Explain why diversity and public health leadership matter in nursing history.\n- Connect historic nursing barriers to current expectations for equity and respect.\n\nLearning activity: Small-group timeline activity comparing 'nursing back then' with 'nursing today' across education, safety, documentation, and patient voice.\n\nAssessment: Quiz 1: Weeks 1-2."
+        }
+      ]
+    },
+    {
+      "title": "Week 3: The Purpose of Nursing: Caring, Comfort, Safety, Advocacy, and Healing",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students examine nursing as both skilled work and human service, with attention to caring, basic needs, comfort, dignity, safety, and advocacy.\n\nNursing leaders: Virginia Henderson and Jean Watson\n\nTopics: Nursing as care of the whole person; Basic needs, independence, comfort, and dignity; Therapeutic presence, active listening, and respectful communication; Virginia Henderson's definition of nursing and patient independence; Jean Watson's caring theory and the human side of care."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Describe the nurse's role in helping patients meet basic human needs.\n- Explain how caring behaviors support trust and patient cooperation.\n- Identify simple advocacy actions practical nursing students can practice during clinical learning.\n\nLearning activity: Role-play therapeutic responses to anxious, embarrassed, angry, and grieving patients. Students identify responses that protect dignity.\n\nAssessment: Therapeutic Communication Practice."
+        }
+      ]
+    },
+    {
+      "title": "Week 4: The Health Care Team: Scope, Collaboration, Delegation, and Communication",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students learn how practical nurses fit within the health care team, including collaboration with RNs, providers, nursing assistants, and other disciplines.\n\nNursing leaders: Isabel Hampton Robb and Mildred Montag\n\nTopics: Practical nurse role and limits of student practice; Teamwork, delegation, assignment, and supervision; SBAR communication and closed-loop communication; Isabel Hampton Robb and nursing education standards; Mildred Montag and the development of associate degree nursing education."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Differentiate beginning practical nurse responsibilities from RN, provider, and assistive personnel roles.\n- Describe why scope of practice and supervision protect patients and nurses.\n- Use SBAR-style communication for a basic patient-care concern.\n\nLearning activity: SBAR practice lab using short patient scenarios. Students identify what to report, who to report to, and what information must be documented.\n\nAssessment: Quiz 2: Weeks 3-4."
+        }
+      ]
+    },
+    {
+      "title": "Week 5: Ethics in Nursing: Values, Boundaries, Confidentiality, and Patient Rights",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students apply beginning ethical principles to everyday nursing situations involving dignity, truthfulness, privacy, fairness, and professional boundaries.\n\nNursing leaders: Lavinia Dock and Mabel Keaton Staupers\n\nTopics: Autonomy, beneficence, nonmaleficence, justice, fidelity, veracity, and accountability; Confidentiality and privacy as ethical duties; Professional boundaries and social media caution; Patient rights, dignity, and respect for cultural/religious values; Lavinia Dock's advocacy and Mabel Keaton Staupers' civil rights leadership in nursing."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Define common ethical principles used in nursing decisions.\n- Recognize ethical issues related to privacy, social media, honesty, bias, and boundary crossings.\n- Use a simple ethical decision-making process for an introductory case.\n\nLearning activity: Ethics case discussion: A student sees a classmate post about a patient on social media. Students identify the ethical issues and appropriate actions.\n\nAssessment: Ethics Case Response."
+        }
+      ]
+    },
+    {
+      "title": "Week 6: Legal Foundations: Scope of Practice, Documentation, Privacy, and Accountability",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students learn the legal foundations that guide safe beginning practice and prepare for the midterm exam.\n\nNursing leaders: Dorothea Dix and Susie Walking Bear Yellowtail\n\nTopics: Scope of practice and student nurse limitations; HIPAA, confidentiality, and protected health information; Informed consent, refusal of care, incident reporting, and mandatory reporting; Documentation basics: timely, factual, objective, complete, and corrected appropriately; Dorothea Dix's mental health advocacy and Susie Walking Bear Yellowtail's advocacy for Native American health."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Explain why the nurse practice act, board of nursing rules, school policy, and facility policy matter.\n- Identify legal risks related to unsafe practice, poor documentation, confidentiality breaches, abandonment, and failure to report.\n- Describe the difference between negligence and malpractice at an introductory level.\n\nLearning activity: Documentation correction exercise using sample notes. Students identify objective wording, missing facts, and unsafe language.\n\nAssessment: Midterm Exam: Weeks 1-6."
+        }
+      ]
+    },
+    {
+      "title": "Week 7: Culture, Health Equity, and Respectful Care",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students explore cultural humility, social determinants of health, bias, and the nurse's role in respectful, equitable care.\n\nNursing leaders: Madeleine Leininger and Hazel W. Johnson-Brown\n\nTopics: Culture, religion, language, family roles, and health beliefs; Social determinants of health and barriers to care; Bias, assumptions, and respectful curiosity; Interpreter use and plain-language communication; Madeleine Leininger's transcultural nursing and Hazel W. Johnson-Brown's leadership as an Army nurse and educator."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Define cultural humility and distinguish it from stereotyping.\n- Identify social factors that can influence health, access, communication, and trust.\n- Describe practical actions students can take to provide respectful care to every patient.\n\nLearning activity: Cultural humility scenario workshop. Students practice asking respectful questions without making assumptions.\n\nAssessment: Health Equity Reflection."
+        }
+      ]
+    },
+    {
+      "title": "Week 8: Safety, Quality, Infection Prevention, and the Nurse's Watchful Eye",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students connect nursing observation, safety habits, quality improvement, and infection prevention to patient outcomes.\n\nNursing leaders: Linda Richards and Ildaura Murillo-Rohde\n\nTopics: Patient identification, fall prevention, hand hygiene, standard precautions, and infection prevention; Quality improvement, near misses, incident reports, and a just culture mindset; Observation and reporting as core nursing work; Linda Richards and the development of nursing documentation; Ildaura Murillo-Rohde and advocacy for Hispanic nurses."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Describe the practical nurse's role in preventing harm.\n- Identify common safety risks, including falls, infection, medication errors, communication breakdowns, and patient identification errors.\n- Explain how reporting hazards and near misses improves care.\n\nLearning activity: Safety walk-through: students identify hazards in a simulated room and explain what action a beginning practical nursing student should take.\n\nAssessment: Quiz 3: Weeks 7-8."
+        }
+      ]
+    },
+    {
+      "title": "Week 9: Introduction to the Nursing Process and Clinical Judgment",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students learn the beginning language of nursing thinking: noticing, collecting data, reporting changes, planning basic care, and evaluating outcomes.\n\nNursing leaders: Ida Jean Orlando and Patricia Benner\n\nTopics: Assessment/data collection, nursing diagnosis concepts, planning, implementation, and evaluation; Clinical judgment: noticing, interpreting, responding, and reflecting; Prioritization basics and when to ask for help; Ida Jean Orlando's nursing process theory; Patricia Benner's novice-to-expert model."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Name the steps of the nursing process and describe them in practical terms.\n- Explain the practical nursing student's role in data collection, reporting, implementation, and evaluation under supervision.\n- Use a simple patient scenario to identify priority concerns and safe next actions.\n\nLearning activity: Case mapping exercise: students identify what they noticed, what it might mean, what they would report, and what safe care actions may follow.\n\nAssessment: Clinical Judgment Worksheet."
+        }
+      ]
+    },
+    {
+      "title": "Week 10: Patient Teaching, Health Promotion, and Community Impact",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students discuss how practical nurses make an impact through teaching, prevention, maternal-child health, chronic disease support, and community service.\n\nNursing leaders: Mary Breckinridge and Margaret Sanger\n\nTopics: Health promotion and illness prevention across the lifespan; Teach-back, health literacy, and plain-language education; Community nursing, maternal-child care, chronic disease support, and prevention; Mary Breckinridge and frontier nursing; Margaret Sanger's influence on reproductive health education and the need to discuss controversial history with professionalism."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Describe how patient teaching supports safety, independence, and health outcomes.\n- Use plain language and teach-back for a basic health topic.\n- Identify ways practical nursing students can contribute to community wellness.\n\nLearning activity: Teaching micro-lab: students create and deliver a three-minute plain-language teaching script using teach-back.\n\nAssessment: Quiz 4: Weeks 9-10."
+        }
+      ]
+    },
+    {
+      "title": "Week 11: Professionalism, Resilience, Leadership, and Lifelong Learning",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students prepare for the responsibilities of nursing school and practice by focusing on professionalism, feedback, resilience, leadership, and growth.\n\nNursing leaders: Mary Adelaide Nutting and Luther Christman\n\nTopics: Professional appearance, punctuality, communication, accountability, and integrity; Managing stress, asking for help, and building safe learning habits; Feedback, remediation, and reflective practice; Leadership at the bedside and advocacy through everyday actions; Mary Adelaide Nutting's educational leadership and Luther Christman's advocacy for nursing roles and men in nursing."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Identify professional behaviors expected in class, lab, clinical, and the workplace.\n- Describe healthy responses to feedback, stress, mistakes, and learning challenges.\n- Explain how practical nurses demonstrate leadership from the bedside.\n\nLearning activity: Professional development plan: students identify strengths, growth areas, support resources, and habits that will help them succeed.\n\nAssessment: Professional Development Plan."
+        }
+      ]
+    },
+    {
+      "title": "Week 12: Nursing Today and Your Future Impact",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students synthesize what they learned about nursing's past, present, and future while articulating the impact they hope to make as practical nurses.\n\nNursing leaders: Student-selected nursing leader review\n\nTopics: Nursing today: technology, teamwork, evidence, patient rights, community needs, and lifelong learning; How practical nurses make an impact through small, consistent, safe actions; Review of ethical/legal foundations and professional identity; Student-selected leader presentations; Course synthesis and final exam preparation."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Compare nursing back then, nursing today, and the future direction of nursing.\n- Explain the student's expected impact on patients, families, teams, and communities.\n- Prepare for continued practical nursing coursework with a clear sense of purpose and responsibility.\n\nLearning activity: Final impact presentation: students connect one nursing leader, one ethical/legal responsibility, and one personal commitment to patient care.\n\nAssessment: Final Exam and Final Impact Presentation."
+        }
+      ]
+    },
+    {
+      "title": "Course Wrap-Up and Final Assessment",
+      "lessons": [
+        {
+          "title": "Final Review",
+          "content": "Students review nursing history, nursing leaders, practical nurse role expectations, ethical principles, legal responsibilities, safety, professional identity, and the impact of nursing practice."
+        },
+        {
+          "title": "Final Exam and Impact Presentation",
+          "content": "Students complete a cumulative final exam and a short final impact presentation connecting nursing history, ethical/legal responsibility, and their personal commitment to patient care."
+        }
+      ]
+    }
+  ],
+  "assignmentGroups": [
+    {
+      "title": "Class Participation and Professionalism",
+      "pointsPossible": 100
+    },
+    {
+      "title": "Professional Beginning Reflection",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Quiz 1: Weeks 1-2",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Therapeutic Communication Practice",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Quiz 2: Weeks 3-4",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Ethics Case Response",
+      "pointsPossible": 75
+    },
+    {
+      "title": "Midterm Exam: Weeks 1-6",
+      "pointsPossible": 150
+    },
+    {
+      "title": "Health Equity Reflection",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Quiz 3: Weeks 7-8",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Clinical Judgment Worksheet",
+      "pointsPossible": 75
+    },
+    {
+      "title": "Quiz 4: Weeks 9-10",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Professional Development Plan",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Final Impact Presentation",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Cumulative Final Exam",
+      "pointsPossible": 200
+    }
+  ],
+  "notes": [
+    "Replace COURSE_ID in HTML after the Canvas course is created.",
+    "Apply calendar dates after the cohort start date is confirmed.",
+    "Verify all legal references against current state board of nursing rules, student handbook, and clinical site policy before instruction."
+  ]
+}
