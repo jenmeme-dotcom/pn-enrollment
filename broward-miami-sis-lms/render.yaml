@@ -20,6 +20,22 @@ services:
         value: Broward-Miami Health Institute
       - key: INSTITUTE_WEBSITE
         value: https://www.browardmiamihi.com
+      - key: PUBLIC_APP_URL
+        value: https://bmhi-student-portal.onrender.com
+      - key: EMAIL_DELIVERY_ENABLED
+        value: "false"
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
       - key: GHL_WEBHOOK_SECRET

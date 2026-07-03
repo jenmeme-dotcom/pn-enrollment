@@ -199,6 +199,9 @@ function migrate() {
       subject TEXT NOT NULL,
       body TEXT NOT NULL,
       read_at TEXT,
+      external_delivery_status TEXT NOT NULL DEFAULT 'not_configured',
+      external_delivery_error TEXT,
+      external_delivered_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -217,6 +220,16 @@ function migrate() {
   }
   if (!userColumns.includes("class_lock_reason")) {
     db.exec("ALTER TABLE users ADD COLUMN class_lock_reason TEXT;");
+  }
+  const messageColumns = db.prepare("PRAGMA table_info(messages)").all().map((column) => column.name);
+  if (!messageColumns.includes("external_delivery_status")) {
+    db.exec("ALTER TABLE messages ADD COLUMN external_delivery_status TEXT NOT NULL DEFAULT 'not_configured';");
+  }
+  if (!messageColumns.includes("external_delivery_error")) {
+    db.exec("ALTER TABLE messages ADD COLUMN external_delivery_error TEXT;");
+  }
+  if (!messageColumns.includes("external_delivered_at")) {
+    db.exec("ALTER TABLE messages ADD COLUMN external_delivered_at TEXT;");
   }
 }
 

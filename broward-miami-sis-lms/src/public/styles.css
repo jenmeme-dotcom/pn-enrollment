@@ -3233,6 +3233,13 @@ button.small {
   justify-content: space-between;
 }
 
+.message-badges {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .message-head h3 {
   align-items: center;
   display: flex;
@@ -3252,6 +3259,20 @@ button.small {
   line-height: 1.55;
   margin-top: 12px;
   white-space: normal;
+}
+
+.message-error {
+  background: #fff2f2;
+  border: 1px solid #efc0c0;
+  border-radius: 6px;
+  color: var(--danger);
+  font-size: 13px;
+  margin: 12px 0 0;
+  padding: 8px 10px;
+}
+
+.message-config-note {
+  margin-top: 14px;
 }
 
 .unread-dot {

@@ -35,7 +35,25 @@ SESSION_SECRET=<generated>
 GHL_WEBHOOK_SECRET=<generated>
 INSTITUTE_NAME=Broward-Miami Health Institute
 INSTITUTE_WEBSITE=https://www.browardmiamihi.com
+PUBLIC_APP_URL=https://bmhi-student-portal.onrender.com
 ```
+
+## External Email Delivery
+
+The portal stores every message internally. To also send real external email, add SMTP credentials in Render under **Environment**:
+
+```text
+EMAIL_DELIVERY_ENABLED=true
+SMTP_HOST=<your SMTP host>
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=<your SMTP username>
+SMTP_PASS=<your SMTP password or API key>
+SMTP_FROM=Broward-Miami Health Institute <messages@your-domain.com>
+PUBLIC_APP_URL=https://bmhi-student-portal.onrender.com
+```
+
+Use a real transactional mailbox/provider for `SMTP_FROM`. Gmail accounts usually require an app password and may limit sending; a school-domain provider or transactional email service is better for production.
 
 ## Data and Backups
 

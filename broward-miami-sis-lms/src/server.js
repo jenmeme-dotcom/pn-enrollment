@@ -4,6 +4,7 @@ const crypto = require("node:crypto");
 const express = require("express");
 const session = require("express-session");
 const bcrypt = require("bcryptjs");
+const nodemailer = require("nodemailer");
 const { db, initialize } = require("./db");
 const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = require("./ui");
 
@@ -14,6 +15,10 @@ const port = Number(process.env.PORT || 4321);
 const instituteName = process.env.INSTITUTE_NAME || "Broward-Miami Health Institute";
 const courseNavItems = ["Home", "Announcements", "Modules", "Assignments", "Discussions", "Grades", "People", "Pages", "Files", "Syllabus", "Outcomes", "Rubrics", "Quizzes", "Collaborations", "Course Analytics", "Settings"];
 const hideableCourseSections = courseNavItems.filter((item) => item !== "Home");
+const emailDeliveryEnabled = process.env.EMAIL_DELIVERY_ENABLED === "true";
+const emailFrom = process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@browardmiamihi.local";
+const externalBaseUrl = (process.env.PUBLIC_APP_URL || "https://bmhi-student-portal.onrender.com").replace(/\/+$/, "");
+let mailTransporter;
 
 if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
   throw new Error("SESSION_SECRET is required in production.");
@@ -85,6 +90,79 @@ function classLockMessage(user) {
 
 function lockedButton(label = "Locked") {
   return `<span class="button small disabled" aria-disabled="true">${escapeHtml(label)}</span>`;
+}
+
+function smtpReady() {
+  return Boolean(emailDeliveryEnabled && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
+function getMailTransporter() {
+  if (!smtpReady()) return null;
+  if (!mailTransporter) {
+    mailTransporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT || 587),
+      secure: process.env.SMTP_SECURE === "true",
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+  }
+  return mailTransporter;
+}
+
+function plainTextMessage({ sender, recipient, subject, body }) {
+  const fromName = personName(sender);
+  const toName = personName(recipient);
+  return [
+    `${instituteName} Student Email`,
+    "",
+    `To: ${toName}`,
+    `From: ${fromName}`,
+    `Subject: ${subject}`,
+    "",
+    body,
+    "",
+    "This message was sent from the BMHI Student Portal.",
+    externalBaseUrl
+  ].join("\n");
+}
+
+async function deliverExternalEmail({ sender, recipient, subject, body }) {
+  const transporter = getMailTransporter();
+  if (!transporter) {
+    return { sent: false, reason: "External delivery is not configured yet." };
+  }
+
+  try {
+    await transporter.sendMail({
+      from: emailFrom,
+      to: recipient.email,
+      replyTo: sender.email,
+      subject: `[BMHI] ${subject}`,
+      text: plainTextMessage({ sender, recipient, subject, body }),
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.55;color:#17212b">
+          <p><strong>${escapeHtml(instituteName)} Student Email</strong></p>
+          <p><strong>From:</strong> ${escapeHtml(personName(sender))}<br>
+          <strong>To:</strong> ${escapeHtml(personName(recipient))}</p>
+          <h2 style="font-size:18px">${escapeHtml(subject)}</h2>
+          <p>${renderTextWithLinks(body)}</p>
+          <hr>
+          <p style="color:#607080;font-size:13px">This message was sent from the BMHI Student Portal.<br>
+          <a href="${escapeHtml(externalBaseUrl)}">${escapeHtml(externalBaseUrl)}</a></p>
+        </div>
+      `
+    });
+    return { sent: true };
+  } catch (error) {
+    console.error("External email delivery failed", error);
+    return { sent: false, reason: error.message };
+  }
 }
 
 function renderClassLockPage(req, res) {
@@ -194,6 +272,11 @@ function messageList(messages, viewerId, emptyText) {
       ${messages.map((message) => {
         const isIncoming = Number(message.recipient_id) === Number(viewerId);
         const isUnread = isIncoming && !message.read_at;
+        const deliveryLabel = message.external_delivery_status === "sent"
+          ? "Email sent"
+          : message.external_delivery_status === "failed"
+            ? "Email failed"
+            : "Portal only";
         return `
           <article class="message-item ${isUnread ? "unread" : ""}">
             <div class="message-head">
@@ -201,14 +284,28 @@ function messageList(messages, viewerId, emptyText) {
                 <h3>${isUnread ? `<span class="unread-dot" aria-label="Unread message"></span>` : ""}${escapeHtml(message.subject)}</h3>
                 <p>${escapeHtml(isIncoming ? `From ${message.sender_name}` : `To ${message.recipient_name}`)} · ${escapeHtml(formatMessageDate(message.created_at))}</p>
               </div>
-              <span class="pill ${isUnread ? "orange" : ""}">${escapeHtml(isUnread ? "Unread" : isIncoming ? "Read" : "Sent")}</span>
+              <div class="message-badges">
+                <span class="pill ${isUnread ? "orange" : ""}">${escapeHtml(isUnread ? "Unread" : isIncoming ? "Read" : "Sent")}</span>
+                <span class="pill ${message.external_delivery_status === "failed" ? "orange" : ""}">${escapeHtml(deliveryLabel)}</span>
+              </div>
             </div>
             <div class="message-body">${renderTextWithLinks(message.body)}</div>
+            ${message.external_delivery_status === "failed" && message.external_delivery_error ? `<p class="message-error">${escapeHtml(message.external_delivery_error)}</p>` : ""}
           </article>
         `;
       }).join("")}
     </div>
   `;
+}
+
+function updateMessageDelivery(messageId, result) {
+  db.prepare(`
+    UPDATE messages
+    SET external_delivery_status = ?,
+      external_delivery_error = ?,
+      external_delivered_at = CASE WHEN ? = 'sent' THEN CURRENT_TIMESTAMP ELSE external_delivered_at END
+    WHERE id = ?
+  `).run(result.sent ? "sent" : smtpReady() ? "failed" : "not_configured", result.reason || null, result.sent ? "sent" : "failed", messageId);
 }
 
 function splitName(payload) {
@@ -565,8 +662,13 @@ app.get("/admin/messages", requireAuth, requireRole("admin", "instructor"), (req
     <section class="grid cols-3">
       ${stat("Active students", String(students.length))}
       ${stat("Unread messages", String(unreadCount))}
-      ${stat("Sent messages", String(sent.length))}
+      ${stat("External email", smtpReady() ? "Enabled" : "Setup needed")}
     </section>
+    ${smtpReady() ? "" : `
+      <div class="flash message-config-note">
+        External delivery is not active yet. Add SMTP settings in Render to send real emails outside the portal.
+      </div>
+    `}
 
     <section class="grid cols-2 message-workspace">
       <form class="card message-compose" method="post" action="/admin/messages">
@@ -597,7 +699,7 @@ app.get("/admin/messages", requireAuth, requireRole("admin", "instructor"), (req
   render(req, res, "Student Email", body);
 });
 
-app.post("/admin/messages", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.post("/admin/messages", requireAuth, requireRole("admin", "instructor"), async (req, res) => {
   const recipientId = String(req.body.recipientId || "");
   const subject = String(req.body.subject || "").trim().slice(0, 140);
   const body = String(req.body.body || "").trim();
@@ -612,19 +714,37 @@ app.post("/admin/messages", requireAuth, requireRole("admin", "instructor"), (re
   `);
 
   if (recipientId === "all_students") {
-    const students = db.prepare("SELECT id FROM users WHERE role = 'student' AND status = 'active'").all();
-    students.forEach((student) => insertMessage.run(req.user.id, student.id, subject, body));
-    flash(req, `Message sent to ${students.length} active student${students.length === 1 ? "" : "s"}.`);
+    const students = db.prepare(`
+      SELECT id, first_name, last_name, email
+      FROM users
+      WHERE role = 'student' AND status = 'active'
+    `).all();
+    let externalSent = 0;
+    let externalFailed = 0;
+    for (const student of students) {
+      const messageId = insertMessage.run(req.user.id, student.id, subject, body).lastInsertRowid;
+      const delivery = await deliverExternalEmail({ sender: req.user, recipient: student, subject, body });
+      updateMessageDelivery(messageId, delivery);
+      if (delivery.sent) externalSent += 1;
+      if (!delivery.sent && smtpReady()) externalFailed += 1;
+    }
+    flash(req, `Portal message sent to ${students.length} active student${students.length === 1 ? "" : "s"}. External email: ${smtpReady() ? `${externalSent} sent${externalFailed ? `, ${externalFailed} failed` : ""}` : "setup needed"}.`);
     return res.redirect("/admin/messages");
   }
 
-  const recipient = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'student' AND status = 'active'").get(Number(recipientId));
+  const recipient = db.prepare(`
+    SELECT id, first_name, last_name, email
+    FROM users
+    WHERE id = ? AND role = 'student' AND status = 'active'
+  `).get(Number(recipientId));
   if (!recipient) {
     flash(req, "Please choose an active student recipient.");
     return res.redirect("/admin/messages");
   }
-  insertMessage.run(req.user.id, recipient.id, subject, body);
-  flash(req, "Message sent.");
+  const messageId = insertMessage.run(req.user.id, recipient.id, subject, body).lastInsertRowid;
+  const delivery = await deliverExternalEmail({ sender: req.user, recipient, subject, body });
+  updateMessageDelivery(messageId, delivery);
+  flash(req, delivery.sent ? "Portal message saved and external email sent." : `Portal message saved. ${delivery.reason}`);
   res.redirect("/admin/messages");
 });
 
@@ -2161,8 +2281,13 @@ app.get("/student/email", requireAuth, requireRole("student"), (req, res) => {
       <section class="grid cols-3 registration-stats">
         ${stat("Unread", String(unreadCount))}
         ${stat("Inbox", String(inbox.length))}
-        ${stat("Sent", String(sent.length))}
+        ${stat("External email", smtpReady() ? "Enabled" : "Setup needed")}
       </section>
+      ${smtpReady() ? "" : `
+        <div class="flash message-config-note">
+          External delivery is not active yet. Messages are saved in the portal until SMTP settings are added in Render.
+        </div>
+      `}
 
       <section class="grid cols-2 message-workspace">
         <form class="student-panel message-compose" method="post" action="/student/email">
@@ -2193,9 +2318,9 @@ app.get("/student/email", requireAuth, requireRole("student"), (req, res) => {
   render(req, res, "Student Email", body, { studentPortal: true, activeStudentNav: "email" });
 });
 
-app.post("/student/email", requireAuth, requireRole("student"), (req, res) => {
+app.post("/student/email", requireAuth, requireRole("student"), async (req, res) => {
   const recipient = db.prepare(`
-    SELECT id
+    SELECT id, first_name, last_name, email
     FROM users
     WHERE id = ? AND role IN ('admin', 'instructor') AND status = 'active'
   `).get(Number(req.body.recipientId));
@@ -2205,11 +2330,13 @@ app.post("/student/email", requireAuth, requireRole("student"), (req, res) => {
     flash(req, "Please choose a staff recipient and enter a subject and message.");
     return res.redirect("/student/email");
   }
-  db.prepare(`
+  const result = db.prepare(`
     INSERT INTO messages (sender_id, recipient_id, subject, body)
     VALUES (?, ?, ?, ?)
   `).run(req.user.id, recipient.id, subject, body);
-  flash(req, "Message sent to staff.");
+  const delivery = await deliverExternalEmail({ sender: req.user, recipient, subject, body });
+  updateMessageDelivery(result.lastInsertRowid, delivery);
+  flash(req, delivery.sent ? "Message saved and external email sent to staff." : `Message saved in the portal. ${delivery.reason}`);
   res.redirect("/student/email");
 });
 
