@@ -76,6 +76,14 @@ function migrate() {
       uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS course_seed_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      seed_key TEXT NOT NULL,
+      seeded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(course_id, seed_key)
+    );
+
     CREATE TABLE IF NOT EXISTS enrollments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -306,6 +314,8 @@ function seed() {
   `);
 
   const moduleCount = db.prepare("SELECT COUNT(*) AS count FROM modules WHERE course_id = ?");
+  const seedVersionExists = db.prepare("SELECT id FROM course_seed_versions WHERE course_id = ? AND seed_key = ?");
+  const insertSeedVersion = db.prepare("INSERT OR IGNORE INTO course_seed_versions (course_id, seed_key) VALUES (?, ?)");
   const insertModule = db.prepare("INSERT INTO modules (course_id, title, position) VALUES (?, ?, ?)");
   const insertLesson = db.prepare("INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position) VALUES (?, ?, ?, ?, ?, ?)");
   const insertGradeItem = db.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, ?, ?)");
@@ -326,7 +336,16 @@ function seed() {
     );
 
     const saved = db.prepare("SELECT id FROM courses WHERE slug = ?").get(course.slug);
-    if (moduleCount.get(saved.id).count === 0) {
+    const seedKey = course.seedVersion ? `${course.slug}:${course.seedVersion}` : null;
+    const hasCurrentSeedVersion = seedKey ? seedVersionExists.get(saved.id, seedKey) : null;
+    const existingModuleCount = moduleCount.get(saved.id).count;
+    const shouldRefreshSeedContent = Boolean(seedKey && !hasCurrentSeedVersion && existingModuleCount > 0);
+    if (shouldRefreshSeedContent) {
+      db.prepare("DELETE FROM modules WHERE course_id = ?").run(saved.id);
+      db.prepare("DELETE FROM grade_items WHERE course_id = ?").run(saved.id);
+    }
+
+    if (existingModuleCount === 0 || shouldRefreshSeedContent) {
       if (course.modules) {
         course.modules.forEach((module, moduleIndex) => {
           const moduleId = insertModule.run(saved.id, module.title, moduleIndex + 1).lastInsertRowid;
@@ -353,16 +372,24 @@ function seed() {
       gradeItems.forEach((item) => {
         insertGradeItem.run(saved.id, item.title, item.pointsPossible, item.dueDate || null);
       });
+      if (seedKey) insertSeedVersion.run(saved.id, seedKey);
     }
   }
 
   const demoStudent = db.prepare("SELECT id FROM users WHERE email = ?").get("student@browardmiamihi.local");
   const hha = db.prepare("SELECT id FROM courses WHERE slug = ?").get("home-health-aide");
+  const medicalTerminology = db.prepare("SELECT id FROM courses WHERE slug = ?").get("medical-terminology");
   const introNursing = db.prepare("SELECT id FROM courses WHERE slug = ?").get("introduction-to-nursing-practical-nursing");
   db.prepare(`
     INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)
     VALUES (?, ?, 'active', 35, 'seed', 'seed-demo')
   `).run(demoStudent.id, hha.id);
+  if (medicalTerminology) {
+    db.prepare(`
+      INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)
+      VALUES (?, ?, 'active', 10, 'seed', 'seed-demo-pn101')
+    `).run(demoStudent.id, medicalTerminology.id);
+  }
   if (introNursing) {
     db.prepare(`
       INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)

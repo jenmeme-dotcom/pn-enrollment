@@ -126,6 +126,7 @@ const emailDeliveryEnabled = process.env.EMAIL_DELIVERY_ENABLED === "true";
 const emailFrom = process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@browardmiamihi.local";
 const externalBaseUrl = (process.env.PUBLIC_APP_URL || "https://bmhi-student-portal.onrender.com").replace(/\/+$/, "");
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || path.join(path.dirname(databaseFile), "uploads"));
+const courseMaterialsDir = path.resolve(process.env.COURSE_MATERIALS_DIR || path.join(path.dirname(__dirname), "course_materials"));
 let mailTransporter;
 
 fs.mkdirSync(uploadDir, { recursive: true });
@@ -283,6 +284,29 @@ function isPathInside(parent, child) {
   const relative = path.relative(parent, child);
   return relative && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
+
+app.get("/course-materials/:courseSlug/:fileName", requireAuth, (req, res) => {
+  const courseSlug = String(req.params.courseSlug || "");
+  const fileName = path.basename(String(req.params.fileName || ""));
+  if (!courseSlug || !fileName) return res.status(404).send("Course material not found");
+
+  const course = db.prepare("SELECT id, slug FROM courses WHERE slug = ?").get(courseSlug);
+  if (!course) return res.status(404).send("Course material not found");
+
+  const canAccess = req.user.role === "admin" || req.user.role === "instructor" || Boolean(db.prepare(`
+    SELECT e.id
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    WHERE e.user_id = ? AND c.slug = ? AND e.status = 'active'
+  `).get(req.user.id, courseSlug));
+  if (!canAccess) return res.status(403).send("Forbidden");
+  if (isClassLocked(req.user)) return res.status(403).send(classLockMessage(req.user));
+
+  const materialDir = path.join(courseMaterialsDir, course.slug);
+  const filePath = path.join(materialDir, fileName);
+  if (!isPathInside(materialDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Course material not found");
+  res.download(filePath, fileName);
+});
 
 function smtpReady() {
   return Boolean(emailDeliveryEnabled && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
@@ -483,6 +507,14 @@ function parseHiddenSections(course = {}) {
 function visibleCourseNavItems(course = {}) {
   const hidden = parseHiddenSections(course);
   return courseNavItems.filter((item) => item === "Home" || !hidden.has(item));
+}
+
+function canvasCourseCode(course = {}) {
+  if (course.slug === "medical-terminology") return "PN 101";
+  if (course.slug === "introduction-to-nursing-practical-nursing") return "PN 102";
+  const id = course.course_id || course.id || 0;
+  if (course.category === "Practical Nursing Course") return `PN-${String(id).padStart(3, "0")}`;
+  return `BMHI-${String(id).padStart(3, "0")}`;
 }
 
 function toolStatus(course = {}, tool = {}) {
@@ -1436,12 +1468,12 @@ function normalizeExternalUrl(value = "") {
 
 function renderTextWithLinks(value = "") {
   const text = String(value || "");
-  const urlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
+  const urlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+|\/course-materials\/[^\s<]+)/gi;
   let cursor = 0;
   let output = "";
   for (const match of text.matchAll(urlPattern)) {
     output += escapeHtml(text.slice(cursor, match.index));
-    const href = normalizeExternalUrl(match[0]);
+    const href = match[0].startsWith("/") ? match[0] : normalizeExternalUrl(match[0]);
     output += href
       ? `<a href="${escapeHtml(href)}">${escapeHtml(match[0])}</a>`
       : escapeHtml(match[0]);
@@ -3238,7 +3270,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   const firstLesson = lessons[0];
   const navItems = courseNavItems;
   const adminCourseBaseHref = `/admin/courses/${course.id}/student-view`;
-  const courseCode = course.slug === "introduction-to-nursing-practical-nursing" ? "PN 102" : `BMHI ${String(course.id).padStart(3, "0")}`;
+  const courseCode = canvasCourseCode(course);
   const startTiles = [
     { icon: "book", label: "Course Syllabus", href: `${adminCourseBaseHref}?view=syllabus` },
     { icon: "brain", label: "Learning Modules", href: firstLesson ? `${adminCourseBaseHref}?lesson=${firstLesson.id}` : adminCourseBaseHref },
@@ -4652,16 +4684,16 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   `).all(enrollment.id, enrollment.course_id);
 
   const totalMinutes = lessons.reduce((total, lesson) => total + Number(lesson.duration_minutes || 0), 0);
-  const courseCode = enrollment.slug === "introduction-to-nursing-practical-nursing"
-    ? "PN 102"
-    : enrollment.category === "Practical Nursing Course"
-      ? `PN-${String(enrollment.course_id).padStart(3, "0")}`
-      : `BMHI-${String(enrollment.course_id).padStart(3, "0")}`;
+  const courseCode = canvasCourseCode(enrollment);
   const courseHomeTitle = enrollment.slug === "introduction-to-nursing-practical-nursing"
     ? "Introduction to Nursing for Practical Nursing Students"
+    : enrollment.slug === "medical-terminology"
+      ? "Medical Terminology for Practical Nursing Students"
     : `${enrollment.title} Course Home`;
   const courseFocus = enrollment.slug === "introduction-to-nursing-practical-nursing"
     ? "Nursing history, nursing leaders, purpose of nursing, practical nurse role, ethics, legal responsibilities, professionalism, and student impact."
+    : enrollment.slug === "medical-terminology"
+      ? "Word structure, body system terminology, diagnostic and treatment language, healthcare abbreviations, clinical documentation, and practical nursing communication."
     : enrollment.description || `${enrollment.title} coursework, lessons, assignments, attendance, progress tracking, and completion requirements.`;
   const moduleGroups = lessons.reduce((groups, lesson) => {
     const existing = groups.find((group) => group.id === lesson.module_id);
