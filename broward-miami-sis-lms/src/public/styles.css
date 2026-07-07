@@ -969,6 +969,183 @@ nav a {
   padding: 10px;
 }
 
+.osv-workspace {
+  align-items: stretch;
+  margin-top: 18px;
+}
+
+.osv-overview,
+.osv-request-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.osv-request-panel textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  min-height: 210px;
+}
+
+.osv-section {
+  margin-top: 22px;
+}
+
+.osv-section-head {
+  align-items: end;
+  border-bottom: 2px solid var(--brand-dark);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+}
+
+.osv-section-head h2,
+.osv-section-head span,
+.osv-item h3,
+.osv-item p {
+  margin: 0;
+}
+
+.osv-section-head span,
+.osv-item-head p {
+  color: var(--muted);
+}
+
+.osv-item-list {
+  display: grid;
+  gap: 14px;
+}
+
+.osv-item {
+  display: grid;
+  gap: 14px;
+}
+
+.osv-item.approved {
+  border-color: #b8d8ca;
+}
+
+.osv-item.requested {
+  border-color: #d8ca9b;
+}
+
+.osv-item-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.osv-item-head h3 {
+  font-size: 22px;
+}
+
+.osv-item-head p:last-child {
+  line-height: 1.45;
+  margin-top: 5px;
+}
+
+.osv-detail-form {
+  display: grid;
+  gap: 8px 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.osv-detail-form .span-2 {
+  grid-column: span 2;
+}
+
+.osv-upload {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.osv-upload label {
+  grid-column: 1 / -1;
+}
+
+.osv-file-list {
+  display: grid;
+  gap: 8px;
+}
+
+.osv-file {
+  align-items: center;
+  background: #f8fbfc;
+  border: 1px solid #e5edf1;
+  border-radius: 6px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px;
+}
+
+.osv-file strong,
+.osv-file span {
+  display: block;
+}
+
+.osv-file span {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.actions.compact {
+  align-items: center;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.button.danger,
+button.danger {
+  border-color: #f0c0c0;
+  color: #a33;
+}
+
+.osv-binder {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.osv-binder-section table {
+  min-width: 1000px;
+}
+
+.osv-binder-section td {
+  vertical-align: top;
+}
+
+@media print {
+  body.sis-mode {
+    background: #fff;
+  }
+
+  .sis-shell > aside,
+  .sis-shell > header,
+  .osv-print-head .actions,
+  .flash {
+    display: none !important;
+  }
+
+  .sis-shell {
+    display: block;
+  }
+
+  .sis-content {
+    padding: 0;
+  }
+
+  .card {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+}
+
 .profile-note {
   color: var(--muted);
   line-height: 1.55;
@@ -5208,6 +5385,8 @@ button.small {
   .post-body-grid,
   .lesson-bottom,
   .registrar-workbench,
+  .osv-detail-form,
+  .osv-upload,
   .grid.cols-2,
   .grid.cols-3,
   .grid.cols-4,
@@ -5217,6 +5396,18 @@ button.small {
 
   .registrar-overview {
     position: static;
+  }
+
+  .osv-detail-form .span-2,
+  .osv-upload label {
+    grid-column: auto;
+  }
+
+  .osv-item-head,
+  .osv-section-head,
+  .osv-file {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .catalog-program-grid {

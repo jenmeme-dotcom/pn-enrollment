@@ -3,6 +3,7 @@ const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 const bcrypt = require("bcryptjs");
 const { courses } = require("./catalog");
+const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 
 const rootDir = path.resolve(__dirname, "..");
 const databaseFile = path.resolve(rootDir, process.env.DATABASE_FILE || "./data/bmhi.sqlite");
@@ -245,6 +246,35 @@ function migrate() {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(user_id, item_key)
     );
+
+    CREATE TABLE IF NOT EXISTS onsite_visit_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_key TEXT NOT NULL UNIQUE,
+      section TEXT NOT NULL,
+      standard TEXT,
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'needed' CHECK(status IN ('needed','requested','received','approved','not_applicable')),
+      owner TEXT,
+      requested_from TEXT,
+      due_date TEXT,
+      note TEXT,
+      presentation_order INTEGER NOT NULL DEFAULT 1,
+      requested_at TEXT,
+      completed_at TEXT,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS onsite_visit_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_id INTEGER NOT NULL REFERENCES onsite_visit_items(id) ON DELETE CASCADE,
+      file_original_name TEXT NOT NULL,
+      file_storage_name TEXT NOT NULL,
+      file_mime_type TEXT,
+      file_size INTEGER,
+      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   const courseColumns = db.prepare("PRAGMA table_info(courses)").all().map((column) => column.name);
@@ -451,6 +481,24 @@ function seed() {
     INSERT OR IGNORE INTO billing_refund_policies (name, description, active)
     VALUES ('BMHI Standard Refund Policy', 'Refund eligibility is calculated from the signed enrollment agreement, catalog policy, attendance, charges posted, aid disbursed, payments applied, and official withdrawal date.', 1)
   `).run();
+
+  const upsertOnsiteVisitItem = db.prepare(`
+    INSERT INTO onsite_visit_items (item_key, section, standard, title, description, presentation_order)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(item_key) DO UPDATE SET
+      section = excluded.section,
+      standard = excluded.standard,
+      title = excluded.title,
+      description = excluded.description,
+      presentation_order = CASE
+        WHEN onsite_visit_items.presentation_order IS NULL OR onsite_visit_items.presentation_order = 1 THEN excluded.presentation_order
+        ELSE onsite_visit_items.presentation_order
+      END,
+      updated_at = CURRENT_TIMESTAMP
+  `);
+  onsiteVisitChecklistItems.forEach((item, index) => {
+    upsertOnsiteVisitItem.run(item.key, item.section, item.standard, item.title, item.description, index + 1);
+  });
 
   const adminUser = db.prepare("SELECT id FROM users WHERE email = ?").get("admin@browardmiamihi.local");
   const welcomeMessage = db.prepare(`

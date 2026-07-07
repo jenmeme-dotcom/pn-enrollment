@@ -21,6 +21,7 @@ const {
   catalogAttendancePolicy,
   catalogProgramSummaries
 } = require("./catalog");
+const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = require("./ui");
 
 initialize();
@@ -145,9 +146,13 @@ const allowedUploadTypes = new Set([
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/csv"
 ]);
-const allowedUploadExtensions = new Set([".pdf", ".jpg", ".jpeg", ".png", ".webp", ".doc", ".docx", ".xls", ".xlsx", ".zip", ".imscc"]);
+const allowedUploadExtensions = new Set([".pdf", ".jpg", ".jpeg", ".png", ".webp", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv", ".zip", ".imscc"]);
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, callback) => callback(null, uploadDir),
@@ -156,11 +161,11 @@ const upload = multer({
       callback(null, `${crypto.randomUUID()}${extension}`);
     }
   }),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 25 * 1024 * 1024 },
   fileFilter: (_req, file, callback) => {
     const extension = path.extname(file.originalname || "").toLowerCase();
     if (allowedUploadTypes.has(file.mimetype) || allowedUploadExtensions.has(extension)) return callback(null, true);
-    callback(new Error("Upload must be a PDF, image, Word document, Excel file, ZIP, or IMSCC package."));
+    callback(new Error("Upload must be a PDF, image, Office document, text file, CSV, ZIP, or IMSCC package."));
   }
 });
 
@@ -270,6 +275,84 @@ function registrarChecklistForStudent(userId) {
 function registrarProgress(rows = []) {
   const complete = rows.filter((row) => ["approved", "waived"].includes(row.status)).length;
   return { complete, total: registrarChecklistItems.length, percent: Math.round((complete / registrarChecklistItems.length) * 100) };
+}
+
+const onsiteVisitStatuses = ["needed", "requested", "received", "approved", "not_applicable"];
+const onsiteVisitStatusLabels = {
+  needed: "Needed",
+  requested: "Requested",
+  received: "Received",
+  approved: "Approved",
+  not_applicable: "N/A"
+};
+
+function ensureOnsiteVisitChecklist() {
+  const upsertItem = db.prepare(`
+    INSERT INTO onsite_visit_items (item_key, section, standard, title, description, presentation_order)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(item_key) DO UPDATE SET
+      section = excluded.section,
+      standard = excluded.standard,
+      title = excluded.title,
+      description = excluded.description,
+      presentation_order = CASE
+        WHEN onsite_visit_items.presentation_order IS NULL OR onsite_visit_items.presentation_order = 1 THEN excluded.presentation_order
+        ELSE onsite_visit_items.presentation_order
+      END,
+      updated_at = CURRENT_TIMESTAMP
+  `);
+  onsiteVisitChecklistItems.forEach((item, index) => {
+    upsertItem.run(item.key, item.section, item.standard, item.title, item.description, index + 1);
+  });
+}
+
+function onsiteVisitRows() {
+  ensureOnsiteVisitChecklist();
+  const items = db.prepare(`
+    SELECT *
+    FROM onsite_visit_items
+    ORDER BY presentation_order, section, title
+  `).all();
+  const files = db.prepare(`
+    SELECT f.*, u.first_name, u.last_name
+    FROM onsite_visit_files f
+    LEFT JOIN users u ON u.id = f.uploaded_by
+    ORDER BY f.uploaded_at DESC, f.id DESC
+  `).all();
+  const fileMap = files.reduce((map, file) => {
+    if (!map.has(file.item_id)) map.set(file.item_id, []);
+    map.get(file.item_id).push(file);
+    return map;
+  }, new Map());
+  return items.map((item) => ({ ...item, files: fileMap.get(item.id) || [] }));
+}
+
+function onsiteVisitProgress(rows = []) {
+  const total = rows.length;
+  const approved = rows.filter((row) => row.status === "approved" || row.status === "not_applicable").length;
+  const received = rows.filter((row) => row.files.length || ["received", "approved", "not_applicable"].includes(row.status)).length;
+  const requested = rows.filter((row) => row.status === "requested").length;
+  const missing = rows.filter((row) => !row.files.length && !["approved", "not_applicable"].includes(row.status)).length;
+  return { total, approved, received, requested, missing, percent: total ? Math.round((approved / total) * 100) : 0 };
+}
+
+function groupOnsiteVisitRows(rows = []) {
+  return rows.reduce((groups, row) => {
+    const section = row.section || "Unsorted";
+    if (!groups.has(section)) groups.set(section, []);
+    groups.get(section).push(row);
+    return groups;
+  }, new Map());
+}
+
+function onsiteRequestText(rows = []) {
+  const needed = rows.filter((row) => !["approved", "not_applicable"].includes(row.status));
+  if (!needed.length) return "All OSV checklist items are approved or marked not applicable.";
+  const grouped = groupOnsiteVisitRows(needed);
+  return [...grouped.entries()].map(([section, items]) => [
+    section,
+    ...items.map((item) => `- ${item.title}: ${item.description}`)
+  ].join("\n")).join("\n\n");
 }
 
 function formatBytes(value = 0) {
@@ -1594,7 +1677,22 @@ const adminFeatureGroups = [
   {
     title: "Reports",
     code: "RPT",
-    items: ["Student information", "Finance", "Presence", "Exams", "Online exams", "Lesson plan", "Human resources", "Homework", "Library", "Hostel", "Graduates", "User log", "Review path report"]
+    items: [
+      { label: "OSV preparation binder", href: "/admin/onsite-visit" },
+      "Student information",
+      "Finance",
+      "Presence",
+      "Exams",
+      "Online exams",
+      "Lesson plan",
+      "Human resources",
+      "Homework",
+      "Library",
+      "Hostel",
+      "Graduates",
+      "User log",
+      "Review path report"
+    ]
   },
   {
     title: "Student Information",
@@ -2132,6 +2230,282 @@ app.get("/admin/features/:slug", requireAuth, requireRole("admin"), (req, res) =
     </section>
   `;
   render(req, res, label, body);
+});
+
+function renderOnsiteVisitFileList(files = []) {
+  return files.map((file) => `
+    <div class="osv-file">
+      <div>
+        <strong>${escapeHtml(file.file_original_name)}</strong>
+        <span>${escapeHtml(formatBytes(file.file_size))} · ${escapeHtml(file.first_name ? `${file.first_name} ${file.last_name}` : "Staff")} · ${escapeHtml(formatMessageDate(file.uploaded_at))}</span>
+      </div>
+      <div class="actions compact">
+        <a class="button small ghost" href="/admin/onsite-visit/files/${file.id}">Download</a>
+        <form method="post" action="/admin/onsite-visit/files/${file.id}/delete">
+          <button class="small ghost danger" type="submit">Remove</button>
+        </form>
+      </div>
+    </div>
+  `).join("") || `<p class="muted registrar-file-empty">No evidence uploaded yet.</p>`;
+}
+
+function renderOnsiteVisitChecklist(rows = []) {
+  const grouped = groupOnsiteVisitRows(rows);
+  return [...grouped.entries()].map(([section, items]) => `
+    <section class="osv-section" id="${escapeHtml(featureSlug(section))}">
+      <div class="osv-section-head">
+        <h2>${escapeHtml(section)}</h2>
+        <span>${escapeHtml(items.length)} item${items.length === 1 ? "" : "s"}</span>
+      </div>
+      <div class="osv-item-list">
+        ${items.map((item) => `
+          <article class="card osv-item ${escapeHtml(item.status)}">
+            <div class="osv-item-head">
+              <div>
+                <p class="eyebrow">${escapeHtml(item.standard || "OSV")}</p>
+                <h3>${escapeHtml(item.title)}</h3>
+                <p>${escapeHtml(item.description || "")}</p>
+              </div>
+              <span class="pill ${item.status === "approved" ? "" : item.status === "received" ? "" : "orange"}">${escapeHtml(onsiteVisitStatusLabels[item.status] || item.status)}</span>
+            </div>
+
+            <form class="osv-detail-form" method="post" action="/admin/onsite-visit/items/${item.id}">
+              <label>Status</label>
+              <select name="status">
+                ${onsiteVisitStatuses.map((status) => `<option value="${status}" ${item.status === status ? "selected" : ""}>${escapeHtml(onsiteVisitStatusLabels[status])}</option>`).join("")}
+              </select>
+              <label>Owner</label>
+              <input name="owner" value="${escapeHtml(item.owner || "")}" placeholder="Staff owner">
+              <label>Request from</label>
+              <input name="requestedFrom" value="${escapeHtml(item.requested_from || "")}" placeholder="Person or office responsible">
+              <label>Due date</label>
+              <input type="date" name="dueDate" value="${escapeHtml(item.due_date || "")}">
+              <label>Presentation section</label>
+              <input name="section" value="${escapeHtml(item.section || "")}">
+              <label>Order</label>
+              <input type="number" name="presentationOrder" min="1" value="${escapeHtml(item.presentation_order || 1)}">
+              <label class="span-2">Notes, missing items, or evaluator instructions</label>
+              <textarea class="span-2" name="note" rows="3">${escapeHtml(item.note || "")}</textarea>
+              <div class="actions span-2">
+                <button class="small" type="submit" name="action" value="save">Save item</button>
+                <button class="small ghost" type="submit" name="action" value="request">Mark requested</button>
+                <button class="small ghost" type="submit" name="action" value="approve">Approve</button>
+              </div>
+            </form>
+
+            <form class="osv-upload" method="post" action="/admin/onsite-visit/items/${item.id}/upload" enctype="multipart/form-data">
+              <label>Upload evidence</label>
+              <input type="file" name="documents" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" required>
+              <button class="small ghost" type="submit">Upload evidence</button>
+            </form>
+
+            <div class="osv-file-list">
+              ${renderOnsiteVisitFileList(item.files)}
+            </div>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `).join("");
+}
+
+app.get("/admin/onsite-visit", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const rows = onsiteVisitRows();
+  const progress = onsiteVisitProgress(rows);
+  const requestText = onsiteRequestText(rows);
+  const body = `
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">Institution On-Site Visit</p>
+        <h1>OSV Preparation Binder</h1>
+        <p>Gather required documentation, store evidence, request missing items, and produce an organized packet for evaluator review.</p>
+      </div>
+      <div class="actions">
+        <a class="button ghost" href="/admin/onsite-visit/presentation">Presentation view</a>
+        <a class="button ghost" href="/admin/features">Admin features</a>
+      </div>
+    </div>
+
+    <section class="grid cols-4">
+      ${stat("Checklist items", String(progress.total))}
+      ${stat("Received evidence", `${progress.received}/${progress.total}`)}
+      ${stat("Approved", `${progress.approved}/${progress.total}`)}
+      ${stat("Still missing", String(progress.missing))}
+    </section>
+
+    <section class="grid cols-2 osv-workspace">
+      <article class="card osv-overview">
+        <h2>Binder readiness</h2>
+        ${progressBar(progress.percent)}
+        <p class="muted">Approved and not-applicable items count toward binder readiness. Uploaded files remain attached to each evidence item.</p>
+        <div class="registrar-mini-list registrar-anchor-list">
+          ${[...groupOnsiteVisitRows(rows).keys()].map((section) => `<a href="#${escapeHtml(featureSlug(section))}">${escapeHtml(section)}</a>`).join("")}
+        </div>
+      </article>
+      <article class="card osv-request-panel">
+        <div class="actions" style="justify-content:space-between">
+          <div>
+            <h2>Request missing items</h2>
+            <p class="muted">Use this request list when asking staff or departments for OSV evidence.</p>
+          </div>
+          <form method="post" action="/admin/onsite-visit/request-needed">
+            <button class="small" type="submit">Mark needed as requested</button>
+          </form>
+        </div>
+        <textarea readonly rows="10">${escapeHtml(requestText)}</textarea>
+      </article>
+    </section>
+
+    ${renderOnsiteVisitChecklist(rows)}
+  `;
+  render(req, res, "OSV Preparation", body);
+});
+
+app.get("/admin/onsite-visit/presentation", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const rows = onsiteVisitRows();
+  const progress = onsiteVisitProgress(rows);
+  const body = `
+    <div class="page-head osv-print-head">
+      <div>
+        <p class="eyebrow">Produced OSV Binder</p>
+        <h1>${escapeHtml(instituteName)} On-Site Visit Evidence Packet</h1>
+        <p>${escapeHtml(instituteAddress)} · ${escapeHtml(institutePhone)} · ${escapeHtml(instituteEmail)}</p>
+      </div>
+      <div class="actions">
+        <button onclick="window.print()">Print packet</button>
+        <a class="button ghost" href="/admin/onsite-visit">Edit binder</a>
+      </div>
+    </div>
+
+    <section class="grid cols-4">
+      ${stat("Prepared items", String(progress.total))}
+      ${stat("Received", `${progress.received}/${progress.total}`)}
+      ${stat("Approved", `${progress.approved}/${progress.total}`)}
+      ${stat("Generated", new Date().toLocaleDateString("en-US"))}
+    </section>
+
+    <section class="osv-binder">
+      ${[...groupOnsiteVisitRows(rows).entries()].map(([section, items]) => `
+        <article class="card osv-binder-section">
+          <h2>${escapeHtml(section)}</h2>
+          <table>
+            <thead><tr><th>Evidence item</th><th>Status</th><th>Owner</th><th>Files</th><th>Notes</th></tr></thead>
+            <tbody>
+              ${items.map((item) => `
+                <tr>
+                  <td><strong>${escapeHtml(item.title)}</strong><br><span class="muted">${escapeHtml(item.description || "")}</span></td>
+                  <td>${escapeHtml(onsiteVisitStatusLabels[item.status] || item.status)}</td>
+                  <td>${escapeHtml(item.owner || item.requested_from || "")}</td>
+                  <td>
+                    ${item.files.map((file) => `<a href="/admin/onsite-visit/files/${file.id}">${escapeHtml(file.file_original_name)}</a>`).join("<br>") || `<span class="muted">No files</span>`}
+                  </td>
+                  <td>${escapeHtml(item.note || "")}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </article>
+      `).join("")}
+    </section>
+  `;
+  render(req, res, "OSV Evidence Packet", body);
+});
+
+app.post("/admin/onsite-visit/request-needed", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  db.prepare(`
+    UPDATE onsite_visit_items
+    SET status = 'requested',
+      requested_at = COALESCE(requested_at, CURRENT_TIMESTAMP),
+      updated_at = CURRENT_TIMESTAMP
+    WHERE status = 'needed'
+  `).run();
+  flash(req, "Needed OSV items marked as requested.");
+  res.redirect("/admin/onsite-visit");
+});
+
+app.post("/admin/onsite-visit/items/:id", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const item = db.prepare("SELECT id FROM onsite_visit_items WHERE id = ?").get(Number(req.params.id));
+  if (!item) return res.status(404).send("OSV item not found");
+  let status = onsiteVisitStatuses.includes(String(req.body.status || "")) ? String(req.body.status) : "needed";
+  const action = String(req.body.action || "save");
+  if (action === "request") status = "requested";
+  if (action === "approve") status = "approved";
+  db.prepare(`
+    UPDATE onsite_visit_items
+    SET status = ?,
+      owner = ?,
+      requested_from = ?,
+      due_date = ?,
+      section = ?,
+      presentation_order = ?,
+      note = ?,
+      requested_at = CASE WHEN ? = 'requested' THEN COALESCE(requested_at, CURRENT_TIMESTAMP) ELSE requested_at END,
+      completed_at = CASE WHEN ? IN ('approved','not_applicable') THEN COALESCE(completed_at, CURRENT_TIMESTAMP) ELSE NULL END,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(
+    status,
+    String(req.body.owner || "").trim(),
+    String(req.body.requestedFrom || "").trim(),
+    String(req.body.dueDate || "").trim() || null,
+    String(req.body.section || "").trim() || "Unsorted",
+    Math.max(1, Number(req.body.presentationOrder || 1)),
+    String(req.body.note || "").trim(),
+    status,
+    status,
+    item.id
+  );
+  flash(req, "OSV checklist item updated.");
+  res.redirect("/admin/onsite-visit");
+});
+
+app.post("/admin/onsite-visit/items/:id/upload", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const item = db.prepare("SELECT id FROM onsite_visit_items WHERE id = ?").get(Number(req.params.id));
+  if (!item) return res.status(404).send("OSV item not found");
+
+  upload.array("documents", 10)(req, res, (error) => {
+    if (error) {
+      flash(req, error.message || "Upload failed.");
+      return res.redirect("/admin/onsite-visit");
+    }
+    if (!req.files?.length) {
+      flash(req, "Choose at least one evidence file to upload.");
+      return res.redirect("/admin/onsite-visit");
+    }
+    const insertFile = db.prepare(`
+      INSERT INTO onsite_visit_files (item_id, file_original_name, file_storage_name, file_mime_type, file_size, uploaded_by)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    req.files.forEach((file) => {
+      insertFile.run(item.id, file.originalname, file.filename, file.mimetype, file.size, req.user.id);
+    });
+    db.prepare(`
+      UPDATE onsite_visit_items
+      SET status = CASE WHEN status IN ('needed','requested') THEN 'received' ELSE status END,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(item.id);
+    flash(req, `${req.files.length} OSV evidence file${req.files.length === 1 ? "" : "s"} uploaded.`);
+    res.redirect("/admin/onsite-visit");
+  });
+});
+
+app.get("/admin/onsite-visit/files/:id", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const file = db.prepare("SELECT * FROM onsite_visit_files WHERE id = ?").get(Number(req.params.id));
+  if (!file?.file_storage_name) return res.status(404).send("File not found");
+  const filePath = path.join(uploadDir, file.file_storage_name);
+  if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("File not found");
+  res.download(filePath, file.file_original_name || file.file_storage_name);
+});
+
+app.post("/admin/onsite-visit/files/:id/delete", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const file = db.prepare("SELECT * FROM onsite_visit_files WHERE id = ?").get(Number(req.params.id));
+  if (!file) return res.status(404).send("File not found");
+  const filePath = path.join(uploadDir, file.file_storage_name);
+  if (isPathInside(uploadDir, filePath) && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  db.prepare("DELETE FROM onsite_visit_files WHERE id = ?").run(file.id);
+  flash(req, "OSV evidence file removed.");
+  res.redirect("/admin/onsite-visit");
 });
 
 app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req, res) => {

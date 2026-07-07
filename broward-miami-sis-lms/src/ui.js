@@ -27,6 +27,7 @@ function navFor(user) {
     <a href="/admin/features">Features</a>
     <a href="/admin/students">Students</a>
     <a href="/admin/courses">Courses</a>
+    <a href="/admin/onsite-visit">OSV Visit</a>
     <a href="/admin/financial-aid">Financial Aid</a>
     <a href="/admin/billing">Billing</a>
     <a href="/admin/messages">Email</a>
@@ -37,6 +38,7 @@ function navFor(user) {
     <a href="/admin">Dashboard</a>
     <a href="/admin/students">Students</a>
     <a href="/admin/courses">Courses</a>
+    <a href="/admin/onsite-visit">OSV Visit</a>
     <a href="/admin/messages">Email</a>
     <a href="/catalog">Catalog</a>
   `;
