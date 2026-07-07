@@ -3,6 +3,7 @@ const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 const bcrypt = require("bcryptjs");
 const { courses } = require("./catalog");
+const { lippincottEnrollmentInstructions } = require("./fundamentalsBuildout");
 const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 
 const rootDir = path.resolve(__dirname, "..");
@@ -403,6 +404,30 @@ function seed() {
         insertGradeItem.run(saved.id, item.title, item.pointsPossible, item.dueDate || null);
       });
       if (seedKey) insertSeedVersion.run(saved.id, seedKey);
+    }
+  }
+
+  const fundamentals = db.prepare("SELECT id FROM courses WHERE slug = ?").get("fundamental-nursing-skills-and-concepts-new-cohort");
+  if (fundamentals) {
+    const lippincottLessonTitle = "Lippincott CoursePoint Class Code - Fundamentals";
+    const existingLippincottLesson = db.prepare(`
+      SELECT l.id
+      FROM lessons l
+      JOIN modules m ON m.id = l.module_id
+      WHERE m.course_id = ? AND l.title = ?
+    `).get(fundamentals.id, lippincottLessonTitle);
+    if (!existingLippincottLesson) {
+      const orientationModule = db.prepare(`
+        SELECT id
+        FROM modules
+        WHERE course_id = ?
+        ORDER BY CASE WHEN title = 'Orientation and Syllabus' THEN 0 ELSE 1 END, position
+        LIMIT 1
+      `).get(fundamentals.id);
+      if (orientationModule) {
+        const nextPosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(orientationModule.id).next;
+        insertLesson.run(orientationModule.id, lippincottLessonTitle, lippincottEnrollmentInstructions, null, 20, nextPosition);
+      }
     }
   }
 

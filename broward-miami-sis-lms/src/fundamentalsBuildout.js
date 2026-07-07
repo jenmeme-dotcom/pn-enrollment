@@ -141,6 +141,21 @@ const gradeItems = [
   { title: "Clinical Performance Evaluation", pointsPossible: 0 }
 ];
 
+const lippincottClassCode = "CE931F7E";
+const lippincottEnrollmentInstructions = [
+  `Fundamentals class code: ${lippincottClassCode}`,
+  "",
+  "Lippincott CoursePoint product: Lippincott NCLEX-PN PassPoint Powered by PrepU.",
+  "",
+  "Student enrollment instructions:",
+  "1. If you do not already have access to Lippincott CoursePoint for Lippincott NCLEX-PN PassPoint Powered by PrepU, redeem your access code and complete registration at http://thePoint.lww.com/activate.",
+  "2. From the My Content page, click Lippincott CoursePoint for Lippincott NCLEX-PN PassPoint Powered by PrepU.",
+  `3. On the welcome screen or from My Classes, select Join a Class, enter class code ${lippincottClassCode}, and click Enroll.`,
+  "",
+  "Support: If the code does not work, re-enter it carefully or contact Lippincott Online Product Support at 1-800-468-1128 or techsupp@lww.com.",
+  "Access code help: https://thepoint.lww.com/Help/BookAccess."
+].join("\n");
+
 const fundamentalsCourse = {
   title: "Fundamental Nursing Skills and Concepts - New Cohort",
   slug: "fundamental-nursing-skills-and-concepts-new-cohort",
@@ -182,6 +197,10 @@ const fundamentalsCourse = {
           content: `${courseDescription}\n\nRequired products: CoursePoint, vSim for LPN/LVN, and Lippincott Client Cases for Clinical Judgment. Students should complete WK Student Strategies training and confirm access to CoursePoint resources before Week 1.`
         },
         {
+          title: "Lippincott CoursePoint Class Code - Fundamentals",
+          content: lippincottEnrollmentInstructions
+        },
+        {
           title: "Grading, Mastery, and Remediation Expectations",
           content: "Class preparation is 120 points, class follow-up is 180 points, clinical preparation/performance is 350 points, summative exams are 350 points, and clinical performance is pass/fail. PrepU pre-class work targets ML 4; post-class work targets ML 6 with remediation."
         }
@@ -217,4 +236,4 @@ const fundamentalsCourse = {
   gradeItems
 };
 
-module.exports = { fundamentalsCourse };
+module.exports = { fundamentalsCourse, lippincottClassCode, lippincottEnrollmentInstructions };
