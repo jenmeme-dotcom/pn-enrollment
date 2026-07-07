@@ -510,6 +510,8 @@ function visibleCourseNavItems(course = {}) {
 }
 
 function canvasCourseCode(course = {}) {
+  if (course.slug === "home-health-aide") return "HHA 75";
+  if (course.slug === "home-health-aide-creole") return "HHA 75 Kreyol";
   if (course.slug === "medical-terminology") return "PN 101";
   if (course.slug === "introduction-to-nursing-practical-nursing") return "PN 102";
   const id = course.course_id || course.id || 0;
@@ -3898,7 +3900,7 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
       "medical-terminology",
       "fundamental-nursing-skills-and-concepts-new-cohort"
     ],
-    "home-health-aide": ["home-health-aide"],
+    "home-health-aide": ["home-health-aide", "home-health-aide-creole"],
     "medical-assistant": ["medical-assistant"],
     "patient-care-technician": ["patient-care-technician"],
     "medical-billing-and-coding": ["medical-billing-and-coding"],
@@ -4689,11 +4691,19 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     ? "Introduction to Nursing for Practical Nursing Students"
     : enrollment.slug === "medical-terminology"
       ? "Medical Terminology for Practical Nursing Students"
+    : enrollment.slug === "home-health-aide"
+      ? "Home Health Aide 75 Hour Course"
+    : enrollment.slug === "home-health-aide-creole"
+      ? "Kou Asistan Sante Lakay 75 Edtan"
     : `${enrollment.title} Course Home`;
   const courseFocus = enrollment.slug === "introduction-to-nursing-practical-nursing"
     ? "Nursing history, nursing leaders, purpose of nursing, practical nurse role, ethics, legal responsibilities, professionalism, and student impact."
     : enrollment.slug === "medical-terminology"
       ? "Word structure, body system terminology, diagnostic and treatment language, healthcare abbreviations, clinical documentation, and practical nursing communication."
+    : enrollment.slug === "home-health-aide"
+      ? "Home care foundations, patient rights, interpersonal skills, HIV/AIDS, infection control, vital signs, observation, nutrition, emergency procedures, personal care, home safety, and medication self-administration assistance."
+    : enrollment.slug === "home-health-aide-creole"
+      ? "Fondasyon swen lakay, dwa pasyan, konpetans entepesonel, VIH/SIDA, kontwol enfeksyon, siy vital, obsevasyon, nitrisyon, pwosedi ijans, swen pesonel, sekirite lakay, ak asistans medikaman."
     : enrollment.description || `${enrollment.title} coursework, lessons, assignments, attendance, progress tracking, and completion requirements.`;
   const moduleGroups = lessons.reduce((groups, lesson) => {
     const existing = groups.find((group) => group.id === lesson.module_id);

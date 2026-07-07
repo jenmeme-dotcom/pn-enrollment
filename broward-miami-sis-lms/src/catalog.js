@@ -1,4 +1,5 @@
 const { fundamentalsCourse } = require("./fundamentalsBuildout");
+const { homeHealthAideEnglishCourse, homeHealthAideCreoleCourse } = require("./homeHealthAideBuildout");
 const { introNursingCourse } = require("./introNursingBuildout");
 const { medicalTerminologyCourse } = require("./medicalTerminologyBuildout");
 
@@ -16,19 +17,8 @@ const courses = [
     description: "Practical Nursing diploma program with theory, skills lab, and clinical experience in medical, surgical, obstetric, pediatric, geriatric, long-term care, community, pharmacology, mental health, and transition-to-practice nursing.",
     ghlProductKeys: ["Practical Nursing", "PN", "practical-nursing"]
   },
-  {
-    title: "Home Health Aide",
-    slug: "home-health-aide",
-    category: "Certificate Program",
-    hours: 75,
-    tuitionCents: 45000,
-    booksSuppliesCents: 7500,
-    registrationFeeCents: 15000,
-    credentialType: "Certificate",
-    deliveryMode: "Campus / blended",
-    description: "Home Health Aide training for entry-level home care work, including resident rights, communication, infection control, safety, emergencies, personal care, nutrition, observation, charting, and home health services.",
-    ghlProductKeys: ["Home Health Aide", "HHA", "home-health-aide"]
-  },
+  homeHealthAideEnglishCourse,
+  homeHealthAideCreoleCourse,
   {
     title: "Medical Assistant",
     slug: "medical-assistant",

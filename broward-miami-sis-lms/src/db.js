@@ -378,12 +378,19 @@ function seed() {
 
   const demoStudent = db.prepare("SELECT id FROM users WHERE email = ?").get("student@browardmiamihi.local");
   const hha = db.prepare("SELECT id FROM courses WHERE slug = ?").get("home-health-aide");
+  const hhaCreole = db.prepare("SELECT id FROM courses WHERE slug = ?").get("home-health-aide-creole");
   const medicalTerminology = db.prepare("SELECT id FROM courses WHERE slug = ?").get("medical-terminology");
   const introNursing = db.prepare("SELECT id FROM courses WHERE slug = ?").get("introduction-to-nursing-practical-nursing");
   db.prepare(`
     INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)
     VALUES (?, ?, 'active', 35, 'seed', 'seed-demo')
   `).run(demoStudent.id, hha.id);
+  if (hhaCreole) {
+    db.prepare(`
+      INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)
+      VALUES (?, ?, 'active', 12, 'seed', 'seed-demo-hha-creole')
+    `).run(demoStudent.id, hhaCreole.id);
+  }
   if (medicalTerminology) {
     db.prepare(`
       INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)
