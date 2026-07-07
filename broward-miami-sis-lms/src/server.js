@@ -643,7 +643,7 @@ function renderLmsToolkit(course = {}, { compact = false } = {}) {
 
 function courseNavHref(baseHref, item, firstLessonId) {
   if (item === "Home") return baseHref;
-  if (item === "Modules") return firstLessonId ? `${baseHref}?lesson=${firstLessonId}` : baseHref;
+  if (item === "Modules") return `${baseHref}?view=modules`;
   if (item === "Syllabus") return `${baseHref}?view=syllabus`;
   if (item === "Grades") return `${baseHref}?view=grades`;
   if (item === "People") return `${baseHref}?view=people`;
@@ -711,6 +711,97 @@ function renderStartTiles(tiles = []) {
         </a>
       `).join("")}
     </div>
+  `;
+}
+
+function moduleItemKind(title = "") {
+  const lower = String(title).toLowerCase();
+  if (lower.includes("quiz") || lower.includes("exam") || lower.includes("test")) return "quiz";
+  if (lower.includes("discussion")) return "discussion";
+  if (lower.endsWith(".pdf") || lower.endsWith(".ppt") || lower.endsWith(".pptx") || lower.endsWith(".doc") || lower.endsWith(".docx") || lower.endsWith(".xls") || lower.endsWith(".xlsx")) return "file";
+  if (lower.includes("syllabus") || lower.includes("acknowledgement") || lower.includes("worksheet") || lower.includes("exercise") || lower.includes("assignment")) return "assignment";
+  return "page";
+}
+
+function moduleItemIcon(kind) {
+  if (kind === "quiz") return "⌁";
+  if (kind === "discussion") return "▱";
+  if (kind === "file") return "⌕";
+  if (kind === "assignment") return "▧";
+  return "▤";
+}
+
+function moduleItemMeta(lesson) {
+  const title = String(lesson.title || "");
+  const lower = title.toLowerCase();
+  const pieces = [];
+  const dateMatch = title.match(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/i);
+  if (dateMatch) pieces.push(dateMatch[0]);
+  if (lower.includes("discussion")) pieces.push("10 pts");
+  else if (lower.includes("quiz")) pieces.push("10 pts");
+  else if (lower.includes("worksheet") || lower.includes("exercise")) pieces.push("15 pts");
+  return pieces.join(" | ");
+}
+
+function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups = [], instructor = false }) {
+  return `
+    <main class="canvas-course-main canvas-modules-main">
+      <div class="canvas-modules-toolbar">
+        <span></span>
+        ${instructor ? `<a class="canvas-top-button" href="${escapeHtml(baseHref)}">View as Student</a>` : `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=syllabus">Immersive Reader</a>`}
+        <button type="button">Collapse All</button>
+        <button type="button">View Progress</button>
+        <button type="button"><span class="canvas-published-dot"></span> Publish All</button>
+        ${instructor && courseId ? `<a class="canvas-module-add" href="/admin/courses/${courseId}/tools">+ Module</a>` : ""}
+        <button type="button" aria-label="More options">⋮</button>
+      </div>
+      <div class="canvas-module-list">
+        ${moduleGroups.map((module) => `
+          <section class="canvas-module-block">
+            <header class="canvas-module-header">
+              <div>
+                <span class="module-drag">⁝</span>
+                <span class="module-caret">▾</span>
+                <strong>${escapeHtml(module.title)}</strong>
+              </div>
+              <div>
+                <span class="canvas-published-dot"></span>
+                <span>⌄</span>
+                ${instructor ? `<span>＋</span><span>⋮</span>` : ""}
+              </div>
+            </header>
+            <div class="canvas-module-items">
+              ${module.lessons.map((lesson) => {
+                const kind = moduleItemKind(lesson.title);
+                return `
+                  <a class="canvas-module-row" href="${escapeHtml(baseHref)}?lesson=${lesson.id}">
+                    <span class="module-drag">⁝</span>
+                    <span class="module-type ${escapeHtml(kind)}">${escapeHtml(moduleItemIcon(kind))}</span>
+                    <span class="module-title">
+                      <strong>${escapeHtml(lesson.title)}</strong>
+                      ${moduleItemMeta(lesson) ? `<small>${escapeHtml(moduleItemMeta(lesson))}</small>` : ""}
+                    </span>
+                    <span class="canvas-published-dot"></span>
+                    <span class="module-menu">⋮</span>
+                  </a>
+                `;
+              }).join("") || `
+                <div class="canvas-module-row empty">
+                  <span></span><span></span><span class="module-title"><strong>No items yet</strong></span><span></span><span></span>
+                </div>
+              `}
+            </div>
+          </section>
+        `).join("") || `
+          <section class="canvas-module-block">
+            <header class="canvas-module-header"><div><strong>${escapeHtml(courseCode)} Modules</strong></div></header>
+            <div class="canvas-module-row empty">
+              <span></span><span></span><span class="module-title"><strong>No modules have been added yet.</strong></span><span></span><span></span>
+            </div>
+          </section>
+        `}
+      </div>
+    </main>
   `;
 }
 
@@ -3649,12 +3740,38 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   const courseCode = canvasCourseCode(course);
   const startTiles = [
     { icon: "book", label: "Course Syllabus", href: `${adminCourseBaseHref}?view=syllabus` },
-    { icon: "brain", label: "Learning Modules", href: firstLesson ? `${adminCourseBaseHref}?lesson=${firstLesson.id}` : adminCourseBaseHref },
+    { icon: "brain", label: "Learning Modules", href: `${adminCourseBaseHref}?view=modules` },
     { icon: "check", label: "Assignments & Grades", href: `${adminCourseBaseHref}?view=syllabus#course-assignments` },
     { icon: "question", label: "Course Q & A", href: firstLesson ? `${adminCourseBaseHref}?lesson=${firstLesson.id}` : adminCourseBaseHref }
   ];
   const activeView = String(req.query.view || "");
-  const body = activeView === "grades" ? `
+  const body = activeView === "modules" ? `
+    <section class="canvas-course-shell canvas-modules-shell instructor-preview">
+      <aside class="canvas-global-rail">
+        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <span>${escapeHtml(initialsFor(req.user))}</span>
+        <i></i><i></i><i></i><i></i><i></i>
+      </aside>
+
+      ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
+        { label: courseCode, href: adminCourseBaseHref },
+        { label: "Modules" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(navItems, adminCourseBaseHref, "Modules", firstLesson?.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+
+      ${renderCanvasModulesPage({
+        courseCode,
+        baseHref: adminCourseBaseHref,
+        courseId: course.id,
+        moduleGroups,
+        instructor: true
+      })}
+    </section>
+  ` : activeView === "grades" ? `
     <section class="canvas-course-shell instructor-gradebook-shell">
       <aside class="canvas-global-rail">
         <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
@@ -5116,7 +5233,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   const studentCourseNavItems = navItems.filter((item) => ["Home", "Modules", "Grades"].includes(item));
   const startTiles = [
     { icon: "book", label: "Course Syllabus", href: `${courseBaseHref}?view=syllabus` },
-    { icon: "brain", label: "Learning Modules", href: `/student/enrollments/${enrollment.id}?lesson=${firstLesson.id}` },
+    { icon: "brain", label: "Learning Modules", href: `${courseBaseHref}?view=modules` },
     { icon: "check", label: "Assignments & Grades", href: `${courseBaseHref}?view=syllabus#course-assignments` },
     { icon: "question", label: "Course Q & A", href: `/student/enrollments/${enrollment.id}?lesson=${firstLesson.id}` }
   ];
@@ -5146,7 +5263,28 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       </nav>
     </aside>
   `;
-  const body = activeView === "grades" ? `
+  const body = activeView === "modules" ? `
+    <section class="canvas-course-shell canvas-modules-shell student-course-shell">
+      ${renderStudentCanvasRail("courses")}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+        { label: courseCode, href: courseBaseHref },
+        { label: "Modules" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(studentCourseNavItems, courseBaseHref, "Modules", firstLesson.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+      ${courseOutlinePanel}
+
+      ${renderCanvasModulesPage({
+        courseCode,
+        baseHref: courseBaseHref,
+        moduleGroups,
+        instructor: false
+      })}
+    </section>
+  ` : activeView === "grades" ? `
     <section class="canvas-course-shell canvas-grades-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
       ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
