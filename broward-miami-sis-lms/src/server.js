@@ -1676,37 +1676,259 @@ function formatMessageDate(value) {
   }).format(parsed);
 }
 
-function messageList(messages, viewerId, emptyText) {
-  if (!messages.length) return `<p class="empty">${escapeHtml(emptyText)}</p>`;
+function messageDeliveryLabel(message = {}) {
+  if (message.external_delivery_status === "sent") return "Email sent";
+  if (message.external_delivery_status === "failed") return "Email failed";
+  return "Portal only";
+}
+
+function messageCourseLabel(message = {}) {
+  if (!message.course_title) return "General";
+  return message.course_code ? `${message.course_code} · ${message.course_title}` : message.course_title;
+}
+
+function messageUrl(basePath, params = {}) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") search.set(key, String(value));
+  });
+  const query = search.toString();
+  return query ? `${basePath}?${query}` : basePath;
+}
+
+function messageRowsForViewer(viewerId, filters = {}) {
+  const where = ["(m.sender_id = ? OR m.recipient_id = ?)"];
+  const params = [viewerId, viewerId];
+  if (filters.courseId) {
+    where.push("m.course_id = ?");
+    params.push(filters.courseId);
+  }
+  if (filters.q) {
+    where.push(`(
+      m.subject LIKE ?
+      OR m.body LIKE ?
+      OR s.first_name LIKE ?
+      OR s.last_name LIKE ?
+      OR r.first_name LIKE ?
+      OR r.last_name LIKE ?
+      OR c.title LIKE ?
+    )`);
+    const term = `%${filters.q}%`;
+    params.push(term, term, term, term, term, term, term);
+  }
+  return db.prepare(`
+    SELECT m.*,
+      s.first_name || ' ' || s.last_name AS sender_name,
+      s.email AS sender_email,
+      s.role AS sender_role,
+      r.first_name || ' ' || r.last_name AS recipient_name,
+      r.email AS recipient_email,
+      r.role AS recipient_role,
+      c.title AS course_title,
+      NULL AS course_code
+    FROM messages m
+    JOIN users s ON s.id = m.sender_id
+    JOIN users r ON r.id = m.recipient_id
+    LEFT JOIN courses c ON c.id = m.course_id
+    WHERE ${where.join(" AND ")}
+    ORDER BY datetime(m.created_at) DESC, m.id DESC
+    LIMIT 300
+  `).all(...params);
+}
+
+function groupedMessageThreads(viewerId, filters = {}) {
+  const rows = messageRowsForViewer(viewerId, filters);
+  const grouped = new Map();
+  rows.forEach((row) => {
+    const threadId = Number(row.thread_id || row.id);
+    if (!grouped.has(threadId)) grouped.set(threadId, { threadId, latest: row, messages: [] });
+    grouped.get(threadId).messages.push(row);
+  });
+  return [...grouped.values()].filter((thread) => {
+    if (filters.box === "sent") return thread.messages.some((message) => Number(message.sender_id) === Number(viewerId));
+    if (filters.box === "all") return true;
+    return thread.messages.some((message) => Number(message.recipient_id) === Number(viewerId));
+  });
+}
+
+function messageThread(threadId, viewerId) {
+  if (!threadId) return [];
+  return db.prepare(`
+    SELECT m.*,
+      s.first_name || ' ' || s.last_name AS sender_name,
+      s.email AS sender_email,
+      s.role AS sender_role,
+      r.first_name || ' ' || r.last_name AS recipient_name,
+      r.email AS recipient_email,
+      r.role AS recipient_role,
+      c.title AS course_title,
+      NULL AS course_code
+    FROM messages m
+    JOIN users s ON s.id = m.sender_id
+    JOIN users r ON r.id = m.recipient_id
+    LEFT JOIN courses c ON c.id = m.course_id
+    WHERE COALESCE(m.thread_id, m.id) = ?
+      AND (m.sender_id = ? OR m.recipient_id = ?)
+    ORDER BY datetime(m.created_at) ASC, m.id ASC
+  `).all(Number(threadId), viewerId, viewerId);
+}
+
+function messageCourseOptions(user) {
+  if (user.role === "student") {
+    return db.prepare(`
+      SELECT DISTINCT c.id, c.title, NULL AS code
+      FROM enrollments e
+      JOIN courses c ON c.id = e.course_id
+      WHERE e.user_id = ? AND e.status IN ('active', 'completed')
+      ORDER BY c.title
+    `).all(user.id);
+  }
+  return db.prepare(`
+    SELECT id, title, NULL AS code
+    FROM courses
+    ORDER BY title
+  `).all();
+}
+
+function normalizeMessageCourseId(user, rawCourseId) {
+  const courseId = Number(rawCourseId || 0);
+  if (!courseId) return null;
+  const allowed = messageCourseOptions(user).some((course) => Number(course.id) === courseId);
+  return allowed ? courseId : null;
+}
+
+function messageComposeForm({ action, recipients, courses, selectedRecipientId = "", selectedCourseId = "", subject = "", buttonLabel = "Send message", student = false }) {
+  const panelClass = student ? "student-panel" : "card";
   return `
-    <div class="message-list">
-      ${messages.map((message) => {
-        const isIncoming = Number(message.recipient_id) === Number(viewerId);
-        const isUnread = isIncoming && !message.read_at;
-        const deliveryLabel = message.external_delivery_status === "sent"
-          ? "Email sent"
-          : message.external_delivery_status === "failed"
-            ? "Email failed"
-            : "Portal only";
+    <form class="${panelClass} message-compose" method="post" action="${escapeHtml(action)}">
+      <h2>Compose message</h2>
+      <label>To</label>
+      <select name="recipientId" required>
+        ${recipients.map((recipient) => `<option value="${escapeHtml(recipient.value)}" ${String(selectedRecipientId) === String(recipient.value) ? "selected" : ""}>${escapeHtml(recipient.label)}</option>`).join("")}
+      </select>
+      <label>Course</label>
+      <select name="courseId">
+        <option value="">General message</option>
+        ${courses.map((course) => `<option value="${course.id}" ${Number(selectedCourseId) === Number(course.id) ? "selected" : ""}>${escapeHtml(course.code ? `${course.code} · ${course.title}` : course.title)}</option>`).join("")}
+      </select>
+      <label>Subject</label>
+      <input name="subject" maxlength="140" required value="${escapeHtml(subject)}" placeholder="Question about class">
+      <label>Message</label>
+      <textarea name="body" rows="8" required placeholder="Write your message here."></textarea>
+      <button type="submit">${escapeHtml(buttonLabel)}</button>
+    </form>
+  `;
+}
+
+function renderConversationList({ threads, viewerId, selectedThreadId, basePath, filters }) {
+  if (!threads.length) return `<p class="empty">No messages match this view.</p>`;
+  return `
+    <div class="conversation-list" role="list">
+      ${threads.map((thread) => {
+        const latest = thread.latest;
+        const isSelected = Number(thread.threadId) === Number(selectedThreadId);
+        const unreadCount = thread.messages.filter((message) => Number(message.recipient_id) === Number(viewerId) && !message.read_at).length;
+        const isIncoming = Number(latest.recipient_id) === Number(viewerId);
+        const otherName = isIncoming ? latest.sender_name : latest.recipient_name;
+        const href = messageUrl(basePath, { ...filters, threadId: thread.threadId });
         return `
-          <article class="message-item ${isUnread ? "unread" : ""}">
-            <div class="message-head">
-              <div>
-                <h3>${isUnread ? `<span class="unread-dot" aria-label="Unread message"></span>` : ""}${escapeHtml(message.subject)}</h3>
-                <p>${escapeHtml(isIncoming ? `From ${message.sender_name}` : `To ${message.recipient_name}`)} · ${escapeHtml(formatMessageDate(message.created_at))}</p>
-              </div>
-              <div class="message-badges">
-                <span class="pill ${isUnread ? "orange" : ""}">${escapeHtml(isUnread ? "Unread" : isIncoming ? "Read" : "Sent")}</span>
-                <span class="pill ${message.external_delivery_status === "failed" ? "orange" : ""}">${escapeHtml(deliveryLabel)}</span>
-              </div>
-            </div>
-            <div class="message-body">${renderTextWithLinks(message.body)}</div>
-            ${message.external_delivery_status === "failed" && message.external_delivery_error ? `<p class="message-error">${escapeHtml(message.external_delivery_error)}</p>` : ""}
-          </article>
+          <a class="conversation-row ${isSelected ? "active" : ""} ${unreadCount ? "unread" : ""}" href="${escapeHtml(href)}" role="listitem">
+            <span class="conversation-status">${unreadCount ? `<span class="unread-dot" aria-label="Unread message"></span>` : ""}</span>
+            <span>
+              <strong>${escapeHtml(otherName)}</strong>
+              <em>${escapeHtml(latest.subject)}</em>
+              <small>${escapeHtml(messageCourseLabel(latest))} · ${escapeHtml(formatMessageDate(latest.created_at))}</small>
+              <span>${escapeHtml(latest.body.slice(0, 120))}${latest.body.length > 120 ? "..." : ""}</span>
+            </span>
+            ${unreadCount ? `<b>${unreadCount}</b>` : ""}
+          </a>
         `;
       }).join("")}
     </div>
   `;
+}
+
+function renderMessageThread({ messages, viewerId, replyAction, student = false }) {
+  if (!messages.length) {
+    return `
+      <article class="${student ? "student-panel" : "card"} conversation-detail empty-thread">
+        <h2>Select a conversation</h2>
+        <p class="empty">Choose a message on the left, or compose a new one.</p>
+      </article>
+    `;
+  }
+  const first = messages[0];
+  const latest = messages[messages.length - 1];
+  const replyTo = Number(latest.sender_id) === Number(viewerId) ? latest.recipient_name : latest.sender_name;
+  return `
+    <article class="${student ? "student-panel" : "card"} conversation-detail">
+      <div class="conversation-title">
+        <div>
+          <p class="eyebrow">${escapeHtml(messageCourseLabel(first))}</p>
+          <h2>${escapeHtml(first.subject)}</h2>
+        </div>
+        <span class="pill">${messages.length} message${messages.length === 1 ? "" : "s"}</span>
+      </div>
+      <div class="thread-messages">
+        ${messages.map((message) => {
+          const mine = Number(message.sender_id) === Number(viewerId);
+          return `
+            <section class="thread-message ${mine ? "mine" : ""}">
+              <div class="thread-avatar">${escapeHtml(initialsFor({ first_name: message.sender_name?.split(" ")[0], last_name: message.sender_name?.split(" ").slice(1).join(" ") }))}</div>
+              <div>
+                <header>
+                  <strong>${escapeHtml(message.sender_name)}</strong>
+                  <span>${escapeHtml(formatMessageDate(message.created_at))}</span>
+                </header>
+                <p class="thread-meta">${escapeHtml(mine ? `To ${message.recipient_name}` : `From ${message.sender_name}`)} · ${escapeHtml(messageDeliveryLabel(message))}</p>
+                <div class="message-body">${renderTextWithLinks(message.body)}</div>
+                ${message.external_delivery_status === "failed" && message.external_delivery_error ? `<p class="message-error">${escapeHtml(message.external_delivery_error)}</p>` : ""}
+              </div>
+            </section>
+          `;
+        }).join("")}
+      </div>
+      <form class="reply-box" method="post" action="${escapeHtml(replyAction)}">
+        <input type="hidden" name="threadId" value="${escapeHtml(first.thread_id || first.id)}">
+        <label>Reply to ${escapeHtml(replyTo)}</label>
+        <textarea name="body" rows="5" required placeholder="Write a reply..."></textarea>
+        <button type="submit">Reply</button>
+      </form>
+    </article>
+  `;
+}
+
+function savePortalMessage({ senderId, recipientId, courseId = null, subject, body, threadId = null }) {
+  const result = db.prepare(`
+    INSERT INTO messages (sender_id, recipient_id, course_id, thread_id, subject, body)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(senderId, recipientId, courseId || null, threadId || null, subject, body);
+  const messageId = result.lastInsertRowid;
+  if (!threadId) {
+    db.prepare("UPDATE messages SET thread_id = ? WHERE id = ?").run(messageId, messageId);
+  }
+  return messageId;
+}
+
+function replyRecipientForThread(threadId, viewer) {
+  const messages = messageThread(threadId, viewer.id);
+  if (!messages.length) return null;
+  const latest = messages[messages.length - 1];
+  const recipientId = Number(latest.sender_id) === Number(viewer.id) ? Number(latest.recipient_id) : Number(latest.sender_id);
+  const recipient = db.prepare("SELECT id, role, first_name, last_name, email, status FROM users WHERE id = ? AND status = 'active'").get(recipientId);
+  if (!recipient) return null;
+  if (viewer.role === "student" && !["admin", "instructor"].includes(recipient.role)) return null;
+  if (viewer.role !== "student" && recipient.role !== "student") return null;
+  return { recipient, messages, latest };
+}
+
+function markThreadRead(threadId, viewerId) {
+  if (!threadId) return;
+  db.prepare(`
+    UPDATE messages
+    SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
+    WHERE COALESCE(thread_id, id) = ? AND recipient_id = ? AND read_at IS NULL
+  `).run(Number(threadId), viewerId);
 }
 
 function updateMessageDelivery(messageId, result) {
@@ -2110,38 +2332,34 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
 });
 
 app.get("/admin/messages", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const box = ["inbox", "sent", "all"].includes(String(req.query.box || "")) ? String(req.query.box) : "inbox";
+  const q = String(req.query.q || "").trim().slice(0, 80);
+  const courses = messageCourseOptions(req.user);
+  const courseId = normalizeMessageCourseId(req.user, req.query.courseId);
   const students = db.prepare(`
     SELECT id, first_name, last_name, email, status
     FROM users
     WHERE role = 'student' AND status = 'active'
     ORDER BY last_name, first_name
   `).all();
+  const recipients = [
+    { value: "all_students", label: courseId ? "All students enrolled in selected course" : "All active students" },
+    ...students.map((student) => ({ value: student.id, label: `${personName(student)} · ${student.email}` }))
+  ];
   const unreadCount = db.prepare("SELECT COUNT(*) AS count FROM messages WHERE recipient_id = ? AND read_at IS NULL").get(req.user.id).count;
-  const inbox = db.prepare(`
-    SELECT m.*, s.first_name || ' ' || s.last_name AS sender_name, r.first_name || ' ' || r.last_name AS recipient_name
-    FROM messages m
-    JOIN users s ON s.id = m.sender_id
-    JOIN users r ON r.id = m.recipient_id
-    WHERE m.recipient_id = ?
-    ORDER BY m.created_at DESC
-    LIMIT 20
-  `).all(req.user.id);
-  const sent = db.prepare(`
-    SELECT m.*, s.first_name || ' ' || s.last_name AS sender_name, r.first_name || ' ' || r.last_name AS recipient_name
-    FROM messages m
-    JOIN users s ON s.id = m.sender_id
-    JOIN users r ON r.id = m.recipient_id
-    WHERE m.sender_id = ?
-    ORDER BY m.created_at DESC
-    LIMIT 20
-  `).all(req.user.id);
-  db.prepare("UPDATE messages SET read_at = CURRENT_TIMESTAMP WHERE recipient_id = ? AND read_at IS NULL").run(req.user.id);
+  const filters = { box, courseId, q };
+  let threads = groupedMessageThreads(req.user.id, filters);
+  let selectedThreadId = Number(req.query.threadId || 0) || threads[0]?.threadId || null;
+  if (selectedThreadId && !messageThread(selectedThreadId, req.user.id).length) selectedThreadId = threads[0]?.threadId || null;
+  markThreadRead(selectedThreadId, req.user.id);
+  threads = groupedMessageThreads(req.user.id, filters);
+  const selectedMessages = messageThread(selectedThreadId, req.user.id);
 
   const body = `
     <div class="page-head">
       <div>
-        <h1>Student Email</h1>
-        <p>Send portal messages to students, answer student questions, and keep school communications in one place.</p>
+        <h1>Inbox</h1>
+        <p>Communicate with students, answer course questions, and keep instructor-student conversations in one place.</p>
       </div>
       <a class="button ghost" href="/admin/students">Students</a>
     </div>
@@ -2157,37 +2375,35 @@ app.get("/admin/messages", requireAuth, requireRole("admin", "instructor"), (req
       </div>
     `}
 
-    <section class="grid cols-2 message-workspace">
-      <form class="card message-compose" method="post" action="/admin/messages">
-        <h2>Compose message</h2>
-        <label>To</label>
-        <select name="recipientId" required>
-          <option value="all_students">All active students</option>
-          ${students.map((student) => `<option value="${student.id}">${escapeHtml(personName(student))} · ${escapeHtml(student.email)}</option>`).join("")}
-        </select>
-        <label>Subject</label>
-        <input name="subject" maxlength="140" required placeholder="Registration reminder">
-        <label>Message</label>
-        <textarea name="body" rows="8" required placeholder="Write the student email message here."></textarea>
-        <button type="submit">Send message</button>
-      </form>
-
-      <article class="card">
-        <h2>Inbox</h2>
-        ${messageList(inbox, req.user.id, "No student replies yet.")}
-      </article>
-
-      <article class="card span-2">
-        <h2>Recently sent</h2>
-        ${messageList(sent, req.user.id, "No messages sent yet.")}
-      </article>
+    <section class="message-center">
+      <aside class="message-sidebar">
+        <form class="message-toolbar" method="get" action="/admin/messages">
+          <select name="courseId">
+            <option value="">All courses</option>
+            ${courses.map((course) => `<option value="${course.id}" ${Number(courseId) === Number(course.id) ? "selected" : ""}>${escapeHtml(course.code ? `${course.code} · ${course.title}` : course.title)}</option>`).join("")}
+          </select>
+          <select name="box">
+            <option value="inbox" ${box === "inbox" ? "selected" : ""}>Inbox</option>
+            <option value="sent" ${box === "sent" ? "selected" : ""}>Sent</option>
+            <option value="all" ${box === "all" ? "selected" : ""}>All messages</option>
+          </select>
+          <input name="q" type="search" value="${escapeHtml(q)}" placeholder="Search messages">
+          <button type="submit">Search</button>
+        </form>
+        ${renderConversationList({ threads, viewerId: req.user.id, selectedThreadId, basePath: "/admin/messages", filters })}
+      </aside>
+      <section class="message-main">
+        ${renderMessageThread({ messages: selectedMessages, viewerId: req.user.id, replyAction: "/admin/messages/reply" })}
+        ${messageComposeForm({ action: "/admin/messages", recipients, courses, selectedCourseId: courseId })}
+      </section>
     </section>
   `;
-  render(req, res, "Student Email", body);
+  render(req, res, "Inbox", body);
 });
 
 app.post("/admin/messages", requireAuth, requireRole("admin", "instructor"), async (req, res) => {
   const recipientId = String(req.body.recipientId || "");
+  const courseId = normalizeMessageCourseId(req.user, req.body.courseId);
   const subject = String(req.body.subject || "").trim().slice(0, 140);
   const body = String(req.body.body || "").trim();
   if (!subject || !body) {
@@ -2195,21 +2411,17 @@ app.post("/admin/messages", requireAuth, requireRole("admin", "instructor"), asy
     return res.redirect("/admin/messages");
   }
 
-  const insertMessage = db.prepare(`
-    INSERT INTO messages (sender_id, recipient_id, subject, body)
-    VALUES (?, ?, ?, ?)
-  `);
-
   if (recipientId === "all_students") {
     const students = db.prepare(`
       SELECT id, first_name, last_name, email
       FROM users
       WHERE role = 'student' AND status = 'active'
-    `).all();
+        ${courseId ? "AND id IN (SELECT user_id FROM enrollments WHERE course_id = ? AND status IN ('active', 'completed'))" : ""}
+    `).all(...(courseId ? [courseId] : []));
     let externalSent = 0;
     let externalFailed = 0;
     for (const student of students) {
-      const messageId = insertMessage.run(req.user.id, student.id, subject, body).lastInsertRowid;
+      const messageId = savePortalMessage({ senderId: req.user.id, recipientId: student.id, courseId, subject, body });
       const delivery = await deliverExternalEmail({ sender: req.user, recipient: student, subject, body });
       updateMessageDelivery(messageId, delivery);
       if (delivery.sent) externalSent += 1;
@@ -2228,11 +2440,28 @@ app.post("/admin/messages", requireAuth, requireRole("admin", "instructor"), asy
     flash(req, "Please choose an active student recipient.");
     return res.redirect("/admin/messages");
   }
-  const messageId = insertMessage.run(req.user.id, recipient.id, subject, body).lastInsertRowid;
+  const messageId = savePortalMessage({ senderId: req.user.id, recipientId: recipient.id, courseId, subject, body });
   const delivery = await deliverExternalEmail({ sender: req.user, recipient, subject, body });
   updateMessageDelivery(messageId, delivery);
   flash(req, delivery.sent ? "Portal message saved and external email sent." : `Portal message saved. ${delivery.reason}`);
   res.redirect("/admin/messages");
+});
+
+app.post("/admin/messages/reply", requireAuth, requireRole("admin", "instructor"), async (req, res) => {
+  const threadId = Number(req.body.threadId || 0);
+  const body = String(req.body.body || "").trim();
+  const reply = replyRecipientForThread(threadId, req.user);
+  if (!reply || !body) {
+    flash(req, "Choose a student conversation and enter a reply.");
+    return res.redirect("/admin/messages");
+  }
+  const subject = reply.messages[0].subject;
+  const courseId = reply.messages[0].course_id || null;
+  const messageId = savePortalMessage({ senderId: req.user.id, recipientId: reply.recipient.id, courseId, subject, body, threadId });
+  const delivery = await deliverExternalEmail({ sender: req.user, recipient: reply.recipient, subject, body });
+  updateMessageDelivery(messageId, delivery);
+  flash(req, delivery.sent ? "Reply saved and external email sent." : `Reply saved in the portal. ${delivery.reason}`);
+  res.redirect(`/admin/messages?threadId=${threadId}`);
 });
 
 app.get("/admin/features", requireAuth, requireRole("admin"), (req, res) => {
@@ -4616,40 +4845,33 @@ app.get("/student/transcript", requireAuth, requireRole("student"), (req, res) =
 });
 
 app.get("/student/email", requireAuth, requireRole("student"), (req, res) => {
+  const box = ["inbox", "sent", "all"].includes(String(req.query.box || "")) ? String(req.query.box) : "inbox";
+  const q = String(req.query.q || "").trim().slice(0, 80);
+  const courses = messageCourseOptions(req.user);
+  const courseId = normalizeMessageCourseId(req.user, req.query.courseId);
   const staff = db.prepare(`
     SELECT id, first_name, last_name, email, role
     FROM users
     WHERE role IN ('admin', 'instructor') AND status = 'active'
     ORDER BY role, last_name, first_name
   `).all();
+  const recipients = staff.map((person) => ({ value: person.id, label: `${personName(person)} · ${person.role}` }));
   const unreadCount = db.prepare("SELECT COUNT(*) AS count FROM messages WHERE recipient_id = ? AND read_at IS NULL").get(req.user.id).count;
-  const inbox = db.prepare(`
-    SELECT m.*, s.first_name || ' ' || s.last_name AS sender_name, r.first_name || ' ' || r.last_name AS recipient_name
-    FROM messages m
-    JOIN users s ON s.id = m.sender_id
-    JOIN users r ON r.id = m.recipient_id
-    WHERE m.recipient_id = ?
-    ORDER BY m.created_at DESC
-    LIMIT 20
-  `).all(req.user.id);
-  const sent = db.prepare(`
-    SELECT m.*, s.first_name || ' ' || s.last_name AS sender_name, r.first_name || ' ' || r.last_name AS recipient_name
-    FROM messages m
-    JOIN users s ON s.id = m.sender_id
-    JOIN users r ON r.id = m.recipient_id
-    WHERE m.sender_id = ?
-    ORDER BY m.created_at DESC
-    LIMIT 20
-  `).all(req.user.id);
-  db.prepare("UPDATE messages SET read_at = CURRENT_TIMESTAMP WHERE recipient_id = ? AND read_at IS NULL").run(req.user.id);
+  const filters = { box, courseId, q };
+  let threads = groupedMessageThreads(req.user.id, filters);
+  let selectedThreadId = Number(req.query.threadId || 0) || threads[0]?.threadId || null;
+  if (selectedThreadId && !messageThread(selectedThreadId, req.user.id).length) selectedThreadId = threads[0]?.threadId || null;
+  markThreadRead(selectedThreadId, req.user.id);
+  threads = groupedMessageThreads(req.user.id, filters);
+  const selectedMessages = messageThread(selectedThreadId, req.user.id);
 
   const body = `
     <section class="student-registration">
       <div class="financial-head">
         <div>
-          <p class="eyebrow">Student Email</p>
+          <p class="eyebrow">Inbox</p>
           <h1>Inbox</h1>
-          <p>Message BMHI staff about courses, registration, billing, records, or student support.</p>
+          <p>Message your instructor or BMHI staff about courses, assignments, registration, billing, records, or support.</p>
         </div>
         <div class="financial-actions">
           <a class="button ghost" href="/student">Dashboard</a>
@@ -4659,7 +4881,7 @@ app.get("/student/email", requireAuth, requireRole("student"), (req, res) => {
 
       <section class="grid cols-3 registration-stats">
         ${stat("Unread", String(unreadCount))}
-        ${stat("Inbox", String(inbox.length))}
+        ${stat("Conversations", String(threads.length))}
         ${stat("External email", smtpReady() ? "Enabled" : "Setup needed")}
       </section>
       ${smtpReady() ? "" : `
@@ -4668,33 +4890,31 @@ app.get("/student/email", requireAuth, requireRole("student"), (req, res) => {
         </div>
       `}
 
-      <section class="grid cols-2 message-workspace">
-        <form class="student-panel message-compose" method="post" action="/student/email">
-          <h2>New message</h2>
-          <label>To</label>
-          <select name="recipientId" required>
-            ${staff.map((person) => `<option value="${person.id}">${escapeHtml(personName(person))} · ${escapeHtml(person.role)}</option>`).join("")}
-          </select>
-          <label>Subject</label>
-          <input name="subject" maxlength="140" required placeholder="Question about my course">
-          <label>Message</label>
-          <textarea name="body" rows="8" required placeholder="Write your message to BMHI staff."></textarea>
-          <button type="submit">Send message</button>
-        </form>
-
-        <article class="student-panel">
-          <h2>Inbox</h2>
-          ${messageList(inbox, req.user.id, "No messages yet.")}
-        </article>
-
-        <article class="student-panel span-2">
-          <h2>Sent</h2>
-          ${messageList(sent, req.user.id, "No sent messages yet.")}
-        </article>
+      <section class="message-center student-message-center">
+        <aside class="message-sidebar">
+          <form class="message-toolbar" method="get" action="/student/email">
+            <select name="courseId">
+              <option value="">All courses</option>
+              ${courses.map((course) => `<option value="${course.id}" ${Number(courseId) === Number(course.id) ? "selected" : ""}>${escapeHtml(course.code ? `${course.code} · ${course.title}` : course.title)}</option>`).join("")}
+            </select>
+            <select name="box">
+              <option value="inbox" ${box === "inbox" ? "selected" : ""}>Inbox</option>
+              <option value="sent" ${box === "sent" ? "selected" : ""}>Sent</option>
+              <option value="all" ${box === "all" ? "selected" : ""}>All messages</option>
+            </select>
+            <input name="q" type="search" value="${escapeHtml(q)}" placeholder="Search messages">
+            <button type="submit">Search</button>
+          </form>
+          ${renderConversationList({ threads, viewerId: req.user.id, selectedThreadId, basePath: "/student/email", filters })}
+        </aside>
+        <section class="message-main">
+          ${renderMessageThread({ messages: selectedMessages, viewerId: req.user.id, replyAction: "/student/email/reply", student: true })}
+          ${messageComposeForm({ action: "/student/email", recipients, courses, selectedCourseId: courseId, subject: "Question about my course", student: true })}
+        </section>
       </section>
     </section>
   `;
-  render(req, res, "Student Email", body, { studentPortal: true, activeStudentNav: "email" });
+  render(req, res, "Inbox", body, { studentPortal: true, activeStudentNav: "email" });
 });
 
 app.post("/student/email", requireAuth, requireRole("student"), async (req, res) => {
@@ -4703,20 +4923,35 @@ app.post("/student/email", requireAuth, requireRole("student"), async (req, res)
     FROM users
     WHERE id = ? AND role IN ('admin', 'instructor') AND status = 'active'
   `).get(Number(req.body.recipientId));
+  const courseId = normalizeMessageCourseId(req.user, req.body.courseId);
   const subject = String(req.body.subject || "").trim().slice(0, 140);
   const body = String(req.body.body || "").trim();
   if (!recipient || !subject || !body) {
     flash(req, "Please choose a staff recipient and enter a subject and message.");
     return res.redirect("/student/email");
   }
-  const result = db.prepare(`
-    INSERT INTO messages (sender_id, recipient_id, subject, body)
-    VALUES (?, ?, ?, ?)
-  `).run(req.user.id, recipient.id, subject, body);
+  const messageId = savePortalMessage({ senderId: req.user.id, recipientId: recipient.id, courseId, subject, body });
   const delivery = await deliverExternalEmail({ sender: req.user, recipient, subject, body });
-  updateMessageDelivery(result.lastInsertRowid, delivery);
+  updateMessageDelivery(messageId, delivery);
   flash(req, delivery.sent ? "Message saved and external email sent to staff." : `Message saved in the portal. ${delivery.reason}`);
   res.redirect("/student/email");
+});
+
+app.post("/student/email/reply", requireAuth, requireRole("student"), async (req, res) => {
+  const threadId = Number(req.body.threadId || 0);
+  const body = String(req.body.body || "").trim();
+  const reply = replyRecipientForThread(threadId, req.user);
+  if (!reply || !body) {
+    flash(req, "Choose a staff conversation and enter a reply.");
+    return res.redirect("/student/email");
+  }
+  const subject = reply.messages[0].subject;
+  const courseId = reply.messages[0].course_id || null;
+  const messageId = savePortalMessage({ senderId: req.user.id, recipientId: reply.recipient.id, courseId, subject, body, threadId });
+  const delivery = await deliverExternalEmail({ sender: req.user, recipient: reply.recipient, subject, body });
+  updateMessageDelivery(messageId, delivery);
+  flash(req, delivery.sent ? "Reply saved and external email sent." : `Reply saved in the portal. ${delivery.reason}`);
+  res.redirect(`/student/email?threadId=${threadId}`);
 });
 
 app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {

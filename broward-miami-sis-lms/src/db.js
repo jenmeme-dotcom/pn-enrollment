@@ -300,6 +300,13 @@ function migrate() {
     db.exec("ALTER TABLE users ADD COLUMN class_lock_reason TEXT;");
   }
   const messageColumns = db.prepare("PRAGMA table_info(messages)").all().map((column) => column.name);
+  if (!messageColumns.includes("thread_id")) {
+    db.exec("ALTER TABLE messages ADD COLUMN thread_id INTEGER;");
+    db.exec("UPDATE messages SET thread_id = id WHERE thread_id IS NULL;");
+  }
+  if (!messageColumns.includes("course_id")) {
+    db.exec("ALTER TABLE messages ADD COLUMN course_id INTEGER;");
+  }
   if (!messageColumns.includes("external_delivery_status")) {
     db.exec("ALTER TABLE messages ADD COLUMN external_delivery_status TEXT NOT NULL DEFAULT 'not_configured';");
   }

@@ -30,7 +30,7 @@ function navFor(user) {
     <a href="/admin/onsite-visit">OSV Visit</a>
     <a href="/admin/financial-aid">Financial Aid</a>
     <a href="/admin/billing">Billing</a>
-    <a href="/admin/messages">Email</a>
+    <a href="/admin/messages">Inbox</a>
     <a href="/catalog">Catalog</a>
     <a href="/admin/ghl">GHL</a>
   `;
@@ -39,12 +39,12 @@ function navFor(user) {
     <a href="/admin/students">Students</a>
     <a href="/admin/courses">Courses</a>
     <a href="/admin/onsite-visit">OSV Visit</a>
-    <a href="/admin/messages">Email</a>
+    <a href="/admin/messages">Inbox</a>
     <a href="/catalog">Catalog</a>
   `;
   const studentLinks = `
     <a href="/student">My Courses</a>
-    <a href="/student/email">Email</a>
+    <a href="/student/email">Inbox</a>
     <a href="/catalog">Catalog</a>
   `;
   return user.role === "student" ? studentLinks : user.role === "instructor" ? instructorLinks : adminLinks;
@@ -109,7 +109,7 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
           <a href="/admin/courses">LMS</a>
           <a href="/admin/financial-aid">Financial Aid</a>
           <a href="/admin/billing">Billing</a>
-          <a href="/admin/messages">Email</a>
+          <a href="/admin/messages">Inbox</a>
           <a href="/admin/features/reports">Reports</a>
         </nav>
         <div class="sis-tools">
@@ -148,7 +148,7 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
       <nav aria-label="Student portal">
         ${studentPortalLink(activeStudentNav, "dashboard", "/student", "Dashboard")}
         ${studentPortalLink(activeStudentNav, "courses", "/student/courses", "Enrolled Courses")}
-        ${studentPortalLink(activeStudentNav, "email", "/student/email", "Email")}
+        ${studentPortalLink(activeStudentNav, "email", "/student/email", "Inbox")}
         ${studentPortalLink(activeStudentNav, "profile", "/student/profile", "My Profile")}
         ${studentPortalLink(activeStudentNav, "fees", "/student/financial", "Fees")}
         ${studentPortalLink(activeStudentNav, "registration", "/student/registration", "Registration")}
