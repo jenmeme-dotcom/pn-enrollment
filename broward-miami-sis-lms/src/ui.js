@@ -43,7 +43,10 @@ function navFor(user) {
     <a href="/catalog">Catalog</a>
   `;
   const studentLinks = `
-    <a href="/student">My Courses</a>
+    <a href="/student/dashboard">Dashboard</a>
+    <a href="/student">SIS Home</a>
+    <a href="/student/courses">My Courses</a>
+    <a href="/student/calendar">Calendar</a>
     <a href="/student/email">Inbox</a>
     <a href="/catalog">Catalog</a>
   `;
@@ -146,8 +149,10 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
     <aside class="student-sidebar">
       <div class="student-session">Current Session: 2026-27</div>
       <nav aria-label="Student portal">
-        ${studentPortalLink(activeStudentNav, "dashboard", "/student", "Dashboard")}
+        ${studentPortalLink(activeStudentNav, "dashboard", "/student/dashboard", "Dashboard")}
+        ${studentPortalLink(activeStudentNav, "sis-home", "/student", "SIS Home")}
         ${studentPortalLink(activeStudentNav, "courses", "/student/courses", "Enrolled Courses")}
+        ${studentPortalLink(activeStudentNav, "calendar", "/student/calendar", "Calendar")}
         ${studentPortalLink(activeStudentNav, "email", "/student/email", "Inbox")}
         ${studentPortalLink(activeStudentNav, "profile", "/student/profile", "My Profile")}
         ${studentPortalLink(activeStudentNav, "fees", "/student/financial", "Fees")}

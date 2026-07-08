@@ -230,6 +230,28 @@ function migrate() {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS announcements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      posted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS calendar_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      course_id INTEGER REFERENCES courses(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT,
+      event_type TEXT NOT NULL DEFAULT 'event' CHECK(event_type IN ('event','class','assignment','exam','meeting')),
+      start_at TEXT NOT NULL,
+      end_at TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS student_record_checklist (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -533,6 +555,73 @@ function seed() {
   });
 
   const adminUser = db.prepare("SELECT id FROM users WHERE email = ?").get("admin@browardmiamihi.local");
+  const instructorUser = db.prepare("SELECT id FROM users WHERE email = ?").get("instructor@browardmiamihi.local");
+  const announcementCount = db.prepare("SELECT COUNT(*) AS count FROM announcements WHERE course_id = ?");
+  const insertAnnouncement = db.prepare(`
+    INSERT INTO announcements (course_id, author_id, title, body, posted_at)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  const seedAnnouncementGroups = [
+    {
+      slug: "medical-terminology",
+      rows: [
+        ["PN 101 Week 3 Reminder: Due This Week (July 6-12, 2026)", "This week focuses on body organization and oncology terminology. Complete Discussion 2, Quiz 2, and the assigned chapter resources before Sunday night.", "2026-07-05 00:00:00"],
+        ["PN 101 Week 2 Reminder: Due This Week (June 29-July 5, 2026)", "Review word structure, roots, prefixes, and suffixes. Submit the worksheet and quiz by the posted deadline.", "2026-06-28 00:00:00"],
+        ["PN 101 Welcome, Students!", "Welcome to Medical Terminology. Start with the syllabus, course orientation acknowledgement, and the first e-book chapter.", "2026-06-17 17:27:00"]
+      ]
+    },
+    {
+      slug: "introduction-to-nursing-practical-nursing",
+      rows: [
+        ["PN 102 Week 3 Reminder: Caring, Comfort, Safety, Advocacy, and Healing", "Use this week to connect nursing identity with safe, respectful patient care. Discussion 3 and the weekly learning activity are due Sunday night.", "2026-07-06 08:00:00"],
+        ["PN 102 Week 2 Reminder: Nursing Then and Now", "Read the module materials before class and prepare your discussion post on reform, education, and public trust.", "2026-06-29 08:00:00"],
+        ["PN 102 Welcome to Introduction to Nursing", "Begin with the course syllabus, professionalism acknowledgement, and Week 1 discussion.", "2026-06-22 08:00:00"]
+      ]
+    },
+    {
+      slug: "home-health-aide",
+      rows: [
+        ["Home Health Aide Week 1: Welcome and Start Strong", "Start with orientation, patient rights, infection control expectations, and required skills lab preparation.", "2026-06-22 08:40:00"],
+        ["Home Health Aide Clinical Readiness Reminder", "Upload required documents and review your checklist before attending skills practice.", "2026-07-01 09:00:00"]
+      ]
+    },
+    {
+      slug: "fundamental-nursing-skills-and-concepts-new-cohort",
+      rows: [
+        ["Fundamentals: Lippincott CoursePoint Class Code", "Students should enroll in the Fundamentals CoursePoint class using code CE931F7E and keep the confirmation for class records.", "2026-07-02 09:00:00"],
+        ["Fundamentals Week 1: Welcome and Start Strong", "Begin with the CoursePoint setup, syllabus, and first skills module.", "2026-06-22 08:30:00"]
+      ]
+    }
+  ];
+  seedAnnouncementGroups.forEach((group) => {
+    const course = db.prepare("SELECT id FROM courses WHERE slug = ?").get(group.slug);
+    if (course && announcementCount.get(course.id).count === 0) {
+      group.rows.forEach(([title, body, postedAt]) => insertAnnouncement.run(course.id, instructorUser?.id || adminUser.id, title, body, postedAt));
+    }
+  });
+
+  const calendarCount = db.prepare("SELECT COUNT(*) AS count FROM calendar_events");
+  if (calendarCount.get().count === 0) {
+    const insertCalendarEvent = db.prepare(`
+      INSERT INTO calendar_events (course_id, title, description, event_type, start_at, end_at, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const eventRows = [
+      ["medical-terminology", "[PN101 2026] Weekly Medical Terminology Class", "Google Meet class session.", "meeting", "2026-07-01 18:00:00", "2026-07-01 20:00:00"],
+      ["medical-terminology", "[PN101 2026] Weekly Medical Terminology Class", "Google Meet class session.", "meeting", "2026-07-08 18:00:00", "2026-07-08 20:00:00"],
+      ["medical-terminology", "Exam 1", "Medical terminology exam covering early word structure modules.", "exam", "2026-07-13 09:00:00", "2026-07-13 11:00:00"],
+      ["medical-terminology", "[PN101 2026] Discussion 2: Decoding Medical Words", "Weekly discussion deadline.", "assignment", "2026-07-12 23:59:00", null],
+      ["introduction-to-nursing-practical-nursing", "Week 3 Discussion: Caring, Comfort, Safety, Advocacy, and Healing", "Introduction to Nursing discussion deadline.", "assignment", "2026-07-12 23:59:00", null],
+      ["introduction-to-nursing-practical-nursing", "Week 4 Discussion: Health Care Teamwork, Scope, Delegation, and Communication", "Introduction to Nursing discussion deadline.", "assignment", "2026-07-19 23:59:00", null],
+      ["home-health-aide", "HHA Skills Lab Checkoff", "Instructor-led skills practice and documentation review.", "class", "2026-07-15 09:00:00", "2026-07-15 13:00:00"],
+      ["fundamental-nursing-skills-and-concepts-new-cohort", "Fundamentals CoursePoint Setup Due", "Submit enrollment confirmation for CoursePoint.", "assignment", "2026-07-08 23:59:00", null]
+    ];
+    eventRows.forEach(([slug, title, description, eventType, startAt, endAt]) => {
+      const course = db.prepare("SELECT id FROM courses WHERE slug = ?").get(slug);
+      if (course) insertCalendarEvent.run(course.id, title, description, eventType, startAt, endAt, instructorUser?.id || adminUser.id);
+    });
+  }
+
   const welcomeMessage = db.prepare(`
     SELECT id
     FROM messages

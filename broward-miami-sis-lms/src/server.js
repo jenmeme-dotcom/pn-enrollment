@@ -649,6 +649,9 @@ function courseNavHref(baseHref, item, firstLessonId) {
   if (item === "People") return `${baseHref}?view=people`;
   if (item === "Groups") return `${baseHref}?view=people#groups`;
   if (item === "Settings") return `${baseHref}?view=settings`;
+  if (item === "Announcements") return `${baseHref}?view=announcements`;
+  if (item === "Calendar") return `${baseHref}?view=calendar`;
+  if (item === "Inbox") return baseHref.startsWith("/student/") ? "/student/email" : "/admin/messages";
   if (["Assignments", "Quizzes"].includes(item)) return `${baseHref}?view=syllabus#course-assignments`;
   return baseHref;
 }
@@ -662,9 +665,9 @@ function renderCourseNav(navItems, baseHref, activeItem, firstLessonId) {
 function renderStudentCanvasRail(active = "courses") {
   const items = [
     { key: "account", label: "Account", href: "/student/profile", icon: "○" },
-    { key: "dashboard", label: "Dashboard", href: "/student", icon: "⌁" },
+    { key: "dashboard", label: "Dashboard", href: "/student/dashboard", icon: "⌁" },
     { key: "courses", label: "Courses", href: "/student/courses", icon: "▤" },
-    { key: "calendar", label: "Calendar", href: "/student/profile#attendance", icon: "▦" },
+    { key: "calendar", label: "Calendar", href: "/student/calendar", icon: "▦" },
     { key: "inbox", label: "Inbox", href: "/student/email", icon: "▧" },
     { key: "history", label: "History", href: "/student/profile#timeline", icon: "◷" },
     { key: "help", label: "Help", href: "/catalog", icon: "?" }
@@ -1531,6 +1534,352 @@ function renderMiniCalendar({ year = 2026, monthIndex = 6 } = {}) {
         ${cells.map((cell) => `<span class="${cell.muted ? "muted" : ""} ${cell.today ? "today" : ""} ${cell.shaded ? "shaded" : ""}">${escapeHtml(cell.label)}</span>`).join("")}
       </div>
     </section>
+  `;
+}
+
+function formatAnnouncementDate(value) {
+  if (!value) return "";
+  const normalized = String(value).includes("T") ? String(value) : String(value).replace(" ", "T");
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(parsed);
+}
+
+function calendarDateKey(value) {
+  if (!value) return "";
+  const raw = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return raw.slice(0, 10);
+}
+
+function calendarTimeLabel(value) {
+  if (!value) return "";
+  const normalized = String(value).includes("T") ? String(value) : String(value).replace(" ", "T");
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(parsed);
+}
+
+function toDateTimeLocalValue(value) {
+  if (!value) return "";
+  return String(value).replace(" ", "T").slice(0, 16);
+}
+
+function courseAnnouncements(courseId, limit = 40) {
+  return db.prepare(`
+    SELECT a.*, c.title AS course_title, c.slug AS course_slug, u.first_name, u.last_name, u.email
+    FROM announcements a
+    JOIN courses c ON c.id = a.course_id
+    LEFT JOIN users u ON u.id = a.author_id
+    WHERE a.course_id = ?
+    ORDER BY a.posted_at DESC, a.id DESC
+    LIMIT ?
+  `).all(courseId, limit);
+}
+
+function courseCalendarEvents(courseId, limit = 80) {
+  const manualEvents = db.prepare(`
+    SELECT ce.*, c.title AS course_title, c.slug AS course_slug
+    FROM calendar_events ce
+    LEFT JOIN courses c ON c.id = ce.course_id
+    WHERE ce.course_id = ?
+    ORDER BY ce.start_at, ce.id
+    LIMIT ?
+  `).all(courseId, limit);
+  const assignmentEvents = db.prepare(`
+    SELECT
+      gi.id + 100000 AS id,
+      gi.course_id,
+      gi.title,
+      'Assignment due date' AS description,
+      CASE
+        WHEN lower(gi.title) LIKE '%exam%' THEN 'exam'
+        WHEN lower(gi.title) LIKE '%quiz%' THEN 'assignment'
+        ELSE 'assignment'
+      END AS event_type,
+      gi.due_date || ' 23:59:00' AS start_at,
+      NULL AS end_at,
+      c.title AS course_title,
+      c.slug AS course_slug
+    FROM grade_items gi
+    JOIN courses c ON c.id = gi.course_id
+    WHERE gi.course_id = ? AND gi.due_date IS NOT NULL
+    ORDER BY gi.due_date, gi.id
+    LIMIT ?
+  `).all(courseId, limit);
+  return [...manualEvents, ...assignmentEvents]
+    .sort((a, b) => String(a.start_at).localeCompare(String(b.start_at)) || Number(a.id) - Number(b.id))
+    .slice(0, limit);
+}
+
+function dashboardDataForStudent(studentId) {
+  const enrollments = db.prepare(`
+    SELECT e.*, c.title, c.slug, c.category, c.description, c.hours, c.credential_type
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    WHERE e.user_id = ?
+    ORDER BY e.created_at DESC
+  `).all(studentId);
+  const courseIds = enrollments.map((row) => row.course_id);
+  const placeholders = courseIds.map(() => "?").join(",");
+  const announcements = courseIds.length ? db.prepare(`
+    SELECT a.*, c.title AS course_title, c.slug AS course_slug, u.first_name, u.last_name, u.email
+    FROM announcements a
+    JOIN courses c ON c.id = a.course_id
+    LEFT JOIN users u ON u.id = a.author_id
+    WHERE a.course_id IN (${placeholders})
+    ORDER BY a.posted_at DESC, a.id DESC
+    LIMIT 20
+  `).all(...courseIds) : [];
+  const gradeItems = courseIds.length ? db.prepare(`
+    SELECT gi.*, c.title AS course_title, c.slug AS course_slug, e.id AS enrollment_id
+    FROM grade_items gi
+    JOIN courses c ON c.id = gi.course_id
+    JOIN enrollments e ON e.course_id = c.id AND e.user_id = ?
+    WHERE gi.course_id IN (${placeholders})
+    ORDER BY gi.due_date IS NULL, gi.due_date, gi.id
+    LIMIT 20
+  `).all(studentId, ...courseIds) : [];
+  const messages = db.prepare(`
+    SELECT m.*, s.first_name AS sender_first_name, s.last_name AS sender_last_name
+    FROM messages m
+    JOIN users s ON s.id = m.sender_id
+    WHERE m.recipient_id = ?
+    ORDER BY m.created_at DESC
+    LIMIT 8
+  `).all(studentId);
+  const events = courseIds.length ? db.prepare(`
+    SELECT ce.*, c.title AS course_title, c.slug AS course_slug
+    FROM calendar_events ce
+    LEFT JOIN courses c ON c.id = ce.course_id
+    WHERE ce.course_id IN (${placeholders})
+    ORDER BY ce.start_at
+    LIMIT 20
+  `).all(...courseIds) : [];
+  return { enrollments, announcements, gradeItems, messages, events };
+}
+
+function renderCanvasDashboardPage({ user, data }) {
+  const announcementRows = data.announcements.slice(0, 16);
+  const conversationCount = data.messages.length;
+  const assignmentCount = data.gradeItems.length;
+  const discussionCount = data.gradeItems.filter((item) => String(item.title || "").toLowerCase().includes("discussion")).length;
+  const toDoRows = data.gradeItems.slice(0, 5);
+  const upcomingRows = [
+    ...data.events.map((event) => ({ ...event, kind: "event" })),
+    ...data.gradeItems.filter((item) => item.due_date).map((item) => ({
+      title: item.title,
+      course_title: item.course_title,
+      start_at: `${item.due_date} 23:59:00`,
+      kind: "assignment"
+    }))
+  ].sort((a, b) => String(a.start_at).localeCompare(String(b.start_at))).slice(0, 6);
+  return `
+    <main class="canvas-global-dashboard-main">
+      <div class="dashboard-title-row">
+        <h1>Dashboard</h1>
+        <a class="canvas-top-button" href="/student">SIS Home</a>
+      </div>
+      <section class="recent-activity">
+        <h2>Recent Activity</h2>
+        <article class="activity-group expanded">
+          <header>
+            <span class="activity-icon">☰</span>
+            <strong>${escapeHtml(announcementRows.length)} Announcements</strong>
+            <small>${escapeHtml([...new Set(announcementRows.map((row) => canvasCourseCode(row)))].slice(0, 3).join(" and ") || "Your courses")}</small>
+            <a href="/student/dashboard#announcements">SHOW LESS</a>
+          </header>
+          <div id="announcements">
+            ${announcementRows.map((row) => `
+              <a class="activity-row" href="/student/enrollments/${data.enrollments.find((enrollment) => enrollment.course_id === row.course_id)?.id || ""}?view=announcements">
+                <strong>${escapeHtml(row.title)}</strong>
+                <span>${escapeHtml(formatAnnouncementDate(row.posted_at))}</span>
+                <b>×</b>
+              </a>
+            `).join("") || `<p class="empty compact">No announcements have been posted yet.</p>`}
+          </div>
+        </article>
+        <article class="activity-group compact">
+          <header>
+            <span class="activity-icon">✉</span>
+            <strong>${escapeHtml(conversationCount)} Conversation Messages</strong>
+            <small>${escapeHtml(data.messages.map((row) => `${row.sender_first_name || ""} ${row.sender_last_name || ""}`.trim()).filter(Boolean).slice(0, 2).join(" and ") || "No unread messages")}</small>
+            <a href="/student/email">SHOW MORE</a>
+          </header>
+        </article>
+        <article class="activity-group compact">
+          <header>
+            <span class="activity-icon">▧</span>
+            <strong>${escapeHtml(assignmentCount)} Assignment Notifications</strong>
+            <small>${escapeHtml([...new Set(data.gradeItems.map((row) => canvasCourseCode(row)))].slice(0, 3).join(", ") || "Assignments")}</small>
+            <a href="/student/courses">SHOW MORE</a>
+          </header>
+        </article>
+        <article class="activity-group compact">
+          <header>
+            <span class="activity-icon">▱</span>
+            <strong>${escapeHtml(discussionCount)} Discussions</strong>
+            <small>Course discussions and Q&A</small>
+            <a href="/student/courses">SHOW MORE</a>
+          </header>
+        </article>
+      </section>
+    </main>
+    <aside class="canvas-rightbar global-dashboard-rightbar">
+      <section class="canvas-task-panel">
+        <h2>To Do</h2>
+        ${toDoRows.map((item, index) => `
+          <article class="canvas-task-item">
+            <span>${escapeHtml(index + 1)}</span>
+            <div>
+              <a href="/student/enrollments/${escapeHtml(item.enrollment_id)}?view=grades">Grade ${escapeHtml(item.title)}</a>
+              <em>${escapeHtml(canvasCourseCode(item))}</em>
+              <small>${escapeHtml(item.points_possible || 0)} points · ${item.due_date ? date(item.due_date) : "No Due Date"}</small>
+            </div>
+            <b aria-hidden="true">×</b>
+          </article>
+        `).join("") || `<p class="empty compact">No to-do items right now.</p>`}
+      </section>
+      <section class="canvas-task-panel">
+        <div class="task-panel-head">
+          <h2>Coming Up</h2>
+          <a href="/student/calendar">View Calendar</a>
+        </div>
+        ${upcomingRows.map((row) => `
+          <article class="canvas-upcoming-item">
+            <span>▦</span>
+            <div>
+              <a href="/student/calendar">${escapeHtml(row.title)}</a>
+              <small>${escapeHtml(row.course_title || "Course")} · ${escapeHtml(formatAnnouncementDate(row.start_at))}</small>
+            </div>
+          </article>
+        `).join("") || `<p class="empty compact">Nothing coming up yet.</p>`}
+      </section>
+    </aside>
+  `;
+}
+
+function renderCourseAnnouncementsPage({ course, courseCode, baseHref, announcements = [], instructor = false }) {
+  return `
+    <main class="canvas-course-main announcements-main">
+      <div class="announcement-toolbar">
+        <select aria-label="Announcement filter"><option>All</option></select>
+        <input type="search" placeholder="Search..." aria-label="Search announcements">
+        ${instructor ? `<a class="people-green-button" href="#add-announcement">+ Add Announcement</a>` : ""}
+        <button type="button">Mark All as Read</button>
+      </div>
+      ${instructor ? `
+        <form class="announcement-form" id="add-announcement" method="post" action="/admin/courses/${course.id}/announcements">
+          <h2>Add Announcement</h2>
+          <input name="title" required maxlength="160" placeholder="Announcement title">
+          <textarea name="body" required rows="4" placeholder="Write the announcement for all sections."></textarea>
+          <button type="submit">Post Announcement</button>
+        </form>
+      ` : ""}
+      <section class="announcement-list">
+        ${announcements.map((announcement) => `
+          <article class="announcement-row">
+            <input type="checkbox" aria-label="Select announcement">
+            <span class="announcement-avatar">${escapeHtml(initialsFor(announcement))}</span>
+            <div>
+              <h2>${escapeHtml(announcement.title)}</h2>
+              <small>All Sections</small>
+              <p>${escapeHtml(announcement.body)}</p>
+              <a href="${escapeHtml(baseHref)}?view=announcements">Reply</a>
+            </div>
+            <aside>
+              <strong>Posted on:</strong>
+              <span>${escapeHtml(formatAnnouncementDate(announcement.posted_at))}</span>
+              <b>⋮</b>
+            </aside>
+          </article>
+        `).join("") || `<p class="empty">No announcements have been posted for ${escapeHtml(courseCode)} yet.</p>`}
+      </section>
+    </main>
+  `;
+}
+
+function renderMonthCalendarPage({ events = [], courses = [], currentCourseId = "", instructor = false, postAction = "" }) {
+  const year = 2026;
+  const monthIndex = 6;
+  const monthName = "July 2026";
+  const firstDay = new Date(year, monthIndex, 1).getDay();
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const previousMonthDays = new Date(year, monthIndex, 0).getDate();
+  const eventsByDate = new Map();
+  events.forEach((event) => {
+    const key = calendarDateKey(event.start_at);
+    if (!eventsByDate.has(key)) eventsByDate.set(key, []);
+    eventsByDate.get(key).push(event);
+  });
+  const cells = [];
+  for (let index = 0; index < 42; index += 1) {
+    const dayNumber = index - firstDay + 1;
+    const muted = dayNumber < 1 || dayNumber > daysInMonth;
+    const label = dayNumber < 1 ? previousMonthDays + dayNumber : dayNumber > daysInMonth ? dayNumber - daysInMonth : dayNumber;
+    const key = muted ? "" : `${year}-07-${String(label).padStart(2, "0")}`;
+    cells.push({ label, key, muted, events: key ? eventsByDate.get(key) || [] : [] });
+  }
+  return `
+    <main class="canvas-course-main calendar-main">
+      <div class="calendar-toolbar">
+        <button type="button">Today</button>
+        <button type="button">←</button>
+        <button type="button">→</button>
+        <h1>${escapeHtml(monthName)}</h1>
+        <span></span>
+        <button type="button">Week</button>
+        <button type="button" class="active">Month</button>
+        <button type="button">Agenda</button>
+        ${instructor ? `<a class="calendar-add-button" href="#add-calendar-event">+</a>` : ""}
+      </div>
+      ${instructor ? `
+        <form class="calendar-event-form" id="add-calendar-event" method="post" action="${escapeHtml(postAction)}">
+          <h2>Add Calendar Event</h2>
+          <input name="title" required maxlength="160" placeholder="Event title">
+          <select name="courseId">
+            ${courses.map((course) => `<option value="${course.id}" ${Number(currentCourseId) === Number(course.id) ? "selected" : ""}>${escapeHtml(canvasCourseCode(course))} - ${escapeHtml(course.title)}</option>`).join("")}
+          </select>
+          <input name="startAt" type="datetime-local" required value="${escapeHtml(toDateTimeLocalValue("2026-07-08 18:00:00"))}">
+          <textarea name="description" rows="3" placeholder="Event details"></textarea>
+          <button type="submit">Add Event</button>
+        </form>
+      ` : ""}
+      <section class="calendar-month-grid" aria-label="${escapeHtml(monthName)} calendar">
+        ${["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day) => `<strong>${escapeHtml(day)}</strong>`).join("")}
+        ${cells.map((cell) => `
+          <article class="calendar-day ${cell.muted ? "muted" : ""}">
+            <b>${escapeHtml(cell.label)}</b>
+            ${cell.events.slice(0, 4).map((event) => `
+              <a class="calendar-event ${escapeHtml(event.event_type || "event")}" href="#">
+                ${calendarTimeLabel(event.start_at) ? `<span>${escapeHtml(calendarTimeLabel(event.start_at))}</span>` : ""}
+                ${escapeHtml(event.title)}
+              </a>
+            `).join("")}
+          </article>
+        `).join("")}
+      </section>
+    </main>
+    <aside class="canvas-rightbar calendar-sidebar">
+      ${renderMiniCalendar({ year, monthIndex })}
+      <section class="calendar-list">
+        <h2>Calendars</h2>
+        ${courses.slice(0, 10).map((course, index) => `
+          <label>
+            <input type="checkbox" ${!currentCourseId || Number(currentCourseId) === Number(course.id) || index < 3 ? "checked" : ""}>
+            <span>${escapeHtml(canvasCourseCode(course))} ${escapeHtml(course.title)}</span>
+            <b>⋮</b>
+          </label>
+        `).join("") || `<p class="empty compact">No calendars available.</p>`}
+      </section>
+      <a class="calendar-feed" href="#">▦ Calendar Feed</a>
+    </aside>
   `;
 }
 
@@ -3947,6 +4296,9 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     JOIN enrollments e ON e.id = g.enrollment_id
     WHERE e.course_id = ?
   `).all(course.id);
+  const announcements = courseAnnouncements(course.id);
+  const calendarEvents = courseCalendarEvents(course.id);
+  const allCourses = db.prepare("SELECT id, title, slug FROM courses WHERE published = 1 ORDER BY category, title").all();
 
   const moduleGroups = lessons.reduce((groups, lesson) => {
     const existing = groups.find((group) => group.id === lesson.module_id);
@@ -3998,6 +4350,58 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         courseId: course.id,
         moduleGroups,
         instructor: true
+      })}
+    </section>
+  ` : activeView === "announcements" ? `
+    <section class="canvas-course-shell instructor-preview">
+      <aside class="canvas-global-rail">
+        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <span>${escapeHtml(initialsFor(req.user))}</span>
+        <i></i><i></i><i></i><i></i><i></i>
+      </aside>
+
+      ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
+        { label: courseCode, href: adminCourseBaseHref },
+        { label: "Announcements" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(navItems, adminCourseBaseHref, "Announcements", firstLesson?.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+
+      ${renderCourseAnnouncementsPage({
+        course,
+        courseCode,
+        baseHref: adminCourseBaseHref,
+        announcements,
+        instructor: true
+      })}
+    </section>
+  ` : activeView === "calendar" ? `
+    <section class="canvas-course-shell instructor-preview">
+      <aside class="canvas-global-rail">
+        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <span>${escapeHtml(initialsFor(req.user))}</span>
+        <i></i><i></i><i></i><i></i><i></i>
+      </aside>
+
+      ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
+        { label: courseCode, href: adminCourseBaseHref },
+        { label: "Calendar" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(navItems, adminCourseBaseHref, "Calendar", firstLesson?.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+
+      ${renderMonthCalendarPage({
+        events: calendarEvents,
+        courses: allCourses,
+        currentCourseId: course.id,
+        instructor: true,
+        postAction: `/admin/courses/${course.id}/calendar-events`
       })}
     </section>
   ` : activeView === "grades" ? `
@@ -4178,6 +4582,43 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   `;
   render(req, res, `${course.title} Student View`, body, { courseCanvas: true });
+});
+
+app.post("/admin/courses/:id/announcements", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const course = db.prepare("SELECT id FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!course) return res.status(404).send("Course not found");
+  const title = String(req.body.title || "").trim();
+  const body = String(req.body.body || "").trim();
+  if (!title || !body) {
+    flash(req, "Add a title and message before posting an announcement.");
+    return res.redirect(`/admin/courses/${course.id}/student-view?view=announcements#add-announcement`);
+  }
+  db.prepare(`
+    INSERT INTO announcements (course_id, author_id, title, body, posted_at)
+    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `).run(course.id, req.user.id, title, body);
+  flash(req, "Announcement posted.");
+  res.redirect(`/admin/courses/${course.id}/student-view?view=announcements`);
+});
+
+app.post("/admin/courses/:id/calendar-events", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const routeCourse = db.prepare("SELECT id FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!routeCourse) return res.status(404).send("Course not found");
+  const selectedCourseId = Number(req.body.courseId || routeCourse.id);
+  const course = db.prepare("SELECT id FROM courses WHERE id = ?").get(selectedCourseId) || routeCourse;
+  const title = String(req.body.title || "").trim();
+  const description = String(req.body.description || "").trim();
+  const startAt = String(req.body.startAt || "").replace("T", " ").trim();
+  if (!title || !startAt) {
+    flash(req, "Add an event title and date/time.");
+    return res.redirect(`/admin/courses/${routeCourse.id}/student-view?view=calendar#add-calendar-event`);
+  }
+  db.prepare(`
+    INSERT INTO calendar_events (course_id, title, description, event_type, start_at, created_by)
+    VALUES (?, ?, ?, 'event', ?, ?)
+  `).run(course.id, title, description, startAt.length === 16 ? `${startAt}:00` : startAt, req.user.id);
+  flash(req, "Calendar event added.");
+  res.redirect(`/admin/courses/${routeCourse.id}/student-view?view=calendar`);
 });
 
 app.post("/admin/courses/:id/details", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -4529,6 +4970,51 @@ app.get("/student", requireAuth, requireRole("student"), (req, res) => {
     </section>
   `;
   render(req, res, "Student Dashboard", body, { studentPortal: true, activeStudentNav: "dashboard" });
+});
+
+app.get("/student/dashboard", requireAuth, requireRole("student"), (req, res) => {
+  if (isClassLocked(req.user)) return renderClassLockPage(req, res);
+  const data = dashboardDataForStudent(req.user.id);
+  const body = `
+    <section class="canvas-course-shell canvas-global-dashboard-shell">
+      ${renderStudentCanvasRail("dashboard")}
+      ${renderStudentCanvasHeader("Dashboard", "/student/dashboard", [{ label: "Dashboard" }])}
+      ${renderCanvasDashboardPage({ user: req.user, data })}
+    </section>
+  `;
+  render(req, res, "Dashboard", body, { courseCanvas: true });
+});
+
+app.get("/student/calendar", requireAuth, requireRole("student"), (req, res) => {
+  if (isClassLocked(req.user)) return renderClassLockPage(req, res);
+  const data = dashboardDataForStudent(req.user.id);
+  const courses = data.enrollments.map((row) => ({
+    id: row.course_id,
+    title: row.title,
+    slug: row.slug
+  }));
+  const assignmentEvents = data.gradeItems
+    .filter((item) => item.due_date)
+    .map((item) => ({
+      id: `grade-${item.id}`,
+      course_id: item.course_id,
+      title: item.title,
+      description: "Assignment due date",
+      event_type: String(item.title || "").toLowerCase().includes("exam") ? "exam" : "assignment",
+      start_at: `${item.due_date} 23:59:00`,
+      course_title: item.course_title,
+      course_slug: item.course_slug
+    }));
+  const events = [...data.events, ...assignmentEvents]
+    .sort((a, b) => String(a.start_at).localeCompare(String(b.start_at)));
+  const body = `
+    <section class="canvas-course-shell canvas-global-calendar-shell">
+      ${renderStudentCanvasRail("calendar")}
+      ${renderStudentCanvasHeader("Calendar", "/student/calendar", [{ label: "Calendar" }])}
+      ${renderMonthCalendarPage({ events, courses, instructor: false })}
+    </section>
+  `;
+  render(req, res, "Calendar", body, { courseCanvas: true });
 });
 
 app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
@@ -5410,6 +5896,8 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     JOIN grade_items gi ON gi.id = g.grade_item_id
     WHERE g.enrollment_id = ? AND gi.course_id = ?
   `).all(enrollment.id, enrollment.course_id);
+  const announcements = courseAnnouncements(enrollment.course_id);
+  const calendarEvents = courseCalendarEvents(enrollment.course_id);
 
   const totalMinutes = lessons.reduce((total, lesson) => total + Number(lesson.duration_minutes || 0), 0);
   const courseCode = canvasCourseCode(enrollment);
@@ -5465,7 +5953,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   const navItems = visibleCourseNavItems(enrollment);
   const courseBaseHref = `/student/enrollments/${enrollment.id}`;
   const activeView = String(req.query.view || "");
-  const studentCourseNavItems = navItems.filter((item) => ["Home", "Modules", "Grades"].includes(item));
+  const studentCourseNavItems = navItems.filter((item) => ["Home", "Announcements", "Modules", "Grades", "Syllabus", "Calendar"].includes(item));
   const startTiles = [
     { icon: "book", label: "Course Syllabus", href: `${courseBaseHref}?view=syllabus` },
     { icon: "brain", label: "Learning Modules", href: `${courseBaseHref}?view=modules` },
@@ -5516,6 +6004,47 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         courseCode,
         baseHref: courseBaseHref,
         moduleGroups,
+        instructor: false
+      })}
+    </section>
+  ` : activeView === "announcements" ? `
+    <section class="canvas-course-shell student-course-shell">
+      ${renderStudentCanvasRail("courses")}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+        { label: courseCode, href: courseBaseHref },
+        { label: "Announcements" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(studentCourseNavItems, courseBaseHref, "Announcements", firstLesson.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+      ${courseOutlinePanel}
+      ${renderCourseAnnouncementsPage({
+        course: { id: enrollment.course_id, title: enrollment.title },
+        courseCode,
+        baseHref: courseBaseHref,
+        announcements,
+        instructor: false
+      })}
+    </section>
+  ` : activeView === "calendar" ? `
+    <section class="canvas-course-shell student-course-shell">
+      ${renderStudentCanvasRail("calendar")}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+        { label: courseCode, href: courseBaseHref },
+        { label: "Calendar" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(studentCourseNavItems, courseBaseHref, "Calendar", firstLesson.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+      ${courseOutlinePanel}
+      ${renderMonthCalendarPage({
+        events: calendarEvents,
+        courses: [{ id: enrollment.course_id, title: enrollment.title, slug: enrollment.slug }],
+        currentCourseId: enrollment.course_id,
         instructor: false
       })}
     </section>
@@ -5653,7 +6182,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       <aside class="canvas-rightbar">
         <div class="canvas-action-stack student-actions">
           <a href="/student/enrollments/${enrollment.id}?lesson=${firstLesson.id}">View Course Stream</a>
-          <a href="/student/enrollments/${enrollment.id}?view=syllabus">View Course Calendar</a>
+          <a href="/student/enrollments/${enrollment.id}?view=calendar">View Course Calendar</a>
           <a href="/student/profile">View Course Notifications</a>
         </div>
         ${renderCourseToDo(gradeItems, courseBaseHref, { limit: 6, courseTitle: enrollment.title })}
