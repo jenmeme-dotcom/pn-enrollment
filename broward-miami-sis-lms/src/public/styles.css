@@ -3631,6 +3631,75 @@ button.small {
   margin-top: 28px;
 }
 
+.help-page {
+  display: grid;
+  gap: 18px;
+}
+
+.help-reset-panel {
+  align-items: center;
+  background: #eef6f7;
+  border: 1px solid #cfe3e8;
+  border-radius: 6px;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 18px;
+}
+
+.help-reset-panel h2 {
+  color: #17212b;
+  font-size: 22px;
+  margin: 0 0 6px;
+}
+
+.help-reset-panel p {
+  color: #52616f;
+  margin: 0;
+}
+
+.help-reset-status {
+  color: #0f6a3a;
+  font-weight: 750;
+  grid-column: 1 / -1;
+}
+
+.help-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.help-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 18px;
+}
+
+.help-card h2 {
+  color: #17212b;
+  font-size: 20px;
+  margin: 0 0 12px;
+}
+
+.help-card ol,
+.help-card ul {
+  color: #2d3b45;
+  line-height: 1.55;
+  margin: 0 0 0 20px;
+  padding: 0;
+}
+
+.help-card li {
+  margin: 5px 0;
+}
+
+.help-source {
+  color: #52616f;
+  font-size: 14px;
+}
+
 .task-panel-head {
   align-items: center;
   display: flex;
@@ -6233,7 +6302,9 @@ button.small {
   .announcement-toolbar,
   .calendar-toolbar,
   .activity-group header,
-  .announcement-row {
+  .announcement-row,
+  .help-reset-panel,
+  .help-grid {
     grid-template-columns: 1fr;
   }
 

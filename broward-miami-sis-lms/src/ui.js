@@ -33,6 +33,7 @@ function navFor(user) {
     <a href="/admin/messages">Inbox</a>
     <a href="/catalog">Catalog</a>
     <a href="/admin/ghl">GHL</a>
+    <a href="/help/browser-cache">Help</a>
   `;
   const instructorLinks = `
     <a href="/admin">Dashboard</a>
@@ -41,6 +42,7 @@ function navFor(user) {
     <a href="/admin/onsite-visit">OSV Visit</a>
     <a href="/admin/messages">Inbox</a>
     <a href="/catalog">Catalog</a>
+    <a href="/help/browser-cache">Help</a>
   `;
   const studentLinks = `
     <a href="/student/dashboard">Dashboard</a>
@@ -48,6 +50,7 @@ function navFor(user) {
     <a href="/student/courses">My Courses</a>
     <a href="/student/calendar">Calendar</a>
     <a href="/student/email">Inbox</a>
+    <a href="/help/browser-cache">Help</a>
     <a href="/catalog">Catalog</a>
   `;
   return user.role === "student" ? studentLinks : user.role === "instructor" ? instructorLinks : adminLinks;
@@ -159,6 +162,7 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
         ${studentPortalLink(activeStudentNav, "registration", "/student/registration", "Registration")}
         ${studentPortalLink(activeStudentNav, "transcript", "/student/transcript", "Transcript")}
         ${studentPortalLink(activeStudentNav, "timetable", "/student/profile#attendance", "Class Timetable")}
+        ${studentPortalLink(activeStudentNav, "help", "/help/browser-cache", "Help")}
         ${studentPortalLink(activeStudentNav, "lesson-plan", "/student", "Lesson Plan")}
         ${studentPortalLink(activeStudentNav, "syllabus", "/student", "Syllabus Status")}
         ${studentPortalLink(activeStudentNav, "homework", "/student#homework", "Homework")}

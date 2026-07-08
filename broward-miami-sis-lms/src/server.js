@@ -172,6 +172,12 @@ const upload = multer({
 app.set("trust proxy", 1);
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json({ limit: "1mb" }));
+app.use((req, res, next) => {
+  if (/\.(css|js)$/i.test(req.path)) {
+    res.set("Cache-Control", "no-cache, must-revalidate");
+  }
+  next();
+});
 app.use(express.static(`${__dirname}/public`));
 app.use(
   session({
@@ -670,7 +676,7 @@ function renderStudentCanvasRail(active = "courses") {
     { key: "calendar", label: "Calendar", href: "/student/calendar", icon: "▦" },
     { key: "inbox", label: "Inbox", href: "/student/email", icon: "▧" },
     { key: "history", label: "History", href: "/student/profile#timeline", icon: "◷" },
-    { key: "help", label: "Help", href: "/catalog", icon: "?" }
+    { key: "help", label: "Help", href: "/help/browser-cache", icon: "?" }
   ];
   return `
     <aside class="canvas-global-rail student-canvas-rail">
@@ -2545,6 +2551,113 @@ app.post("/login", (req, res) => {
 
 app.post("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/login"));
+});
+
+app.get("/help/browser-cache", requireAuth, (req, res) => {
+  const body = `
+    <section class="help-page">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Help</p>
+          <h1>Browser cache and cookies</h1>
+          <p>If the portal looks wrong after an update, buttons do not respond, or a page keeps loading old formatting, clear your browser's stored site data and refresh the page.</p>
+        </div>
+        <form method="post" action="/logout">
+          <button class="button ghost" type="submit">Sign out and reset session</button>
+        </form>
+      </div>
+
+      <section class="help-reset-panel">
+        <div>
+          <h2>Quick portal reset</h2>
+          <p>This clears local browser storage used by the portal on this device. It does not delete student records, grades, documents, messages, or school data.</p>
+        </div>
+        <button class="button" type="button" data-clear-portal-cache>Clear local portal cache</button>
+        <p class="help-reset-status" data-clear-portal-status aria-live="polite"></p>
+      </section>
+
+      <section class="help-grid">
+        <article class="help-card">
+          <h2>Chrome</h2>
+          <ol>
+            <li>Open Chrome's menu.</li>
+            <li>Choose Clear browsing data.</li>
+            <li>Select the time range you want.</li>
+            <li>Check cookies/site data and cached images/files.</li>
+            <li>Clear the data, then reopen the portal.</li>
+          </ol>
+        </article>
+        <article class="help-card">
+          <h2>Chrome site-only reset</h2>
+          <ol>
+            <li>Open Chrome Settings.</li>
+            <li>Go to Privacy and security, then site data.</li>
+            <li>Search for bmhi-student-portal.onrender.com.</li>
+            <li>Delete only this portal's stored site data.</li>
+          </ol>
+        </article>
+        <article class="help-card">
+          <h2>Microsoft Edge</h2>
+          <ol>
+            <li>Open Settings.</li>
+            <li>Choose Privacy, search, and services.</li>
+            <li>Select Choose what to clear.</li>
+            <li>Clear cookies/site data and cached images/files.</li>
+          </ol>
+        </article>
+        <article class="help-card">
+          <h2>Firefox</h2>
+          <ol>
+            <li>Open Firefox Settings.</li>
+            <li>Go to Privacy &amp; Security.</li>
+            <li>In Cookies and Site Data, choose Clear Data.</li>
+            <li>Select cookies/site data and cached web content.</li>
+          </ol>
+        </article>
+        <article class="help-card">
+          <h2>Safari</h2>
+          <ol>
+            <li>Open Safari.</li>
+            <li>Choose Clear History from the Safari menu.</li>
+            <li>Select the time range.</li>
+            <li>Clear history, then reopen the portal and sign in.</li>
+          </ol>
+        </article>
+        <article class="help-card">
+          <h2>When to use this</h2>
+          <ul>
+            <li>New buttons or pages do not appear after an update.</li>
+            <li>Fonts, spacing, or page layout look old.</li>
+            <li>You get stuck on a stale login or blank page.</li>
+            <li>Canvas-style course pages show old navigation.</li>
+          </ul>
+        </article>
+      </section>
+
+      <p class="help-source">Based on Canvas browser troubleshooting guidance from Instructure. For external reference, see <a href="https://community.instructure.com/en/kb/articles/662720-how-do-i-clear-my-browser-cache-and-cookies" target="_blank" rel="noopener">Instructure: clear browser cache and cookies</a>.</p>
+    </section>
+    <script>
+      (() => {
+        const button = document.querySelector("[data-clear-portal-cache]");
+        const status = document.querySelector("[data-clear-portal-status]");
+        if (!button || !status) return;
+        button.addEventListener("click", async () => {
+          try {
+            localStorage.clear();
+            sessionStorage.clear();
+            if ("caches" in window) {
+              const keys = await caches.keys();
+              await Promise.all(keys.map((key) => caches.delete(key)));
+            }
+            status.textContent = "Local portal cache cleared. Refresh the page or sign out and sign back in.";
+          } catch (error) {
+            status.textContent = "The portal could not clear all local cache automatically. Use your browser settings below.";
+          }
+        });
+      })();
+    </script>
+  `;
+  render(req, res, "Browser Cache Help", body, req.user.role === "student" ? { studentPortal: true, activeStudentNav: "help" } : {});
 });
 
 app.get("/catalog", requireAuth, (req, res) => {
