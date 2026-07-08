@@ -243,6 +243,13 @@ function lockedButton(label = "Locked") {
   return `<span class="button small disabled" aria-disabled="true">${escapeHtml(label)}</span>`;
 }
 
+function uniformSizeOptions(selectedSize = "") {
+  return uniformSizes.map((size) => {
+    const label = size || "Not recorded";
+    return `<option value="${escapeHtml(size)}" ${selectedSize === size ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  }).join("");
+}
+
 const registrarChecklistItems = [
   { key: "admissions_documents", title: "Admissions documents", description: "Application, ID, enrollment agreement, entrance documents, and admissions forms." },
   { key: "payment_plan", title: "Payment plan", description: "Tuition plan, payment status, financial clearance, and business office approval." },
@@ -254,6 +261,7 @@ const registrarChecklistItems = [
   { key: "graduation_approval", title: "Graduation approval workflow", description: "Final registrar approval, credential readiness, account clearance, and graduation completion." }
 ];
 const registrarStatuses = ["pending", "received", "approved", "missing", "waived"];
+const uniformSizes = ["", "XS", "Small", "Medium", "Large", "XL", "2XL", "3XL", "4XL"];
 const hesiSubjects = [
   { subject: "Critical Thinking", acceptableScore: 700 },
   { subject: "Fundamentals", acceptableScore: 850 },
@@ -3512,6 +3520,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
           <div><label>Email</label><input name="email" type="email" required></div>
           <div><label>Phone</label><input name="phone"></div>
           <div><label>Password</label><input name="password" value="StudentPass123!" required></div>
+          <div><label>Uniform size</label><select name="uniformSize">${uniformSizeOptions()}</select></div>
           <div><label>Cohort</label><input name="cohortName" value="Cohort 2"></div>
           <div><label>Cohort start</label><input name="cohortStartDate" type="date" value="2026-07-01"></div>
           <div><label>Cohort end</label><input name="cohortEndDate" type="date" value="2027-07-31"></div>
@@ -3575,6 +3584,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 <strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br>
                 <span class="muted">${escapeHtml(student.status)}</span>
                 ${student.cohort_name ? `<br><span class="pill">${escapeHtml(student.cohort_name)}</span>` : ""}
+                ${student.uniform_size ? `<br><span class="pill">Uniform: ${escapeHtml(student.uniform_size)}</span>` : ""}
                 ${student.cohort_start_date || student.cohort_end_date ? `<br><span class="muted">${escapeHtml(date(student.cohort_start_date))} - ${escapeHtml(date(student.cohort_end_date))}</span>` : ""}
               </td>
               <td>${escapeHtml(student.email)}<br><span class="muted">${escapeHtml(student.phone || "")}</span></td>
@@ -3596,6 +3606,12 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                   </select>
                   <input name="classLockReason" placeholder="Reason shown to student" value="${escapeHtml(student.class_lock_reason || "Pending registrar organization and clearance.")}">
                   <button class="small" type="submit">Save access</button>
+                </form>
+                <form method="post" action="/admin/students/${student.id}/uniform-size" class="actions">
+                  <select name="uniformSize" aria-label="Uniform size for ${escapeHtml(student.first_name)} ${escapeHtml(student.last_name)}">
+                    ${uniformSizeOptions(student.uniform_size || "")}
+                  </select>
+                  <button class="small ghost" type="submit">Save uniform</button>
                 </form>
                 <form method="post" action="/admin/students/${student.id}/reset-password" class="actions">
                   <input type="hidden" name="password" value="StudentPass123!">
@@ -3779,9 +3795,9 @@ app.post("/admin/students", requireAuth, requireRole("admin", "instructor"), (re
     const result = db.prepare(`
       INSERT INTO users (
         role, first_name, last_name, email, phone, password_hash,
-        organization_status, class_lock_reason, cohort_name, cohort_start_date, cohort_end_date
+        organization_status, class_lock_reason, cohort_name, cohort_start_date, cohort_end_date, uniform_size
       )
-      VALUES ('student', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES ('student', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       String(req.body.firstName || "").trim(),
       String(req.body.lastName || "").trim(),
@@ -3792,7 +3808,8 @@ app.post("/admin/students", requireAuth, requireRole("admin", "instructor"), (re
       classLockReason,
       String(req.body.cohortName || "").trim() || null,
       String(req.body.cohortStartDate || "").trim() || null,
-      String(req.body.cohortEndDate || "").trim() || null
+      String(req.body.cohortEndDate || "").trim() || null,
+      uniformSizes.includes(String(req.body.uniformSize || "")) && req.body.uniformSize ? String(req.body.uniformSize) : null
     );
 
     if (req.body.courseId) {
@@ -3816,6 +3833,14 @@ app.post("/admin/students/:id/class-access", requireAuth, requireRole("admin", "
     WHERE id = ? AND role = 'student'
   `).run(organizationStatus, classLockReason, Number(req.params.id));
   flash(req, organizationStatus === "organized" ? "Student class access unlocked." : "Student class access locked.");
+  res.redirect("/admin/students");
+});
+
+app.post("/admin/students/:id/uniform-size", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const requestedSize = String(req.body.uniformSize || "");
+  const uniformSize = uniformSizes.includes(requestedSize) && requestedSize ? requestedSize : null;
+  db.prepare("UPDATE users SET uniform_size = ? WHERE id = ? AND role = 'student'").run(uniformSize, Number(req.params.id));
+  flash(req, uniformSize ? `Uniform size saved: ${uniformSize}.` : "Uniform size cleared.");
   res.redirect("/admin/students");
 });
 

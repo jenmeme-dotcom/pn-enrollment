@@ -29,6 +29,7 @@ function migrate() {
       cohort_name TEXT,
       cohort_start_date TEXT,
       cohort_end_date TEXT,
+      uniform_size TEXT,
       notes TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -348,6 +349,9 @@ function migrate() {
   if (!userColumns.includes("cohort_end_date")) {
     db.exec("ALTER TABLE users ADD COLUMN cohort_end_date TEXT;");
   }
+  if (!userColumns.includes("uniform_size")) {
+    db.exec("ALTER TABLE users ADD COLUMN uniform_size TEXT;");
+  }
   const messageColumns = db.prepare("PRAGMA table_info(messages)").all().map((column) => column.name);
   if (!messageColumns.includes("thread_id")) {
     db.exec("ALTER TABLE messages ADD COLUMN thread_id INTEGER;");
@@ -517,14 +521,14 @@ function seed() {
   }
 
   const cohortTwoStudents = [
-    ["Guerda", "Bien", "guerdabien80@gmail.com"],
-    ["Chauna", "Brown", "shaunie8210@gmail.com"],
-    ["Samantha", "Brunvil", "samanthabrunvil2106@gmail.com"],
-    ["Porledens", "Cajoux", "porledens@gmail.com"],
-    ["Cheryl", "Echols", "cherylechols89@gmail.com"],
-    ["Ericka", "Morrison", "ericka.morrison001@outlook.com"],
-    ["J Laurie", "Robert", "robertjlaurie303@gmail.com"],
-    ["Rekena", "Williams", "kena_wims@yahoo.com"]
+    ["Guerda", "Bien", "guerdabien80@gmail.com", "Large"],
+    ["Chauna", "Brown", "shaunie8210@gmail.com", "Large"],
+    ["Samantha", "Brunvil", "samanthabrunvil2106@gmail.com", "Medium"],
+    ["Porledens", "Cajoux", "porledens@gmail.com", "Small"],
+    ["Cheryl", "Echols", "cherylechols89@gmail.com", "Small"],
+    ["Ericka", "Morrison", "ericka.morrison001@outlook.com", "Large"],
+    ["J Laurie", "Robert", "robertjlaurie303@gmail.com", "Small"],
+    ["Rekena", "Williams", "kena_wims@yahoo.com", "2XL"]
   ];
   const cohortName = "Cohort 2";
   const cohortStartDate = "2026-07-01";
@@ -533,9 +537,9 @@ function seed() {
   const upsertCohortStudent = db.prepare(`
     INSERT INTO users (
       role, first_name, last_name, email, phone, password_hash, status,
-      organization_status, class_lock_reason, cohort_name, cohort_start_date, cohort_end_date
+      organization_status, class_lock_reason, cohort_name, cohort_start_date, cohort_end_date, uniform_size
     )
-    VALUES ('student', ?, ?, ?, '', ?, 'active', 'organized', NULL, ?, ?, ?)
+    VALUES ('student', ?, ?, ?, '', ?, 'active', 'organized', NULL, ?, ?, ?, ?)
     ON CONFLICT(email) DO UPDATE SET
       role = 'student',
       first_name = excluded.first_name,
@@ -545,13 +549,14 @@ function seed() {
       class_lock_reason = NULL,
       cohort_name = excluded.cohort_name,
       cohort_start_date = excluded.cohort_start_date,
-      cohort_end_date = excluded.cohort_end_date
+      cohort_end_date = excluded.cohort_end_date,
+      uniform_size = excluded.uniform_size
   `);
   const insertCohortEnrollment = db.prepare(`
     INSERT OR IGNORE INTO enrollments (user_id, course_id, status, start_date, progress, source, external_order_id)
     VALUES (?, ?, 'active', ?, 0, 'cohort_seed', ?)
   `);
-  cohortTwoStudents.forEach(([firstName, lastName, email]) => {
+  cohortTwoStudents.forEach(([firstName, lastName, email, uniformSize]) => {
     upsertCohortStudent.run(
       firstName,
       lastName,
@@ -559,7 +564,8 @@ function seed() {
       cohortStudentPasswordHash,
       cohortName,
       cohortStartDate,
-      cohortEndDate
+      cohortEndDate,
+      uniformSize
     );
     const student = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
     if (student && medicalTerminology) {
