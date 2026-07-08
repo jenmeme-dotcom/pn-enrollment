@@ -1124,6 +1124,13 @@ function instructorPeopleRoster(course, enrollments = [], instructor) {
     { first_name: "J Laurie", last_name: "Robert", email: "", invite_status: "pending", last_activity: "", total_activity: "" },
     { first_name: "Rekena", last_name: "Williams", email: "kena_wims@yahoo.com", last_activity: "Jul 2 at 5:04pm", total_activity: "32:25" }
   ];
+  const sectionFor = (row = {}) => {
+    if (!row.cohort_name) return course.title;
+    const dates = row.cohort_start_date || row.cohort_end_date
+      ? ` (${date(row.cohort_start_date)} - ${date(row.cohort_end_date)})`
+      : "";
+    return `${row.cohort_name}${dates} · ${course.title}`;
+  };
   const section = course.title;
   const roster = enrollments.map((row, index) => ({
     id: row.user_id,
@@ -1131,7 +1138,7 @@ function instructorPeopleRoster(course, enrollments = [], instructor) {
     last_name: row.last_name,
     email: row.email,
     role: "Student",
-    section,
+    section: sectionFor(row),
     status: row.status,
     invite_status: row.status === "pending" ? "pending" : "",
     last_activity: index % 2 === 0 ? "Jul 3 at 12:34am" : "Jul 2 at 5:04pm",
@@ -3323,6 +3330,9 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
           <div><label>Email</label><input name="email" type="email" required></div>
           <div><label>Phone</label><input name="phone"></div>
           <div><label>Password</label><input name="password" value="StudentPass123!" required></div>
+          <div><label>Cohort</label><input name="cohortName" value="Cohort 2"></div>
+          <div><label>Cohort start</label><input name="cohortStartDate" type="date" value="2026-07-01"></div>
+          <div><label>Cohort end</label><input name="cohortEndDate" type="date" value="2027-07-31"></div>
           <div>
             <label>Class access</label>
             <select name="organizationStatus">
@@ -3379,7 +3389,12 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
         <tbody>
           ${students.map((student) => `
             <tr>
-              <td><strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br><span class="muted">${escapeHtml(student.status)}</span></td>
+              <td>
+                <strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br>
+                <span class="muted">${escapeHtml(student.status)}</span>
+                ${student.cohort_name ? `<br><span class="pill">${escapeHtml(student.cohort_name)}</span>` : ""}
+                ${student.cohort_start_date || student.cohort_end_date ? `<br><span class="muted">${escapeHtml(date(student.cohort_start_date))} - ${escapeHtml(date(student.cohort_end_date))}</span>` : ""}
+              </td>
               <td>${escapeHtml(student.email)}<br><span class="muted">${escapeHtml(student.phone || "")}</span></td>
               <td>
                 <span class="pill ${student.organization_status === "not_organized" ? "orange" : ""}">${escapeHtml(student.organization_status === "not_organized" ? "Locked" : "Organized")}</span>
@@ -3580,8 +3595,11 @@ app.post("/admin/students", requireAuth, requireRole("admin", "instructor"), (re
       ? String(req.body.classLockReason || "Pending registrar organization and clearance.").trim()
       : null;
     const result = db.prepare(`
-      INSERT INTO users (role, first_name, last_name, email, phone, password_hash, organization_status, class_lock_reason)
-      VALUES ('student', ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (
+        role, first_name, last_name, email, phone, password_hash,
+        organization_status, class_lock_reason, cohort_name, cohort_start_date, cohort_end_date
+      )
+      VALUES ('student', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       String(req.body.firstName || "").trim(),
       String(req.body.lastName || "").trim(),
@@ -3589,7 +3607,10 @@ app.post("/admin/students", requireAuth, requireRole("admin", "instructor"), (re
       String(req.body.phone || "").trim(),
       bcrypt.hashSync(password, 12),
       organizationStatus,
-      classLockReason
+      classLockReason,
+      String(req.body.cohortName || "").trim() || null,
+      String(req.body.cohortStartDate || "").trim() || null,
+      String(req.body.cohortEndDate || "").trim() || null
     );
 
     if (req.body.courseId) {
@@ -4090,7 +4111,7 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
     SELECT id, first_name, last_name, email
     FROM users
     WHERE role = 'student'
-      AND id NOT IN (SELECT user_id FROM enrollments WHERE course_id = ? AND external_order_id IS NULL)
+      AND id NOT IN (SELECT user_id FROM enrollments WHERE course_id = ?)
     ORDER BY last_name, first_name
   `).all(course.id);
   const hiddenSections = parseHiddenSections(course);
@@ -4397,7 +4418,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     ORDER BY due_date IS NULL, due_date, id
   `).all(course.id);
   const enrollments = db.prepare(`
-    SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email
+    SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email, u.cohort_name, u.cohort_start_date, u.cohort_end_date
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
     WHERE e.course_id = ?
@@ -4867,8 +4888,15 @@ app.post("/admin/courses/:id/lessons/:lessonId", requireAuth, requireRole("admin
 });
 
 app.post("/admin/enrollments", requireAuth, requireRole("admin", "instructor"), (req, res) => {
-  db.prepare("INSERT OR IGNORE INTO enrollments (user_id, course_id, source) VALUES (?, ?, 'manual')").run(Number(req.body.userId), Number(req.body.courseId));
-  flash(req, "Student enrolled.");
+  const userId = Number(req.body.userId);
+  const courseId = Number(req.body.courseId);
+  const existing = db.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").get(userId, courseId);
+  if (existing) {
+    flash(req, "Student is already enrolled in this course.");
+  } else {
+    db.prepare("INSERT INTO enrollments (user_id, course_id, source) VALUES (?, ?, 'manual')").run(userId, courseId);
+    flash(req, "Student enrolled.");
+  }
   res.redirect(`/admin/courses/${Number(req.body.courseId)}`);
 });
 

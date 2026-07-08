@@ -26,6 +26,9 @@ function migrate() {
       status TEXT NOT NULL DEFAULT 'active',
       organization_status TEXT NOT NULL DEFAULT 'organized' CHECK(organization_status IN ('organized','not_organized')),
       class_lock_reason TEXT,
+      cohort_name TEXT,
+      cohort_start_date TEXT,
+      cohort_end_date TEXT,
       notes TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -321,6 +324,15 @@ function migrate() {
   if (!userColumns.includes("class_lock_reason")) {
     db.exec("ALTER TABLE users ADD COLUMN class_lock_reason TEXT;");
   }
+  if (!userColumns.includes("cohort_name")) {
+    db.exec("ALTER TABLE users ADD COLUMN cohort_name TEXT;");
+  }
+  if (!userColumns.includes("cohort_start_date")) {
+    db.exec("ALTER TABLE users ADD COLUMN cohort_start_date TEXT;");
+  }
+  if (!userColumns.includes("cohort_end_date")) {
+    db.exec("ALTER TABLE users ADD COLUMN cohort_end_date TEXT;");
+  }
   const messageColumns = db.prepare("PRAGMA table_info(messages)").all().map((column) => column.name);
   if (!messageColumns.includes("thread_id")) {
     db.exec("ALTER TABLE messages ADD COLUMN thread_id INTEGER;");
@@ -464,6 +476,7 @@ function seed() {
   const hha = db.prepare("SELECT id FROM courses WHERE slug = ?").get("home-health-aide");
   const hhaCreole = db.prepare("SELECT id FROM courses WHERE slug = ?").get("home-health-aide-creole");
   const medicalTerminology = db.prepare("SELECT id FROM courses WHERE slug = ?").get("medical-terminology");
+  const practicalNursing = db.prepare("SELECT id FROM courses WHERE slug = ?").get("practical-nursing");
   const introNursing = db.prepare("SELECT id FROM courses WHERE slug = ?").get("introduction-to-nursing-practical-nursing");
   db.prepare(`
     INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)
@@ -487,6 +500,60 @@ function seed() {
       VALUES (?, ?, 'active', 83, 'seed', 'seed-demo-pn102')
     `).run(demoStudent.id, introNursing.id);
   }
+
+  const cohortTwoStudents = [
+    ["Guerda", "Bien", "guerdabien80@gmail.com"],
+    ["Chauna", "Brown", "shaunie8210@gmail.com"],
+    ["Samantha", "Brunvil", "samanthabrunvil2106@gmail.com"],
+    ["Porledens", "Cajoux", "porledens@gmail.com"],
+    ["Cheryl", "Echols", "cherylechols89@gmail.com"],
+    ["Ericka", "Morrison", "ericka.morrison001@outlook.com"],
+    ["J Laurie", "Robert", "robertjlaurie303@gmail.com"],
+    ["Rekena", "Williams", "kena_wims@yahoo.com"]
+  ];
+  const cohortName = "Cohort 2";
+  const cohortStartDate = "2026-07-01";
+  const cohortEndDate = "2027-07-31";
+  const cohortStudentPasswordHash = hash("StudentPass123!");
+  const upsertCohortStudent = db.prepare(`
+    INSERT INTO users (
+      role, first_name, last_name, email, phone, password_hash, status,
+      organization_status, class_lock_reason, cohort_name, cohort_start_date, cohort_end_date
+    )
+    VALUES ('student', ?, ?, ?, '', ?, 'active', 'organized', NULL, ?, ?, ?)
+    ON CONFLICT(email) DO UPDATE SET
+      role = 'student',
+      first_name = excluded.first_name,
+      last_name = excluded.last_name,
+      status = 'active',
+      organization_status = 'organized',
+      class_lock_reason = NULL,
+      cohort_name = excluded.cohort_name,
+      cohort_start_date = excluded.cohort_start_date,
+      cohort_end_date = excluded.cohort_end_date
+  `);
+  const insertCohortEnrollment = db.prepare(`
+    INSERT OR IGNORE INTO enrollments (user_id, course_id, status, start_date, progress, source, external_order_id)
+    VALUES (?, ?, 'active', ?, 0, 'cohort_seed', ?)
+  `);
+  cohortTwoStudents.forEach(([firstName, lastName, email]) => {
+    upsertCohortStudent.run(
+      firstName,
+      lastName,
+      email,
+      cohortStudentPasswordHash,
+      cohortName,
+      cohortStartDate,
+      cohortEndDate
+    );
+    const student = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
+    if (student && medicalTerminology) {
+      insertCohortEnrollment.run(student.id, medicalTerminology.id, cohortStartDate, `cohort-2-pn101-${student.id}`);
+    }
+    if (student && practicalNursing) {
+      insertCohortEnrollment.run(student.id, practicalNursing.id, cohortStartDate, `cohort-2-practical-nursing-${student.id}`);
+    }
+  });
 
   const existingAward = db.prepare(`
     SELECT id FROM financial_aid_awards
