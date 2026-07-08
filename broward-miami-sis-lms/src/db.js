@@ -132,6 +132,21 @@ function migrate() {
       UNIQUE(enrollment_id, grade_item_id)
     );
 
+    CREATE TABLE IF NOT EXISTS hesi_scores (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      cohort_name TEXT NOT NULL,
+      exam_name TEXT NOT NULL DEFAULT 'HESI',
+      subject TEXT NOT NULL,
+      acceptable_score INTEGER NOT NULL,
+      score INTEGER,
+      status TEXT NOT NULL DEFAULT 'missing' CHECK(status IN ('pass','remediation','missing')),
+      source_note TEXT,
+      recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, exam_name, subject)
+    );
+
     CREATE TABLE IF NOT EXISTS credentials (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       enrollment_id INTEGER NOT NULL UNIQUE REFERENCES enrollments(id) ON DELETE CASCADE,
@@ -553,6 +568,123 @@ function seed() {
     if (student && practicalNursing) {
       insertCohortEnrollment.run(student.id, practicalNursing.id, cohortStartDate, `cohort-2-practical-nursing-${student.id}`);
     }
+  });
+
+  const hesiSubjects = [
+    ["Critical Thinking", 700],
+    ["Fundamentals", 850],
+    ["Pharmacology", 850],
+    ["Nutrition", 850],
+    ["Medical-Surgical", 850],
+    ["Geriatrics", 850],
+    ["Maternity", 850],
+    ["Pediatrics", 850],
+    ["Mental Health", 850]
+  ];
+  const cohortOneHesiStudents = [
+    {
+      firstName: "Bernadine",
+      lastName: "Jean Louis",
+      email: "bernadine.jeanlouis@browardmiamihi.local",
+      scores: [900, 671, 1280, 1353, 1181, 1318, 1328, 1425, 1059]
+    },
+    {
+      firstName: "Kassandra",
+      lastName: "Laguardia",
+      email: "kassandra.laguardia@browardmiamihi.local",
+      scores: [860, 853, 911, 906, null, 1151, 680, null, null]
+    },
+    {
+      firstName: "Stephanie",
+      lastName: "Gelin",
+      email: "stephanie.gelin@browardmiamihi.local",
+      scores: [900, 1221, 1303, 1435, 1244, 1390, 1154, 1426, 1293]
+    },
+    {
+      firstName: "Marie Mode",
+      lastName: "Docteur",
+      email: "mariemode.docteur@browardmiamihi.local",
+      scores: [null, null, null, 782, null, 1423, null, 639, null]
+    },
+    {
+      firstName: "Marceline",
+      lastName: "Goudet",
+      email: "marceline.goudet@browardmiamihi.local",
+      scores: [790, 874, 643, null, 506, 449, 686, 788, 761]
+    },
+    {
+      firstName: "Anabel",
+      lastName: "Ortega",
+      email: "anabel.ortega@browardmiamihi.local",
+      scores: [900, 702, 761, null, 828, null, null, null, 509]
+    },
+    {
+      firstName: "Katia",
+      lastName: "Santiesteban",
+      email: "katia.santiesteban@browardmiamihi.local",
+      scores: [880, 468, null, null, null, null, null, null, null]
+    },
+    {
+      firstName: "Emile",
+      lastName: "Etinor",
+      email: "emile.etinor@browardmiamihi.local",
+      scores: [null, null, null, null, null, null, null, null, null]
+    },
+    {
+      firstName: "Kayla Christine",
+      lastName: "Jean",
+      email: "kaylachristine.jean@browardmiamihi.local",
+      scores: [950, 874, 1209, 1317, 1288, 1087, 1041, 1123, 1284]
+    }
+  ];
+  const cohortOnePasswordHash = hash("StudentPass123!");
+  const upsertCohortOneStudent = db.prepare(`
+    INSERT INTO users (
+      role, first_name, last_name, email, phone, password_hash, status,
+      organization_status, class_lock_reason, cohort_name
+    )
+    VALUES ('student', ?, ?, ?, '', ?, 'active', 'organized', NULL, 'Cohort 1')
+    ON CONFLICT(email) DO UPDATE SET
+      role = 'student',
+      first_name = excluded.first_name,
+      last_name = excluded.last_name,
+      status = 'active',
+      organization_status = 'organized',
+      class_lock_reason = NULL,
+      cohort_name = 'Cohort 1'
+  `);
+  const upsertHesiScore = db.prepare(`
+    INSERT OR IGNORE INTO hesi_scores (user_id, cohort_name, exam_name, subject, acceptable_score, score, status, source_note)
+    VALUES (?, 'Cohort 1', 'HESI', ?, ?, ?, ?, ?)
+  `);
+  const insertCohortOneEnrollment = db.prepare(`
+    INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)
+    VALUES (?, ?, 'active', 0, 'cohort_seed', ?)
+  `);
+  cohortOneHesiStudents.forEach((studentRecord) => {
+    upsertCohortOneStudent.run(
+      studentRecord.firstName,
+      studentRecord.lastName,
+      studentRecord.email,
+      cohortOnePasswordHash
+    );
+    const student = db.prepare("SELECT id FROM users WHERE email = ?").get(studentRecord.email);
+    if (student && practicalNursing) {
+      insertCohortOneEnrollment.run(student.id, practicalNursing.id, `cohort-1-practical-nursing-${student.id}`);
+    }
+    if (!student) return;
+    hesiSubjects.forEach(([subject, acceptableScore], index) => {
+      const score = studentRecord.scores[index];
+      const status = score === null || score === undefined ? "missing" : Number(score) >= acceptableScore ? "pass" : "remediation";
+      upsertHesiScore.run(
+        student.id,
+        subject,
+        acceptableScore,
+        score,
+        status,
+        "Imported from Cohort 1 HESI score screenshot provided July 2026."
+      );
+    });
   });
 
   const existingAward = db.prepare(`

@@ -26,6 +26,7 @@ function navFor(user) {
     <a href="/admin">Dashboard</a>
     <a href="/admin/features">Features</a>
     <a href="/admin/students">Students</a>
+    <a href="/admin/hesi">HESI Scores</a>
     <a href="/admin/courses">Courses</a>
     <a href="/admin/onsite-visit">OSV Visit</a>
     <a href="/admin/financial-aid">Financial Aid</a>
@@ -38,6 +39,7 @@ function navFor(user) {
   const instructorLinks = `
     <a href="/admin">Dashboard</a>
     <a href="/admin/students">Students</a>
+    <a href="/admin/hesi">HESI Scores</a>
     <a href="/admin/courses">Courses</a>
     <a href="/admin/onsite-visit">OSV Visit</a>
     <a href="/admin/messages">Inbox</a>

@@ -1120,6 +1120,85 @@ button.danger {
   vertical-align: top;
 }
 
+.hesi-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.hesi-scorebook {
+  overflow-x: auto;
+}
+
+.hesi-scorebook table {
+  min-width: 1480px;
+}
+
+.hesi-scorebook th small {
+  color: #64748b;
+  font-size: .72rem;
+  font-weight: 700;
+}
+
+.hesi-score-cell form {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 76px 1fr;
+  min-width: 150px;
+}
+
+.hesi-score-cell input {
+  margin: 0;
+  padding: 8px;
+}
+
+.hesi-score-cell span,
+.hesi-mini {
+  border-radius: 999px;
+  display: inline-block;
+  font-size: .72rem;
+  font-weight: 800;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+
+.hesi-score-cell button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.hesi-score-cell.pass {
+  background: #fffde1;
+}
+
+.hesi-score-cell.pass span,
+.hesi-mini.pass {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.hesi-score-cell.remediation {
+  background: #fee2e2;
+}
+
+.hesi-score-cell.remediation span,
+.hesi-mini.remediation {
+  background: #fecaca;
+  color: #991b1b;
+}
+
+.hesi-score-cell.missing {
+  background: #f8fafc;
+}
+
+.hesi-score-cell.missing span,
+.hesi-mini.missing {
+  background: #e2e8f0;
+  color: #475569;
+}
+
 @media print {
   body.sis-mode {
     background: #fff;

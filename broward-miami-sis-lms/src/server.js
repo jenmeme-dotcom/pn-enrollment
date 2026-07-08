@@ -254,6 +254,22 @@ const registrarChecklistItems = [
   { key: "graduation_approval", title: "Graduation approval workflow", description: "Final registrar approval, credential readiness, account clearance, and graduation completion." }
 ];
 const registrarStatuses = ["pending", "received", "approved", "missing", "waived"];
+const hesiSubjects = [
+  { subject: "Critical Thinking", acceptableScore: 700 },
+  { subject: "Fundamentals", acceptableScore: 850 },
+  { subject: "Pharmacology", acceptableScore: 850 },
+  { subject: "Nutrition", acceptableScore: 850 },
+  { subject: "Medical-Surgical", acceptableScore: 850 },
+  { subject: "Geriatrics", acceptableScore: 850 },
+  { subject: "Maternity", acceptableScore: 850 },
+  { subject: "Pediatrics", acceptableScore: 850 },
+  { subject: "Mental Health", acceptableScore: 850 }
+];
+
+function hesiScoreStatus(score, acceptableScore) {
+  if (score === null || score === undefined || score === "") return "missing";
+  return Number(score) >= Number(acceptableScore) ? "pass" : "remediation";
+}
 
 function ensureRegistrarChecklist(userId) {
   const insertItem = db.prepare(`
@@ -2354,6 +2370,7 @@ const adminFeatureGroups = [
     code: "RPT",
     items: [
       { label: "OSV preparation binder", href: "/admin/onsite-visit" },
+      { label: "HESI score report", href: "/admin/hesi" },
       "Student information",
       "Finance",
       "Presence",
@@ -3297,6 +3314,168 @@ app.post("/admin/onsite-visit/files/:id/delete", requireAuth, requireRole("admin
   res.redirect("/admin/onsite-visit");
 });
 
+app.get("/admin/hesi", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const selectedCohort = String(req.query.cohort || "Cohort 1").trim() || "Cohort 1";
+  const cohorts = db.prepare(`
+    SELECT DISTINCT cohort_name
+    FROM users
+    WHERE role = 'student' AND cohort_name IS NOT NULL AND cohort_name <> ''
+    ORDER BY cohort_name
+  `).all();
+  const students = db.prepare(`
+    SELECT id, first_name, last_name, email, cohort_name, cohort_start_date, cohort_end_date
+    FROM users
+    WHERE role = 'student' AND cohort_name = ?
+    ORDER BY last_name, first_name
+  `).all(selectedCohort);
+  const scores = students.length ? db.prepare(`
+    SELECT *
+    FROM hesi_scores
+    WHERE user_id IN (${students.map(() => "?").join(",")})
+    ORDER BY subject
+  `).all(...students.map((student) => student.id)) : [];
+  const scoreMap = new Map(scores.map((row) => [`${row.user_id}:${row.subject}`, row]));
+  const studentSummary = (student) => {
+    const rows = hesiSubjects.map((subject) => scoreMap.get(`${student.id}:${subject.subject}`));
+    return {
+      pass: rows.filter((row) => row?.status === "pass").length,
+      remediation: rows.filter((row) => row?.status === "remediation").length,
+      missing: rows.filter((row) => !row || row.status === "missing").length
+    };
+  };
+  const totals = students.reduce((summary, student) => {
+    const row = studentSummary(student);
+    summary.pass += row.pass;
+    summary.remediation += row.remediation;
+    summary.missing += row.missing;
+    return summary;
+  }, { pass: 0, remediation: 0, missing: 0 });
+  const totalExpected = students.length * hesiSubjects.length;
+  const cohortOption = (cohort) => `<option value="${escapeHtml(cohort.cohort_name)}" ${cohort.cohort_name === selectedCohort ? "selected" : ""}>${escapeHtml(cohort.cohort_name)}</option>`;
+
+  const body = `
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">Exams</p>
+        <h1>HESI Scores</h1>
+        <p>Store entrance and specialty HESI results by cohort, including acceptable scores, actual scores, and remediation flags.</p>
+      </div>
+      <div class="actions">
+        <a class="button ghost" href="/admin/students">Students</a>
+        <a class="button ghost" href="/admin/features">Reports</a>
+      </div>
+    </div>
+
+    <section class="grid cols-4">
+      ${stat("Cohort", selectedCohort)}
+      ${stat("Students", String(students.length))}
+      ${stat("Passing scores", `${totals.pass}/${totalExpected}`)}
+      ${stat("Needs review", String(totals.remediation + totals.missing))}
+    </section>
+
+    <section class="card hesi-toolbar">
+      <form method="get" action="/admin/hesi" class="actions">
+        <label>
+          Cohort
+          <select name="cohort">
+            ${cohorts.map(cohortOption).join("")}
+            ${cohorts.some((cohort) => cohort.cohort_name === selectedCohort) ? "" : `<option value="${escapeHtml(selectedCohort)}" selected>${escapeHtml(selectedCohort)}</option>`}
+          </select>
+        </label>
+        <button class="small" type="submit">Open cohort</button>
+      </form>
+      <p class="muted">Scores below were imported from the Cohort 1 HESI screenshot. Leave a score blank when no result is available yet.</p>
+    </section>
+
+    <section class="table-card hesi-scorebook" style="margin-top:18px">
+      <table>
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Summary</th>
+            ${hesiSubjects.map((item) => `<th>${escapeHtml(item.subject)}<br><small>Acceptable ${escapeHtml(item.acceptableScore)}</small></th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${students.map((student) => {
+            const summary = studentSummary(student);
+            return `
+              <tr>
+                <td>
+                  <strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br>
+                  <span class="muted">${escapeHtml(student.email)}</span>
+                </td>
+                <td>
+                  <span class="hesi-mini pass">${escapeHtml(summary.pass)} pass</span>
+                  <span class="hesi-mini remediation">${escapeHtml(summary.remediation)} review</span>
+                  <span class="hesi-mini missing">${escapeHtml(summary.missing)} missing</span>
+                </td>
+                ${hesiSubjects.map((item) => {
+                  const row = scoreMap.get(`${student.id}:${item.subject}`);
+                  const scoreValue = row?.score ?? "";
+                  const status = row?.status || "missing";
+                  return `
+                    <td class="hesi-score-cell ${escapeHtml(status)}">
+                      <form method="post" action="/admin/hesi/scores">
+                        <input type="hidden" name="userId" value="${escapeHtml(student.id)}">
+                        <input type="hidden" name="cohort" value="${escapeHtml(selectedCohort)}">
+                        <input type="hidden" name="subject" value="${escapeHtml(item.subject)}">
+                        <input type="hidden" name="acceptableScore" value="${escapeHtml(item.acceptableScore)}">
+                        <input name="score" type="number" min="0" inputmode="numeric" value="${escapeHtml(scoreValue)}" aria-label="${escapeHtml(item.subject)} score for ${escapeHtml(personName(student))}">
+                        <span>${status === "pass" ? "Pass" : status === "remediation" ? "Remediation" : "Missing"}</span>
+                        <button class="small ghost" type="submit">Save</button>
+                      </form>
+                    </td>
+                  `;
+                }).join("")}
+              </tr>
+            `;
+          }).join("") || `<tr><td class="empty" colspan="${hesiSubjects.length + 2}">No students found for this cohort.</td></tr>`}
+        </tbody>
+      </table>
+    </section>
+  `;
+  render(req, res, "HESI Scores", body);
+});
+
+app.post("/admin/hesi/scores", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const userId = Number(req.body.userId);
+  const subject = String(req.body.subject || "").trim();
+  const hesiSubject = hesiSubjects.find((item) => item.subject === subject);
+  if (!hesiSubject) return res.status(404).send("HESI subject not found");
+  const student = db.prepare("SELECT id, cohort_name FROM users WHERE id = ? AND role = 'student'").get(userId);
+  if (!student) return res.status(404).send("Student not found");
+  const rawScore = String(req.body.score || "").trim();
+  const score = rawScore === "" ? null : Number(rawScore);
+  if (score !== null && (!Number.isFinite(score) || score < 0)) {
+    flash(req, "Enter a valid HESI score.");
+    return res.redirect(`/admin/hesi?cohort=${encodeURIComponent(String(req.body.cohort || student.cohort_name || "Cohort 1"))}`);
+  }
+  const acceptableScore = Number(req.body.acceptableScore || hesiSubject.acceptableScore);
+  const status = hesiScoreStatus(score, acceptableScore);
+  db.prepare(`
+    INSERT INTO hesi_scores (user_id, cohort_name, exam_name, subject, acceptable_score, score, status, source_note)
+    VALUES (?, ?, 'HESI', ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, exam_name, subject) DO UPDATE SET
+      cohort_name = excluded.cohort_name,
+      acceptable_score = excluded.acceptable_score,
+      score = excluded.score,
+      status = excluded.status,
+      source_note = excluded.source_note,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(
+    userId,
+    student.cohort_name || String(req.body.cohort || "Cohort 1"),
+    subject,
+    acceptableScore,
+    score,
+    status,
+    `Updated by ${req.user.first_name} ${req.user.last_name}`
+  );
+  flash(req, "HESI score saved.");
+  res.redirect(`/admin/hesi?cohort=${encodeURIComponent(String(req.body.cohort || student.cohort_name || "Cohort 1"))}`);
+});
+
 app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const students = db.prepare(`
     SELECT u.*,
@@ -3319,6 +3498,9 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
       <div>
         <h1>Students</h1>
         <p>Create student portal accounts, enroll students in programs, and reset passwords when needed.</p>
+      </div>
+      <div class="actions">
+        <a class="button" href="/admin/hesi">HESI Scores</a>
       </div>
     </div>
     <section class="grid cols-2">
