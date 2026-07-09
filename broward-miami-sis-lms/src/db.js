@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 const bcrypt = require("bcryptjs");
+const { adminAccessAccounts, adminAccessDefaultPassword } = require("./adminAccess");
 const { courses } = require("./catalog");
 const { lippincottEnrollmentInstructions } = require("./fundamentalsBuildout");
 const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
@@ -389,6 +390,21 @@ function seed() {
   createUser.run("admin", "BMHI", "Administrator", "admin@browardmiamihi.local", "(954) 555-0100", hash("AdminPass123!"));
   createUser.run("instructor", "Program", "Instructor", "instructor@browardmiamihi.local", "(954) 555-0101", hash("InstructorPass123!"));
   createUser.run("student", "Demo", "Student", "student@browardmiamihi.local", "(954) 555-0102", hash("StudentPass123!"));
+
+  const upsertAdminAccessUser = db.prepare(`
+    INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
+    VALUES ('admin', ?, ?, ?, '', ?, 'active', 'organized', NULL)
+    ON CONFLICT(email) DO UPDATE SET
+      role = 'admin',
+      first_name = excluded.first_name,
+      last_name = excluded.last_name,
+      status = 'active',
+      organization_status = 'organized',
+      class_lock_reason = NULL
+  `);
+  adminAccessAccounts.forEach((account) => {
+    upsertAdminAccessUser.run(account.firstName, account.lastName, account.email, hash(adminAccessDefaultPassword));
+  });
 
   db.prepare(`
     UPDATE users

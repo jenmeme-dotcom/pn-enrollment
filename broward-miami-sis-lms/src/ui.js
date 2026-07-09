@@ -25,6 +25,7 @@ function navFor(user) {
   const adminLinks = `
     <a href="/admin">Dashboard</a>
     <a href="/admin/features">Features</a>
+    <a href="/admin/admin-roles">Admin Roles</a>
     <a href="/admin/students">Students</a>
     <a href="/admin/hesi">HESI Scores</a>
     <a href="/admin/courses">Courses</a>

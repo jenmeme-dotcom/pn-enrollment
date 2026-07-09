@@ -8,6 +8,7 @@ const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const nodemailer = require("nodemailer");
+const { adminAccessAccounts, adminAccessDefaultPassword } = require("./adminAccess");
 const { db, initialize, databaseFile } = require("./db");
 const {
   feeSchedule,
@@ -2379,7 +2380,7 @@ const adminFeatureGroups = [
   {
     title: "System Settings",
     code: "SYS",
-    items: ["General preparation", "Session preparation", "Setup notification", "WhatsApp messaging", "SMS messages", "Email setup", "Payment methods", "Print header and footer", "CMS front-end setup", "Role permits", "Data retrieval", "Languages", "Users", "File types", "Sidebar menu"]
+    items: ["General preparation", "Session preparation", "Setup notification", "WhatsApp messaging", "SMS messages", "Email setup", "Payment methods", "Print header and footer", "CMS front-end setup", { label: "Admin roles", href: "/admin/admin-roles" }, "Role permits", "Data retrieval", "Languages", "Users", "File types", "Sidebar menu"]
   },
   {
     title: "Reports",
@@ -2813,6 +2814,7 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
       </div>
       <div class="actions">
         ${req.user.role === "admin" ? `<a class="button ghost" href="/admin/features">Admin features</a>` : ""}
+        ${req.user.role === "admin" ? `<a class="button ghost" href="/admin/admin-roles">Admin roles</a>` : ""}
         <a class="button" href="/admin/students">Add student</a>
       </div>
     </div>
@@ -2842,6 +2844,81 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
     </section>
   `;
   render(req, res, "Dashboard", body);
+});
+
+app.get("/admin/admin-roles", requireAuth, requireRole("admin"), (req, res) => {
+  const accounts = adminAccessAccounts.map((account) => {
+    const user = db.prepare("SELECT id, role, first_name, last_name, email, status, created_at FROM users WHERE lower(email) = ?").get(account.email.toLowerCase());
+    return { ...account, user };
+  });
+  const body = `
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">System Settings</p>
+        <h1>Admin Roles</h1>
+        <p>Portal access list for BMHI staff administrators. These usernames are used on the main sign-in page.</p>
+      </div>
+      <div class="actions">
+        <a class="button ghost" href="/admin/features">Admin features</a>
+        <a class="button" href="/admin">Dashboard</a>
+      </div>
+    </div>
+
+    <section class="grid cols-3">
+      ${stat("Admin accounts", accounts.length)}
+      ${stat("Access role", "Admin")}
+      ${stat("Temporary password", adminAccessDefaultPassword)}
+    </section>
+
+    <section class="table-card" style="margin-top:18px">
+      <div class="table-card-head">
+        <div>
+          <h2>Portal usernames and passwords</h2>
+          <p class="muted">Use the email as the username. Passwords are stored securely; the temporary password below can be reset for each staff member.</p>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Staff admin</th><th>Username</th><th>Role</th><th>Temporary password</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${accounts.map((account) => `
+            <tr>
+              <td><strong>${escapeHtml(account.firstName)} ${escapeHtml(account.lastName)}</strong></td>
+              <td>${escapeHtml(account.email)}</td>
+              <td><span class="pill">${escapeHtml(account.user?.role || "admin")}</span></td>
+              <td><code>${escapeHtml(adminAccessDefaultPassword)}</code></td>
+              <td>${account.user ? `<span class="pill">${escapeHtml(account.user.status)}</span>` : `<span class="pill orange">Missing</span>`}</td>
+              <td>
+                <form method="post" action="/admin/admin-roles/${encodeURIComponent(account.email)}/reset-password" class="actions">
+                  <button class="small ghost" type="submit">Reset to temporary password</button>
+                </form>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </section>
+  `;
+  render(req, res, "Admin Roles", body);
+});
+
+app.post("/admin/admin-roles/:email/reset-password", requireAuth, requireRole("admin"), (req, res) => {
+  const email = String(req.params.email || "").toLowerCase();
+  const account = adminAccessAccounts.find((item) => item.email.toLowerCase() === email);
+  if (!account) return res.status(404).send("Admin account not found");
+  db.prepare(`
+    INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
+    VALUES ('admin', ?, ?, ?, '', ?, 'active', 'organized', NULL)
+    ON CONFLICT(email) DO UPDATE SET
+      role = 'admin',
+      first_name = excluded.first_name,
+      last_name = excluded.last_name,
+      password_hash = excluded.password_hash,
+      status = 'active',
+      organization_status = 'organized',
+      class_lock_reason = NULL
+  `).run(account.firstName, account.lastName, account.email, bcrypt.hashSync(adminAccessDefaultPassword, 12));
+  flash(req, `${account.firstName} ${account.lastName}'s password was reset to the temporary password.`);
+  res.redirect("/admin/admin-roles");
 });
 
 app.get("/admin/messages", requireAuth, requireRole("admin", "instructor"), (req, res) => {
