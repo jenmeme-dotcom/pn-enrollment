@@ -2987,7 +2987,7 @@ app.get("/login", (req, res) => {
         </figure>
         <div class="login-copy-text">
           <img class="login-logo" src="/assets/bmhi-seal-blue.jpeg" alt="${escapeHtml(instituteName)} logo">
-          <h1>Broward-Miami Health Institute Portal</h1>
+          <h1>Broward-Miami Health Institute Student Portal</h1>
         </div>
       </div>
       <form class="login-panel" method="post" action="/login">
