@@ -197,6 +197,8 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)} | ${institute}</title>
+  <link rel="icon" type="image/png" href="/assets/bmhi-favicon.png">
+  <link rel="apple-touch-icon" href="/assets/bmhi-favicon.png">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="${bodyClass}">
