@@ -418,6 +418,7 @@ function seed() {
 
   createUser.run("admin", "BMHI", "Administrator", "admin@browardmiamihi.local", "(954) 555-0100", hash("AdminPass123!"));
   createUser.run("instructor", "Program", "Instructor", "instructor@browardmiamihi.local", "(954) 555-0101", hash("InstructorPass123!"));
+  createUser.run("instructor", "Jeferson", "Fianitog", "jeferson.fianitog@browardmiamihi.local", "", hash("InstructorPass123!"));
   createUser.run("student", "Demo", "Student", "student@browardmiamihi.local", "(954) 555-0102", hash("StudentPass123!"));
 
   const upsertAdminAccessUser = db.prepare(`
