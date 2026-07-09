@@ -2456,7 +2456,7 @@ button.small {
 }
 
 .student-course-shell {
-  grid-template-columns: 90px 214px minmax(0, 1fr) 280px;
+  grid-template-columns: 74px 214px minmax(0, 1fr) 280px;
   grid-template-rows: 78px 1fr;
 }
 
@@ -2471,8 +2471,8 @@ button.small {
 }
 
 .student-canvas-rail {
-  gap: 10px;
-  padding: 6px 0 0;
+  gap: 6px;
+  padding: 5px 0 0;
 }
 
 .canvas-global-rail img {
@@ -2486,12 +2486,14 @@ button.small {
 }
 
 .student-canvas-rail img {
-  height: 74px;
-  width: 74px;
+  height: 58px;
+  width: 58px;
 }
 
 .student-canvas-rail nav {
-  display: grid;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
   width: 100%;
 }
 
@@ -2499,9 +2501,10 @@ button.small {
   align-items: center;
   color: white;
   display: grid;
-  gap: 4px;
+  gap: 2px;
   justify-items: center;
-  padding: 9px 4px;
+  min-height: 56px;
+  padding: 6px 3px;
   text-align: center;
 }
 
@@ -2536,14 +2539,14 @@ button.small {
   background: transparent;
   border: 2px solid currentColor;
   color: inherit;
-  font-size: 18px;
-  height: 30px;
-  width: 30px;
+  font-size: 15px;
+  height: 26px;
+  width: 26px;
 }
 
 .student-canvas-rail a strong {
   color: inherit;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   line-height: 1.15;
 }
@@ -2644,7 +2647,7 @@ button.small {
 }
 
 .student-course-shell .canvas-sidebar-toggle {
-  left: calc(90px + 214px - 14px);
+  left: calc(74px + 214px - 14px);
   top: 104px;
 }
 
