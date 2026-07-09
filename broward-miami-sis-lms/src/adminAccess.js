@@ -4,22 +4,22 @@ const adminAccessAccounts = [
   {
     firstName: "Rome",
     lastName: "Liwag",
-    email: "rome.liwag@browardmiamihi.local"
+    email: "rome.liwag@browardmiamihi.com"
   },
   {
     firstName: "Nadia",
     lastName: "Meme",
-    email: "nadia.meme@browardmiamihi.local"
+    email: "nadia.meme@browardmiamihi.com"
   },
   {
     firstName: "Roney",
     lastName: "Hernandez",
-    email: "roney.hernandez@browardmiamihi.local"
+    email: "roney.hernandez@browardmiamihi.com"
   },
   {
     firstName: "Kattery",
     lastName: "Hernandez-Cruz",
-    email: "kattery.hernandez-cruz@browardmiamihi.local"
+    email: "kattery.hernandez-cruz@browardmiamihi.com"
   }
 ];
 

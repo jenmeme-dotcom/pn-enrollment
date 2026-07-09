@@ -29,7 +29,7 @@ services:
       - key: INSTITUTE_WEBSITE
         value: https://www.browardmiamihi.com
       - key: PUBLIC_APP_URL
-        value: https://bmhi-student-portal.onrender.com
+        value: https://portal.browardmiamihi.com
       - key: EMAIL_DELIVERY_ENABLED
         value: "false"
       - key: SMTP_HOST

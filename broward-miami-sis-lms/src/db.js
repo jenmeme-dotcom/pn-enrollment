@@ -14,6 +14,9 @@ fs.mkdirSync(path.dirname(databaseFile), { recursive: true });
 const db = new DatabaseSync(databaseFile);
 db.exec("PRAGMA foreign_keys = ON;");
 
+const legacyLocalEmailDomain = "@browardmiamihi.local";
+const portalEmailDomain = "@browardmiamihi.com";
+
 function migrate() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -411,15 +414,34 @@ function migrate() {
 
 function seed() {
   const hash = (plain) => bcrypt.hashSync(plain, 12);
+
+  db.prepare(`
+    UPDATE users
+    SET email = replace(email, ?, ?)
+    WHERE email LIKE ?
+      AND NOT EXISTS (
+        SELECT 1
+        FROM users duplicate
+        WHERE duplicate.id != users.id
+          AND lower(duplicate.email) = lower(replace(users.email, ?, ?))
+      )
+  `).run(
+    legacyLocalEmailDomain,
+    portalEmailDomain,
+    `%${legacyLocalEmailDomain}`,
+    legacyLocalEmailDomain,
+    portalEmailDomain
+  );
+
   const createUser = db.prepare(`
     INSERT OR IGNORE INTO users (role, first_name, last_name, email, phone, password_hash)
     VALUES (?, ?, ?, ?, ?, ?)
   `);
 
-  createUser.run("admin", "BMHI", "Administrator", "admin@browardmiamihi.local", "(954) 555-0100", hash("AdminPass123!"));
-  createUser.run("instructor", "Program", "Instructor", "instructor@browardmiamihi.local", "(954) 555-0101", hash("InstructorPass123!"));
-  createUser.run("instructor", "Jeferson", "Fianitog", "jeferson.fianitog@browardmiamihi.local", "", hash("InstructorPass123!"));
-  createUser.run("student", "Demo", "Student", "student@browardmiamihi.local", "(954) 555-0102", hash("StudentPass123!"));
+  createUser.run("admin", "BMHI", "Administrator", "admin@browardmiamihi.com", "(954) 555-0100", hash("AdminPass123!"));
+  createUser.run("instructor", "Program", "Instructor", "instructor@browardmiamihi.com", "(954) 555-0101", hash("InstructorPass123!"));
+  createUser.run("instructor", "Jeferson", "Fianitog", "jeferson.fianitog@browardmiamihi.com", "", hash("InstructorPass123!"));
+  createUser.run("student", "Demo", "Student", "student@browardmiamihi.com", "(954) 555-0102", hash("StudentPass123!"));
 
   const upsertAdminAccessUser = db.prepare(`
     INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
@@ -439,7 +461,7 @@ function seed() {
   db.prepare(`
     UPDATE users
     SET organization_status = 'organized', class_lock_reason = NULL
-    WHERE email IN ('admin@browardmiamihi.local', 'instructor@browardmiamihi.local', 'student@browardmiamihi.local')
+    WHERE email IN ('admin@browardmiamihi.com', 'instructor@browardmiamihi.com', 'student@browardmiamihi.com')
   `).run();
 
   const upsertCourse = db.prepare(`
@@ -545,7 +567,7 @@ function seed() {
     }
   }
 
-  const demoStudent = db.prepare("SELECT id FROM users WHERE email = ?").get("student@browardmiamihi.local");
+  const demoStudent = db.prepare("SELECT id FROM users WHERE email = ?").get("student@browardmiamihi.com");
   const hha = db.prepare("SELECT id FROM courses WHERE slug = ?").get("home-health-aide");
   const hhaCreole = db.prepare("SELECT id FROM courses WHERE slug = ?").get("home-health-aide-creole");
   const medicalTerminology = db.prepare("SELECT id FROM courses WHERE slug = ?").get("medical-terminology");
@@ -645,55 +667,55 @@ function seed() {
     {
       firstName: "Bernadine",
       lastName: "Jean Louis",
-      email: "bernadine.jeanlouis@browardmiamihi.local",
+      email: "bernadine.jeanlouis@browardmiamihi.com",
       scores: [900, 671, 1280, 1353, 1181, 1318, 1328, 1425, 1059]
     },
     {
       firstName: "Kassandra",
       lastName: "Laguardia",
-      email: "kassandra.laguardia@browardmiamihi.local",
+      email: "kassandra.laguardia@browardmiamihi.com",
       scores: [860, 853, 911, 906, null, 1151, 680, null, null]
     },
     {
       firstName: "Stephanie",
       lastName: "Gelin",
-      email: "stephanie.gelin@browardmiamihi.local",
+      email: "stephanie.gelin@browardmiamihi.com",
       scores: [900, 1221, 1303, 1435, 1244, 1390, 1154, 1426, 1293]
     },
     {
       firstName: "Marie Mode",
       lastName: "Docteur",
-      email: "mariemode.docteur@browardmiamihi.local",
+      email: "mariemode.docteur@browardmiamihi.com",
       scores: [null, null, null, 782, null, 1423, null, 639, null]
     },
     {
       firstName: "Marceline",
       lastName: "Goudet",
-      email: "marceline.goudet@browardmiamihi.local",
+      email: "marceline.goudet@browardmiamihi.com",
       scores: [790, 874, 643, null, 506, 449, 686, 788, 761]
     },
     {
       firstName: "Anabel",
       lastName: "Ortega",
-      email: "anabel.ortega@browardmiamihi.local",
+      email: "anabel.ortega@browardmiamihi.com",
       scores: [900, 702, 761, null, 828, null, null, null, 509]
     },
     {
       firstName: "Katia",
       lastName: "Santiesteban",
-      email: "katia.santiesteban@browardmiamihi.local",
+      email: "katia.santiesteban@browardmiamihi.com",
       scores: [880, 468, null, null, null, null, null, null, null]
     },
     {
       firstName: "Emile",
       lastName: "Etinor",
-      email: "emile.etinor@browardmiamihi.local",
+      email: "emile.etinor@browardmiamihi.com",
       scores: [null, null, null, null, null, null, null, null, null]
     },
     {
       firstName: "Kayla Christine",
       lastName: "Jean",
-      email: "kaylachristine.jean@browardmiamihi.local",
+      email: "kaylachristine.jean@browardmiamihi.com",
       scores: [950, 874, 1209, 1317, 1288, 1087, 1041, 1123, 1284]
     }
   ];
@@ -813,8 +835,8 @@ function seed() {
     upsertOnsiteVisitItem.run(item.key, item.section, item.standard, item.title, item.description, index + 1);
   });
 
-  const adminUser = db.prepare("SELECT id FROM users WHERE email = ?").get("admin@browardmiamihi.local");
-  const instructorUser = db.prepare("SELECT id FROM users WHERE email = ?").get("instructor@browardmiamihi.local");
+  const adminUser = db.prepare("SELECT id FROM users WHERE email = ?").get("admin@browardmiamihi.com");
+  const instructorUser = db.prepare("SELECT id FROM users WHERE email = ?").get("instructor@browardmiamihi.com");
   const announcementCount = db.prepare("SELECT COUNT(*) AS count FROM announcements WHERE course_id = ?");
   const insertAnnouncement = db.prepare(`
     INSERT INTO announcements (course_id, author_id, title, body, posted_at)

@@ -11,14 +11,14 @@ This app is ready to deploy as a Docker web service on Render with a persistent 
 
 | Role | Email | Password |
 | --- | --- | --- |
-| Admin | `admin@browardmiamihi.local` | `AdminPass123!` |
+| Admin | `admin@browardmiamihi.com` | `AdminPass123!` |
 
 5. Change the default admin password after first login.
-6. Add your custom domain, such as `lms.browardmiamihi.com`.
+6. Add your custom domain, such as `portal.browardmiamihi.com`.
 7. Update GHL to call:
 
 ```text
-https://lms.browardmiamihi.com/webhooks/ghl/purchase
+https://portal.browardmiamihi.com/webhooks/ghl/purchase
 ```
 
 Use the generated `GHL_WEBHOOK_SECRET` as the `x-bmhi-webhook-secret` header.
@@ -39,7 +39,7 @@ INSTITUTE_ADDRESS=6320 Miramar Pkwy Suite I, Miramar, FL 33023
 INSTITUTE_PHONE=954-248-0669
 INSTITUTE_EMAIL=support@browardmiamihi.com
 INSTITUTE_WEBSITE=https://www.browardmiamihi.com
-PUBLIC_APP_URL=https://bmhi-student-portal.onrender.com
+PUBLIC_APP_URL=https://portal.browardmiamihi.com
 ```
 
 ## External Email Delivery
@@ -54,7 +54,7 @@ SMTP_SECURE=false
 SMTP_USER=<your SMTP username>
 SMTP_PASS=<your SMTP password or API key>
 SMTP_FROM=Broward-Miami Health Institute <messages@your-domain.com>
-PUBLIC_APP_URL=https://bmhi-student-portal.onrender.com
+PUBLIC_APP_URL=https://portal.browardmiamihi.com
 ```
 
 Use a real transactional mailbox/provider for `SMTP_FROM`. Gmail accounts usually require an app password and may limit sending; a school-domain provider or transactional email service is better for production.

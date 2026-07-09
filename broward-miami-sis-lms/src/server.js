@@ -125,8 +125,8 @@ const americanHeartAssociationSlugs = new Set([
   "pediatric-advanced-life-support"
 ]);
 const emailDeliveryEnabled = process.env.EMAIL_DELIVERY_ENABLED === "true";
-const emailFrom = process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@browardmiamihi.local";
-const externalBaseUrl = (process.env.PUBLIC_APP_URL || "https://bmhi-student-portal.onrender.com").replace(/\/+$/, "");
+const emailFrom = process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@browardmiamihi.com";
+const externalBaseUrl = (process.env.PUBLIC_APP_URL || "https://portal.browardmiamihi.com").replace(/\/+$/, "");
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || path.join(path.dirname(databaseFile), "uploads"));
 const courseMaterialsDir = path.resolve(process.env.COURSE_MATERIALS_DIR || path.join(path.dirname(__dirname), "course_materials"));
 let mailTransporter;
@@ -3108,7 +3108,7 @@ app.get("/help/browser-cache", requireAuth, (req, res) => {
           <ol>
             <li>Open Chrome Settings.</li>
             <li>Go to Privacy and security, then site data.</li>
-            <li>Search for bmhi-student-portal.onrender.com.</li>
+            <li>Search for portal.browardmiamihi.com.</li>
             <li>Delete only this portal's stored site data.</li>
           </ol>
         </article>

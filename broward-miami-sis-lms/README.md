@@ -39,9 +39,9 @@ Default accounts:
 
 | Role | Email | Password |
 | --- | --- | --- |
-| Admin | `admin@browardmiamihi.local` | `AdminPass123!` |
-| Instructor | `instructor@browardmiamihi.local` | `InstructorPass123!` |
-| Student | `student@browardmiamihi.local` | `StudentPass123!` |
+| Admin | `admin@browardmiamihi.com` | `AdminPass123!` |
+| Instructor | `instructor@browardmiamihi.com` | `InstructorPass123!` |
+| Student | `student@browardmiamihi.com` | `StudentPass123!` |
 
 ## GoHighLevel webhook
 
