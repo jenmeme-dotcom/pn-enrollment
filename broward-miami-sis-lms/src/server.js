@@ -2039,6 +2039,11 @@ function normalizeExternalUrl(value = "") {
 
 function renderTextWithLinks(value = "") {
   const text = stripCanvasSource(value);
+  return linkifyText(text).replaceAll("\n", "<br>");
+}
+
+function linkifyText(value = "") {
+  const text = String(value || "");
   const urlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+|\/course-materials\/[^\s<]+)/gi;
   let cursor = 0;
   let output = "";
@@ -2051,7 +2056,7 @@ function renderTextWithLinks(value = "") {
     cursor = match.index + match[0].length;
   }
   output += escapeHtml(text.slice(cursor));
-  return output.replaceAll("\n", "<br>");
+  return output;
 }
 
 function stripCanvasSource(value = "") {
@@ -2059,6 +2064,234 @@ function stripCanvasSource(value = "") {
     .replace(/\n{0,3}Canvas source:\s*https?:\/\/hic\.instructure\.com\/[^\s<"]+/gi, "")
     .replace(/\n{0,3}Canvas source:\s*[^\n]+/gi, "")
     .trim();
+}
+
+function sanitizeCanvasHtml(value = "") {
+  return stripCanvasSource(value)
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+    .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
+    .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "")
+    .replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, "")
+    .replace(/\s(?:href|src)\s*=\s*"javascript:[^"]*"/gi, "")
+    .replace(/\s(?:href|src)\s*=\s*'javascript:[^']*'/gi, "");
+}
+
+function looksLikeHtml(value = "") {
+  return /<\/?(?:div|p|h[1-6]|ul|ol|li|table|thead|tbody|tr|th|td|img|figure|section|article|span|strong|em|a)\b/i.test(value);
+}
+
+function normalizeLessonLines(value = "", lessonTitle = "") {
+  const title = String(lessonTitle || "").trim().toLowerCase();
+  const lines = stripCanvasSource(value)
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd());
+  while (lines.length && !lines[0].trim()) lines.shift();
+  while (lines.length && title && lines[0].trim().toLowerCase() === title) {
+    lines.shift();
+    while (lines.length && !lines[0].trim()) lines.shift();
+  }
+  return lines;
+}
+
+function isImageUrl(value = "") {
+  return /\.(?:png|jpe?g|gif|webp|svg)(?:[?#].*)?$/i.test(value);
+}
+
+function renderLessonImage(src, alt = "") {
+  const normalized = src.startsWith("/") ? src : normalizeExternalUrl(src);
+  if (!normalized) return `<p>${linkifyText(src)}</p>`;
+  return `
+    <figure class="canvas-lesson-image">
+      <img src="${escapeHtml(normalized)}" alt="${escapeHtml(alt || "Course image")}">
+      ${alt ? `<figcaption>${escapeHtml(alt)}</figcaption>` : ""}
+    </figure>
+  `;
+}
+
+function renderLessonVisual(caption = "") {
+  return `
+    <figure class="canvas-lesson-image canvas-lesson-visual">
+      <img src="/assets/healthcare-students-login.png" alt="${escapeHtml(caption || "Healthcare students in class")}">
+      ${caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ""}
+    </figure>
+  `;
+}
+
+function splitTableCells(line = "") {
+  return line.split(/\t+/).map((cell) => cell.trim()).filter((cell) => cell.length);
+}
+
+function renderCanvasTable(rows = []) {
+  const filtered = rows.map(splitTableCells).filter((cells) => cells.length > 1);
+  if (!filtered.length) return "";
+  const header = filtered[0];
+  const bodyRows = filtered.slice(1);
+  return `
+    <div class="canvas-content-table-wrap">
+      <table class="canvas-content-table">
+        <thead>
+          <tr>${header.map((cell) => `<th>${linkifyText(cell)}</th>`).join("")}</tr>
+        </thead>
+        <tbody>
+          ${bodyRows.map((row) => `<tr>${row.map((cell) => `<td>${linkifyText(cell)}</td>`).join("")}</tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function isCanvasHeading(line = "") {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.length > 95) return false;
+  if (/^[*•-]\s+/.test(trimmed)) return false;
+  if (/^https?:\/\//i.test(trimmed)) return false;
+  if (/^(Question|Answer):/i.test(trimmed)) return false;
+  if (/[.!?]$/.test(trimmed)) return false;
+  if (trimmed.includes("\t")) return false;
+  return /^[A-Z0-9]/.test(trimmed) || /^[A-ZÀ-Ý]/.test(trimmed);
+}
+
+function renderCanvasParagraph(line = "") {
+  const labelMatch = line.match(/^([A-Z][A-Za-z0-9 /&'’().-]{1,45}):\s+(.+)$/);
+  if (labelMatch) {
+    return `<p><strong>${escapeHtml(labelMatch[1])}:</strong> ${linkifyText(labelMatch[2])}</p>`;
+  }
+  return `<p>${linkifyText(line)}</p>`;
+}
+
+function shouldRenderAsList(lines = []) {
+  if (lines.length < 2) return false;
+  return lines.every((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.includes("\t")) return false;
+    if (/^https?:\/\//i.test(trimmed)) return false;
+    return trimmed.length <= 155;
+  });
+}
+
+function renderSimpleLineRun(lines = []) {
+  const cleanLines = lines.map((line) => line.trim()).filter(Boolean);
+  if (shouldRenderAsList(cleanLines)) {
+    return `<ul>${cleanLines.map((line) => `<li>${linkifyText(line.replace(/^[*•-]\s+/, ""))}</li>`).join("")}</ul>`;
+  }
+  return cleanLines.map(renderCanvasParagraph).join("");
+}
+
+function renderLineRun(lines = []) {
+  const cleanLines = lines.map((line) => line.trim()).filter(Boolean);
+  if (!cleanLines.length) return "";
+  const output = [];
+  let currentRun = [];
+
+  cleanLines.forEach((line, index) => {
+    const currentRunLooksLikeShortList = currentRun.length > 0 &&
+      currentRun.every((item) => item.length <= 120 && !item.includes(":") && !/[.!?]$/.test(item.trim()));
+    const shouldSplitHeading = isCanvasHeading(line) &&
+      currentRun.length > 0 &&
+      !currentRunLooksLikeShortList &&
+      index < cleanLines.length - 1;
+
+    if (shouldSplitHeading) {
+      output.push(renderSimpleLineRun(currentRun));
+      output.push(`<h3>${escapeHtml(line)}</h3>`);
+      currentRun = [];
+      return;
+    }
+
+    currentRun.push(line);
+  });
+
+  output.push(renderSimpleLineRun(currentRun));
+  return output.join("");
+}
+
+function renderCanvasLessonContent(value = "", lessonTitle = "") {
+  const raw = stripCanvasSource(value);
+  if (!raw) return `<p class="empty">No page content has been added yet.</p>`;
+  if (looksLikeHtml(raw)) {
+    return `<div class="canvas-source-html">${sanitizeCanvasHtml(raw)}</div>`;
+  }
+
+  const lines = normalizeLessonLines(raw, lessonTitle);
+  const html = [];
+  let paragraphRun = [];
+
+  const flushParagraphRun = () => {
+    if (!paragraphRun.length) return;
+    html.push(renderLineRun(paragraphRun));
+    paragraphRun = [];
+  };
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].trim();
+    const nextLine = lines[index + 1]?.trim() || "";
+    if (!line) {
+      flushParagraphRun();
+      continue;
+    }
+
+    const markdownImage = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+    const imageLine = line.match(/^(?:Image|Photo|Illustration):\s*(\S+)(?:\s+(.+))?$/i);
+    const visualLine = line.match(/^Visual example:\s*(.+)$/i);
+    if (markdownImage) {
+      flushParagraphRun();
+      html.push(renderLessonImage(markdownImage[2], markdownImage[1]));
+      continue;
+    }
+    if (imageLine && (isImageUrl(imageLine[1]) || imageLine[1].startsWith("/"))) {
+      flushParagraphRun();
+      html.push(renderLessonImage(imageLine[1], imageLine[2] || ""));
+      continue;
+    }
+    if (visualLine) {
+      flushParagraphRun();
+      html.push(renderLessonVisual(visualLine[1]));
+      continue;
+    }
+
+    if (line.includes("\t") && splitTableCells(line).length > 1) {
+      const tableRows = [];
+      flushParagraphRun();
+      while (index < lines.length && lines[index].includes("\t") && splitTableCells(lines[index]).length > 1) {
+        tableRows.push(lines[index]);
+        index += 1;
+      }
+      index -= 1;
+      html.push(renderCanvasTable(tableRows));
+      continue;
+    }
+
+    const previousWasHeading = /<h[2-3]>/.test(html[html.length - 1] || "");
+    const lineLooksLikeHeadingListItem = previousWasHeading &&
+      nextLine &&
+      line.length <= 80 &&
+      nextLine.length <= 120 &&
+      !line.includes(":") &&
+      !line.includes("\t") &&
+      !/[.!?]$/.test(line);
+    const paragraphRunLooksLikeShortList = paragraphRun.length > 0 &&
+      paragraphRun.every((item) => item.length <= 120 && !item.includes(":") && !item.includes("\t") && !/[.!?]$/.test(item.trim()));
+    const lineLooksLikeListContinuation = paragraphRunLooksLikeShortList &&
+      line.length <= 120 &&
+      !line.includes(":") &&
+      !line.includes("\t") &&
+      !/[.!?]$/.test(line);
+
+    if (!lineLooksLikeHeadingListItem && !lineLooksLikeListContinuation && isCanvasHeading(line)) {
+      flushParagraphRun();
+      const level = html.some((block) => block.includes("<h2") || block.includes("<h3")) ? "h3" : "h2";
+      html.push(`<${level}>${escapeHtml(line)}</${level}>`);
+      continue;
+    }
+
+    paragraphRun.push(line);
+  }
+
+  flushParagraphRun();
+  return html.join("");
 }
 
 function personName(row = {}) {
@@ -6987,8 +7220,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
                 <span>/</span>
                 <strong>${escapeHtml(selectedLesson.title)}</strong>
               </p>
-              <h1>${escapeHtml(selectedModule.title)}: ${escapeHtml(selectedLesson.title)}</h1>
-              <h2>${escapeHtml(selectedLesson.title)}</h2>
+              <h1>${escapeHtml(selectedLesson.title)}</h1>
               <div class="canvas-page-copy">
                 ${selectedLesson.external_url ? `
                   <div class="external-lesson-callout">
@@ -6997,7 +7229,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
                     <a class="button" href="${escapeHtml(selectedLesson.external_url)}">Open ${escapeHtml(selectedLesson.title)}</a>
                   </div>
                 ` : ""}
-                <p>${renderTextWithLinks(selectedLesson.content)}</p>
+                ${renderCanvasLessonContent(selectedLesson.content, selectedLesson.title)}
               </div>
               <form method="post" action="/student/enrollments/${enrollment.id}/progress" class="canvas-complete-action">
                 <input type="hidden" name="progress" value="100">
