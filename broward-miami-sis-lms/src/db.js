@@ -30,6 +30,8 @@ function migrate() {
       cohort_start_date TEXT,
       cohort_end_date TEXT,
       uniform_size TEXT,
+      photo_storage_name TEXT,
+      photo_original_name TEXT,
       notes TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -351,6 +353,12 @@ function migrate() {
   }
   if (!userColumns.includes("uniform_size")) {
     db.exec("ALTER TABLE users ADD COLUMN uniform_size TEXT;");
+  }
+  if (!userColumns.includes("photo_storage_name")) {
+    db.exec("ALTER TABLE users ADD COLUMN photo_storage_name TEXT;");
+  }
+  if (!userColumns.includes("photo_original_name")) {
+    db.exec("ALTER TABLE users ADD COLUMN photo_original_name TEXT;");
   }
   const messageColumns = db.prepare("PRAGMA table_info(messages)").all().map((column) => column.name);
   if (!messageColumns.includes("thread_id")) {

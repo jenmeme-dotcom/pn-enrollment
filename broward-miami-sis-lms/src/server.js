@@ -250,6 +250,14 @@ function uniformSizeOptions(selectedSize = "") {
   }).join("");
 }
 
+function studentPhotoThumb(student, className = "student-thumb") {
+  const name = `${student.first_name || ""} ${student.last_name || ""}`.trim() || "Student";
+  if (student.photo_storage_name) {
+    return `<img class="${escapeHtml(className)}" src="/students/${student.id}/photo" alt="${escapeHtml(name)} photo">`;
+  }
+  return `<span class="${escapeHtml(className)} fallback" aria-label="${escapeHtml(name)} photo">${escapeHtml(initialsFor(student))}</span>`;
+}
+
 const registrarChecklistItems = [
   { key: "admissions_documents", title: "Admissions documents", description: "Application, ID, enrollment agreement, entrance documents, and admissions forms." },
   { key: "payment_plan", title: "Payment plan", description: "Tuition plan, payment status, financial clearance, and business office approval." },
@@ -2585,6 +2593,15 @@ app.post("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/login"));
 });
 
+app.get("/students/:id/photo", requireAuth, (req, res) => {
+  const student = db.prepare("SELECT id, photo_storage_name, photo_original_name FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
+  if (!student?.photo_storage_name) return res.status(404).send("Photo not found");
+  if (!["admin", "instructor"].includes(req.user.role) && req.user.id !== student.id) return res.status(403).send("Forbidden");
+  const filePath = path.join(uploadDir, student.photo_storage_name);
+  if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Photo not found");
+  res.sendFile(filePath);
+});
+
 app.get("/help/browser-cache", requireAuth, (req, res) => {
   const body = `
     <section class="help-page">
@@ -2780,7 +2797,7 @@ app.get("/catalog", requireAuth, (req, res) => {
 app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const stats = dashboardStats();
   const recent = db.prepare(`
-    SELECT e.*, u.first_name, u.last_name, u.email, c.title AS course_title
+    SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email, u.cohort_name, u.photo_storage_name, c.title AS course_title
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
     JOIN courses c ON c.id = e.course_id
@@ -2807,17 +2824,19 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
     </section>
     <section class="table-card" style="margin-top:18px">
       <table>
-        <thead><tr><th>Student</th><th>Course</th><th>Status</th><th>Progress</th><th>Started</th></tr></thead>
+        <thead><tr><th>Photo</th><th>Student</th><th>Cohort</th><th>Course</th><th>Status</th><th>Progress</th><th>Started</th></tr></thead>
         <tbody>
           ${recent.map((row) => `
             <tr>
+              <td>${studentPhotoThumb({ ...row, id: row.user_id }, "student-thumb")}</td>
               <td><strong>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</strong><br><span class="muted">${escapeHtml(row.email)}</span></td>
+              <td>${row.cohort_name ? `<span class="pill">${escapeHtml(row.cohort_name)}</span>` : `<span class="muted">Not assigned</span>`}</td>
               <td>${escapeHtml(row.course_title)}</td>
               <td><span class="pill">${escapeHtml(row.status)}</span></td>
               <td>${progressBar(row.progress)}<span class="muted">${escapeHtml(row.progress)}%</span></td>
               <td>${date(row.start_date)}</td>
             </tr>
-          `).join("") || `<tr><td class="empty" colspan="5">No enrollments yet.</td></tr>`}
+          `).join("") || `<tr><td class="empty" colspan="7">No enrollments yet.</td></tr>`}
         </tbody>
       </table>
     </section>
@@ -3582,6 +3601,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
             <tr>
               <td>
                 <strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br>
+                ${studentPhotoThumb(student, "student-thumb small")}<br>
                 <span class="muted">${escapeHtml(student.status)}</span>
                 ${student.cohort_name ? `<br><span class="pill">${escapeHtml(student.cohort_name)}</span>` : ""}
                 ${student.uniform_size ? `<br><span class="pill">Uniform: ${escapeHtml(student.uniform_size)}</span>` : ""}
@@ -3606,6 +3626,10 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                   </select>
                   <input name="classLockReason" placeholder="Reason shown to student" value="${escapeHtml(student.class_lock_reason || "Pending registrar organization and clearance.")}">
                   <button class="small" type="submit">Save access</button>
+                </form>
+                <form method="post" action="/admin/students/${student.id}/photo" class="actions" enctype="multipart/form-data">
+                  <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required>
+                  <button class="small ghost" type="submit">${student.photo_storage_name ? "Replace photo" : "Upload photo"}</button>
                 </form>
                 <form method="post" action="/admin/students/${student.id}/uniform-size" class="actions">
                   <select name="uniformSize" aria-label="Uniform size for ${escapeHtml(student.first_name)} ${escapeHtml(student.last_name)}">
@@ -3842,6 +3866,37 @@ app.post("/admin/students/:id/uniform-size", requireAuth, requireRole("admin", "
   db.prepare("UPDATE users SET uniform_size = ? WHERE id = ? AND role = 'student'").run(uniformSize, Number(req.params.id));
   flash(req, uniformSize ? `Uniform size saved: ${uniformSize}.` : "Uniform size cleared.");
   res.redirect("/admin/students");
+});
+
+app.post("/admin/students/:id/photo", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const student = db.prepare("SELECT id, photo_storage_name FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
+  if (!student) return res.status(404).send("Student not found");
+  upload.single("photo")(req, res, (error) => {
+    if (error) {
+      flash(req, error.message || "Photo upload failed.");
+      return res.redirect("/admin/students");
+    }
+    if (!req.file) {
+      flash(req, "Choose a student photo to upload.");
+      return res.redirect("/admin/students");
+    }
+    const extension = path.extname(req.file.originalname || "").toLowerCase();
+    const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+    if (!String(req.file.mimetype || "").startsWith("image/") || !imageExtensions.has(extension)) {
+      const rejectedPath = path.join(uploadDir, req.file.filename);
+      if (isPathInside(uploadDir, rejectedPath) && fs.existsSync(rejectedPath)) fs.unlinkSync(rejectedPath);
+      flash(req, "Student photo must be a JPG, PNG, or WebP image.");
+      return res.redirect("/admin/students");
+    }
+    if (student.photo_storage_name) {
+      const oldPath = path.join(uploadDir, student.photo_storage_name);
+      if (isPathInside(uploadDir, oldPath) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+    db.prepare("UPDATE users SET photo_storage_name = ?, photo_original_name = ? WHERE id = ? AND role = 'student'")
+      .run(req.file.filename, req.file.originalname, student.id);
+    flash(req, "Student photo uploaded.");
+    res.redirect("/admin/students");
+  });
 });
 
 app.post("/admin/students/:id/reset-password", requireAuth, requireRole("admin"), (req, res) => {

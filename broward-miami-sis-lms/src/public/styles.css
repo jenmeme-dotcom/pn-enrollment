@@ -362,6 +362,33 @@ nav a {
   width: 28px;
 }
 
+.student-thumb {
+  align-items: center;
+  background: #dfeaf4;
+  border: 1px solid #c9d8e4;
+  border-radius: 999px;
+  color: #17375c;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 900;
+  height: 46px;
+  justify-content: center;
+  object-fit: cover;
+  overflow: hidden;
+  text-transform: uppercase;
+  width: 46px;
+}
+
+.student-thumb.small {
+  height: 34px;
+  margin-bottom: 6px;
+  width: 34px;
+}
+
+.student-thumb.fallback {
+  background: linear-gradient(135deg, #eaf3f6, #cfdfe7);
+}
+
 .student-signout {
   background: #123f52;
   border-color: #2c7583;
