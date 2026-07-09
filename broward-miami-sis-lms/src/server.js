@@ -2038,7 +2038,7 @@ function normalizeExternalUrl(value = "") {
 }
 
 function renderTextWithLinks(value = "") {
-  const text = String(value || "");
+  const text = stripCanvasSource(value);
   const urlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+|\/course-materials\/[^\s<]+)/gi;
   let cursor = 0;
   let output = "";
@@ -2052,6 +2052,13 @@ function renderTextWithLinks(value = "") {
   }
   output += escapeHtml(text.slice(cursor));
   return output.replaceAll("\n", "<br>");
+}
+
+function stripCanvasSource(value = "") {
+  return String(value || "")
+    .replace(/\n{0,3}Canvas source:\s*https?:\/\/hic\.instructure\.com\/[^\s<"]+/gi, "")
+    .replace(/\n{0,3}Canvas source:\s*[^\n]+/gi, "")
+    .trim();
 }
 
 function personName(row = {}) {
@@ -4964,7 +4971,7 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
             <label>External lesson link</label>
             <input name="externalUrl" type="url" value="${escapeHtml(lesson.external_url || "")}" placeholder="https://www.youtube.com/watch?v=...">
             <label>Content</label>
-            <textarea name="content" required>${escapeHtml(lesson.content)}</textarea>
+            <textarea name="content" required>${escapeHtml(stripCanvasSource(lesson.content))}</textarea>
             <button class="small" type="submit">Save lesson</button>
           </form>
         `).join("")}
@@ -5571,7 +5578,7 @@ app.post("/admin/courses/:id/lessons", requireAuth, requireRole("admin", "instru
   db.prepare("INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position) VALUES (?, ?, ?, ?, ?, ?)").run(
     Number(req.body.moduleId),
     String(req.body.title || "").trim(),
-    String(req.body.content || "").trim(),
+    stripCanvasSource(req.body.content),
     normalizeExternalUrl(req.body.externalUrl),
     Number(req.body.duration || 30),
     nextPosition
@@ -5594,7 +5601,7 @@ app.post("/admin/courses/:id/lessons/:lessonId", requireAuth, requireRole("admin
     WHERE id = ?
   `).run(
     String(req.body.title || "").trim(),
-    String(req.body.content || "").trim(),
+    stripCanvasSource(req.body.content),
     normalizeExternalUrl(req.body.externalUrl),
     Number(req.body.duration || 30),
     lesson.id
