@@ -3042,7 +3042,7 @@ app.get("/login", (req, res) => {
       })();
     </script>
   `;
-  render(req, res, "Sign in", body);
+  render(req, res, "Student Portal Sign in", body);
 });
 
 app.post("/login", (req, res) => {
