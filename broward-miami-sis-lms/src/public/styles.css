@@ -1553,24 +1553,47 @@ button.danger {
 }
 
 .login-wrap {
+  align-items: center;
   display: grid;
-  gap: 28px;
-  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: clamp(28px, 5vw, 64px);
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
   min-height: calc(100vh - 72px);
-  place-items: center;
+  padding-block: clamp(32px, 6vw, 72px);
 }
 
 .login-logo {
   display: block;
-  height: 132px;
-  margin: 0 auto 22px;
+  height: 88px;
+  margin: 0 0 22px;
   object-fit: contain;
-  width: 132px;
+  width: 88px;
 }
 
 .login-copy {
-  text-align: center;
+  display: grid;
+  gap: 24px;
   width: 100%;
+}
+
+.login-hero-media {
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  margin: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.login-hero-media img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  width: 100%;
+}
+
+.login-copy-text {
+  max-width: 760px;
 }
 
 .login-panel {
@@ -1599,7 +1622,7 @@ button.danger {
 }
 
 .login-copy p {
-  margin-inline: auto;
+  max-width: 720px;
 }
 
 .page-head {

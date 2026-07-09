@@ -2553,9 +2553,14 @@ app.get("/login", (req, res) => {
   const body = `
     <section class="login-wrap">
       <div class="login-copy">
-        <img class="login-logo" src="/assets/bmhi-seal-blue.jpeg" alt="${escapeHtml(instituteName)} logo">
-        <h1>SIS and LMS for healthcare training operations.</h1>
-        <p>Manage students, enrollments, course shells, lesson progression, grades, attendance, and printable certificates from one local Broward-Miami portal.</p>
+        <figure class="login-hero-media">
+          <img src="/assets/healthcare-students-login.png" alt="Healthcare students training together in a classroom">
+        </figure>
+        <div class="login-copy-text">
+          <img class="login-logo" src="/assets/bmhi-seal-blue.jpeg" alt="${escapeHtml(instituteName)} logo">
+          <h1>SIS and LMS for healthcare training operations.</h1>
+          <p>Manage students, enrollments, course shells, lesson progression, grades, attendance, and printable certificates from one Broward-Miami portal.</p>
+        </div>
       </div>
       <form class="login-panel" method="post" action="/login">
         <h2>Sign in</h2>
