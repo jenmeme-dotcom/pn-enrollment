@@ -1625,6 +1625,118 @@ button.danger {
   max-width: 720px;
 }
 
+.admissions-hero {
+  align-items: center;
+  display: grid;
+  gap: clamp(24px, 5vw, 56px);
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 520px);
+  margin-bottom: 24px;
+}
+
+.admissions-hero h1 {
+  font-size: clamp(32px, 5vw, 56px);
+  line-height: 1.04;
+  margin: 0 0 14px;
+  max-width: 760px;
+}
+
+.admissions-hero p {
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.55;
+  margin: 0;
+  max-width: 760px;
+}
+
+.admissions-hero img {
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.admissions-contact-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.admissions-contact-strip span {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
+  padding: 8px 12px;
+}
+
+.admissions-layout {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+
+.admissions-form {
+  display: grid;
+  gap: 16px;
+}
+
+.check-row {
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 12px;
+}
+
+.check-row input {
+  margin-top: 3px;
+  min-height: 0;
+  width: auto;
+}
+
+.admissions-next-steps ol {
+  margin: 0 0 18px;
+  padding-left: 22px;
+}
+
+.admissions-next-steps li {
+  margin: 0 0 10px;
+}
+
+.admissions-confirmation {
+  margin: 48px auto;
+  max-width: 760px;
+}
+
+.application-details {
+  margin-bottom: 10px;
+}
+
+.application-details summary {
+  color: var(--brand);
+  cursor: pointer;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.admissions-status-form {
+  align-items: stretch;
+  display: grid;
+}
+
+.admissions-status-form textarea {
+  min-height: 78px;
+}
+
 .page-head {
   align-items: end;
   display: flex;
@@ -6307,6 +6419,8 @@ button.small {
   .canvas-global-calendar-shell,
   .canvas-modules article,
   .login-wrap,
+  .admissions-hero,
+  .admissions-layout,
   .feature-shell,
   .course-player,
   .module-board,

@@ -24,6 +24,7 @@ function navFor(user) {
   if (!user) return "";
   const adminLinks = `
     <a href="/admin">Dashboard</a>
+    <a href="/admin/admissions">Admissions</a>
     <a href="/admin/features">Features</a>
     <a href="/admin/admin-roles">Admin Roles</a>
     <a href="/admin/students">Students</a>
@@ -39,6 +40,7 @@ function navFor(user) {
   `;
   const instructorLinks = `
     <a href="/admin">Dashboard</a>
+    <a href="/admin/admissions">Admissions</a>
     <a href="/admin/students">Students</a>
     <a href="/admin/hesi">HESI Scores</a>
     <a href="/admin/courses">Courses</a>
@@ -113,6 +115,7 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
         </form>
         <nav class="sis-app-nav" aria-label="SIS applications">
           <a href="/admin">Home</a>
+          <a href="/admin/admissions">Admissions</a>
           <a href="/admin/students">People</a>
           <a href="/admin/courses">Academics</a>
           <a href="/admin/courses">LMS</a>

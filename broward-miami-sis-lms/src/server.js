@@ -2370,10 +2370,42 @@ function findCourseFromPayload(payload) {
 function dashboardStats() {
   return {
     students: db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'student'").get().count,
+    admissions: db.prepare("SELECT COUNT(*) AS count FROM admission_applications WHERE status IN ('new','reviewing')").get().count,
     courses: db.prepare("SELECT COUNT(*) AS count FROM courses WHERE published = 1").get().count,
     active: db.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE status = 'active'").get().count,
     completed: db.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE status = 'completed'").get().count
   };
+}
+
+function applicationNumber() {
+  return `BMHI-${new Date().getFullYear()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+}
+
+function publicProgramOptions(selectedSlug = "") {
+  const courses = db.prepare(`
+    SELECT slug, title, category, hours, tuition_cents, books_supplies_cents, registration_fee_cents, credential_type
+    FROM courses
+    WHERE published = 1
+    ORDER BY
+      CASE
+        WHEN category LIKE '%Practical Nursing%' THEN 0
+        WHEN category LIKE '%Allied%' THEN 1
+        WHEN category LIKE '%American Heart%' THEN 2
+        ELSE 3
+      END,
+      title
+  `).all();
+  return courses.map((course) => {
+    const total = Number(course.tuition_cents || 0) + Number(course.books_supplies_cents || 0) + Number(course.registration_fee_cents || 0);
+    const label = `${course.title} · ${course.hours} hours · ${course.credential_type}${total ? ` · ${money(total)}` : ""}`;
+    return `<option value="${escapeHtml(course.slug)}" ${selectedSlug === course.slug ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  }).join("");
+}
+
+function applicationStatusOptions(selectedStatus = "new") {
+  return ["new", "reviewing", "accepted", "waitlisted", "declined", "converted"].map((status) => `
+    <option value="${escapeHtml(status)}" ${selectedStatus === status ? "selected" : ""}>${escapeHtml(status[0].toUpperCase() + status.slice(1))}</option>
+  `).join("");
 }
 
 const adminFeatureGroups = [
@@ -2549,6 +2581,163 @@ app.get("/healthz", (req, res) => {
   res.json({ ok: true, service: "bmhi-sis-lms" });
 });
 
+app.get("/apply", (_req, res) => {
+  res.redirect("/admissions/apply");
+});
+
+app.get("/admissions/apply", (req, res) => {
+  const body = `
+    <section class="admissions-hero">
+      <div>
+        <p class="eyebrow">Admissions Portal</p>
+        <h1>Apply to Broward-Miami Health Institute</h1>
+        <p>Submit your student application for healthcare training programs. Admissions staff will review your request and follow up with next steps for documents, payment plan, and enrollment clearance.</p>
+        <div class="admissions-contact-strip">
+          <span>${escapeHtml(instituteAddress)}</span>
+          <span>${escapeHtml(institutePhone)}</span>
+          <span>${escapeHtml(instituteEmail)}</span>
+        </div>
+      </div>
+      <img src="/assets/healthcare-students-login.png" alt="Healthcare students learning together">
+    </section>
+
+    <section class="admissions-layout">
+      <form class="card admissions-form" method="post" action="/admissions/apply">
+        <h2>Student Application</h2>
+        <p class="muted">Fields marked required help admissions contact you and match you to the right program.</p>
+        <div class="form-grid">
+          <div><label for="firstName">First name</label><input id="firstName" name="firstName" autocomplete="given-name" required></div>
+          <div><label for="lastName">Last name</label><input id="lastName" name="lastName" autocomplete="family-name" required></div>
+          <div><label for="dateOfBirth">Date of birth</label><input id="dateOfBirth" name="dateOfBirth" type="date"></div>
+          <div><label for="phone">Phone</label><input id="phone" name="phone" type="tel" autocomplete="tel" required></div>
+          <div class="span-2"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
+          <div class="span-2"><label for="address">Street address</label><input id="address" name="address" autocomplete="street-address"></div>
+          <div><label for="city">City</label><input id="city" name="city" autocomplete="address-level2"></div>
+          <div><label for="state">State</label><input id="state" name="state" value="FL" maxlength="20" autocomplete="address-level1"></div>
+          <div><label for="zip">ZIP</label><input id="zip" name="zip" autocomplete="postal-code"></div>
+          <div>
+            <label for="preferredStart">Preferred start</label>
+            <input id="preferredStart" name="preferredStart" placeholder="Example: July 2026">
+          </div>
+          <div class="span-2">
+            <label for="programSlug">Program applying for</label>
+            <select id="programSlug" name="programSlug" required>
+              <option value="">Select a program</option>
+              ${publicProgramOptions()}
+            </select>
+          </div>
+          <div>
+            <label for="educationLevel">Highest education completed</label>
+            <select id="educationLevel" name="educationLevel">
+              <option value="">Select one</option>
+              <option>High school diploma</option>
+              <option>GED</option>
+              <option>Some college</option>
+              <option>Associate degree</option>
+              <option>Bachelor degree or higher</option>
+              <option>International education</option>
+            </select>
+          </div>
+          <div><label for="highSchool">School / institution</label><input id="highSchool" name="highSchool"></div>
+          <div><label for="emergencyContact">Emergency contact</label><input id="emergencyContact" name="emergencyContact"></div>
+          <div><label for="emergencyPhone">Emergency phone</label><input id="emergencyPhone" name="emergencyPhone" type="tel"></div>
+          <div><label for="howHeard">How did you hear about BMHI?</label><input id="howHeard" name="howHeard"></div>
+          <div class="span-2"><label for="goals">Career goals or admissions notes</label><textarea id="goals" name="goals" placeholder="Tell us which program you want, your schedule needs, and anything admissions should know."></textarea></div>
+          <label class="check-row span-2">
+            <input type="checkbox" name="consent" value="yes" required>
+            <span>I certify the information provided is accurate and authorize Broward-Miami Health Institute to contact me about admissions.</span>
+          </label>
+        </div>
+        <div class="actions">
+          <button type="submit">Submit application</button>
+          <a class="button ghost" href="/login">Return to sign in</a>
+        </div>
+      </form>
+
+      <aside class="card admissions-next-steps">
+        <h2>What happens next</h2>
+        <ol>
+          <li>Admissions reviews your program request and contact information.</li>
+          <li>Registrar requests admissions documents and transcript uploads.</li>
+          <li>Business office reviews tuition, fees, and payment plan options.</li>
+          <li>Staff creates your student portal account when your file is ready.</li>
+        </ol>
+        <h3>Common records requested</h3>
+        <p class="muted">Application, government ID, admissions documents, payment plan, signed handbook, transcripts, clinical requirements, and graduation readiness documents.</p>
+      </aside>
+    </section>
+  `;
+  render(req, res, "Admissions Application", body);
+});
+
+app.post("/admissions/apply", (req, res) => {
+  const firstName = String(req.body.firstName || "").trim();
+  const lastName = String(req.body.lastName || "").trim();
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const phone = String(req.body.phone || "").trim();
+  const programSlug = String(req.body.programSlug || "").trim();
+  const consent = req.body.consent === "yes" ? "yes" : "";
+  const course = db.prepare("SELECT slug, title FROM courses WHERE slug = ? AND published = 1").get(programSlug);
+  if (!firstName || !lastName || !email || !phone || !course || !consent) {
+    flash(req, "Please complete the required fields and select a program.");
+    return res.redirect("/admissions/apply");
+  }
+
+  let number = applicationNumber();
+  while (db.prepare("SELECT id FROM admission_applications WHERE application_number = ?").get(number)) {
+    number = applicationNumber();
+  }
+
+  db.prepare(`
+    INSERT INTO admission_applications (
+      application_number, first_name, last_name, date_of_birth, email, phone, address, city, state, zip,
+      program_slug, program_title, preferred_start, education_level, high_school, emergency_contact,
+      emergency_phone, how_heard, goals, consent
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    number,
+    firstName,
+    lastName,
+    String(req.body.dateOfBirth || "").trim(),
+    email,
+    phone,
+    String(req.body.address || "").trim(),
+    String(req.body.city || "").trim(),
+    String(req.body.state || "").trim(),
+    String(req.body.zip || "").trim(),
+    course.slug,
+    course.title,
+    String(req.body.preferredStart || "").trim(),
+    String(req.body.educationLevel || "").trim(),
+    String(req.body.highSchool || "").trim(),
+    String(req.body.emergencyContact || "").trim(),
+    String(req.body.emergencyPhone || "").trim(),
+    String(req.body.howHeard || "").trim(),
+    String(req.body.goals || "").trim(),
+    consent
+  );
+  res.redirect(`/admissions/apply/submitted?ref=${encodeURIComponent(number)}`);
+});
+
+app.get("/admissions/apply/submitted", (req, res) => {
+  const reference = String(req.query.ref || "").trim();
+  const body = `
+    <section class="card admissions-confirmation">
+      <p class="eyebrow">Application Submitted</p>
+      <h1>Thank you for applying.</h1>
+      <p>Your application has been received by Broward-Miami Health Institute.</p>
+      ${reference ? `<p><strong>Application number:</strong> ${escapeHtml(reference)}</p>` : ""}
+      <p class="muted">Admissions staff will contact you using the phone number or email provided. You may also contact the office at ${escapeHtml(institutePhone)} or ${escapeHtml(instituteEmail)}.</p>
+      <div class="actions">
+        <a class="button" href="/login">Go to portal sign in</a>
+        <a class="button ghost" href="/admissions/apply">Submit another application</a>
+      </div>
+    </section>
+  `;
+  render(req, res, "Application Submitted", body);
+});
+
 app.get("/login", (req, res) => {
   const body = `
     <section class="login-wrap">
@@ -2574,6 +2763,7 @@ app.get("/login", (req, res) => {
           <input id="password" name="password" type="password" autocomplete="current-password" required>
         </div>
         <button type="submit">Sign in</button>
+        <p><a href="/admissions/apply">Apply as a new student</a></p>
         <p class="muted">
           Demo admin: admin@browardmiamihi.local / AdminPass123!<br>
           Demo student: student@browardmiamihi.local / StudentPass123!
@@ -2825,9 +3015,9 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
     </div>
     <section class="grid cols-4">
       ${stat("Students", stats.students)}
+      ${stat("Admissions", stats.admissions)}
       ${stat("Published courses", stats.courses)}
       ${stat("Active enrollments", stats.active)}
-      ${stat("Completed", stats.completed)}
     </section>
     <section class="table-card" style="margin-top:18px">
       <table>
@@ -2849,6 +3039,157 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
     </section>
   `;
   render(req, res, "Dashboard", body);
+});
+
+app.get("/admin/admissions", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const applications = db.prepare(`
+    SELECT *
+    FROM admission_applications
+    ORDER BY
+      CASE status
+        WHEN 'new' THEN 0
+        WHEN 'reviewing' THEN 1
+        WHEN 'accepted' THEN 2
+        WHEN 'waitlisted' THEN 3
+        WHEN 'declined' THEN 4
+        ELSE 5
+      END,
+      submitted_at DESC
+  `).all();
+  const counts = db.prepare(`
+    SELECT status, COUNT(*) AS count
+    FROM admission_applications
+    GROUP BY status
+  `).all().reduce((summary, row) => ({ ...summary, [row.status]: row.count }), {});
+  const body = `
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">Admissions</p>
+        <h1>Student Application Portal</h1>
+        <p>Review submitted student applications, update admissions status, and create student portal accounts when applicants are ready.</p>
+      </div>
+      <div class="actions">
+        <a class="button ghost" href="/admissions/apply" target="_blank" rel="noopener">Open application page</a>
+        <a class="button" href="/admin/students">Students</a>
+      </div>
+    </div>
+    <section class="grid cols-4">
+      ${stat("New", counts.new || 0)}
+      ${stat("Reviewing", counts.reviewing || 0)}
+      ${stat("Accepted", counts.accepted || 0)}
+      ${stat("Converted", counts.converted || 0)}
+    </section>
+    <section class="table-card admissions-admin-table" style="margin-top:18px">
+      <table>
+        <thead><tr><th>Applicant</th><th>Program</th><th>Contact</th><th>Education</th><th>Status</th><th>Review</th></tr></thead>
+        <tbody>
+          ${applications.map((application) => `
+            <tr>
+              <td>
+                <strong>${escapeHtml(application.last_name)}, ${escapeHtml(application.first_name)}</strong><br>
+                <span class="muted">${escapeHtml(application.application_number)}</span><br>
+                <span class="muted">Submitted ${escapeHtml(application.submitted_at)}</span>
+              </td>
+              <td>
+                <strong>${escapeHtml(application.program_title)}</strong><br>
+                <span class="muted">${escapeHtml(application.preferred_start || "Start date not specified")}</span>
+              </td>
+              <td>
+                ${escapeHtml(application.email)}<br>
+                <span class="muted">${escapeHtml(application.phone)}</span><br>
+                <span class="muted">${escapeHtml([application.address, application.city, application.state, application.zip].filter(Boolean).join(", "))}</span>
+              </td>
+              <td>
+                ${escapeHtml(application.education_level || "Not provided")}<br>
+                <span class="muted">${escapeHtml(application.high_school || "")}</span>
+              </td>
+              <td>
+                <span class="pill ${application.status === "new" ? "orange" : ""}">${escapeHtml(application.status)}</span>
+                ${application.created_student_id ? `<br><a class="button small ghost" href="/admin/students/${application.created_student_id}/registrar-checklist">Student file</a>` : ""}
+              </td>
+              <td>
+                <details class="application-details">
+                  <summary>View details</summary>
+                  <p><strong>Emergency contact:</strong> ${escapeHtml(application.emergency_contact || "Not provided")} ${application.emergency_phone ? `· ${escapeHtml(application.emergency_phone)}` : ""}</p>
+                  <p><strong>How heard:</strong> ${escapeHtml(application.how_heard || "Not provided")}</p>
+                  <p><strong>Goals / notes:</strong><br>${escapeHtml(application.goals || "No notes submitted.")}</p>
+                </details>
+                <form method="post" action="/admin/admissions/${application.id}/status" class="actions admissions-status-form">
+                  <select name="status" aria-label="Application status">${applicationStatusOptions(application.status)}</select>
+                  <textarea name="reviewerNote" placeholder="Reviewer note">${escapeHtml(application.reviewer_note || "")}</textarea>
+                  <button class="small" type="submit">Save review</button>
+                </form>
+                ${application.created_student_id || req.user.role !== "admin" ? "" : `
+                  <form method="post" action="/admin/admissions/${application.id}/create-student" class="actions">
+                    <button class="small ghost" type="submit">Create student account</button>
+                  </form>
+                `}
+              </td>
+            </tr>
+          `).join("") || `<tr><td class="empty" colspan="6">No applications have been submitted yet.</td></tr>`}
+        </tbody>
+      </table>
+    </section>
+  `;
+  render(req, res, "Admissions", body);
+});
+
+app.post("/admin/admissions/:id/status", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const id = Number(req.params.id);
+  const status = String(req.body.status || "").trim();
+  const allowed = new Set(["new", "reviewing", "accepted", "waitlisted", "declined", "converted"]);
+  if (!allowed.has(status)) {
+    flash(req, "Invalid admissions status.");
+    return res.redirect("/admin/admissions");
+  }
+  db.prepare(`
+    UPDATE admission_applications
+    SET status = ?, reviewer_note = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(status, String(req.body.reviewerNote || "").trim(), id);
+  flash(req, "Application review saved.");
+  res.redirect("/admin/admissions");
+});
+
+app.post("/admin/admissions/:id/create-student", requireAuth, requireRole("admin"), (req, res) => {
+  const application = db.prepare("SELECT * FROM admission_applications WHERE id = ?").get(Number(req.params.id));
+  if (!application) {
+    flash(req, "Application not found.");
+    return res.redirect("/admin/admissions");
+  }
+  const existing = db.prepare("SELECT id FROM users WHERE lower(email) = ?").get(String(application.email || "").toLowerCase());
+  if (existing) {
+    db.prepare(`
+      UPDATE admission_applications
+      SET created_student_id = ?, status = 'converted', updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(existing.id, application.id);
+    flash(req, "A user with this email already exists. The application was linked to the existing student record.");
+    return res.redirect("/admin/admissions");
+  }
+  const result = db.prepare(`
+    INSERT INTO users (
+      role, first_name, last_name, email, phone, password_hash, status, organization_status,
+      class_lock_reason, cohort_name, notes
+    )
+    VALUES ('student', ?, ?, ?, ?, ?, 'active', 'not_organized', ?, ?, ?)
+  `).run(
+    application.first_name,
+    application.last_name,
+    application.email,
+    application.phone,
+    bcrypt.hashSync("StudentPass123!", 12),
+    "Pending admissions documents, payment plan, and registrar organization.",
+    application.preferred_start ? `Applicant preferred start: ${application.preferred_start}` : "",
+    `Created from admissions application ${application.application_number}. Program: ${application.program_title}.`
+  );
+  db.prepare(`
+    UPDATE admission_applications
+    SET created_student_id = ?, status = 'converted', updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(result.lastInsertRowid, application.id);
+  flash(req, "Student account created with default password StudentPass123! and class access locked until organized.");
+  res.redirect("/admin/admissions");
 });
 
 app.get("/admin/admin-roles", requireAuth, requireRole("admin"), (req, res) => {

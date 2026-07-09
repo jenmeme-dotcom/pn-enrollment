@@ -320,6 +320,35 @@ function migrate() {
       uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS admission_applications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      application_number TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','reviewing','accepted','waitlisted','declined','converted')),
+      first_name TEXT NOT NULL,
+      last_name TEXT NOT NULL,
+      date_of_birth TEXT,
+      email TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      address TEXT,
+      city TEXT,
+      state TEXT,
+      zip TEXT,
+      program_slug TEXT,
+      program_title TEXT NOT NULL,
+      preferred_start TEXT,
+      education_level TEXT,
+      high_school TEXT,
+      emergency_contact TEXT,
+      emergency_phone TEXT,
+      how_heard TEXT,
+      goals TEXT,
+      consent TEXT NOT NULL DEFAULT 'yes',
+      reviewer_note TEXT,
+      created_student_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   const courseColumns = db.prepare("PRAGMA table_info(courses)").all().map((column) => column.name);
