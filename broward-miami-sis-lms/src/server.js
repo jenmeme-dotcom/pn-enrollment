@@ -2747,13 +2747,24 @@ app.get("/login", (req, res) => {
         </figure>
         <div class="login-copy-text">
           <img class="login-logo" src="/assets/bmhi-seal-blue.jpeg" alt="${escapeHtml(instituteName)} logo">
-          <h1>SIS and LMS for healthcare training operations.</h1>
-          <p>Manage students, enrollments, course shells, lesson progression, grades, attendance, and printable certificates from one Broward-Miami portal.</p>
+          <h1>Broward-Miami Health Institute Portal</h1>
         </div>
       </div>
       <form class="login-panel" method="post" action="/login">
-        <h2>Sign in</h2>
-        <p class="muted">Use an admin, instructor, or student account.</p>
+        <h2>Choose login</h2>
+        <div class="login-role-grid" role="group" aria-label="Choose login type">
+          <button class="login-role-option" type="button" data-login-role="faculty">
+            <strong>Faculty Login</strong>
+            <span>Staff and instructors</span>
+          </button>
+          <button class="login-role-option" type="button" data-login-role="student">
+            <strong>Student Login</strong>
+            <span>Current students</span>
+          </button>
+        </div>
+        <input type="hidden" name="loginRole" id="loginRole" value="">
+        <div class="login-fields" hidden>
+          <p class="muted login-role-hint" data-login-role-hint>Select a login option to continue.</p>
         <div>
           <label for="email">Email</label>
           <input id="email" name="email" type="email" autocomplete="username" required>
@@ -2763,13 +2774,33 @@ app.get("/login", (req, res) => {
           <input id="password" name="password" type="password" autocomplete="current-password" required>
         </div>
         <button type="submit">Sign in</button>
+        </div>
         <p><a href="/admissions/apply">Apply as a new student</a></p>
-        <p class="muted">
-          Demo admin: admin@browardmiamihi.local / AdminPass123!<br>
-          Demo student: student@browardmiamihi.local / StudentPass123!
-        </p>
       </form>
     </section>
+    <script>
+      (() => {
+        const buttons = [...document.querySelectorAll("[data-login-role]")];
+        const fields = document.querySelector(".login-fields");
+        const input = document.getElementById("loginRole");
+        const hint = document.querySelector("[data-login-role-hint]");
+        const email = document.getElementById("email");
+        buttons.forEach((button) => {
+          button.addEventListener("click", () => {
+            const role = button.dataset.loginRole;
+            buttons.forEach((item) => {
+              const selected = item === button;
+              item.classList.toggle("selected", selected);
+              item.setAttribute("aria-pressed", selected ? "true" : "false");
+            });
+            input.value = role;
+            fields.hidden = false;
+            hint.textContent = role === "faculty" ? "Faculty, staff, and instructors sign in here." : "Students sign in here.";
+            email.focus();
+          });
+        });
+      })();
+    </script>
   `;
   render(req, res, "Sign in", body);
 });

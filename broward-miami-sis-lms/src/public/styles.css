@@ -1601,8 +1601,55 @@ button.danger {
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow);
+  display: grid;
+  gap: 18px;
   padding: 28px;
   width: 100%;
+}
+
+.login-role-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.login-role-option {
+  align-items: flex-start;
+  background: white;
+  border-color: var(--line);
+  color: var(--ink);
+  display: grid;
+  gap: 4px;
+  justify-content: stretch;
+  min-height: 82px;
+  text-align: left;
+}
+
+.login-role-option strong {
+  font-size: 20px;
+}
+
+.login-role-option span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.login-role-option.selected {
+  background: #edf6f7;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(15, 109, 123, 0.14);
+}
+
+.login-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.login-fields[hidden] {
+  display: none;
+}
+
+.login-panel > p {
+  margin: 0;
 }
 
 .login-copy h1,
