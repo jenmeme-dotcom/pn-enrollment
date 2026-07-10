@@ -465,6 +465,26 @@ function formatBytes(value = 0) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function courseMaterialFiles(courseSlug = "") {
+  const slug = String(courseSlug || "");
+  if (!slug) return [];
+  const materialDir = path.join(courseMaterialsDir, slug);
+  if (!fs.existsSync(materialDir)) return [];
+  return fs.readdirSync(materialDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && !entry.name.startsWith("."))
+    .map((entry) => {
+      const filePath = path.join(materialDir, entry.name);
+      const stats = fs.statSync(filePath);
+      return {
+        name: entry.name,
+        size: stats.size,
+        updatedAt: stats.mtime.toISOString().slice(0, 10),
+        href: `/course-materials/${encodeURIComponent(slug)}/${encodeURIComponent(entry.name)}`
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function isPathInside(parent, child) {
   const relative = path.relative(parent, child);
   return relative && !relative.startsWith("..") && !path.isAbsolute(relative);
@@ -746,6 +766,7 @@ function renderLmsToolkit(course = {}, { compact = false } = {}) {
 function courseNavHref(baseHref, item, firstLessonId) {
   if (item === "Home") return baseHref;
   if (item === "Modules") return `${baseHref}?view=modules`;
+  if (item === "Files") return `${baseHref}?view=files`;
   if (item === "Syllabus") return `${baseHref}?view=syllabus`;
   if (item === "Grades") return `${baseHref}?view=grades`;
   if (item === "People") return `${baseHref}?view=people`;
@@ -906,6 +927,48 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
           </section>
         `}
       </div>
+    </main>
+  `;
+}
+
+function renderCourseFilesPage({ course, courseCode, files = [] }) {
+  return `
+    <main class="canvas-course-main canvas-modules-main">
+      <div class="canvas-mini-head">
+        <span></span>
+        <strong>${escapeHtml(courseCode)}</strong>
+      </div>
+      <h1>${escapeHtml(course.title)} Files</h1>
+      <div class="canvas-rule"></div>
+      <section class="canvas-module-block">
+        <header class="canvas-module-header">
+          <div>
+            <span class="module-caret">▾</span>
+            <strong>Course Materials</strong>
+          </div>
+          <div>
+            <span class="canvas-published-dot"></span>
+          </div>
+        </header>
+        <div class="canvas-module-items">
+          ${files.map((file) => `
+            <a class="canvas-module-row" href="${escapeHtml(file.href)}">
+              <span class="module-drag">⁝</span>
+              <span class="module-type file">${escapeHtml(moduleItemIcon("file"))}</span>
+              <span class="module-title">
+                <strong>${escapeHtml(file.name)}</strong>
+                <small>${escapeHtml(formatBytes(file.size))}${file.updatedAt ? ` | Updated ${escapeHtml(date(file.updatedAt))}` : ""}</small>
+              </span>
+              <span class="canvas-published-dot"></span>
+              <span class="module-menu">Download</span>
+            </a>
+          `).join("") || `
+            <div class="canvas-module-row empty">
+              <span></span><span></span><span class="module-title"><strong>No course files have been added yet.</strong></span><span></span><span></span>
+            </div>
+          `}
+        </div>
+      </section>
     </main>
   `;
 }
@@ -3239,6 +3302,158 @@ app.get("/help/browser-cache", requireAuth, (req, res) => {
   render(req, res, "Browser Cache Help", body, req.user.role === "student" ? { studentPortal: true, activeStudentNav: "help" } : {});
 });
 
+app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const body = `
+    <section class="staff-help-page">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Staff Help</p>
+          <h1>Standard of Practice</h1>
+          <p>Use this page as the staff reference for completing common SIS and LMS tasks the same way every time.</p>
+        </div>
+        <div class="actions">
+          <a class="button ghost" href="/help/browser-cache">Browser troubleshooting</a>
+          <a class="button" href="/admin">Dashboard</a>
+        </div>
+      </div>
+
+      <section class="staff-help-hero">
+        <div>
+          <h2>Daily staff checklist</h2>
+          <p>Start each work session by checking new applications, student file completion, unread messages, course activity, and any OSV evidence requests.</p>
+        </div>
+        <ol>
+          <li>Sign in through Faculty Login.</li>
+          <li>Review Dashboard alerts and new activity.</li>
+          <li>Open Students to confirm class access and admissions files.</li>
+          <li>Open Inbox before the end of each work session.</li>
+        </ol>
+      </section>
+
+      <section class="help-grid staff-sop-grid">
+        <article class="help-card staff-sop-card">
+          <span class="sop-step">01</span>
+          <h2>Create or review an applicant</h2>
+          <ol>
+            <li>Open Admissions from the staff navigation.</li>
+            <li>Review the applicant's program, contact details, education history, and notes.</li>
+            <li>Set the application status to New, Reviewing, Accepted, Waitlisted, Declined, or Converted.</li>
+            <li>When accepted, create the student account and leave class access locked until the file is organized.</li>
+          </ol>
+          <a class="button small ghost" href="/admin/admissions">Open admissions</a>
+        </article>
+
+        <article class="help-card staff-sop-card">
+          <span class="sop-step">02</span>
+          <h2>Create a student record</h2>
+          <ol>
+            <li>Open Students and use New student.</li>
+            <li>Enter the student's legal name, email, phone, cohort, cohort dates, and uniform size.</li>
+            <li>Keep class access locked until registrar requirements are complete.</li>
+            <li>Enroll the student in the correct course only after confirming the program.</li>
+          </ol>
+          <a class="button small ghost" href="/admin/students">Open students</a>
+        </article>
+
+        <article class="help-card staff-sop-card">
+          <span class="sop-step">03</span>
+          <h2>Complete student files</h2>
+          <ol>
+            <li>Open the student's Registrar Checklist.</li>
+            <li>Upload documents to the matching checklist item.</li>
+            <li>Use the Admissions documents checklist to mark each required item Complete or Waived.</li>
+            <li>When every admissions item is complete, confirm the green Complete badge appears.</li>
+          </ol>
+          <a class="button small ghost" href="/admin/students#registrar-upload-matrix">Open registrar files</a>
+        </article>
+
+        <article class="help-card staff-sop-card">
+          <span class="sop-step">04</span>
+          <h2>Unlock class access</h2>
+          <ol>
+            <li>Verify admissions documents, payment plan, and registrar notes.</li>
+            <li>On the Students page, change Class access to Organized.</li>
+            <li>Save access and confirm the student is no longer marked Locked.</li>
+            <li>Use Lock access again if the student becomes out of compliance.</li>
+          </ol>
+          <a class="button small ghost" href="/admin/students">Manage access</a>
+        </article>
+
+        <article class="help-card staff-sop-card">
+          <span class="sop-step">05</span>
+          <h2>Manage courses and LMS content</h2>
+          <ol>
+            <li>Open Courses and select the program or class.</li>
+            <li>Use the Canvas-style course tools for modules, syllabus, assignments, grades, people, and settings.</li>
+            <li>Keep Practical Nursing courses separate from Home Health Aide and American Heart Association courses.</li>
+            <li>Review student view before announcing new course content.</li>
+          </ol>
+          <a class="button small ghost" href="/admin/courses">Open courses</a>
+        </article>
+
+        <article class="help-card staff-sop-card">
+          <span class="sop-step">06</span>
+          <h2>Communicate with students</h2>
+          <ol>
+            <li>Open Inbox to view incoming student messages.</li>
+            <li>Choose a course when the message is course-specific.</li>
+            <li>Use clear subject lines and document important decisions in the thread.</li>
+            <li>Check external email delivery status if SMTP is enabled.</li>
+          </ol>
+          <a class="button small ghost" href="/admin/messages">Open inbox</a>
+        </article>
+
+        <article class="help-card staff-sop-card">
+          <span class="sop-step">07</span>
+          <h2>Track HESI and cohort records</h2>
+          <ol>
+            <li>Open HESI Scores and choose the correct cohort.</li>
+            <li>Enter scores by subject and compare them against acceptable scores.</li>
+            <li>Use remediation status to identify students needing follow-up.</li>
+            <li>Keep cohort names consistent, such as Cohort 1 or Cohort 2.</li>
+          </ol>
+          <a class="button small ghost" href="/admin/hesi">Open HESI scores</a>
+        </article>
+
+        <article class="help-card staff-sop-card">
+          <span class="sop-step">08</span>
+          <h2>Prepare OSV visit evidence</h2>
+          <ol>
+            <li>Open OSV Visit from the staff navigation.</li>
+            <li>Upload evidence under the matching standard or checklist item.</li>
+            <li>Use notes to explain where each document belongs in the visit packet.</li>
+            <li>Open the presentation view when preparing the organized evidence packet.</li>
+          </ol>
+          <a class="button small ghost" href="/admin/onsite-visit">Open OSV visit</a>
+        </article>
+
+        <article class="help-card staff-sop-card">
+          <span class="sop-step">09</span>
+          <h2>Billing and financial aid</h2>
+          <ol>
+            <li>Open Billing for tuition balances, payment plans, and account clearance.</li>
+            <li>Open Financial Aid for aid records and student funding notes.</li>
+            <li>Confirm payment plan status before unlocking class access.</li>
+            <li>Record notes before graduation approval.</li>
+          </ol>
+          <a class="button small ghost" href="/admin/billing">Open billing</a>
+        </article>
+      </section>
+
+      <section class="card staff-help-reference">
+        <h2>When something does not look right</h2>
+        <p>First refresh the page. If the portal still shows old wording, old buttons, or broken formatting, use the browser troubleshooting page to clear local portal cache. This does not delete school records.</p>
+        <div class="actions">
+          <a class="button ghost" href="/help/browser-cache">Open browser troubleshooting</a>
+          <a class="button ghost" href="/admin/admin-roles">Admin roles</a>
+          <a class="button ghost" href="/catalog">Catalog</a>
+        </div>
+      </section>
+    </section>
+  `;
+  render(req, res, "Staff Help", body);
+});
+
 app.get("/catalog", requireAuth, (req, res) => {
   const catalogCourses = db.prepare("SELECT * FROM courses WHERE published = 1 ORDER BY category, title").all();
   const body = `
@@ -5515,6 +5730,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   `).all(course.id);
   const announcements = courseAnnouncements(course.id);
   const calendarEvents = courseCalendarEvents(course.id);
+  const materialFiles = courseMaterialFiles(course.slug);
   const allCourses = db.prepare("SELECT id, title, slug FROM courses WHERE published = 1 ORDER BY category, title").all();
 
   const moduleGroups = lessons.reduce((groups, lesson) => {
@@ -5619,6 +5835,30 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         currentCourseId: course.id,
         instructor: true,
         postAction: `/admin/courses/${course.id}/calendar-events`
+      })}
+    </section>
+  ` : activeView === "files" ? `
+    <section class="canvas-course-shell instructor-preview">
+      <aside class="canvas-global-rail">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
+        <span>${escapeHtml(initialsFor(req.user))}</span>
+        <i></i><i></i><i></i><i></i><i></i>
+      </aside>
+
+      ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
+        { label: courseCode, href: adminCourseBaseHref },
+        { label: "Files" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(navItems, adminCourseBaseHref, "Files", firstLesson?.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+
+      ${renderCourseFilesPage({
+        course,
+        courseCode,
+        files: materialFiles
       })}
     </section>
   ` : activeView === "grades" ? `

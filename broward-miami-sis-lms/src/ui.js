@@ -36,7 +36,7 @@ function navFor(user) {
     <a href="/admin/messages">Inbox</a>
     <a href="/catalog">Catalog</a>
     <a href="/admin/ghl">GHL</a>
-    <a href="/help/browser-cache">Help</a>
+    <a href="/admin/help">Help</a>
   `;
   const instructorLinks = `
     <a href="/admin">Dashboard</a>
@@ -47,7 +47,7 @@ function navFor(user) {
     <a href="/admin/onsite-visit">OSV Visit</a>
     <a href="/admin/messages">Inbox</a>
     <a href="/catalog">Catalog</a>
-    <a href="/help/browser-cache">Help</a>
+    <a href="/admin/help">Help</a>
   `;
   const studentLinks = `
     <a href="/student/dashboard">Dashboard</a>
@@ -123,6 +123,7 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
           <a href="/admin/billing">Billing</a>
           <a href="/admin/messages">Inbox</a>
           <a href="/admin/features/reports">Reports</a>
+          <a href="/admin/help">Help</a>
         </nav>
         <div class="sis-tools">
           <a class="sis-tool" href="/admin/features/system-settings" title="Settings">Settings</a>

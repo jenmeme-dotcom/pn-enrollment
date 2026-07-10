@@ -4217,6 +4217,83 @@ button.small {
   font-size: 14px;
 }
 
+.staff-help-page {
+  display: grid;
+  gap: 18px;
+}
+
+.staff-help-hero {
+  align-items: start;
+  background: #102f3a;
+  border-radius: 6px;
+  color: white;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+  padding: 22px;
+}
+
+.staff-help-hero h2,
+.staff-help-hero p,
+.staff-help-hero ol {
+  margin: 0;
+}
+
+.staff-help-hero h2 {
+  font-size: clamp(24px, 3vw, 34px);
+}
+
+.staff-help-hero p {
+  color: #d4e3e8;
+  margin-top: 8px;
+}
+
+.staff-help-hero ol {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  line-height: 1.6;
+  padding: 16px 18px 16px 38px;
+}
+
+.staff-sop-grid {
+  align-items: stretch;
+}
+
+.staff-sop-card {
+  display: grid;
+  gap: 12px;
+}
+
+.staff-sop-card .sop-step {
+  align-items: center;
+  background: #eef6f7;
+  border: 1px solid #cfe3e8;
+  border-radius: 999px;
+  color: var(--brand-dark);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  height: 34px;
+  justify-content: center;
+  width: 44px;
+}
+
+.staff-sop-card .button {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+.staff-help-reference {
+  display: grid;
+  gap: 10px;
+}
+
+.staff-help-reference h2,
+.staff-help-reference p {
+  margin: 0;
+}
+
 .task-panel-head {
   align-items: center;
   display: flex;
@@ -6832,6 +6909,7 @@ button.small {
   .calendar-toolbar,
   .activity-group header,
   .announcement-row,
+  .staff-help-hero,
   .help-reset-panel,
   .help-grid {
     grid-template-columns: 1fr;
