@@ -1668,10 +1668,14 @@ button.danger {
 }
 
 .login-logo {
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
   display: block;
   height: 88px;
-  margin: 0 0 22px;
+  margin: 0 auto 22px;
   object-fit: contain;
+  padding: 0;
   width: 88px;
 }
 

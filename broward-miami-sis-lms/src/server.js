@@ -3112,7 +3112,7 @@ app.get("/login", (req, res) => {
           <img src="/assets/healthcare-students-login.png" alt="Healthcare students training together in a classroom">
         </figure>
         <div class="login-copy-text">
-          <img class="login-logo" src="/assets/bmhi-favicon.png" alt="${escapeHtml(instituteName)} logo">
+          <img class="login-logo" src="/assets/bmhi-logo-transparent.png" alt="${escapeHtml(instituteName)} logo">
           <h1>Broward-Miami Health Institute Student Portal</h1>
         </div>
       </div>
