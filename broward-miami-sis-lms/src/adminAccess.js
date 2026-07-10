@@ -12,11 +12,6 @@ const adminAccessAccounts = [
     email: "nadia.meme@browardmiamihi.com"
   },
   {
-    firstName: "Roney",
-    lastName: "Hernandez",
-    email: "roney.hernandez@browardmiamihi.com"
-  },
-  {
     firstName: "Kattery",
     lastName: "Hernandez-Cruz",
     email: "kattery.hernandez-cruz@browardmiamihi.com"

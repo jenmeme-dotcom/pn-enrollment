@@ -473,6 +473,12 @@ function seed() {
 
   db.prepare(`
     UPDATE users
+    SET status = 'inactive'
+    WHERE lower(email) = 'roney.hernandez@browardmiamihi.com' AND role = 'admin'
+  `).run();
+
+  db.prepare(`
+    UPDATE users
     SET organization_status = 'organized', class_lock_reason = NULL
     WHERE email IN ('admin@browardmiamihi.com', 'instructor@browardmiamihi.com', 'student@browardmiamihi.com')
   `).run();
