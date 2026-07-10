@@ -453,7 +453,6 @@ function seed() {
 
   createUser.run("admin", "BMHI", "Administrator", "admin@browardmiamihi.com", "(954) 555-0100", hash("AdminPass123!"));
   createUser.run("instructor", "Program", "Instructor", "instructor@browardmiamihi.com", "(954) 555-0101", hash("InstructorPass123!"));
-  createUser.run("instructor", "Jeferson", "Fianitog", "jeferson.fianitog@browardmiamihi.com", "", hash("InstructorPass123!"));
   createUser.run("instructor", "Roney", "Hernandez", "roney.hernandez.instructor@browardmiamihi.com", "", hash("InstructorPass123!"));
   createUser.run("student", "Demo", "Student", "student@browardmiamihi.com", "(954) 555-0102", hash("StudentPass123!"));
 
