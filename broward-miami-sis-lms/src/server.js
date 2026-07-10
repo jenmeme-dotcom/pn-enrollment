@@ -3320,6 +3320,7 @@ app.get("/help/browser-cache", requireAuth, (req, res) => {
 });
 
 app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const isAdmin = req.user.role === "admin";
   const body = `
     <section class="staff-help-page">
       <div class="page-head">
@@ -3337,17 +3338,18 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
       <section class="staff-help-hero">
         <div>
           <h2>Daily staff checklist</h2>
-          <p>Start each work session by checking new applications, student file completion, unread messages, course activity, and any OSV evidence requests.</p>
+          <p>${isAdmin ? "Start each work session by checking new applications, student file completion, unread messages, course activity, and any OSV evidence requests." : "Start each instructional session by checking course activity, unread student messages, HESI follow-up needs, and upcoming class items."}</p>
         </div>
         <ol>
           <li>Sign in through Faculty Login.</li>
           <li>Review Dashboard alerts and new activity.</li>
-          <li>Open Students to confirm class access and admissions files.</li>
+          <li>${isAdmin ? "Open Students to confirm class access and admissions files." : "Open Students to view enrolled students and cohort placement."}</li>
           <li>Open Inbox before the end of each work session.</li>
         </ol>
       </section>
 
       <section class="help-grid staff-sop-grid">
+        ${isAdmin ? `
         <article class="help-card staff-sop-card">
           <span class="sop-step">01</span>
           <h2>Create or review an applicant</h2>
@@ -3359,7 +3361,9 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
           </ol>
           <a class="button small ghost" href="/admin/admissions">Open admissions</a>
         </article>
+        ` : ""}
 
+        ${isAdmin ? `
         <article class="help-card staff-sop-card">
           <span class="sop-step">02</span>
           <h2>Create a student record</h2>
@@ -3371,7 +3375,9 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
           </ol>
           <a class="button small ghost" href="/admin/students">Open students</a>
         </article>
+        ` : ""}
 
+        ${isAdmin ? `
         <article class="help-card staff-sop-card">
           <span class="sop-step">03</span>
           <h2>Complete student files</h2>
@@ -3383,7 +3389,9 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
           </ol>
           <a class="button small ghost" href="/admin/students#registrar-upload-matrix">Open registrar files</a>
         </article>
+        ` : ""}
 
+        ${isAdmin ? `
         <article class="help-card staff-sop-card">
           <span class="sop-step">04</span>
           <h2>Unlock class access</h2>
@@ -3395,6 +3403,7 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
           </ol>
           <a class="button small ghost" href="/admin/students">Manage access</a>
         </article>
+        ` : ""}
 
         <article class="help-card staff-sop-card">
           <span class="sop-step">05</span>
@@ -3432,6 +3441,7 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
           <a class="button small ghost" href="/admin/hesi">Open HESI scores</a>
         </article>
 
+        ${isAdmin ? `
         <article class="help-card staff-sop-card">
           <span class="sop-step">08</span>
           <h2>Prepare OSV visit evidence</h2>
@@ -3443,7 +3453,9 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
           </ol>
           <a class="button small ghost" href="/admin/onsite-visit">Open OSV visit</a>
         </article>
+        ` : ""}
 
+        ${isAdmin ? `
         <article class="help-card staff-sop-card">
           <span class="sop-step">09</span>
           <h2>Billing and financial aid</h2>
@@ -3455,6 +3467,7 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
           </ol>
           <a class="button small ghost" href="/admin/billing">Open billing</a>
         </article>
+        ` : ""}
       </section>
 
       <section class="card staff-help-reference">
@@ -3462,7 +3475,7 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
         <p>First refresh the page. If the portal still shows old wording, old buttons, or broken formatting, use the browser troubleshooting page to clear local portal cache. This does not delete school records.</p>
         <div class="actions">
           <a class="button ghost" href="/help/browser-cache">Open browser troubleshooting</a>
-          <a class="button ghost" href="/admin/admin-roles">Admin roles</a>
+          ${isAdmin ? `<a class="button ghost" href="/admin/admin-roles">Admin roles</a>` : ""}
           <a class="button ghost" href="/catalog">Catalog</a>
         </div>
       </section>
@@ -3607,7 +3620,7 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
   render(req, res, "Dashboard", body);
 });
 
-app.get("/admin/admissions", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.get("/admin/admissions", requireAuth, requireRole("admin"), (req, res) => {
   const applications = db.prepare(`
     SELECT *
     FROM admission_applications
@@ -3700,7 +3713,7 @@ app.get("/admin/admissions", requireAuth, requireRole("admin", "instructor"), (r
   render(req, res, "Admissions", body);
 });
 
-app.post("/admin/admissions/:id/status", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.post("/admin/admissions/:id/status", requireAuth, requireRole("admin"), (req, res) => {
   const id = Number(req.params.id);
   const status = String(req.body.status || "").trim();
   const allowed = new Set(["new", "reviewing", "accepted", "waitlisted", "declined", "converted"]);
@@ -4131,7 +4144,7 @@ function renderOnsiteVisitChecklist(rows = []) {
   `).join("");
 }
 
-app.get("/admin/onsite-visit", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.get("/admin/onsite-visit", requireAuth, requireRole("admin"), (req, res) => {
   const rows = onsiteVisitRows();
   const progress = onsiteVisitProgress(rows);
   const requestText = onsiteRequestText(rows);
@@ -4183,7 +4196,7 @@ app.get("/admin/onsite-visit", requireAuth, requireRole("admin", "instructor"), 
   render(req, res, "OSV Preparation", body);
 });
 
-app.get("/admin/onsite-visit/presentation", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.get("/admin/onsite-visit/presentation", requireAuth, requireRole("admin"), (req, res) => {
   const rows = onsiteVisitRows();
   const progress = onsiteVisitProgress(rows);
   const body = `
@@ -4233,7 +4246,7 @@ app.get("/admin/onsite-visit/presentation", requireAuth, requireRole("admin", "i
   render(req, res, "OSV Evidence Packet", body);
 });
 
-app.post("/admin/onsite-visit/request-needed", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.post("/admin/onsite-visit/request-needed", requireAuth, requireRole("admin"), (req, res) => {
   db.prepare(`
     UPDATE onsite_visit_items
     SET status = 'requested',
@@ -4245,7 +4258,7 @@ app.post("/admin/onsite-visit/request-needed", requireAuth, requireRole("admin",
   res.redirect("/admin/onsite-visit");
 });
 
-app.post("/admin/onsite-visit/items/:id", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.post("/admin/onsite-visit/items/:id", requireAuth, requireRole("admin"), (req, res) => {
   const item = db.prepare("SELECT id FROM onsite_visit_items WHERE id = ?").get(Number(req.params.id));
   if (!item) return res.status(404).send("OSV item not found");
   let status = onsiteVisitStatuses.includes(String(req.body.status || "")) ? String(req.body.status) : "needed";
@@ -4281,7 +4294,7 @@ app.post("/admin/onsite-visit/items/:id", requireAuth, requireRole("admin", "ins
   res.redirect("/admin/onsite-visit");
 });
 
-app.post("/admin/onsite-visit/items/:id/upload", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.post("/admin/onsite-visit/items/:id/upload", requireAuth, requireRole("admin"), (req, res) => {
   const item = db.prepare("SELECT id FROM onsite_visit_items WHERE id = ?").get(Number(req.params.id));
   if (!item) return res.status(404).send("OSV item not found");
 
@@ -4312,7 +4325,7 @@ app.post("/admin/onsite-visit/items/:id/upload", requireAuth, requireRole("admin
   });
 });
 
-app.get("/admin/onsite-visit/files/:id", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.get("/admin/onsite-visit/files/:id", requireAuth, requireRole("admin"), (req, res) => {
   const file = db.prepare("SELECT * FROM onsite_visit_files WHERE id = ?").get(Number(req.params.id));
   if (!file?.file_storage_name) return res.status(404).send("File not found");
   const filePath = path.join(uploadDir, file.file_storage_name);
@@ -4320,7 +4333,7 @@ app.get("/admin/onsite-visit/files/:id", requireAuth, requireRole("admin", "inst
   res.download(filePath, file.file_original_name || file.file_storage_name);
 });
 
-app.post("/admin/onsite-visit/files/:id/delete", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.post("/admin/onsite-visit/files/:id/delete", requireAuth, requireRole("admin"), (req, res) => {
   const file = db.prepare("SELECT * FROM onsite_visit_files WHERE id = ?").get(Number(req.params.id));
   if (!file) return res.status(404).send("File not found");
   const filePath = path.join(uploadDir, file.file_storage_name);
@@ -4493,7 +4506,9 @@ app.post("/admin/hesi/scores", requireAuth, requireRole("admin", "instructor"), 
 });
 
 app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req, res) => {
-  db.prepare("SELECT id FROM users WHERE role = 'student'").all().forEach((student) => ensureRegistrarChecklist(student.id));
+  if (req.user.role === "admin") {
+    db.prepare("SELECT id FROM users WHERE role = 'student'").all().forEach((student) => ensureRegistrarChecklist(student.id));
+  }
   const students = db.prepare(`
     SELECT u.*,
       COUNT(DISTINCT e.id) AS enrollment_count,
@@ -4511,6 +4526,45 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
     GROUP BY u.id
     ORDER BY u.last_name, u.first_name
   `).all();
+
+  if (req.user.role === "instructor") {
+    const body = `
+      <div class="page-head">
+        <div>
+          <h1>Students</h1>
+          <p>View enrolled students and cohort placement for instructional support.</p>
+        </div>
+        <div class="actions">
+          <a class="button" href="/admin/hesi">HESI Scores</a>
+          <a class="button ghost" href="/admin/courses">Courses</a>
+        </div>
+      </div>
+      <section class="table-card" style="margin-top:18px">
+        <table>
+          <thead><tr><th>Student</th><th>Contact</th><th>Cohort</th><th>Enrollments</th></tr></thead>
+          <tbody>
+            ${students.map((student) => `
+              <tr>
+                <td>
+                  ${studentPhotoThumb(student, "student-thumb small")}
+                  <strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br>
+                  <span class="muted">${escapeHtml(student.status)}</span>
+                </td>
+                <td>${escapeHtml(student.email)}<br><span class="muted">${escapeHtml(student.phone || "")}</span></td>
+                <td>
+                  ${student.cohort_name ? `<span class="pill">${escapeHtml(student.cohort_name)}</span>` : `<span class="muted">No cohort listed</span>`}
+                  ${student.cohort_start_date || student.cohort_end_date ? `<br><span class="muted">${escapeHtml(date(student.cohort_start_date))} - ${escapeHtml(date(student.cohort_end_date))}</span>` : ""}
+                </td>
+                <td>${student.enrollment_count || 0} total<br><span class="muted">${student.completed_count || 0} completed</span></td>
+              </tr>
+            `).join("") || `<tr><td class="empty" colspan="4">No students yet.</td></tr>`}
+          </tbody>
+        </table>
+      </section>
+    `;
+    render(req, res, "Students", body);
+    return;
+  }
 
   const courses = db.prepare("SELECT id, title FROM courses WHERE published = 1 ORDER BY title").all();
   const body = `
@@ -4654,7 +4708,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
   render(req, res, "Students", body);
 });
 
-app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("admin"), (req, res) => {
   const student = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
   if (!student) return res.status(404).send("Student not found");
   const checklist = registrarChecklistForStudent(student.id);
@@ -4771,7 +4825,7 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
   render(req, res, "Registrar Checklist", body);
 });
 
-app.post("/admin/students/:id/admissions-documents/:itemKey", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.post("/admin/students/:id/admissions-documents/:itemKey", requireAuth, requireRole("admin"), (req, res) => {
   const student = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
   if (!student) return res.status(404).send("Student not found");
   const itemKey = String(req.params.itemKey || "");
@@ -4792,7 +4846,7 @@ app.post("/admin/students/:id/admissions-documents/:itemKey", requireAuth, requi
   res.redirect(`/admin/students/${student.id}/registrar-checklist#admissions-document-checklist`);
 });
 
-app.post("/admin/students/:id/registrar-checklist/:itemKey", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.post("/admin/students/:id/registrar-checklist/:itemKey", requireAuth, requireRole("admin"), (req, res) => {
   const student = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
   if (!student) return res.status(404).send("Student not found");
   ensureRegistrarChecklist(student.id);
@@ -4811,7 +4865,7 @@ app.post("/admin/students/:id/registrar-checklist/:itemKey", requireAuth, requir
   res.redirect(`/admin/students/${student.id}/registrar-checklist`);
 });
 
-app.post("/admin/students/:id/registrar-checklist/:itemKey/upload", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.post("/admin/students/:id/registrar-checklist/:itemKey/upload", requireAuth, requireRole("admin"), (req, res) => {
   const student = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
   if (!student) return res.status(404).send("Student not found");
   const itemKey = String(req.params.itemKey || "");
@@ -4849,7 +4903,7 @@ app.post("/admin/students/:id/registrar-checklist/:itemKey/upload", requireAuth,
   });
 });
 
-app.get("/admin/students/:id/registrar-checklist/:itemKey/file", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.get("/admin/students/:id/registrar-checklist/:itemKey/file", requireAuth, requireRole("admin"), (req, res) => {
   const item = db.prepare(`
     SELECT rc.*
     FROM student_record_checklist rc
@@ -4862,7 +4916,7 @@ app.get("/admin/students/:id/registrar-checklist/:itemKey/file", requireAuth, re
   res.download(filePath, item.file_original_name || item.file_storage_name);
 });
 
-app.post("/admin/students", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.post("/admin/students", requireAuth, requireRole("admin"), (req, res) => {
   const password = String(req.body.password || "StudentPass123!");
   try {
     const organizationStatus = req.body.organizationStatus === "organized" ? "organized" : "not_organized";
@@ -4899,7 +4953,7 @@ app.post("/admin/students", requireAuth, requireRole("admin", "instructor"), (re
   res.redirect("/admin/students");
 });
 
-app.post("/admin/students/:id/class-access", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.post("/admin/students/:id/class-access", requireAuth, requireRole("admin"), (req, res) => {
   const organizationStatus = req.body.organizationStatus === "organized" ? "organized" : "not_organized";
   const classLockReason = organizationStatus === "not_organized"
     ? String(req.body.classLockReason || "Pending registrar organization and clearance.").trim()
@@ -4913,7 +4967,7 @@ app.post("/admin/students/:id/class-access", requireAuth, requireRole("admin", "
   res.redirect("/admin/students");
 });
 
-app.post("/admin/students/:id/uniform-size", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.post("/admin/students/:id/uniform-size", requireAuth, requireRole("admin"), (req, res) => {
   const requestedSize = String(req.body.uniformSize || "");
   const uniformSize = uniformSizes.includes(requestedSize) && requestedSize ? requestedSize : null;
   db.prepare("UPDATE users SET uniform_size = ? WHERE id = ? AND role = 'student'").run(uniformSize, Number(req.params.id));
@@ -4921,7 +4975,7 @@ app.post("/admin/students/:id/uniform-size", requireAuth, requireRole("admin", "
   res.redirect("/admin/students");
 });
 
-app.post("/admin/students/:id/photo", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+app.post("/admin/students/:id/photo", requireAuth, requireRole("admin"), (req, res) => {
   const student = db.prepare("SELECT id, photo_storage_name FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
   if (!student) return res.status(404).send("Student not found");
   upload.single("photo")(req, res, (error) => {

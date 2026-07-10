@@ -40,11 +40,9 @@ function navFor(user) {
   `;
   const instructorLinks = `
     <a href="/admin">Dashboard</a>
-    <a href="/admin/admissions">Admissions</a>
     <a href="/admin/students">Students</a>
     <a href="/admin/hesi">HESI Scores</a>
     <a href="/admin/courses">Courses</a>
-    <a href="/admin/onsite-visit">OSV Visit</a>
     <a href="/admin/messages">Inbox</a>
     <a href="/catalog">Catalog</a>
     <a href="/admin/help">Help</a>
@@ -115,14 +113,14 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
         </form>
         <nav class="sis-app-nav" aria-label="SIS applications">
           <a href="/admin">Home</a>
-          <a href="/admin/admissions">Admissions</a>
+          ${user.role === "admin" ? `<a href="/admin/admissions">Admissions</a>` : ""}
           <a href="/admin/students">People</a>
           <a href="/admin/courses">Academics</a>
           <a href="/admin/courses">LMS</a>
-          <a href="/admin/financial-aid">Financial Aid</a>
-          <a href="/admin/billing">Billing</a>
+          ${user.role === "admin" ? `<a href="/admin/financial-aid">Financial Aid</a>` : ""}
+          ${user.role === "admin" ? `<a href="/admin/billing">Billing</a>` : ""}
           <a href="/admin/messages">Inbox</a>
-          <a href="/admin/features/reports">Reports</a>
+          ${user.role === "admin" ? `<a href="/admin/features/reports">Reports</a>` : ""}
           <a href="/admin/help">Help</a>
         </nav>
         <div class="sis-tools">
