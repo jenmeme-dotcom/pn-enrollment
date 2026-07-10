@@ -33,6 +33,10 @@ const instituteName = process.env.INSTITUTE_NAME || "Broward-Miami Health Instit
 const instituteAddress = process.env.INSTITUTE_ADDRESS || "6320 Miramar Pkwy Suite I, Miramar, FL 33023";
 const institutePhone = process.env.INSTITUTE_PHONE || "954-248-0669";
 const instituteEmail = process.env.INSTITUTE_EMAIL || "support@browardmiamihi.com";
+const publicAppUrl = (process.env.PUBLIC_APP_URL || `http://localhost:${port}`).replace(/\/$/, "");
+const ghlSubAccountName = process.env.GHL_SUB_ACCOUNT_NAME || "Broward-Miami Health Institute";
+const ghlSubAccountId = process.env.GHL_SUB_ACCOUNT_ID || "l0nuB5CyYhn0gJmoVobg";
+const ghlWebhookEndpoint = `${publicAppUrl}/webhooks/ghl/purchase`;
 const courseNavItems = [
   "Home",
   "Announcements",
@@ -2731,6 +2735,19 @@ function findCourseFromPayload(payload) {
     const keys = [course.slug, course.title, ...JSON.parse(course.ghl_product_keys || "[]")].map((value) => String(value).toLowerCase());
     return values.some((value) => keys.some((key) => value === key || value.includes(key) || key.includes(value)));
   });
+}
+
+function ghlLocationFromPayload(payload) {
+  return String(
+    payload.locationId ||
+    payload.location_id ||
+    payload.location?.id ||
+    payload.location?.locationId ||
+    payload.contact?.locationId ||
+    payload.contact?.location_id ||
+    payload.triggerData?.locationId ||
+    ""
+  ).trim();
 }
 
 function dashboardStats() {
@@ -7689,8 +7706,10 @@ app.get("/admin/ghl", requireAuth, requireRole("admin"), (req, res) => {
     </div>
     <section class="card">
       <h2>Webhook endpoint</h2>
-      <p><code>POST http://localhost:${port}/webhooks/ghl/purchase</code></p>
-      <p class="muted">Set the header <code>x-bmhi-webhook-secret</code> to your <code>GHL_WEBHOOK_SECRET</code>. Payloads can include <code>email</code>, <code>firstName</code>, <code>lastName</code>, <code>phone</code>, <code>productName</code>, <code>productId</code>, <code>courseSlug</code>, and <code>transactionId</code>. New GHL students are enrolled but class access stays locked until staff marks the student as organized.</p>
+      <p><strong>GHL sub-account:</strong> ${escapeHtml(ghlSubAccountName)}</p>
+      <p><strong>Location ID:</strong> <code>${escapeHtml(ghlSubAccountId)}</code></p>
+      <p><code>POST ${escapeHtml(ghlWebhookEndpoint)}</code></p>
+      <p class="muted">Set the header <code>x-bmhi-webhook-secret</code> to your <code>GHL_WEBHOOK_SECRET</code>. Payloads can include <code>email</code>, <code>firstName</code>, <code>lastName</code>, <code>phone</code>, <code>productName</code>, <code>productId</code>, <code>courseSlug</code>, <code>transactionId</code>, and <code>locationId</code>. New GHL students are enrolled but class access stays locked until staff marks the student as organized.</p>
     </section>
     <section class="table-card" style="margin-top:18px">
       <table>
@@ -7720,8 +7739,12 @@ app.post("/webhooks/ghl/purchase", (req, res) => {
   const payload = req.body || {};
   const email = String(payload.email || payload.contact?.email || "").trim().toLowerCase();
   const externalId = String(payload.transactionId || payload.orderId || payload.paymentId || payload.id || "");
+  const locationId = ghlLocationFromPayload(payload);
 
   try {
+    if (locationId && ghlSubAccountId && locationId !== ghlSubAccountId) {
+      throw new Error("GHL location does not match Broward-Miami Health Institute sub-account");
+    }
     if (!email) throw new Error("Missing student email");
     const course = findCourseFromPayload(payload);
     if (!course) throw new Error("Could not match payload to a published course");

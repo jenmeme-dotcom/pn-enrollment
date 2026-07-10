@@ -48,7 +48,7 @@ Default accounts:
 Configure a GoHighLevel workflow/webhook action after a successful course purchase:
 
 ```text
-POST http://localhost:4321/webhooks/ghl/purchase
+POST https://portal.browardmiamihi.com/webhooks/ghl/purchase
 Header: x-bmhi-webhook-secret: your .env GHL_WEBHOOK_SECRET
 ```
 
@@ -61,6 +61,7 @@ Example payload:
   "lastName": "Rivera",
   "phone": "954-555-0199",
   "productName": "Home Health Aide",
+  "locationId": "l0nuB5CyYhn0gJmoVobg",
   "transactionId": "GHL-ORDER-10001"
 }
 ```

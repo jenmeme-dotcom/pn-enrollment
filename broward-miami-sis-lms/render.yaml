@@ -30,6 +30,10 @@ services:
         value: https://www.browardmiamihi.com
       - key: PUBLIC_APP_URL
         value: https://portal.browardmiamihi.com
+      - key: GHL_SUB_ACCOUNT_NAME
+        value: Broward-Miami Health Institute
+      - key: GHL_SUB_ACCOUNT_ID
+        value: l0nuB5CyYhn0gJmoVobg
       - key: EMAIL_DELIVERY_ENABLED
         value: "false"
       - key: SMTP_HOST
