@@ -486,7 +486,7 @@ nav a {
   align-items: center;
   background:
     linear-gradient(rgba(15, 95, 107, 0.1), rgba(15, 95, 107, 0.1)),
-    url("/assets/bmhi-seal-blue.jpeg") center / cover no-repeat;
+    url("/assets/bmhi-favicon.png") center / cover no-repeat;
   border-radius: 6px;
   color: transparent;
   display: flex;
@@ -724,7 +724,7 @@ nav a {
   align-items: center;
   background:
     linear-gradient(rgba(15, 95, 107, 0.12), rgba(15, 95, 107, 0.12)),
-    url("/assets/bmhi-seal-blue.jpeg") center / cover no-repeat;
+    url("/assets/bmhi-favicon.png") center / cover no-repeat;
   border-radius: 6px;
   color: transparent;
   display: flex;
@@ -853,6 +853,60 @@ nav a {
   font-size: 13px;
 }
 
+.student-file-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 12px 12px 4px;
+}
+
+.student-file-head h2,
+.student-file-head p {
+  margin: 0;
+}
+
+.student-file-head p {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.student-file-checklist p.complete strong,
+.student-file-checklist p.waived strong {
+  color: #176b43;
+}
+
+.student-file-checklist p.complete span,
+.student-file-checklist p.waived span {
+  color: #176b43;
+  font-weight: 800;
+}
+
+.admissions-complete-badge {
+  align-items: center;
+  border: 1px solid #d8e0e5;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.1;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.admissions-complete-badge.complete {
+  background: #e8f7ef;
+  border-color: #addfc4;
+  color: #176b43;
+}
+
+.admissions-complete-badge.incomplete {
+  background: #fff7e8;
+  border-color: #f1d3a1;
+  color: #855600;
+}
+
 .registrar-mini-list {
   display: flex;
   flex-wrap: wrap;
@@ -961,6 +1015,58 @@ nav a {
 
 .registrar-item.missing {
   border-color: #efc0c0;
+}
+
+.admissions-document-panel.complete {
+  border-color: #addfc4;
+}
+
+.admissions-document-checklist {
+  display: grid;
+  gap: 8px;
+}
+
+.admissions-document-row {
+  align-items: center;
+  background: #fbfcfd;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 28px minmax(0, 1fr) minmax(130px, 160px) auto;
+  padding: 10px;
+}
+
+.admissions-document-row.complete,
+.admissions-document-row.waived {
+  background: #f1fbf5;
+  border-color: #bfe7ce;
+}
+
+.admissions-document-row .check-icon {
+  align-items: center;
+  background: #e8eef2;
+  border-radius: 50%;
+  color: #176b43;
+  display: inline-flex;
+  font-weight: 900;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.admissions-document-row.complete .check-icon,
+.admissions-document-row.waived .check-icon {
+  background: #d9f2e4;
+}
+
+.admissions-document-row strong {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.admissions-document-row input {
+  min-height: 34px;
 }
 
 .registrar-item-head {
@@ -5385,7 +5491,7 @@ button.small {
 .playlist-thumb {
   background:
     linear-gradient(rgba(11, 65, 74, 0.22), rgba(11, 65, 74, 0.22)),
-    url("/assets/bmhi-seal-blue.jpeg") center / cover no-repeat;
+    url("/assets/bmhi-favicon.png") center / cover no-repeat;
   display: block;
   height: 52px;
   width: 82px;
@@ -6609,6 +6715,16 @@ button.small {
 
   .registrar-overview {
     position: static;
+  }
+
+  .admissions-document-row {
+    align-items: stretch;
+    grid-template-columns: 28px 1fr;
+  }
+
+  .admissions-document-row select,
+  .admissions-document-row button {
+    grid-column: 2;
   }
 
   .osv-detail-form .span-2,

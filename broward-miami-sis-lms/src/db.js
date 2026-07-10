@@ -295,6 +295,19 @@ function migrate() {
       UNIQUE(user_id, item_key)
     );
 
+    CREATE TABLE IF NOT EXISTS student_admissions_document_checklist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      item_key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'missing' CHECK(status IN ('missing','complete','waived')),
+      note TEXT,
+      completed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      completed_at TEXT,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, item_key)
+    );
+
     CREATE TABLE IF NOT EXISTS onsite_visit_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       item_key TEXT NOT NULL UNIQUE,

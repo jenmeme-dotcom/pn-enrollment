@@ -270,6 +270,14 @@ const registrarChecklistItems = [
   { key: "graduation_approval", title: "Graduation approval workflow", description: "Final registrar approval, credential readiness, account clearance, and graduation completion." }
 ];
 const registrarStatuses = ["pending", "received", "approved", "missing", "waived"];
+const admissionsDocumentChecklistItems = [
+  { key: "application", title: "Application" },
+  { key: "government_id", title: "Government ID" },
+  { key: "enrollment_agreement", title: "Enrollment agreement" },
+  { key: "entrance_documents", title: "Entrance documents" },
+  { key: "admissions_forms", title: "Admissions forms" }
+];
+const admissionsDocumentStatuses = ["missing", "complete", "waived"];
 const uniformSizes = ["", "XS", "Small", "Medium", "Large", "XL", "2XL", "3XL", "4XL"];
 const hesiSubjects = [
   { subject: "Critical Thinking", acceptableScore: 700 },
@@ -294,6 +302,61 @@ function ensureRegistrarChecklist(userId) {
     VALUES (?, ?, ?)
   `);
   registrarChecklistItems.forEach((item) => insertItem.run(userId, item.key, item.title));
+  ensureAdmissionsDocumentChecklist(userId);
+}
+
+function ensureAdmissionsDocumentChecklist(userId) {
+  const insertItem = db.prepare(`
+    INSERT OR IGNORE INTO student_admissions_document_checklist (user_id, item_key, title)
+    VALUES (?, ?, ?)
+  `);
+  admissionsDocumentChecklistItems.forEach((item) => insertItem.run(userId, item.key, item.title));
+}
+
+function admissionsDocumentChecklistForStudent(userId) {
+  ensureAdmissionsDocumentChecklist(userId);
+  return db.prepare(`
+    SELECT *
+    FROM student_admissions_document_checklist
+    WHERE user_id = ?
+    ORDER BY CASE item_key
+      ${admissionsDocumentChecklistItems.map((item, index) => `WHEN '${item.key}' THEN ${index}`).join(" ")}
+      ELSE 99
+    END
+  `).all(userId);
+}
+
+function admissionsDocumentProgress(rows = []) {
+  const total = admissionsDocumentChecklistItems.length;
+  const complete = rows.filter((row) => ["complete", "waived"].includes(row.status)).length;
+  return { complete, total, percent: total ? Math.round((complete / total) * 100) : 0, ready: total > 0 && complete === total };
+}
+
+function syncAdmissionsDocumentRegistrarStatus(userId, reviewerId = null) {
+  ensureRegistrarChecklist(userId);
+  const rows = admissionsDocumentChecklistForStudent(userId);
+  const progress = admissionsDocumentProgress(rows);
+  const status = progress.ready ? "approved" : progress.complete > 0 ? "received" : "missing";
+  const note = progress.ready
+    ? "All required admissions documents are complete."
+    : `${progress.complete}/${progress.total} required admissions documents complete.`;
+
+  db.prepare(`
+    UPDATE student_record_checklist
+    SET status = ?,
+      note = ?,
+      completed_at = CASE WHEN ? = 'approved' THEN COALESCE(completed_at, CURRENT_TIMESTAMP) ELSE NULL END,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = ? AND item_key = 'admissions_documents'
+  `).run(status, note, status, userId);
+
+  if (progress.ready && reviewerId) {
+    db.prepare(`
+      UPDATE student_record_checklist
+      SET uploaded_by = COALESCE(uploaded_by, ?)
+      WHERE user_id = ? AND item_key = 'admissions_documents'
+    `).run(reviewerId, userId);
+  }
 }
 
 function registrarChecklistForStudent(userId) {
@@ -713,7 +776,7 @@ function renderStudentCanvasRail(active = "courses") {
   ];
   return `
     <aside class="canvas-global-rail student-canvas-rail">
-      <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+      <img src="/assets/bmhi-favicon.png" alt="BMHI">
       <nav aria-label="Canvas global navigation">
         ${items.map((item) => `
           <a class="${item.key === active ? "active" : ""}" href="${escapeHtml(item.href)}">
@@ -1341,7 +1404,7 @@ function renderInstructorSettingsPage({ course, courseCode, baseHref, enrollment
           <div class="settings-field image-field">
             <label>Image:</label>
             <div class="settings-course-image">
-              <img src="/assets/bmhi-seal-blue.jpeg" alt="Course image">
+              <img src="/assets/bmhi-favicon.png" alt="Course image">
               <button type="button" aria-label="Edit course image">⋮</button>
             </div>
           </div>
@@ -2986,7 +3049,7 @@ app.get("/login", (req, res) => {
           <img src="/assets/healthcare-students-login.png" alt="Healthcare students training together in a classroom">
         </figure>
         <div class="login-copy-text">
-          <img class="login-logo" src="/assets/bmhi-seal-blue.jpeg" alt="${escapeHtml(instituteName)} logo">
+          <img class="login-logo" src="/assets/bmhi-favicon.png" alt="${escapeHtml(instituteName)} logo">
           <h1>Broward-Miami Health Institute Student Portal</h1>
         </div>
       </div>
@@ -4198,16 +4261,20 @@ app.post("/admin/hesi/scores", requireAuth, requireRole("admin", "instructor"), 
 });
 
 app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  db.prepare("SELECT id FROM users WHERE role = 'student'").all().forEach((student) => ensureRegistrarChecklist(student.id));
   const students = db.prepare(`
     SELECT u.*,
       COUNT(DISTINCT e.id) AS enrollment_count,
       COUNT(DISTINCT CASE WHEN e.status = 'completed' THEN e.id END) AS completed_count,
       COUNT(DISTINCT rc.id) AS checklist_count,
       COUNT(DISTINCT CASE WHEN rc.status IN ('approved','waived') THEN rc.id END) AS checklist_complete,
-      COUNT(DISTINCT CASE WHEN rc.file_storage_name IS NOT NULL THEN rc.id END) AS checklist_uploads
+      COUNT(DISTINCT CASE WHEN rc.file_storage_name IS NOT NULL THEN rc.id END) AS checklist_uploads,
+      COUNT(DISTINCT adc.id) AS admissions_document_count,
+      COUNT(DISTINCT CASE WHEN adc.status IN ('complete','waived') THEN adc.id END) AS admissions_document_complete
     FROM users u
     LEFT JOIN enrollments e ON e.user_id = u.id
     LEFT JOIN student_record_checklist rc ON rc.user_id = u.id
+    LEFT JOIN student_admissions_document_checklist adc ON adc.user_id = u.id
     WHERE u.role = 'student'
     GROUP BY u.id
     ORDER BY u.last_name, u.first_name
@@ -4268,12 +4335,17 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
       <table>
         <thead><tr><th>Student</th><th>Progress</th><th>Checklist upload buttons</th></tr></thead>
         <tbody>
-          ${students.map((student) => `
+          ${students.map((student) => {
+            const admissionsComplete = Number(student.admissions_document_complete || 0);
+            const admissionsTotal = admissionsDocumentChecklistItems.length;
+            const admissionsReady = admissionsComplete === admissionsTotal;
+            return `
             <tr>
               <td><strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br><span class="muted">${escapeHtml(student.email)}</span></td>
               <td>
                 <strong>${escapeHtml(student.checklist_complete || 0)}/${escapeHtml(registrarChecklistItems.length)}</strong> ready<br>
-                <span class="muted">${escapeHtml(student.checklist_uploads || 0)} uploaded</span>
+                <span class="muted">${escapeHtml(student.checklist_uploads || 0)} uploaded</span><br>
+                <span class="admissions-complete-badge ${admissionsReady ? "complete" : "incomplete"}">${admissionsReady ? "Admissions Complete" : `${admissionsComplete}/${admissionsTotal} admissions`}</span>
               </td>
               <td>
                 <div class="registrar-checklist-buttons">
@@ -4283,7 +4355,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 </div>
               </td>
             </tr>
-          `).join("") || `<tr><td class="empty" colspan="3">Create a student first, then registrar upload buttons will appear here.</td></tr>`}
+          `; }).join("") || `<tr><td class="empty" colspan="3">Create a student first, then registrar upload buttons will appear here.</td></tr>`}
         </tbody>
       </table>
     </section>
@@ -4291,7 +4363,11 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
       <table>
         <thead><tr><th>Name</th><th>Contact</th><th>Class access</th><th>Registrar</th><th>Enrollments</th><th>Actions</th></tr></thead>
         <tbody>
-          ${students.map((student) => `
+          ${students.map((student) => {
+            const admissionsComplete = Number(student.admissions_document_complete || 0);
+            const admissionsTotal = admissionsDocumentChecklistItems.length;
+            const admissionsReady = admissionsComplete === admissionsTotal;
+            return `
             <tr>
               <td>
                 <strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br>
@@ -4308,6 +4384,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
               </td>
               <td>
                 <strong>${escapeHtml(student.checklist_complete || 0)}/${escapeHtml(registrarChecklistItems.length)}</strong> ready<br>
+                <span class="admissions-complete-badge ${admissionsReady ? "complete" : "incomplete"}">${admissionsReady ? "Complete" : `${admissionsComplete}/${admissionsTotal} admissions`}</span><br>
                 <span class="muted">${escapeHtml(student.checklist_uploads || 0)} upload${Number(student.checklist_uploads || 0) === 1 ? "" : "s"}</span><br>
                 <a class="button small" href="/admin/students/${student.id}/registrar-checklist">Upload documents</a>
               </td>
@@ -4337,7 +4414,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 </form>
               </td>
             </tr>
-          `).join("") || `<tr><td class="empty" colspan="6">No students yet.</td></tr>`}
+          `; }).join("") || `<tr><td class="empty" colspan="6">No students yet.</td></tr>`}
         </tbody>
       </table>
     </section>
@@ -4350,6 +4427,8 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
   if (!student) return res.status(404).send("Student not found");
   const checklist = registrarChecklistForStudent(student.id);
   const progress = registrarProgress(checklist);
+  const admissionsChecklist = admissionsDocumentChecklistForStudent(student.id);
+  const admissionsProgress = admissionsDocumentProgress(admissionsChecklist);
   const enrollmentRows = db.prepare(`
     SELECT e.*, c.title, c.category
     FROM enrollments e
@@ -4374,8 +4453,8 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
     <section class="grid cols-4 registrar-stats">
       ${stat("Ready items", `${progress.complete}/${progress.total}`)}
       ${stat("Readiness", `${progress.percent}%`)}
+      ${stat("Admissions docs", admissionsProgress.ready ? "Complete" : `${admissionsProgress.complete}/${admissionsProgress.total}`)}
       ${stat("Uploaded files", String(checklist.filter((item) => item.file_storage_name).length))}
-      ${stat("Enrollments", String(enrollmentRows.length))}
     </section>
 
     <section class="registrar-workbench">
@@ -4392,6 +4471,33 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
       </article>
 
       <div class="registrar-checklist-grid">
+        <article class="card admissions-document-panel ${admissionsProgress.ready ? "complete" : ""}" id="admissions-document-checklist">
+          <div class="registrar-item-head">
+            <div>
+              <h2>Admissions documents checklist</h2>
+              <p>Mark each required admissions document complete as it is received and reviewed.</p>
+            </div>
+            <span class="admissions-complete-badge ${admissionsProgress.ready ? "complete" : "incomplete"}">
+              ${admissionsProgress.ready ? "Complete" : `${admissionsProgress.complete}/${admissionsProgress.total} complete`}
+            </span>
+          </div>
+          <div class="admissions-document-checklist">
+            ${admissionsChecklist.map((doc) => `
+              <form class="admissions-document-row ${doc.status}" method="post" action="/admin/students/${student.id}/admissions-documents/${escapeHtml(doc.item_key)}">
+                <span class="check-icon" aria-hidden="true">${["complete", "waived"].includes(doc.status) ? "✓" : ""}</span>
+                <div>
+                  <strong>${escapeHtml(doc.title)}</strong>
+                  <input name="note" value="${escapeHtml(doc.note || "")}" placeholder="Optional note">
+                </div>
+                <select name="status" aria-label="${escapeHtml(doc.title)} status">
+                  ${admissionsDocumentStatuses.map((status) => `<option value="${status}" ${doc.status === status ? "selected" : ""}>${status === "complete" ? "Complete" : status === "waived" ? "Waived" : "Missing"}</option>`).join("")}
+                </select>
+                <button class="small ghost" type="submit">Save</button>
+              </form>
+            `).join("")}
+          </div>
+        </article>
+
         ${checklist.map((item) => `
           <article class="card registrar-item ${escapeHtml(item.status)}" id="${escapeHtml(item.item_key)}">
             <div class="registrar-item-head">
@@ -4431,6 +4537,27 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
     </section>
   `;
   render(req, res, "Registrar Checklist", body);
+});
+
+app.post("/admin/students/:id/admissions-documents/:itemKey", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const student = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
+  if (!student) return res.status(404).send("Student not found");
+  const itemKey = String(req.params.itemKey || "");
+  if (!admissionsDocumentChecklistItems.some((item) => item.key === itemKey)) return res.status(404).send("Admissions document item not found");
+  const status = admissionsDocumentStatuses.includes(String(req.body.status || "")) ? String(req.body.status) : "missing";
+  ensureAdmissionsDocumentChecklist(student.id);
+  db.prepare(`
+    UPDATE student_admissions_document_checklist
+    SET status = ?,
+      note = ?,
+      completed_by = CASE WHEN ? IN ('complete','waived') THEN ? ELSE NULL END,
+      completed_at = CASE WHEN ? IN ('complete','waived') THEN COALESCE(completed_at, CURRENT_TIMESTAMP) ELSE NULL END,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = ? AND item_key = ?
+  `).run(status, String(req.body.note || "").trim(), status, req.user.id, status, student.id, itemKey);
+  syncAdmissionsDocumentRegistrarStatus(student.id, req.user.id);
+  flash(req, "Admissions document checklist updated.");
+  res.redirect(`/admin/students/${student.id}/registrar-checklist#admissions-document-checklist`);
 });
 
 app.post("/admin/students/:id/registrar-checklist/:itemKey", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -5419,7 +5546,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   const body = activeView === "modules" ? `
     <section class="canvas-course-shell canvas-modules-shell instructor-preview">
       <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
         <span>${escapeHtml(initialsFor(req.user))}</span>
         <i></i><i></i><i></i><i></i><i></i>
       </aside>
@@ -5445,7 +5572,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   ` : activeView === "announcements" ? `
     <section class="canvas-course-shell instructor-preview">
       <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
         <span>${escapeHtml(initialsFor(req.user))}</span>
         <i></i><i></i><i></i><i></i><i></i>
       </aside>
@@ -5471,7 +5598,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   ` : activeView === "calendar" ? `
     <section class="canvas-course-shell instructor-preview">
       <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
         <span>${escapeHtml(initialsFor(req.user))}</span>
         <i></i><i></i><i></i><i></i><i></i>
       </aside>
@@ -5497,7 +5624,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   ` : activeView === "grades" ? `
     <section class="canvas-course-shell instructor-gradebook-shell">
       <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
         <span>${escapeHtml(initialsFor(req.user))}</span>
         <i></i><i></i><i></i><i></i><i></i>
       </aside>
@@ -5519,7 +5646,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   ` : activeView === "people" ? `
     <section class="canvas-course-shell instructor-preview">
       <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
         <span>${escapeHtml(initialsFor(req.user))}</span>
         <i></i><i></i><i></i><i></i><i></i>
       </aside>
@@ -5545,7 +5672,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   ` : activeView === "settings" ? `
     <section class="canvas-course-shell instructor-preview">
       <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
         <span>${escapeHtml(initialsFor(req.user))}</span>
         <i></i><i></i><i></i><i></i><i></i>
       </aside>
@@ -5571,7 +5698,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   ` : activeView === "syllabus" ? `
     <section class="canvas-course-shell canvas-syllabus-shell instructor-preview">
       <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
         <span>${escapeHtml(initialsFor(req.user))}</span>
         <i></i><i></i><i></i><i></i><i></i>
       </aside>
@@ -5604,7 +5731,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   ` : `
     <section class="canvas-course-shell instructor-preview">
       <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-seal-blue.jpeg" alt="BMHI">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
         <span>${escapeHtml(initialsFor(req.user))}</span>
         <i></i><i></i><i></i><i></i><i></i>
       </aside>
@@ -5914,7 +6041,7 @@ app.get("/credentials/:id/print", requireAuth, (req, res) => {
       <a class="button ghost" href="${req.user.role === "student" ? "/student" : "/admin/courses"}">Back</a>
     </div>
     <article class="credential">
-      <img class="credential-logo" src="/assets/bmhi-seal-blue.jpeg" alt="${escapeHtml(instituteName)} logo">
+      <img class="credential-logo" src="/assets/bmhi-favicon.png" alt="${escapeHtml(instituteName)} logo">
       <p class="muted">${escapeHtml(instituteName)}</p>
       <h1>${escapeHtml(noun)}</h1>
       <p>This certifies that</p>
@@ -6563,6 +6690,8 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
     ? Math.round(enrollments.reduce((sum, row) => sum + Number(row.progress || 0), 0) / enrollments.length)
     : 0;
   const completedCount = enrollments.filter((row) => row.status === "completed").length;
+  const admissionsChecklist = admissionsDocumentChecklistForStudent(req.user.id);
+  const admissionsProgress = admissionsDocumentProgress(admissionsChecklist);
   const statusRows = [
     ["Admission No.", `BMHI-${String(req.user.id).padStart(5, "0")}`],
     ["Student Name", name],
@@ -6664,12 +6793,22 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
         </article>
 
         <article class="student-panel profile-card" id="documents">
-          <h2>Documents</h2>
-          <div class="document-list">
-            <p><strong>Student Handbook</strong><span>Received</span></p>
-            <p><strong>Government ID</strong><span>Pending review</span></p>
-            <p><strong>Health Records</strong><span>Pending upload</span></p>
-            <p><strong>Catalog Acknowledgement</strong><span>Received</span></p>
+          <div class="student-file-head">
+            <div>
+              <h2>Student Files</h2>
+              <p>Admissions document checklist</p>
+            </div>
+            <span class="admissions-complete-badge ${admissionsProgress.ready ? "complete" : "incomplete"}">
+              ${admissionsProgress.ready ? "Complete" : `${admissionsProgress.complete}/${admissionsProgress.total}`}
+            </span>
+          </div>
+          <div class="document-list student-file-checklist">
+            ${admissionsChecklist.map((doc) => `
+              <p class="${doc.status}">
+                <strong>${escapeHtml(doc.title)}</strong>
+                <span>${doc.status === "complete" ? "Complete" : doc.status === "waived" ? "Waived" : "Missing"}</span>
+              </p>
+            `).join("")}
           </div>
         </article>
 
