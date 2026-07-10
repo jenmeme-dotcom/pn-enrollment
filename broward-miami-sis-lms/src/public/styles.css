@@ -2611,10 +2611,10 @@ button.small {
   align-items: center;
   color: white;
   display: grid;
-  gap: 2px;
+  gap: 1px;
   justify-items: center;
-  min-height: 56px;
-  padding: 6px 3px;
+  min-height: 32px;
+  padding: 3px 3px;
   text-align: center;
 }
 
@@ -2649,14 +2649,14 @@ button.small {
   background: transparent;
   border: 2px solid currentColor;
   color: inherit;
-  font-size: 15px;
-  height: 26px;
-  width: 26px;
+  font-size: 12px;
+  height: 20px;
+  width: 20px;
 }
 
 .student-canvas-rail a strong {
   color: inherit;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 500;
   line-height: 1.15;
 }
