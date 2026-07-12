@@ -20,6 +20,11 @@ const adminAccessAccounts = [
     firstName: "Jeferson",
     lastName: "Fianitog",
     email: "jeferson.fianitog@browardmiamihi.com"
+  },
+  {
+    firstName: "Jascha Maxine",
+    lastName: "Dal",
+    email: "jascha.maxine.dal@browardmiamihi.com"
   }
 ];
 
