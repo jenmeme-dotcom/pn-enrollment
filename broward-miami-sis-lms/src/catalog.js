@@ -1,7 +1,11 @@
+const { aclsCourse } = require("./aclsBuildout");
 const { fundamentalsCourse } = require("./fundamentalsBuildout");
 const { homeHealthAideEnglishCourse, homeHealthAideCreoleCourse } = require("./homeHealthAideBuildout");
 const { introNursingCourse } = require("./introNursingBuildout");
+const { medicalAssistantCourse } = require("./medicalAssistantBuildout");
+const { medicalBillingCodingCourse } = require("./medicalBillingCodingBuildout");
 const { medicalTerminologyCourse } = require("./medicalTerminologyBuildout");
+const { patientCareTechnicianCourse } = require("./patientCareTechnicianBuildout");
 
 const courses = [
   {
@@ -19,45 +23,9 @@ const courses = [
   },
   homeHealthAideEnglishCourse,
   homeHealthAideCreoleCourse,
-  {
-    title: "Medical Assistant",
-    slug: "medical-assistant",
-    category: "Diploma Program",
-    hours: 1300,
-    tuitionCents: 700000,
-    booksSuppliesCents: 42000,
-    registrationFeeCents: 15000,
-    credentialType: "Diploma",
-    deliveryMode: "Campus / blended",
-    description: "Medical Assistant diploma program covering health science fundamentals, medical terminology, administrative and clinical duties, medical office procedures, insurance billing, phlebotomy, EKG, lab practice, and clinical practicum.",
-    ghlProductKeys: ["Medical Assistant", "MA", "medical-assistant"]
-  },
-  {
-    title: "Patient Care Technician",
-    slug: "patient-care-technician",
-    category: "Diploma Program",
-    hours: 600,
-    tuitionCents: 550000,
-    booksSuppliesCents: 20000,
-    registrationFeeCents: 15000,
-    credentialType: "Diploma",
-    deliveryMode: "Campus / blended",
-    description: "Patient Care Technician diploma program with nursing assistant, CPR/First Aid, phlebotomy, EKG, skills lab, and clinical practice preparation for CNA and CPCT/A credential pathways.",
-    ghlProductKeys: ["Patient Care Technician", "PCT", "patient-care-technician"]
-  },
-  {
-    title: "Medical Billing and Coding",
-    slug: "medical-billing-and-coding",
-    category: "Diploma Program",
-    hours: 1110,
-    tuitionCents: 850000,
-    booksSuppliesCents: 85000,
-    registrationFeeCents: 15000,
-    credentialType: "Diploma",
-    deliveryMode: "Online / blended",
-    description: "Medical Billing and Coding diploma program for electronic healthcare records, coding, billing, health information management, compliance, insurance, revenue cycle, and medical office procedures.",
-    ghlProductKeys: ["Medical Billing and Coding", "MBC", "medical-billing-and-coding"]
-  },
+  medicalAssistantCourse,
+  patientCareTechnicianCourse,
+  medicalBillingCodingCourse,
   {
     title: "CNA Exam Prep",
     slug: "cna-exam-prep",
@@ -78,16 +46,7 @@ const courses = [
     description: "BLS course shell for roster management, skills verification, completion status, and certificate printing.",
     ghlProductKeys: ["Basic Life Support", "BLS", "basic-life-support"]
   },
-  {
-    title: "Advanced Cardiovascular Life Support",
-    slug: "advanced-cardiovascular-life-support",
-    category: "Continuing Education",
-    hours: 8,
-    credentialType: "Certificate",
-    deliveryMode: "Campus",
-    description: "ACLS course shell with enrollment, lesson content, competency recordkeeping, and credential issuing.",
-    ghlProductKeys: ["Advanced Cardiovascular Life Support", "ACLS", "advanced-cardiovascular-life-support"]
-  },
+  aclsCourse,
   {
     title: "Pediatric Advanced Life Support",
     slug: "pediatric-advanced-life-support",
@@ -100,6 +59,69 @@ const courses = [
   },
   medicalTerminologyCourse,
   fundamentalsCourse,
+  {
+    title: "Anatomy and Physiology",
+    slug: "anatomy-and-physiology",
+    category: "Practical Nursing Course",
+    hours: 90,
+    credentialType: "Course",
+    deliveryMode: "Campus / blended",
+    seedVersion: "2026-07-12-student-quiz-set",
+    description: "PN 104 Anatomy and Physiology course shell for Practical Nursing students with modules, faculty materials, assignments, discussions, and gradebook support.",
+    ghlProductKeys: ["Anatomy and Physiology", "PN 104", "PN104", "anatomy-and-physiology"],
+    modules: [
+      {
+        title: "PN104 Student Quizzes and Assessments",
+        lessons: [
+          {
+            title: "Quiz 1: Anatomy and Physiology Foundations",
+            content: "Complete Quiz 1 in Canvas. This quiz checks foundational anatomy and physiology vocabulary, levels of organization, cells, tissues, and homeostasis. Review your module notes before starting.",
+            durationMinutes: 30
+          },
+          {
+            title: "Quiz 2: Integumentary and Skeletal Systems",
+            content: "Complete Quiz 2 in Canvas. This quiz covers the integumentary system, bone tissue, skeletal system structures, and related clinical vocabulary. Students should complete the assigned Chapter 5 and Chapter 6 review before opening the quiz.",
+            durationMinutes: 30
+          },
+          {
+            title: "Quiz 3: Muscular and Nervous Systems",
+            content: "Complete Quiz 3 in Canvas. This quiz covers muscular system organization, muscle function, nervous system structures, basic neurophysiology, and related practical nursing applications.",
+            durationMinutes: 30
+          },
+          {
+            title: "Quiz 4: Body Systems Integration",
+            content: "Complete Quiz 4 in Canvas. This quiz checks cardiovascular, respiratory, digestive, urinary, reproductive, endocrine, and lymphatic system concepts with emphasis on how body systems work together.",
+            durationMinutes: 30
+          }
+        ]
+      },
+      {
+        title: "PN104 Faculty Instructor Resources",
+        lessons: [
+          {
+            title: "PN104_Ch05_Integumentary_System_FACULTY_with_instructor_script_notes.pptx",
+            content: "Faculty-only PowerPoint resource for Chapter 5. This item is intentionally unpublished and hidden from students until the instructor decides otherwise.",
+            durationMinutes: 0,
+            published: false,
+            instructorOnly: true
+          },
+          {
+            title: "PN104_Ch06_Bone_Tissue_and_Skeletal_System_FACULTY_with_instructor_script_notes.pptx",
+            content: "Faculty-only PowerPoint resource for Chapter 6. This item is intentionally unpublished and hidden from students until the instructor decides otherwise.",
+            durationMinutes: 0,
+            published: false,
+            instructorOnly: true
+          }
+        ]
+      }
+    ],
+    gradeItems: [
+      { title: "Quiz 1: Anatomy and Physiology Foundations", pointsPossible: 50, dueDate: "2026-07-27" },
+      { title: "Quiz 2: Integumentary and Skeletal Systems", pointsPossible: 50, dueDate: "2026-08-10" },
+      { title: "Quiz 3: Muscular and Nervous Systems", pointsPossible: 50, dueDate: "2026-08-31" },
+      { title: "Quiz 4: Body Systems Integration", pointsPossible: 50, dueDate: "2026-09-21" }
+    ]
+  },
   introNursingCourse
 ];
 

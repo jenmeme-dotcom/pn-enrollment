@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Assignments and grades">
+  <circle cx="48" cy="48" r="34" fill="#ffffff" stroke="#174b61" stroke-width="4"/>
+  <path d="m32 48 10 10 22-24" fill="none" stroke="#aeb719" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30 72h36" stroke="#174b61" stroke-width="4" stroke-linecap="round"/>
+</svg>

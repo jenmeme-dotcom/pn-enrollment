@@ -10,7 +10,8 @@
     "seed": "node --no-warnings src/seed.js",
     "build:canvas:fundamentals": "node --no-warnings scripts/build-fundamentals-canvas.js",
     "build:canvas:intro-nursing": "node --no-warnings scripts/build-intro-nursing-canvas.js",
-    "publish:canvas:intro-nursing": "node --no-warnings scripts/publish-intro-nursing-to-canvas.js"
+    "publish:canvas:intro-nursing": "node --no-warnings scripts/publish-intro-nursing-to-canvas.js",
+    "import:canvas:discussions": "node --no-warnings scripts/import-canvas-discussions.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

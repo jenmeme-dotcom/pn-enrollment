@@ -43,6 +43,14 @@ const weeklyModules = [
   { week: 12, title: "Final Exam", date: "Sep 9", focus: "Comprehensive final exam covering Chapters 1-22", assessment: "Final Comprehensive Exam" }
 ];
 
+const chapterQuizBank = Array.from({ length: 12 }, (_, index) => {
+  const chapterNumber = index + 11;
+  return {
+    title: `[PN101 2026] Quiz ${chapterNumber} - Chapter ${chapterNumber} Review`,
+    dueDate: "2026-09-08"
+  };
+});
+
 const modules = [
   {
     title: "PN101 2026 - Week 1: Orientation and Word Structure",
@@ -174,6 +182,13 @@ const modules = [
     ]
   },
   {
+    title: "PN101 2026 - Chapter Quiz Bank: Chapters 11-22",
+    lessons: chapterQuizBank.map((quiz) => itemLesson("Quiz", quiz.title, {
+      note: "Chapter review quiz for Medical Terminology. Students should complete the related chapter slides before attempting the quiz.",
+      minutes: 30
+    }))
+  },
+  {
     title: "PN101 2026 - Week 12: Final Exam",
     lessons: [
       itemLesson("Exam", "[PN101 2026] Final Comprehensive Exam - Chapters 1-22")
@@ -208,6 +223,7 @@ const gradeItems = [
   { title: "[PN101 2026] Quiz 9 - Chapter 9 Nervous System", pointsPossible: 10, dueDate: "2026-09-01" },
   { title: "[PN101 2026] Medical Term Flashcard Portfolio", pointsPossible: 50, dueDate: "2026-09-06" },
   { title: "[PN101 2026] Quiz 10 - Chapter 10 Cardiovascular System", pointsPossible: 10, dueDate: "2026-09-08" },
+  ...chapterQuizBank.map((quiz) => ({ title: quiz.title, pointsPossible: 10, dueDate: quiz.dueDate })),
   { title: "[PN101 2026] Final Comprehensive Exam - Chapters 1-22", pointsPossible: 75, dueDate: "2026-09-09" }
 ];
 
@@ -225,7 +241,7 @@ const medicalTerminologyCourse = {
   ghlProductKeys: ["Medical Terminology", "PN 101", "PN101", "PN Medical Terminology", "medical-terminology", "Med Term"],
   courseNumber: "PN 101",
   credits: 3,
-  seedVersion: "canvas-pn101-medical-terminology-2026-07-07",
+  seedVersion: "canvas-pn101-medical-terminology-quizzes-2026-07-14",
   objectives: courseObjectives,
   weeks: weeklyModules,
   modules,

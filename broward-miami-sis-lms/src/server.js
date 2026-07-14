@@ -336,6 +336,44 @@ function admissionsDocumentProgress(rows = []) {
   return { complete, total, percent: total ? Math.round((complete / total) * 100) : 0, ready: total > 0 && complete === total };
 }
 
+function renderAdmissionsDocumentRows(student, admissionsChecklist = []) {
+  return `
+    <div class="admissions-required-list">
+      ${admissionsChecklist.map((doc) => `
+        <section class="admissions-required-row ${escapeHtml(doc.status)}" id="admissions-doc-${escapeHtml(doc.item_key)}">
+          <div class="admissions-required-main">
+            <span class="check-icon" aria-hidden="true">${["complete", "waived"].includes(doc.status) ? "✓" : ""}</span>
+            <div>
+              <strong>${escapeHtml(doc.title)}</strong>
+              <small>${doc.file_storage_name ? `Uploaded: ${escapeHtml(doc.file_original_name || "File")}` : "Required admissions document"}</small>
+            </div>
+          </div>
+          <form class="admissions-required-status" method="post" action="/admin/students/${student.id}/admissions-documents/${escapeHtml(doc.item_key)}">
+            <label>Status</label>
+            <select name="status" aria-label="${escapeHtml(doc.title)} status">
+              ${admissionsDocumentStatuses.map((status) => `<option value="${status}" ${doc.status === status ? "selected" : ""}>${status === "complete" ? "Complete" : status === "waived" ? "Waived" : "Missing"}</option>`).join("")}
+            </select>
+            <label>Note</label>
+            <input name="note" value="${escapeHtml(doc.note || "")}" placeholder="Optional note">
+            <button class="small" type="submit">Save status</button>
+          </form>
+          <form class="admissions-required-upload" method="post" action="/admin/students/${student.id}/admissions-documents/${escapeHtml(doc.item_key)}/upload" enctype="multipart/form-data">
+            <label>Upload</label>
+            <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,application/pdf,image/*" required>
+            <button class="small ghost" type="submit">${doc.file_storage_name ? "Replace" : "Upload"}</button>
+          </form>
+          <div class="admissions-required-file">
+            ${doc.file_storage_name ? `
+              <span>${escapeHtml(formatBytes(doc.file_size))} · ${escapeHtml(doc.uploaded_at ? formatMessageDate(doc.uploaded_at) : "")}</span>
+              <a class="button small ghost" href="/admin/students/${student.id}/admissions-documents/${escapeHtml(doc.item_key)}/file">Download</a>
+            ` : `<span class="muted">No file submitted</span>`}
+          </div>
+        </section>
+      `).join("")}
+    </div>
+  `;
+}
+
 function syncAdmissionsDocumentRegistrarStatus(userId, reviewerId = null) {
   ensureRegistrarChecklist(userId);
   const rows = admissionsDocumentChecklistForStudent(userId);
@@ -723,6 +761,7 @@ function canvasCourseCode(course = {}) {
   if (course.slug === "home-health-aide-creole") return "HHA 75 Kreyol";
   if (course.slug === "medical-terminology") return "PN 101";
   if (course.slug === "introduction-to-nursing-practical-nursing") return "PN 102";
+  if (course.slug === "anatomy-and-physiology") return "PN 104";
   const id = course.course_id || course.id || 0;
   if (course.category === "Practical Nursing Course") return `PN-${String(id).padStart(3, "0")}`;
   return `BMHI-${String(id).padStart(3, "0")}`;
@@ -773,6 +812,7 @@ function courseNavHref(baseHref, item, firstLessonId) {
   if (item === "Files") return `${baseHref}?view=files`;
   if (item === "Syllabus") return `${baseHref}?view=syllabus`;
   if (item === "Grades") return `${baseHref}?view=grades`;
+  if (item === "Discussions") return `${baseHref}?view=discussions`;
   if (item === "People") return `${baseHref}?view=people`;
   if (item === "Groups") return `${baseHref}?view=people#groups`;
   if (item === "Settings") return `${baseHref}?view=settings`;
@@ -835,8 +875,10 @@ function renderStartTiles(tiles = []) {
   return `
     <div class="start-tile-grid">
       ${tiles.map((tile) => `
-        <a class="start-tile" href="${escapeHtml(tile.href)}">
-          <span class="${escapeHtml(tile.icon)}"></span>
+        <a class="start-tile" href="${escapeHtml(tile.href)}" aria-label="${escapeHtml(tile.label)}">
+          <span class="start-tile-image ${escapeHtml(tile.icon)}">
+            <img src="${escapeHtml(tile.image || "/assets/bmhi-logo-transparent.png")}" alt="">
+          </span>
           <strong>${escapeHtml(tile.label)}</strong>
         </a>
       `).join("")}
@@ -865,6 +907,8 @@ function moduleItemMeta(lesson) {
   const title = String(lesson.title || "");
   const lower = title.toLowerCase();
   const pieces = [];
+  if (Number(lesson.instructor_only || 0) === 1) pieces.push("Instructor only");
+  if (Number(lesson.published ?? 1) === 0) pieces.push("Unpublished");
   const dateMatch = title.match(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/i);
   if (dateMatch) pieces.push(dateMatch[0]);
   if (lower.includes("discussion")) pieces.push("10 pts");
@@ -887,7 +931,7 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
       </div>
       <div class="canvas-module-list">
         ${moduleGroups.map((module) => `
-          <section class="canvas-module-block">
+          <section class="canvas-module-block" id="module-${module.id}">
             <header class="canvas-module-header">
               <div>
                 <span class="module-drag">⁝</span>
@@ -903,15 +947,16 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
             <div class="canvas-module-items">
               ${module.lessons.map((lesson) => {
                 const kind = moduleItemKind(lesson.title);
+                const isPublished = Number(lesson.published ?? 1) !== 0 && Number(lesson.instructor_only || 0) !== 1;
                 return `
-                  <a class="canvas-module-row" href="${escapeHtml(baseHref)}?lesson=${lesson.id}">
+                  <a class="canvas-module-row ${isPublished ? "" : "is-unpublished"}" href="${escapeHtml(baseHref)}?lesson=${lesson.id}">
                     <span class="module-drag">⁝</span>
                     <span class="module-type ${escapeHtml(kind)}">${escapeHtml(moduleItemIcon(kind))}</span>
                     <span class="module-title">
                       <strong>${escapeHtml(lesson.title)}</strong>
                       ${moduleItemMeta(lesson) ? `<small>${escapeHtml(moduleItemMeta(lesson))}</small>` : ""}
                     </span>
-                    <span class="canvas-published-dot"></span>
+                    <span class="${isPublished ? "canvas-published-dot" : "canvas-unpublished-dot"}"></span>
                     <span class="module-menu">⋮</span>
                   </a>
                 `;
@@ -931,6 +976,145 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
           </section>
         `}
       </div>
+    </main>
+  `;
+}
+
+function lessonMaterialLinks(lesson = {}) {
+  const content = String(lesson.content || "");
+  const links = new Map();
+  for (const match of content.matchAll(/- ([^:\n]+):\s*(\/course-materials\/[^\s]+)/g)) {
+    links.set(match[2], match[1].trim());
+  }
+  for (const match of content.matchAll(/\/course-materials\/[^\s<)]+/g)) {
+    const href = match[0];
+    if (!links.has(href)) links.set(href, decodeURIComponent(path.basename(href)));
+  }
+  return [...links.entries()].map(([href, label]) => ({ href, label }));
+}
+
+function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false }) {
+  const title = String(lesson.title || "");
+  const lower = title.toLowerCase();
+  const kind = moduleItemKind(title);
+  const materialLinks = lessonMaterialLinks(lesson);
+  const fileButtons = materialLinks.length ? `
+    <div class="lesson-action-card">
+      <h2>Course Files</h2>
+      <p>Open or download the file attached to this module item.</p>
+      <div class="lesson-file-actions">
+        ${materialLinks.map((file) => `
+          <a class="button ghost" href="${escapeHtml(file.href)}">${escapeHtml(file.label)}</a>
+        `).join("")}
+      </div>
+    </div>
+  ` : "";
+
+  if (lower.includes("acknowledgment") || lower.includes("acknowledgement")) {
+    return `
+      ${fileButtons}
+      <div class="lesson-action-card">
+        <h2>Acknowledgment</h2>
+        <p>Review the attached course information, then acknowledge that you understand the course expectations.</p>
+        ${instructor || !enrollmentId ? `
+          <div class="acknowledgment-preview">
+            <label><input type="checkbox" disabled> Student acknowledgement checkbox</label>
+            <button class="button" type="button" disabled>Acknowledge</button>
+          </div>
+        ` : `
+          <form method="post" action="/student/enrollments/${enrollmentId}/progress" class="acknowledgment-form">
+            <input type="hidden" name="progress" value="100">
+            <label><input type="checkbox" required> I have reviewed this item and understand what is required.</label>
+            <button class="button" type="submit">Acknowledge</button>
+          </form>
+        `}
+      </div>
+    `;
+  }
+
+  if (kind === "quiz") {
+    return `
+      <div class="lesson-action-card">
+        <h2>Quiz</h2>
+        <p>This quiz is listed in the course gradebook. Review the module materials first, then begin when ready.</p>
+        <a class="button" href="${escapeHtml(baseHref)}?view=grades">View Quiz in Grades</a>
+      </div>
+    `;
+  }
+
+  if (kind === "discussion") {
+    return `
+      <div class="lesson-action-card">
+        <h2>Discussion</h2>
+        <p>Use the course discussion area to read responses and participate in this topic.</p>
+        <a class="button" href="${escapeHtml(baseHref)}?view=discussions">Open Discussion</a>
+      </div>
+    `;
+  }
+
+  if (kind === "assignment") {
+    return `
+      ${fileButtons}
+      <div class="lesson-action-card">
+        <h2>Assignment</h2>
+        <p>Review the instructions and attached files for this assignment. Upload and grading workflows are tracked by the instructor.</p>
+        <a class="button" href="${escapeHtml(baseHref)}?view=grades">View Assignment in Grades</a>
+      </div>
+    `;
+  }
+
+  return fileButtons || `
+    <div class="lesson-action-card">
+      <h2>Module Item</h2>
+      <p>This page contains the information for the selected module item.</p>
+    </div>
+  `;
+}
+
+function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false }) {
+  const firstLesson = lessons[0];
+  const selectedLesson = lessons.find((lesson) => lesson.id === Number(lessonId)) || firstLesson;
+  if (!selectedLesson) return `<main class="canvas-course-main canvas-page-main"><p class="empty">No lesson was found.</p></main>`;
+  const selectedIndex = lessons.findIndex((lesson) => lesson.id === selectedLesson.id);
+  const previousLesson = selectedIndex > 0 ? lessons[selectedIndex - 1] : null;
+  const nextLesson = selectedIndex >= 0 && selectedIndex < lessons.length - 1 ? lessons[selectedIndex + 1] : null;
+  const selectedModule = moduleGroups.find((module) => module.id === selectedLesson.module_id) || moduleGroups[0];
+  return `
+    <main class="canvas-course-main canvas-page-main">
+      <div class="canvas-mini-head">
+        <span></span>
+        <strong>${escapeHtml(courseCode)}</strong>
+      </div>
+      <article class="canvas-page-content">
+        <p class="canvas-page-breadcrumb">
+          <a href="${escapeHtml(baseHref)}">Home</a>
+          <span>/</span>
+          <a href="${escapeHtml(baseHref)}?view=modules">Modules</a>
+          ${selectedModule ? `<span>/</span><span>${escapeHtml(selectedModule.title)}</span>` : ""}
+        </p>
+        <h1>${escapeHtml(selectedLesson.title)}</h1>
+        <div class="canvas-page-copy">
+          ${selectedLesson.external_url ? `
+            <div class="external-lesson-callout">
+              <strong>This item opens outside the portal.</strong>
+              <p>Use the button below to open the course resource directly.</p>
+              <a class="button" href="${escapeHtml(selectedLesson.external_url)}">Open ${escapeHtml(selectedLesson.title)}</a>
+            </div>
+          ` : ""}
+          ${renderCanvasLessonContent(selectedLesson.content, selectedLesson.title)}
+        </div>
+        ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor })}
+        ${!instructor && enrollmentId ? `
+          <form method="post" action="/student/enrollments/${enrollmentId}/progress" class="canvas-complete-action">
+            <input type="hidden" name="progress" value="100">
+            <button class="button ghost" type="submit">Mark As Complete</button>
+          </form>
+        ` : ""}
+        <nav class="canvas-page-actions" aria-label="Lesson navigation">
+          ${previousLesson ? `<a class="button ghost" href="${escapeHtml(baseHref)}?lesson=${previousLesson.id}">Previous</a>` : `<span></span>`}
+          ${nextLesson ? `<a class="button ghost" href="${escapeHtml(baseHref)}?lesson=${nextLesson.id}">Next</a>` : `<a class="button ghost" href="${escapeHtml(baseHref)}">Finish</a>`}
+        </nav>
+      </article>
     </main>
   `;
 }
@@ -1759,6 +1943,45 @@ function courseAnnouncements(courseId, limit = 40) {
   `).all(courseId, limit);
 }
 
+function courseDiscussionTopics(courseId) {
+  return db.prepare(`
+    SELECT dt.*,
+      u.first_name,
+      u.last_name,
+      u.email,
+      COUNT(de.id) AS reply_count,
+      MAX(de.posted_at) AS last_reply_at
+    FROM discussion_topics dt
+    LEFT JOIN users u ON u.id = dt.posted_by
+    LEFT JOIN discussion_entries de ON de.topic_id = dt.id
+    WHERE dt.course_id = ?
+    GROUP BY dt.id
+    ORDER BY dt.due_at IS NULL, dt.due_at, dt.posted_at, dt.id
+  `).all(courseId);
+}
+
+function discussionTopicEntries(topicId) {
+  return db.prepare(`
+    SELECT de.*,
+      u.first_name,
+      u.last_name,
+      u.email,
+      u.role
+    FROM discussion_entries de
+    LEFT JOIN users u ON u.id = de.user_id
+    WHERE de.topic_id = ?
+    ORDER BY datetime(de.posted_at) ASC, de.id ASC
+  `).all(topicId);
+}
+
+function discussionTopicForCourse(topicId, courseId) {
+  return db.prepare(`
+    SELECT *
+    FROM discussion_topics
+    WHERE id = ? AND course_id = ?
+  `).get(Number(topicId), Number(courseId));
+}
+
 function courseCalendarEvents(courseId, limit = 80) {
   const manualEvents = db.prepare(`
     SELECT ce.*, c.title AS course_title, c.slug AS course_slug
@@ -1976,6 +2199,83 @@ function renderCourseAnnouncementsPage({ course, courseCode, baseHref, announcem
             </aside>
           </article>
         `).join("") || `<p class="empty">No announcements have been posted for ${escapeHtml(courseCode)} yet.</p>`}
+      </section>
+    </main>
+  `;
+}
+
+function renderCourseDiscussionsPage({ course, courseCode, baseHref, topics = [], selectedTopicId = null, entries = [], instructor = false, replyAction = "" }) {
+  const selectedTopic = topics.find((topic) => Number(topic.id) === Number(selectedTopicId)) || topics[0] || null;
+  const filteredEntries = selectedTopic ? entries.filter((entry) => Number(entry.topic_id) === Number(selectedTopic.id)) : [];
+  return `
+    <main class="canvas-course-main discussions-main">
+      <div class="announcement-toolbar">
+        <select aria-label="Discussion filter"><option>All discussions</option></select>
+        <input type="search" placeholder="Search discussions..." aria-label="Search discussions">
+        ${instructor ? `<a class="people-green-button" href="#add-discussion">+ Discussion</a>` : ""}
+        <button type="button">Mark All as Read</button>
+      </div>
+      ${instructor ? `
+        <form class="announcement-form" id="add-discussion" method="post" action="/admin/courses/${course.id}/discussions">
+          <h2>Add Discussion</h2>
+          <input name="title" required maxlength="180" placeholder="Discussion title">
+          <textarea name="prompt" required rows="4" placeholder="Write the discussion prompt."></textarea>
+          <div class="form-row">
+            <label>Points <input name="pointsPossible" type="number" min="0" step="1" value="10"></label>
+            <label>Due date <input name="dueAt" type="datetime-local"></label>
+          </div>
+          <button type="submit">Publish Discussion</button>
+        </form>
+      ` : ""}
+      <section class="discussion-layout">
+        <aside class="discussion-topic-list">
+          ${topics.map((topic) => {
+            const href = `${baseHref}?view=discussions&topicId=${topic.id}`;
+            const active = selectedTopic && Number(selectedTopic.id) === Number(topic.id);
+            return `
+              <a class="discussion-topic-row ${active ? "active" : ""}" href="${escapeHtml(href)}">
+                <span class="module-type discussion">▱</span>
+                <span>
+                  <strong>${escapeHtml(topic.title)}</strong>
+                  <small>${escapeHtml(topic.points_possible || 0)} pts${topic.due_at ? ` · Due ${escapeHtml(formatAnnouncementDate(topic.due_at))}` : ""}</small>
+                  <small>${escapeHtml(topic.reply_count || 0)} repl${Number(topic.reply_count || 0) === 1 ? "y" : "ies"}${topic.last_reply_at ? ` · Last ${escapeHtml(formatAnnouncementDate(topic.last_reply_at))}` : ""}</small>
+                </span>
+              </a>
+            `;
+          }).join("") || `<p class="empty">No discussions have been posted for ${escapeHtml(courseCode)} yet.</p>`}
+        </aside>
+        <section class="discussion-thread-panel">
+          ${selectedTopic ? `
+            <article class="discussion-prompt">
+              <div>
+                <p class="eyebrow">${escapeHtml(courseCode)} Discussion</p>
+                <h1>${escapeHtml(selectedTopic.title)}</h1>
+                <p>${renderTextWithLinks(selectedTopic.prompt)}</p>
+                <small>${escapeHtml(selectedTopic.points_possible || 0)} points${selectedTopic.due_at ? ` · Due ${escapeHtml(formatAnnouncementDate(selectedTopic.due_at))}` : ""}</small>
+              </div>
+            </article>
+            <section class="discussion-replies">
+              <h2>Replies</h2>
+              ${filteredEntries.map((entry) => `
+                <article class="discussion-reply">
+                  <span class="announcement-avatar">${escapeHtml(initialsFor({ first_name: entry.first_name || entry.author_name?.split(" ")[0], last_name: entry.last_name || entry.author_name?.split(" ").slice(1).join(" ") }))}</span>
+                  <div>
+                    <header>
+                      <strong>${escapeHtml(entry.author_name)}</strong>
+                      <small>${escapeHtml(formatAnnouncementDate(entry.posted_at))}${entry.source === "canvas" ? " · Imported from Canvas" : ""}</small>
+                    </header>
+                    <div>${renderTextWithLinks(entry.body)}</div>
+                  </div>
+                </article>
+              `).join("") || `<p class="empty">No replies yet. Start the conversation below.</p>`}
+            </section>
+            <form class="announcement-form discussion-reply-form" method="post" action="${escapeHtml(replyAction || `${baseHref}/discussions/${selectedTopic.id}/replies`)}">
+              <h2>Reply</h2>
+              <textarea name="body" required rows="5" placeholder="Write your reply..."></textarea>
+              <button type="submit">Post Reply</button>
+            </form>
+          ` : `<p class="empty">Select a discussion to view replies.</p>`}
+        </section>
       </section>
     </main>
   `;
@@ -2750,13 +3050,33 @@ function ghlLocationFromPayload(payload) {
   ).trim();
 }
 
-function dashboardStats() {
+function dashboardStats(selectedCohort = "") {
+  const hasCohortFilter = Boolean(selectedCohort);
+  const studentCount = hasCohortFilter
+    ? db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'student' AND cohort_name = ?").get(selectedCohort).count
+    : db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'student'").get().count;
+  const activeCount = hasCohortFilter
+    ? db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM enrollments e
+      JOIN users u ON u.id = e.user_id
+      WHERE e.status = 'active' AND u.cohort_name = ?
+    `).get(selectedCohort).count
+    : db.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE status = 'active'").get().count;
+  const completedCount = hasCohortFilter
+    ? db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM enrollments e
+      JOIN users u ON u.id = e.user_id
+      WHERE e.status = 'completed' AND u.cohort_name = ?
+    `).get(selectedCohort).count
+    : db.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE status = 'completed'").get().count;
   return {
-    students: db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'student'").get().count,
+    students: studentCount,
     admissions: db.prepare("SELECT COUNT(*) AS count FROM admission_applications WHERE status IN ('new','reviewing')").get().count,
     courses: db.prepare("SELECT COUNT(*) AS count FROM courses WHERE published = 1").get().count,
-    active: db.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE status = 'active'").get().count,
-    completed: db.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE status = 'completed'").get().count
+    active: activeCount,
+    completed: completedCount
   };
 }
 
@@ -2836,7 +3156,17 @@ const adminFeatureGroups = [
   {
     title: "Human Resources",
     code: "HR",
-    items: ["Staff directory", "Employee attendance", "Payroll statement", "Approval of leave request", "Add departure", "Type of leave", "Teacher evaluation", "Hiring", "Disabled staff"]
+    items: [
+      { label: "Staff directory", href: "/admin/staff-portal" },
+      { label: "Employee attendance", href: "/admin/staff-portal" },
+      { label: "Payroll statement", href: "/admin/staff-portal#pay-info" },
+      "Approval of leave request",
+      "Add departure",
+      "Type of leave",
+      "Teacher evaluation",
+      "Hiring",
+      "Disabled staff"
+    ]
   },
   {
     title: "Academics",
@@ -2952,6 +3282,56 @@ function findFeature(slug) {
   }
   const quick = adminQuickLinks.find((label) => featureSlug(label) === slug);
   return quick ? { group: { title: "Quick Links", code: "QL" }, label: quick } : null;
+}
+
+function parseCents(value) {
+  const normalized = String(value || "").replace(/[$,\s]/g, "");
+  const amount = Number(normalized);
+  if (!Number.isFinite(amount) || amount < 0) return 0;
+  return Math.round(amount * 100);
+}
+
+function dateTime(value) {
+  if (!value) return "";
+  const raw = String(value).includes("T") ? String(value) : String(value).replace(" ", "T");
+  const parsed = new Date(`${raw}${raw.endsWith("Z") ? "" : "Z"}`);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York"
+  }).format(parsed);
+}
+
+function durationHours(start, end = null) {
+  if (!start) return 0;
+  const startDate = new Date(`${String(start).replace(" ", "T")}Z`);
+  const endDate = end ? new Date(`${String(end).replace(" ", "T")}Z`) : new Date();
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return 0;
+  return Math.max(0, (endDate - startDate) / (1000 * 60 * 60));
+}
+
+function formatHours(value) {
+  return `${(Number(value) || 0).toFixed(2)} hrs`;
+}
+
+function payStatusOptions(selectedStatus = "draft") {
+  return ["draft", "posted", "paid"].map((status) => `
+    <option value="${escapeHtml(status)}" ${selectedStatus === status ? "selected" : ""}>${escapeHtml(status[0].toUpperCase() + status.slice(1))}</option>
+  `).join("");
+}
+
+function staffName(user) {
+  return `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email || "Staff";
+}
+
+function staffOptions(staffRows, selectedId) {
+  return staffRows.map((staff) => `
+    <option value="${staff.id}" ${Number(selectedId) === Number(staff.id) ? "selected" : ""}>${escapeHtml(staffName(staff))} - ${escapeHtml(staff.role)}</option>
+  `).join("");
 }
 
 app.get("/", (req, res) => {
@@ -3484,6 +3864,150 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
   render(req, res, "Staff Help", body);
 });
 
+function ticketUrgencyLabel(value = "") {
+  return value === "urgent" ? "Urgent" : "Not so urgent";
+}
+
+function ticketStatusLabel(value = "") {
+  if (value === "in_progress") return "In progress";
+  if (value === "done") return "Done";
+  return "Open";
+}
+
+app.get("/admin/tickets", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const tickets = db.prepare(`
+    SELECT t.*, u.first_name, u.last_name, u.email
+    FROM task_tickets t
+    LEFT JOIN users u ON u.id = t.created_by
+    ORDER BY
+      CASE t.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
+      CASE t.urgency WHEN 'urgent' THEN 0 ELSE 1 END,
+      t.created_at DESC
+  `).all();
+  const openCount = tickets.filter((ticket) => ticket.status === "open").length;
+  const urgentCount = tickets.filter((ticket) => ticket.status !== "done" && ticket.urgency === "urgent").length;
+  const doneCount = tickets.filter((ticket) => ticket.status === "done").length;
+
+  const body = `
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">Staff tasks</p>
+        <h1>Task Tickets</h1>
+        <p>Create tickets for portal updates, student record follow-up, course work, documents, and other tasks that need to be completed.</p>
+      </div>
+      <div class="actions">
+        <a class="button ghost" href="/admin/help">Help</a>
+        <a class="button" href="/admin">Dashboard</a>
+      </div>
+    </div>
+
+    <section class="grid cols-3">
+      ${stat("Open tickets", openCount)}
+      ${stat("Urgent active", urgentCount)}
+      ${stat("Completed", doneCount)}
+    </section>
+
+    <section class="grid cols-2 ticket-workspace">
+      <div class="card">
+        <h2>Create task ticket</h2>
+        <form method="post" action="/admin/tickets" class="ticket-form">
+          <label>Task title</label>
+          <input name="title" required placeholder="Example: Upload PN104 chapter files">
+
+          <label>Urgency</label>
+          <div class="ticket-urgency-options">
+            <label><input type="radio" name="urgency" value="urgent" required> Urgent</label>
+            <label><input type="radio" name="urgency" value="not_urgent" checked> Not so urgent</label>
+          </div>
+
+          <label>Due date</label>
+          <input name="dueDate" type="date">
+
+          <label>Task details</label>
+          <textarea name="description" placeholder="Add instructions, page names, student names, files needed, or notes for the person completing this task."></textarea>
+
+          <button type="submit">Create ticket</button>
+        </form>
+      </div>
+
+      <div class="card ticket-practice">
+        <h2>Ticket practice</h2>
+        <p>Use <strong>Urgent</strong> for items that block student access, billing clearance, admissions completion, live course use, or compliance deadlines.</p>
+        <p>Use <strong>Not so urgent</strong> for improvements, cosmetic changes, future course buildout, or items that can wait until regular admin review.</p>
+        <p class="muted">Every ticket stores who created it and when it was last updated.</p>
+      </div>
+    </section>
+
+    <section class="table-card ticket-table-card">
+      <table>
+        <thead>
+          <tr><th>Task</th><th>Urgency</th><th>Status</th><th>Due</th><th>Created by</th><th>Updated</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          ${tickets.map((ticket) => `
+            <tr class="${ticket.urgency === "urgent" && ticket.status !== "done" ? "ticket-row-urgent" : ""}">
+              <td>
+                <strong>${escapeHtml(ticket.title)}</strong>
+                ${ticket.description ? `<br><span class="muted">${escapeHtml(ticket.description)}</span>` : ""}
+              </td>
+              <td><span class="pill ${ticket.urgency === "urgent" ? "orange" : ""}">${escapeHtml(ticketUrgencyLabel(ticket.urgency))}</span></td>
+              <td><span class="pill">${escapeHtml(ticketStatusLabel(ticket.status))}</span></td>
+              <td>${ticket.due_date ? date(ticket.due_date) : `<span class="muted">No due date</span>`}</td>
+              <td>${ticket.created_by ? escapeHtml(personName(ticket)) : `<span class="muted">Unknown</span>`}</td>
+              <td>${escapeHtml(dateTime(ticket.updated_at || ticket.created_at))}</td>
+              <td>
+                <form method="post" action="/admin/tickets/${ticket.id}/status" class="actions compact-actions">
+                  <select name="status" aria-label="Ticket status">
+                    ${["open", "in_progress", "done"].map((status) => `<option value="${status}" ${ticket.status === status ? "selected" : ""}>${escapeHtml(ticketStatusLabel(status))}</option>`).join("")}
+                  </select>
+                  <select name="urgency" aria-label="Ticket urgency">
+                    <option value="urgent" ${ticket.urgency === "urgent" ? "selected" : ""}>Urgent</option>
+                    <option value="not_urgent" ${ticket.urgency === "not_urgent" ? "selected" : ""}>Not so urgent</option>
+                  </select>
+                  <button class="small" type="submit">Save</button>
+                </form>
+              </td>
+            </tr>
+          `).join("") || `<tr><td class="empty" colspan="7">No task tickets yet.</td></tr>`}
+        </tbody>
+      </table>
+    </section>
+  `;
+  render(req, res, "Task Tickets", body);
+});
+
+app.post("/admin/tickets", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const title = String(req.body.title || "").trim();
+  const description = String(req.body.description || "").trim();
+  const urgency = req.body.urgency === "urgent" ? "urgent" : "not_urgent";
+  const dueDate = String(req.body.dueDate || "").trim();
+  if (!title) {
+    flash(req, "Task title is required.");
+    return res.redirect("/admin/tickets");
+  }
+  db.prepare(`
+    INSERT INTO task_tickets (title, description, urgency, due_date, created_by)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(title, description, urgency, dueDate || null, req.user.id);
+  flash(req, "Task ticket created.");
+  res.redirect("/admin/tickets");
+});
+
+app.post("/admin/tickets/:id/status", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const status = ["open", "in_progress", "done"].includes(req.body.status) ? req.body.status : "open";
+  const urgency = req.body.urgency === "urgent" ? "urgent" : "not_urgent";
+  const result = db.prepare(`
+    UPDATE task_tickets
+    SET status = ?,
+        urgency = ?,
+        completed_at = CASE WHEN ? = 'done' THEN COALESCE(completed_at, CURRENT_TIMESTAMP) ELSE NULL END,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(status, urgency, status, Number(req.params.id));
+  flash(req, result.changes ? "Task ticket updated." : "Task ticket not found.");
+  res.redirect("/admin/tickets");
+});
+
 app.get("/catalog", requireAuth, (req, res) => {
   const catalogCourses = db.prepare("SELECT * FROM courses WHERE published = 1 ORDER BY category, title").all();
   const body = `
@@ -3570,28 +4094,53 @@ app.get("/catalog", requireAuth, (req, res) => {
 });
 
 app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) => {
-  const stats = dashboardStats();
-  const recent = db.prepare(`
+  const cohorts = db.prepare(`
+    SELECT DISTINCT cohort_name
+    FROM users
+    WHERE role = 'student' AND cohort_name IS NOT NULL AND cohort_name <> ''
+    ORDER BY cohort_name
+  `).all().map((row) => row.cohort_name);
+  const requestedCohort = String(req.query.cohort || "").trim();
+  const selectedCohort = cohorts.includes(requestedCohort) ? requestedCohort : "";
+  const stats = dashboardStats(selectedCohort);
+  const recentSql = `
     SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email, u.cohort_name, u.photo_storage_name, c.title AS course_title
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
     JOIN courses c ON c.id = e.course_id
+    ${selectedCohort ? "WHERE u.cohort_name = ?" : ""}
     ORDER BY e.created_at DESC
-    LIMIT 8
-  `).all();
+    LIMIT 100
+  `;
+  const recent = selectedCohort ? db.prepare(recentSql).all(selectedCohort) : db.prepare(recentSql).all();
+  const cohortLabel = selectedCohort || "All cohorts";
 
   const body = `
     <div class="page-head">
       <div>
         <h1>Operations Dashboard</h1>
-        <p>Monitor enrollment activity, completion progress, and credential readiness.</p>
+        <p>Monitor enrollment activity, completion progress, and credential readiness. Showing ${escapeHtml(cohortLabel)}.</p>
       </div>
       <div class="actions">
         ${req.user.role === "admin" ? `<a class="button ghost" href="/admin/features">Admin features</a>` : ""}
         ${req.user.role === "admin" ? `<a class="button ghost" href="/admin/admin-roles">Admin roles</a>` : ""}
+        <a class="button ghost" href="/admin/staff-portal">Staff time</a>
         <a class="button" href="/admin/students">Add student</a>
       </div>
     </div>
+    <section class="card dashboard-filter-card">
+      <form method="get" action="/admin" class="dashboard-cohort-filter">
+        <div>
+          <label for="dashboard-cohort">View cohort</label>
+          <select id="dashboard-cohort" name="cohort">
+            <option value="">All cohorts</option>
+            ${cohorts.map((cohort) => `<option value="${escapeHtml(cohort)}" ${cohort === selectedCohort ? "selected" : ""}>${escapeHtml(cohort)}</option>`).join("")}
+          </select>
+        </div>
+        <button type="submit">View cohort</button>
+        ${selectedCohort ? `<a class="button ghost" href="/admin">Clear filter</a>` : ""}
+      </form>
+    </section>
     <section class="grid cols-4">
       ${stat("Students", stats.students)}
       ${stat("Admissions", stats.admissions)}
@@ -3618,6 +4167,511 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
     </section>
   `;
   render(req, res, "Dashboard", body);
+});
+
+app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const cohortName = "Cohort 2";
+  const cohortStudents = db.prepare(`
+    SELECT id, first_name, last_name, email, cohort_start_date, cohort_end_date, organization_status
+    FROM users
+    WHERE role = 'student' AND cohort_name = ?
+    ORDER BY last_name, first_name
+  `).all(cohortName);
+  const cohortStart = cohortStudents.find((student) => student.cohort_start_date)?.cohort_start_date || "2026-07-01";
+  const cohortEnd = cohortStudents.find((student) => student.cohort_end_date)?.cohort_end_date || "2027-07-31";
+  const courseBySlug = new Map(db.prepare("SELECT id, slug, title FROM courses").all().map((course) => [course.slug, course]));
+  const scheduleRows = [
+    {
+      code: "PN 101",
+      slug: "medical-terminology",
+      title: "Medical Terminology",
+      start: "2026-06-17",
+      end: "2026-09-01",
+      meeting: "Wednesdays, 6:00 PM - 8:00 PM",
+      format: "Online / Google Meet",
+      status: "Current"
+    },
+    {
+      code: "PN 102",
+      slug: "introduction-to-nursing-practical-nursing",
+      title: "Introduction to Nursing",
+      start: "2026-06-22",
+      end: "2026-09-06",
+      meeting: "Weekly modules and discussions",
+      format: "Online / LMS",
+      status: "Current"
+    },
+    {
+      code: "PN 103",
+      slug: "fundamental-nursing-skills-and-concepts-new-cohort",
+      title: "Fundamentals of Nursing",
+      start: "2026-07-02",
+      end: "2026-09-30",
+      meeting: "Skills lab and CoursePoint assignments",
+      format: "Blended",
+      status: "Current"
+    },
+    {
+      code: "PN 104",
+      slug: "anatomy-and-physiology",
+      title: "Anatomy and Physiology",
+      start: "2026-07-13",
+      end: "2026-10-04",
+      meeting: "Weekly lecture, lab, and LMS work",
+      format: "Blended",
+      status: "Starting"
+    },
+    {
+      code: "PN 105",
+      slug: "pharmacology-and-intravenous-therapy-skills",
+      title: "Pharmacology and Intravenous Therapy Skills",
+      start: "2026-09-07",
+      end: "2026-11-15",
+      meeting: "Lecture, dosage calculation, skills validation",
+      format: "Blended",
+      status: "Upcoming"
+    },
+    {
+      code: "PN 106",
+      slug: "medical-surgical-nursing-i",
+      title: "Medical Surgical Nursing I",
+      start: "2026-10-05",
+      end: "2026-12-20",
+      meeting: "Theory, lab, and clinical rotation",
+      format: "Campus / clinical",
+      status: "Upcoming"
+    },
+    {
+      code: "PN 107",
+      slug: "maternal-newborn-nursing",
+      title: "Maternal Newborn Nursing",
+      start: "2027-01-04",
+      end: "2027-02-14",
+      meeting: "Theory and clinical experience",
+      format: "Campus / clinical",
+      status: "Upcoming"
+    },
+    {
+      code: "PN 108",
+      slug: "pediatric-nursing",
+      title: "Pediatric Nursing",
+      start: "2027-02-15",
+      end: "2027-03-28",
+      meeting: "Theory and clinical experience",
+      format: "Campus / clinical",
+      status: "Upcoming"
+    },
+    {
+      code: "PN 109",
+      slug: "mental-health-concepts",
+      title: "Mental Health Concepts",
+      start: "2027-03-29",
+      end: "2027-05-02",
+      meeting: "Theory, case studies, and clinical preparation",
+      format: "Blended / clinical",
+      status: "Upcoming"
+    },
+    {
+      code: "PN 110",
+      slug: "community-health",
+      title: "Community Health",
+      start: "2027-05-03",
+      end: "2027-05-30",
+      meeting: "Community health assignments and clinical activities",
+      format: "Blended / clinical",
+      status: "Upcoming"
+    },
+    {
+      code: "PN 111",
+      slug: "medical-surgical-nursing-ii",
+      title: "Medical Surgical Nursing II",
+      start: "2027-06-01",
+      end: "2027-07-18",
+      meeting: "Advanced med-surg theory and clinical rotation",
+      format: "Campus / clinical",
+      status: "Upcoming"
+    },
+    {
+      code: "PN 112",
+      slug: "practical-nursing",
+      title: "Transition, Review, Graduation, and NCLEX Readiness",
+      start: "2027-07-19",
+      end: "2027-07-31",
+      meeting: "Exit review, graduation clearance, and credential audit",
+      format: "Campus / review",
+      status: "Upcoming"
+    }
+  ];
+  const currentRows = scheduleRows.filter((row) => row.status === "Current" || row.status === "Starting");
+  const lockedCount = cohortStudents.filter((student) => student.organization_status === "not_organized").length;
+  const body = `
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">Academic Schedule</p>
+        <h1>Cohort 2 Course Schedule</h1>
+        <p>Current course schedule for Cohort 2, July 2026 - July 2027.</p>
+      </div>
+      <div class="actions">
+        <a class="button ghost" href="/admin/students">Cohort students</a>
+        <a class="button" href="/admin/courses">Course shells</a>
+      </div>
+    </div>
+    <section class="grid cols-4">
+      ${stat("Cohort", cohortName)}
+      ${stat("Program dates", `${date(cohortStart)} - ${date(cohortEnd)}`)}
+      ${stat("Students", cohortStudents.length)}
+      ${stat("Access locked", lockedCount)}
+    </section>
+    <section class="table-card" style="margin-top:18px">
+      <div class="table-card-head">
+        <div>
+          <h2>Current Courses</h2>
+          <p class="muted">Courses Cohort 2 should be using now in the student portal.</p>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Code</th><th>Course</th><th>Dates</th><th>Meeting pattern</th><th>Portal</th></tr></thead>
+        <tbody>
+          ${currentRows.map((row) => {
+            const course = courseBySlug.get(row.slug);
+            return `
+              <tr>
+                <td><strong>${escapeHtml(row.code)}</strong><br><span class="pill">${escapeHtml(row.status)}</span></td>
+                <td><strong>${escapeHtml(row.title)}</strong><br><span class="muted">${escapeHtml(row.format)}</span></td>
+                <td>${escapeHtml(date(row.start))}<br><span class="muted">to ${escapeHtml(date(row.end))}</span></td>
+                <td>${escapeHtml(row.meeting)}</td>
+                <td>${course ? `<a class="button small" href="/admin/courses/${course.id}/student-view">Open LMS</a>` : `<span class="muted">Course shell pending</span>`}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </section>
+    <section class="table-card" style="margin-top:18px">
+      <div class="table-card-head">
+        <div>
+          <h2>Full July 2026 - July 2027 Sequence</h2>
+          <p class="muted">Use this as the current planning schedule for Cohort 2. Dates can be adjusted as the academic calendar is finalized.</p>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Term order</th><th>Course</th><th>Start</th><th>End</th><th>Delivery</th><th>Status</th></tr></thead>
+        <tbody>
+          ${scheduleRows.map((row, index) => {
+            const course = courseBySlug.get(row.slug);
+            return `
+              <tr>
+                <td>${index + 1}</td>
+                <td>
+                  <strong>${escapeHtml(row.code)} · ${escapeHtml(row.title)}</strong><br>
+                  ${course ? `<a href="/admin/courses/${course.id}">Course record</a>` : `<span class="muted">Course shell pending</span>`}
+                </td>
+                <td>${escapeHtml(date(row.start))}</td>
+                <td>${escapeHtml(date(row.end))}</td>
+                <td>${escapeHtml(row.format)}<br><span class="muted">${escapeHtml(row.meeting)}</span></td>
+                <td><span class="pill ${row.status === "Upcoming" ? "" : "orange"}">${escapeHtml(row.status)}</span></td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </section>
+    <section class="table-card" style="margin-top:18px">
+      <div class="table-card-head">
+        <div>
+          <h2>Cohort 2 Students</h2>
+          <p class="muted">Students assigned to this schedule.</p>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Student</th><th>Email</th><th>Access</th><th>Dates</th></tr></thead>
+        <tbody>
+          ${cohortStudents.map((student) => `
+            <tr>
+              <td><strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong></td>
+              <td>${escapeHtml(student.email)}</td>
+              <td><span class="pill ${student.organization_status === "not_organized" ? "orange" : ""}">${escapeHtml(student.organization_status === "not_organized" ? "Locked" : "Organized")}</span></td>
+              <td>${student.cohort_start_date ? escapeHtml(date(student.cohort_start_date)) : "Not set"} - ${student.cohort_end_date ? escapeHtml(date(student.cohort_end_date)) : "Not set"}</td>
+            </tr>
+          `).join("") || `<tr><td class="empty" colspan="4">No Cohort 2 students found.</td></tr>`}
+        </tbody>
+      </table>
+    </section>
+  `;
+  render(req, res, "Cohort 2 Schedule", body);
+});
+
+app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const staffRows = db.prepare(`
+    SELECT id, role, first_name, last_name, email, phone, status
+    FROM users
+    WHERE role IN ('admin','instructor') AND status = 'active'
+    ORDER BY last_name, first_name, email
+  `).all();
+  const selectedId = req.user.role === "admin" ? Number(req.query.staffId || req.user.id) : req.user.id;
+  const selectedStaff = staffRows.find((staff) => Number(staff.id) === Number(selectedId)) || staffRows.find((staff) => Number(staff.id) === Number(req.user.id)) || req.user;
+  const isSelf = Number(selectedStaff.id) === Number(req.user.id);
+  const openEntry = db.prepare(`
+    SELECT *
+    FROM staff_time_entries
+    WHERE user_id = ? AND clock_out_at IS NULL
+    ORDER BY clock_in_at DESC
+    LIMIT 1
+  `).get(req.user.id);
+  const selectedOpenEntry = db.prepare(`
+    SELECT *
+    FROM staff_time_entries
+    WHERE user_id = ? AND clock_out_at IS NULL
+    ORDER BY clock_in_at DESC
+    LIMIT 1
+  `).get(selectedStaff.id);
+  const timeEntries = db.prepare(`
+    SELECT *
+    FROM staff_time_entries
+    WHERE user_id = ?
+    ORDER BY datetime(clock_in_at) DESC, id DESC
+    LIMIT 20
+  `).all(selectedStaff.id);
+  const recentHours = timeEntries.reduce((total, entry) => total + durationHours(entry.clock_in_at, entry.clock_out_at), 0);
+  const payRecords = db.prepare(`
+    SELECT p.*, u.first_name AS created_first_name, u.last_name AS created_last_name
+    FROM staff_pay_records p
+    LEFT JOIN users u ON u.id = p.created_by
+    WHERE p.user_id = ?
+    ORDER BY date(p.paycheck_date) DESC, p.id DESC
+    LIMIT 14
+  `).all(selectedStaff.id);
+  const latestPay = payRecords[0];
+  const viewerQuery = req.user.role === "admin" ? `?staffId=${encodeURIComponent(selectedStaff.id)}` : "";
+  const body = `
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">Staff Portal</p>
+        <h1>Time Clock & Pay Info</h1>
+        <p>Clock in and out for work sessions, review time entries, and view payroll statement information.</p>
+      </div>
+      <div class="actions">
+        <a class="button ghost" href="/admin/help">Staff help</a>
+        <a class="button" href="/admin">Dashboard</a>
+      </div>
+    </div>
+
+    <section class="grid cols-4 staff-portal-stats">
+      ${stat("Selected staff", staffName(selectedStaff))}
+      ${stat("Clock status", selectedOpenEntry ? "Clocked in" : "Clocked out")}
+      ${stat("Recent hours shown", formatHours(recentHours))}
+      ${stat("Latest paycheck", latestPay ? date(latestPay.paycheck_date) : "No pay record")}
+    </section>
+
+    ${req.user.role === "admin" ? `
+      <form class="card staff-picker" method="get" action="/admin/staff-portal">
+        <div>
+          <label for="staffId">View staff member</label>
+          <select id="staffId" name="staffId">${staffOptions(staffRows, selectedStaff.id)}</select>
+        </div>
+        <button type="submit">View record</button>
+      </form>
+    ` : ""}
+
+    <section class="grid cols-2 staff-portal-grid">
+      <article class="card time-clock-card">
+        <div class="table-card-head">
+          <div>
+            <h2>My Time Clock</h2>
+            <p class="muted">${openEntry ? `Clocked in at ${escapeHtml(dateTime(openEntry.clock_in_at))}` : "You are currently clocked out."}</p>
+          </div>
+          <span class="pill ${openEntry ? "orange" : ""}">${openEntry ? "In" : "Out"}</span>
+        </div>
+        ${isSelf ? `
+          ${openEntry ? `
+            <form method="post" action="/admin/staff-portal/clock-out" class="time-clock-form">
+              <label for="clockOutNote">Clock out note</label>
+              <textarea id="clockOutNote" name="note" placeholder="Optional note for payroll or supervisor"></textarea>
+              <button type="submit">Clock out</button>
+            </form>
+          ` : `
+            <form method="post" action="/admin/staff-portal/clock-in" class="time-clock-form">
+              <label for="clockInNote">Clock in note</label>
+              <textarea id="clockInNote" name="note" placeholder="Optional note for this work session"></textarea>
+              <button type="submit">Clock in</button>
+            </form>
+          `}
+        ` : `
+          <p class="muted">You are viewing ${escapeHtml(staffName(selectedStaff))}'s record. Clock actions are only available for your own account.</p>
+        `}
+      </article>
+
+      <article class="card pay-summary-card" id="pay-info">
+        <div class="table-card-head">
+          <div>
+            <h2>Pay Information</h2>
+            <p class="muted">${latestPay ? `Latest payroll status: ${escapeHtml(latestPay.status)}` : "No pay records have been posted yet."}</p>
+          </div>
+          <span class="pill">${escapeHtml(selectedStaff.role)}</span>
+        </div>
+        ${latestPay ? `
+          <div class="pay-summary-list">
+            <p><strong>Pay period</strong><span>${escapeHtml(date(latestPay.period_start))} - ${escapeHtml(date(latestPay.period_end))}</span></p>
+            <p><strong>Timesheet due</strong><span>${latestPay.timesheet_due ? escapeHtml(date(latestPay.timesheet_due)) : "Not set"}</span></p>
+            <p><strong>Paycheck date</strong><span>${escapeHtml(date(latestPay.paycheck_date))}</span></p>
+            <p><strong>Hours</strong><span>${escapeHtml(formatHours(latestPay.regular_hours))} regular · ${escapeHtml(formatHours(latestPay.overtime_hours))} overtime</span></p>
+            <p><strong>Gross pay</strong><span>${money(latestPay.gross_pay_cents)}</span></p>
+            <p><strong>Net pay</strong><span>${money(latestPay.net_pay_cents)}</span></p>
+          </div>
+        ` : `<p class="muted">Payroll statement details will appear here after an administrator posts a pay record.</p>`}
+      </article>
+    </section>
+
+    <section class="table-card" style="margin-top:18px">
+      <div class="table-card-head">
+        <div>
+          <h2>Time In / Time Out</h2>
+          <p class="muted">Recent time clock entries for ${escapeHtml(staffName(selectedStaff))}.</p>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Date</th><th>Time in</th><th>Time out</th><th>Total</th><th>Status</th><th>Notes</th></tr></thead>
+        <tbody>
+          ${timeEntries.map((entry) => `
+            <tr>
+              <td>${escapeHtml(date(entry.clock_in_at.slice(0, 10)))}</td>
+              <td>${escapeHtml(dateTime(entry.clock_in_at))}</td>
+              <td>${entry.clock_out_at ? escapeHtml(dateTime(entry.clock_out_at)) : `<span class="pill orange">Open</span>`}</td>
+              <td>${escapeHtml(formatHours(durationHours(entry.clock_in_at, entry.clock_out_at)))}</td>
+              <td><span class="pill">${escapeHtml(entry.status)}</span></td>
+              <td>
+                ${entry.clock_in_note ? `<strong>In:</strong> ${escapeHtml(entry.clock_in_note)}<br>` : ""}
+                ${entry.clock_out_note ? `<strong>Out:</strong> ${escapeHtml(entry.clock_out_note)}` : ""}
+                ${!entry.clock_in_note && !entry.clock_out_note ? `<span class="muted">No notes</span>` : ""}
+              </td>
+            </tr>
+          `).join("") || `<tr><td class="empty" colspan="6">No time clock entries yet.</td></tr>`}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="table-card" style="margin-top:18px">
+      <div class="table-card-head">
+        <div>
+          <h2>Payroll Statements</h2>
+          <p class="muted">Posted pay information for ${escapeHtml(staffName(selectedStaff))}.</p>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Pay period</th><th>Timesheet due</th><th>Paycheck date</th><th>Hours</th><th>Gross</th><th>Net</th><th>Status</th><th>Note</th></tr></thead>
+        <tbody>
+          ${payRecords.map((record) => `
+            <tr>
+              <td>${escapeHtml(date(record.period_start))} - ${escapeHtml(date(record.period_end))}</td>
+              <td>${record.timesheet_due ? escapeHtml(date(record.timesheet_due)) : `<span class="muted">Not set</span>`}</td>
+              <td><strong>${escapeHtml(date(record.paycheck_date))}</strong></td>
+              <td>${escapeHtml(formatHours(record.regular_hours))}<br><span class="muted">${escapeHtml(formatHours(record.overtime_hours))} OT</span></td>
+              <td>${money(record.gross_pay_cents)}</td>
+              <td>${money(record.net_pay_cents)}</td>
+              <td><span class="pill ${record.status === "draft" ? "orange" : ""}">${escapeHtml(record.status)}</span></td>
+              <td>${record.note ? escapeHtml(record.note) : `<span class="muted">No note</span>`}</td>
+            </tr>
+          `).join("") || `<tr><td class="empty" colspan="8">No payroll statement records yet.</td></tr>`}
+        </tbody>
+      </table>
+    </section>
+
+    ${req.user.role === "admin" ? `
+      <section class="card staff-pay-form-card" style="margin-top:18px">
+        <h2>Add Pay Record</h2>
+        <p class="muted">Use this to post pay information to the selected staff member's portal.</p>
+        <form method="post" action="/admin/staff-portal/pay-records" class="form-grid">
+          <input type="hidden" name="staffId" value="${escapeHtml(selectedStaff.id)}">
+          <div><label for="periodStart">Period from</label><input id="periodStart" name="periodStart" type="date" required></div>
+          <div><label for="periodEnd">Period to</label><input id="periodEnd" name="periodEnd" type="date" required></div>
+          <div><label for="timesheetDue">Timesheet due</label><input id="timesheetDue" name="timesheetDue" type="date"></div>
+          <div><label for="paycheckDate">Paycheck date</label><input id="paycheckDate" name="paycheckDate" type="date" required></div>
+          <div><label for="regularHours">Regular hours</label><input id="regularHours" name="regularHours" type="number" min="0" step="0.01" value="0"></div>
+          <div><label for="overtimeHours">Overtime hours</label><input id="overtimeHours" name="overtimeHours" type="number" min="0" step="0.01" value="0"></div>
+          <div><label for="grossPay">Gross pay</label><input id="grossPay" name="grossPay" inputmode="decimal" placeholder="0.00"></div>
+          <div><label for="netPay">Net pay</label><input id="netPay" name="netPay" inputmode="decimal" placeholder="0.00"></div>
+          <div>
+            <label for="payStatus">Status</label>
+            <select id="payStatus" name="status">${payStatusOptions("posted")}</select>
+          </div>
+          <div class="span-2"><label for="payNote">Payroll note</label><textarea id="payNote" name="note" placeholder="Optional note visible to payroll admins and staff"></textarea></div>
+          <div class="actions span-2">
+            <button type="submit">Post pay info</button>
+            <a class="button ghost" href="/admin/staff-portal${escapeHtml(viewerQuery)}">Cancel</a>
+          </div>
+        </form>
+      </section>
+    ` : ""}
+  `;
+  render(req, res, "Staff Time & Pay", body);
+});
+
+app.post("/admin/staff-portal/clock-in", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const openEntry = db.prepare("SELECT id FROM staff_time_entries WHERE user_id = ? AND clock_out_at IS NULL ORDER BY clock_in_at DESC LIMIT 1").get(req.user.id);
+  if (openEntry) {
+    flash(req, "You are already clocked in. Clock out before starting a new entry.");
+    return res.redirect("/admin/staff-portal");
+  }
+  db.prepare(`
+    INSERT INTO staff_time_entries (user_id, clock_in_note)
+    VALUES (?, ?)
+  `).run(req.user.id, String(req.body.note || "").trim());
+  flash(req, "Clocked in successfully.");
+  res.redirect("/admin/staff-portal");
+});
+
+app.post("/admin/staff-portal/clock-out", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const openEntry = db.prepare("SELECT id FROM staff_time_entries WHERE user_id = ? AND clock_out_at IS NULL ORDER BY clock_in_at DESC LIMIT 1").get(req.user.id);
+  if (!openEntry) {
+    flash(req, "No open time clock entry was found.");
+    return res.redirect("/admin/staff-portal");
+  }
+  db.prepare(`
+    UPDATE staff_time_entries
+    SET clock_out_at = CURRENT_TIMESTAMP,
+        clock_out_note = ?,
+        status = 'submitted',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(String(req.body.note || "").trim(), openEntry.id);
+  flash(req, "Clocked out successfully.");
+  res.redirect("/admin/staff-portal");
+});
+
+app.post("/admin/staff-portal/pay-records", requireAuth, requireRole("admin"), (req, res) => {
+  const staffId = Number(req.body.staffId || 0);
+  const staff = db.prepare("SELECT id FROM users WHERE id = ? AND role IN ('admin','instructor') AND status = 'active'").get(staffId);
+  const periodStart = String(req.body.periodStart || "").trim();
+  const periodEnd = String(req.body.periodEnd || "").trim();
+  const paycheckDate = String(req.body.paycheckDate || "").trim();
+  const status = String(req.body.status || "posted").trim();
+  const allowedStatuses = new Set(["draft", "posted", "paid"]);
+  if (!staff || !periodStart || !periodEnd || !paycheckDate || !allowedStatuses.has(status)) {
+    flash(req, "Choose a staff member and complete the required pay period and paycheck fields.");
+    return res.redirect("/admin/staff-portal");
+  }
+  db.prepare(`
+    INSERT INTO staff_pay_records (
+      user_id, period_start, period_end, timesheet_due, paycheck_date,
+      regular_hours, overtime_hours, gross_pay_cents, net_pay_cents, status, note, created_by
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    staff.id,
+    periodStart,
+    periodEnd,
+    String(req.body.timesheetDue || "").trim() || null,
+    paycheckDate,
+    Math.max(0, Number(req.body.regularHours || 0) || 0),
+    Math.max(0, Number(req.body.overtimeHours || 0) || 0),
+    parseCents(req.body.grossPay),
+    parseCents(req.body.netPay),
+    status,
+    String(req.body.note || "").trim(),
+    req.user.id
+  );
+  flash(req, "Pay information posted to the staff portal.");
+  res.redirect(`/admin/staff-portal?staffId=${encodeURIComponent(staff.id)}#pay-info`);
 });
 
 app.get("/admin/admissions", requireAuth, requireRole("admin"), (req, res) => {
@@ -4767,21 +5821,7 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
               ${admissionsProgress.ready ? "Complete" : `${admissionsProgress.complete}/${admissionsProgress.total} complete`}
             </span>
           </div>
-          <div class="admissions-document-checklist">
-            ${admissionsChecklist.map((doc) => `
-              <form class="admissions-document-row ${doc.status}" method="post" action="/admin/students/${student.id}/admissions-documents/${escapeHtml(doc.item_key)}">
-                <span class="check-icon" aria-hidden="true">${["complete", "waived"].includes(doc.status) ? "✓" : ""}</span>
-                <div>
-                  <strong>${escapeHtml(doc.title)}</strong>
-                  <input name="note" value="${escapeHtml(doc.note || "")}" placeholder="Optional note">
-                </div>
-                <select name="status" aria-label="${escapeHtml(doc.title)} status">
-                  ${admissionsDocumentStatuses.map((status) => `<option value="${status}" ${doc.status === status ? "selected" : ""}>${status === "complete" ? "Complete" : status === "waived" ? "Waived" : "Missing"}</option>`).join("")}
-                </select>
-                <button class="small ghost" type="submit">Save</button>
-              </form>
-            `).join("")}
-          </div>
+          ${renderAdmissionsDocumentRows(student, admissionsChecklist)}
         </article>
 
         ${checklist.map((item) => `
@@ -4817,6 +5857,19 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
                 <a class="button small ghost" href="/admin/students/${student.id}/registrar-checklist/${escapeHtml(item.item_key)}/file">Download</a>
               </div>
             ` : `<p class="muted registrar-file-empty">No file uploaded yet.</p>`}
+
+            ${item.item_key === "admissions_documents" ? `
+              <div class="admissions-section-detail">
+                <div class="registrar-item-head">
+                  <div>
+                    <h3>Required admissions documents</h3>
+                    <p>Use this checklist to upload each required document and mark the submitted status.</p>
+                  </div>
+                  <a class="button small ghost" href="#admissions-document-checklist">Open top checklist</a>
+                </div>
+                ${renderAdmissionsDocumentRows(student, admissionsChecklist)}
+              </div>
+            ` : ""}
           </article>
         `).join("")}
       </div>
@@ -4844,6 +5897,62 @@ app.post("/admin/students/:id/admissions-documents/:itemKey", requireAuth, requi
   syncAdmissionsDocumentRegistrarStatus(student.id, req.user.id);
   flash(req, "Admissions document checklist updated.");
   res.redirect(`/admin/students/${student.id}/registrar-checklist#admissions-document-checklist`);
+});
+
+app.post("/admin/students/:id/admissions-documents/:itemKey/upload", requireAuth, requireRole("admin"), upload.single("document"), (req, res) => {
+  const student = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
+  if (!student) return res.status(404).send("Student not found");
+  const itemKey = String(req.params.itemKey || "");
+  if (!admissionsDocumentChecklistItems.some((item) => item.key === itemKey)) return res.status(404).send("Admissions document item not found");
+  if (!req.file) {
+    flash(req, "Choose a file to upload.");
+    return res.redirect(`/admin/students/${student.id}/registrar-checklist#admissions-doc-${encodeURIComponent(itemKey)}`);
+  }
+  ensureAdmissionsDocumentChecklist(student.id);
+  const existing = db.prepare("SELECT file_storage_name FROM student_admissions_document_checklist WHERE user_id = ? AND item_key = ?").get(student.id, itemKey);
+  if (existing?.file_storage_name) {
+    const oldPath = path.join(uploadDir, existing.file_storage_name);
+    if (isPathInside(uploadDir, oldPath) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+  }
+  db.prepare(`
+    UPDATE student_admissions_document_checklist
+    SET status = 'complete',
+      file_original_name = ?,
+      file_storage_name = ?,
+      file_mime_type = ?,
+      file_size = ?,
+      uploaded_by = ?,
+      uploaded_at = CURRENT_TIMESTAMP,
+      completed_by = ?,
+      completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+      updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = ? AND item_key = ?
+  `).run(
+    req.file.originalname,
+    req.file.filename,
+    req.file.mimetype,
+    req.file.size,
+    req.user.id,
+    req.user.id,
+    student.id,
+    itemKey
+  );
+  syncAdmissionsDocumentRegistrarStatus(student.id, req.user.id);
+  flash(req, "Admissions document uploaded and marked complete.");
+  res.redirect(`/admin/students/${student.id}/registrar-checklist#admissions-doc-${encodeURIComponent(itemKey)}`);
+});
+
+app.get("/admin/students/:id/admissions-documents/:itemKey/file", requireAuth, requireRole("admin"), (req, res) => {
+  const item = db.prepare(`
+    SELECT adc.*
+    FROM student_admissions_document_checklist adc
+    JOIN users u ON u.id = adc.user_id
+    WHERE adc.user_id = ? AND adc.item_key = ? AND u.role = 'student'
+  `).get(Number(req.params.id), String(req.params.itemKey || ""));
+  if (!item?.file_storage_name) return res.status(404).send("Admissions document file not found");
+  const filePath = path.join(uploadDir, item.file_storage_name);
+  if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Admissions document file not found");
+  res.download(filePath, item.file_original_name || item.file_storage_name);
 });
 
 app.post("/admin/students/:id/registrar-checklist/:itemKey", requireAuth, requireRole("admin"), (req, res) => {
@@ -5600,6 +6709,8 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
             <div><label>Duration minutes</label><input name="duration" type="number" value="30" min="1"></div>
             <div class="span-2"><label>Title</label><input name="title" required></div>
             <div class="span-2"><label>External lesson link</label><input name="externalUrl" type="url" placeholder="https://www.youtube.com/watch?v=..."></div>
+            <label><input type="checkbox" name="published" value="1" checked> Published to students</label>
+            <label><input type="checkbox" name="instructorOnly" value="1"> Instructor only</label>
             <div class="span-2"><label>Content</label><textarea name="content" required></textarea></div>
           </div>
           <button type="submit">Add lesson</button>
@@ -5616,6 +6727,8 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
             <input name="duration" type="number" min="1" value="${escapeHtml(lesson.duration_minutes)}">
             <label>External lesson link</label>
             <input name="externalUrl" type="url" value="${escapeHtml(lesson.external_url || "")}" placeholder="https://www.youtube.com/watch?v=...">
+            <label><input type="checkbox" name="published" value="1" ${Number(lesson.published ?? 1) === 1 ? "checked" : ""}> Published to students</label>
+            <label><input type="checkbox" name="instructorOnly" value="1" ${Number(lesson.instructor_only || 0) === 1 ? "checked" : ""}> Instructor only</label>
             <label>Content</label>
             <textarea name="content" required>${escapeHtml(stripCanvasSource(lesson.content))}</textarea>
             <button class="small" type="submit">Save lesson</button>
@@ -5800,6 +6913,9 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     WHERE e.course_id = ?
   `).all(course.id);
   const announcements = courseAnnouncements(course.id);
+  const discussionTopics = courseDiscussionTopics(course.id);
+  const selectedDiscussionTopicId = Number(req.query.topicId || 0) || discussionTopics[0]?.id || null;
+  const discussionEntries = selectedDiscussionTopicId ? discussionTopicEntries(selectedDiscussionTopicId) : [];
   const calendarEvents = courseCalendarEvents(course.id);
   const materialFiles = courseMaterialFiles(course.slug);
   const allCourses = db.prepare("SELECT id, title, slug FROM courses WHERE published = 1 ORDER BY category, title").all();
@@ -5824,10 +6940,11 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   const adminCourseBaseHref = `/admin/courses/${course.id}/student-view`;
   const courseCode = canvasCourseCode(course);
   const startTiles = [
-    { icon: "book", label: "Course Syllabus", href: `${adminCourseBaseHref}?view=syllabus` },
-    { icon: "brain", label: "Learning Modules", href: `${adminCourseBaseHref}?view=modules` },
-    { icon: "check", label: "Assignments & Grades", href: `${adminCourseBaseHref}?view=syllabus#course-assignments` },
-    { icon: "question", label: "Course Q & A", href: firstLesson ? `${adminCourseBaseHref}?lesson=${firstLesson.id}` : adminCourseBaseHref }
+    { icon: "book", label: "Course Syllabus", href: `${adminCourseBaseHref}?view=syllabus`, image: "/assets/start-tile-syllabus.svg" },
+    { icon: "brain", label: "Learning Modules", href: `${adminCourseBaseHref}?view=modules`, image: "/assets/start-tile-modules.svg" },
+    { icon: "files", label: "Course Files", href: `${adminCourseBaseHref}?view=files`, image: "/assets/start-tile-files.svg" },
+    { icon: "check", label: "Assignments & Grades", href: `${adminCourseBaseHref}?view=grades`, image: "/assets/start-tile-grades.svg" },
+    { icon: "question", label: "Course Q & A", href: `${adminCourseBaseHref}?view=discussions`, image: "/assets/start-tile-qa.svg" }
   ];
   const activeView = String(req.query.view || "");
   const body = activeView === "modules" ? `
@@ -5880,6 +6997,35 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         baseHref: adminCourseBaseHref,
         announcements,
         instructor: true
+      })}
+    </section>
+  ` : activeView === "discussions" ? `
+    <section class="canvas-course-shell instructor-preview">
+      <aside class="canvas-global-rail">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
+        <span>${escapeHtml(initialsFor(req.user))}</span>
+        <i></i><i></i><i></i><i></i><i></i>
+      </aside>
+
+      ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
+        { label: courseCode, href: adminCourseBaseHref },
+        { label: "Discussions" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(navItems, adminCourseBaseHref, "Discussions", firstLesson?.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+
+      ${renderCourseDiscussionsPage({
+        course,
+        courseCode,
+        baseHref: adminCourseBaseHref,
+        topics: discussionTopics,
+        selectedTopicId: selectedDiscussionTopicId,
+        entries: discussionEntries,
+        instructor: true,
+        replyAction: selectedDiscussionTopicId ? `/admin/courses/${course.id}/discussions/${selectedDiscussionTopicId}/replies` : ""
       })}
     </section>
   ` : activeView === "calendar" ? `
@@ -6039,6 +7185,34 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         baseHref: adminCourseBaseHref
       })}
     </section>
+  ` : req.query.lesson ? `
+    <section class="canvas-course-shell canvas-lesson-shell instructor-preview">
+      <aside class="canvas-global-rail">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
+        <span>${escapeHtml(initialsFor(req.user))}</span>
+        <i></i><i></i><i></i><i></i><i></i>
+      </aside>
+
+      ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
+        { label: courseCode, href: adminCourseBaseHref },
+        { label: "Modules", href: `${adminCourseBaseHref}?view=modules` },
+        { label: "Item" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(navItems, adminCourseBaseHref, "Modules", firstLesson?.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+
+      ${renderCourseLessonPage({
+        courseCode,
+        baseHref: adminCourseBaseHref,
+        lessons,
+        moduleGroups,
+        lessonId: req.query.lesson,
+        instructor: true
+      })}
+    </section>
   ` : `
     <section class="canvas-course-shell instructor-preview">
       <aside class="canvas-global-rail">
@@ -6092,7 +7266,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
             <article>
               <strong>${escapeHtml(module.position)}. ${escapeHtml(module.title)}</strong>
               <span>${escapeHtml(module.lessons.length)} lessons</span>
-              <a href="${module.lessons[0] ? `/admin/courses/${course.id}/student-view?lesson=${module.lessons[0].id}` : `/admin/courses/${course.id}/student-view`}">Open</a>
+              <a href="/admin/courses/${course.id}/student-view?view=modules#module-${module.id}">Open</a>
             </article>
           `).join("") || `<p class="empty">No modules have been added yet.</p>`}
         </section>
@@ -6127,6 +7301,49 @@ app.post("/admin/courses/:id/announcements", requireAuth, requireRole("admin", "
   `).run(course.id, req.user.id, title, body);
   flash(req, "Announcement posted.");
   res.redirect(`/admin/courses/${course.id}/student-view?view=announcements`);
+});
+
+app.post("/admin/courses/:id/discussions", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const course = db.prepare("SELECT id FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!course) return res.status(404).send("Course not found");
+  const title = String(req.body.title || "").trim();
+  const prompt = String(req.body.prompt || "").trim();
+  const pointsPossible = Math.max(0, Number(req.body.pointsPossible || 0));
+  const dueAt = String(req.body.dueAt || "").trim();
+  if (!title || !prompt) {
+    flash(req, "Discussion title and prompt are required.");
+    return res.redirect(`/admin/courses/${course.id}/student-view?view=discussions#add-discussion`);
+  }
+  db.prepare(`
+    INSERT INTO discussion_topics (course_id, title, prompt, points_possible, due_at, posted_by, posted_at)
+    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(course_id, title) DO UPDATE SET
+      prompt = excluded.prompt,
+      points_possible = excluded.points_possible,
+      due_at = excluded.due_at,
+      posted_by = excluded.posted_by,
+      posted_at = CURRENT_TIMESTAMP
+  `).run(course.id, title, prompt, pointsPossible, dueAt ? dueAt.replace("T", " ") : null, req.user.id);
+  flash(req, "Discussion published.");
+  res.redirect(`/admin/courses/${course.id}/student-view?view=discussions`);
+});
+
+app.post("/admin/courses/:id/discussions/:topicId/replies", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const course = db.prepare("SELECT id FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!course) return res.status(404).send("Course not found");
+  const topic = discussionTopicForCourse(req.params.topicId, course.id);
+  if (!topic) return res.status(404).send("Discussion not found");
+  const body = String(req.body.body || "").trim();
+  if (!body) {
+    flash(req, "Reply text is required.");
+    return res.redirect(`/admin/courses/${course.id}/student-view?view=discussions&topicId=${topic.id}`);
+  }
+  db.prepare(`
+    INSERT INTO discussion_entries (topic_id, user_id, author_name, author_email, body, source, posted_at)
+    VALUES (?, ?, ?, ?, ?, 'portal', CURRENT_TIMESTAMP)
+  `).run(topic.id, req.user.id, personName(req.user), req.user.email, body);
+  flash(req, "Discussion reply posted.");
+  res.redirect(`/admin/courses/${course.id}/student-view?view=discussions&topicId=${topic.id}`);
 });
 
 app.post("/admin/courses/:id/calendar-events", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -6246,13 +7463,15 @@ app.get("/admin/course-imports/:id/download", requireAuth, requireRole("admin", 
 
 app.post("/admin/courses/:id/lessons", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const nextPosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(Number(req.body.moduleId)).next;
-  db.prepare("INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position) VALUES (?, ?, ?, ?, ?, ?)").run(
+  db.prepare("INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
     Number(req.body.moduleId),
     String(req.body.title || "").trim(),
     stripCanvasSource(req.body.content),
     normalizeExternalUrl(req.body.externalUrl),
     Number(req.body.duration || 30),
-    nextPosition
+    nextPosition,
+    req.body.published ? 1 : 0,
+    req.body.instructorOnly ? 1 : 0
   );
   flash(req, "Lesson added.");
   res.redirect(`/admin/courses/${Number(req.params.id)}`);
@@ -6268,13 +7487,15 @@ app.post("/admin/courses/:id/lessons/:lessonId", requireAuth, requireRole("admin
   if (!lesson) return res.status(404).send("Lesson not found");
   db.prepare(`
     UPDATE lessons
-    SET title = ?, content = ?, external_url = ?, duration_minutes = ?
+    SET title = ?, content = ?, external_url = ?, duration_minutes = ?, published = ?, instructor_only = ?
     WHERE id = ?
   `).run(
     String(req.body.title || "").trim(),
     stripCanvasSource(req.body.content),
     normalizeExternalUrl(req.body.externalUrl),
     Number(req.body.duration || 30),
+    req.body.published ? 1 : 0,
+    req.body.instructorOnly ? 1 : 0,
     lesson.id
   );
   flash(req, "Lesson updated.");
@@ -7429,6 +8650,8 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     FROM lessons l
     JOIN modules m ON m.id = l.module_id
     WHERE m.course_id = ?
+      AND COALESCE(l.published, 1) = 1
+      AND COALESCE(l.instructor_only, 0) = 0
     ORDER BY m.position, l.position
   `).all(enrollment.course_id);
   const gradeItems = db.prepare(`
@@ -7444,7 +8667,11 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     WHERE g.enrollment_id = ? AND gi.course_id = ?
   `).all(enrollment.id, enrollment.course_id);
   const announcements = courseAnnouncements(enrollment.course_id);
+  const discussionTopics = courseDiscussionTopics(enrollment.course_id);
+  const selectedDiscussionTopicId = Number(req.query.topicId || 0) || discussionTopics[0]?.id || null;
+  const discussionEntries = selectedDiscussionTopicId ? discussionTopicEntries(selectedDiscussionTopicId) : [];
   const calendarEvents = courseCalendarEvents(enrollment.course_id);
+  const materialFiles = courseMaterialFiles(enrollment.slug);
 
   const totalMinutes = lessons.reduce((total, lesson) => total + Number(lesson.duration_minutes || 0), 0);
   const courseCode = canvasCourseCode(enrollment);
@@ -7500,12 +8727,13 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   const navItems = visibleCourseNavItems(enrollment);
   const courseBaseHref = `/student/enrollments/${enrollment.id}`;
   const activeView = String(req.query.view || "");
-  const studentCourseNavItems = navItems.filter((item) => ["Home", "Announcements", "Modules", "Grades", "Syllabus", "Calendar"].includes(item));
+  const studentCourseNavItems = navItems.filter((item) => ["Home", "Announcements", "Modules", "Discussions", "Files", "Grades", "Syllabus", "Calendar"].includes(item));
   const startTiles = [
-    { icon: "book", label: "Course Syllabus", href: `${courseBaseHref}?view=syllabus` },
-    { icon: "brain", label: "Learning Modules", href: `${courseBaseHref}?view=modules` },
-    { icon: "check", label: "Assignments & Grades", href: `${courseBaseHref}?view=syllabus#course-assignments` },
-    { icon: "question", label: "Course Q & A", href: `/student/enrollments/${enrollment.id}?lesson=${firstLesson.id}` }
+    { icon: "book", label: "Course Syllabus", href: `${courseBaseHref}?view=syllabus`, image: "/assets/start-tile-syllabus.svg" },
+    { icon: "brain", label: "Learning Modules", href: `${courseBaseHref}?view=modules`, image: "/assets/start-tile-modules.svg" },
+    { icon: "files", label: "Course Files", href: `${courseBaseHref}?view=files`, image: "/assets/start-tile-files.svg" },
+    { icon: "check", label: "Assignments & Grades", href: `${courseBaseHref}?view=grades`, image: "/assets/start-tile-grades.svg" },
+    { icon: "question", label: "Course Q & A", href: `${courseBaseHref}?view=discussions`, image: "/assets/start-tile-qa.svg" }
   ];
   const currentLessonId = Number(req.query.lesson || 0);
   const courseOutlinePanel = `
@@ -7575,6 +8803,30 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         instructor: false
       })}
     </section>
+  ` : activeView === "discussions" ? `
+    <section class="canvas-course-shell student-course-shell">
+      ${renderStudentCanvasRail("courses")}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+        { label: courseCode, href: courseBaseHref },
+        { label: "Discussions" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(studentCourseNavItems, courseBaseHref, "Discussions", firstLesson.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+      ${courseOutlinePanel}
+      ${renderCourseDiscussionsPage({
+        course: { id: enrollment.course_id, title: enrollment.title },
+        courseCode,
+        baseHref: courseBaseHref,
+        topics: discussionTopics,
+        selectedTopicId: selectedDiscussionTopicId,
+        entries: discussionEntries,
+        instructor: false,
+        replyAction: selectedDiscussionTopicId ? `/student/enrollments/${enrollment.id}/discussions/${selectedDiscussionTopicId}/replies` : ""
+      })}
+    </section>
   ` : activeView === "calendar" ? `
     <section class="canvas-course-shell student-course-shell">
       ${renderStudentCanvasRail("calendar")}
@@ -7593,6 +8845,25 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         courses: [{ id: enrollment.course_id, title: enrollment.title, slug: enrollment.slug }],
         currentCourseId: enrollment.course_id,
         instructor: false
+      })}
+    </section>
+  ` : activeView === "files" ? `
+    <section class="canvas-course-shell student-course-shell">
+      ${renderStudentCanvasRail("courses")}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+        { label: courseCode, href: courseBaseHref },
+        { label: "Files" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(studentCourseNavItems, courseBaseHref, "Files", firstLesson.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+      ${courseOutlinePanel}
+      ${renderCourseFilesPage({
+        course: { title: enrollment.title },
+        courseCode,
+        files: materialFiles
       })}
     </section>
   ` : activeView === "grades" ? `
@@ -7642,7 +8913,11 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   ` : req.query.lesson ? `
     <section class="canvas-course-shell canvas-lesson-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref)}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+        { label: courseCode, href: courseBaseHref },
+        { label: "Modules", href: `${courseBaseHref}?view=modules` },
+        { label: "Item" }
+      ])}
 
       <aside class="canvas-course-nav" id="canvas-course-navigation">
         ${renderCourseNav(studentCourseNavItems, courseBaseHref, "Modules", firstLesson.id)}
@@ -7650,49 +8925,15 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
       ${courseOutlinePanel}
 
-      <main class="canvas-course-main canvas-page-main">
-        ${(() => {
-          const selectedLesson = lessons.find((lesson) => lesson.id === Number(req.query.lesson)) || firstLesson;
-          const selectedIndex = lessons.findIndex((lesson) => lesson.id === selectedLesson.id);
-          const previousLesson = selectedIndex > 0 ? lessons[selectedIndex - 1] : null;
-          const nextLesson = selectedIndex >= 0 && selectedIndex < lessons.length - 1 ? lessons[selectedIndex + 1] : null;
-          const selectedModule = moduleGroups.find((module) => module.id === selectedLesson.module_id) || moduleGroups[0];
-          return `
-            <div class="canvas-mini-head">
-              <span></span>
-              <strong>${escapeHtml(courseCode)}</strong>
-            </div>
-            <article class="canvas-page-content">
-              <p class="canvas-page-breadcrumb">
-                <a href="/student/enrollments/${enrollment.id}">Home</a>
-                <span>/</span>
-                <a href="/student/enrollments/${enrollment.id}">Modules</a>
-                <span>/</span>
-                <strong>${escapeHtml(selectedLesson.title)}</strong>
-              </p>
-              <h1>${escapeHtml(selectedLesson.title)}</h1>
-              <div class="canvas-page-copy">
-                ${selectedLesson.external_url ? `
-                  <div class="external-lesson-callout">
-                    <strong>This lesson opens YouTube in this tab.</strong>
-                    <p>Some websites, including YouTube, block embedded playback inside course frames. Use the button below to open the lesson directly in the current tab.</p>
-                    <a class="button" href="${escapeHtml(selectedLesson.external_url)}">Open ${escapeHtml(selectedLesson.title)}</a>
-                  </div>
-                ` : ""}
-                ${renderCanvasLessonContent(selectedLesson.content, selectedLesson.title)}
-              </div>
-              <form method="post" action="/student/enrollments/${enrollment.id}/progress" class="canvas-complete-action">
-                <input type="hidden" name="progress" value="100">
-                <button class="button ghost" type="submit">Mark As Complete</button>
-              </form>
-              <nav class="canvas-page-actions" aria-label="Lesson navigation">
-                ${previousLesson ? `<a class="button ghost" href="/student/enrollments/${enrollment.id}?lesson=${previousLesson.id}">Previous</a>` : `<span></span>`}
-                ${nextLesson ? `<a class="button ghost" href="/student/enrollments/${enrollment.id}?lesson=${nextLesson.id}">Next</a>` : `<a class="button ghost" href="/student/enrollments/${enrollment.id}">Finish</a>`}
-              </nav>
-            </article>
-          `;
-        })()}
-      </main>
+      ${renderCourseLessonPage({
+        courseCode,
+        baseHref: courseBaseHref,
+        lessons,
+        moduleGroups,
+        lessonId: req.query.lesson,
+        enrollmentId: enrollment.id,
+        instructor: false
+      })}
     </section>
   ` : `
     <section class="canvas-course-shell student-course-shell student-course-home">
@@ -7747,6 +8988,36 @@ app.post("/student/enrollments/:id/progress", requireAuth, requireRole("student"
   db.prepare("UPDATE enrollments SET progress = ? WHERE id = ? AND user_id = ?").run(progress, Number(req.params.id), req.user.id);
   flash(req, "Progress updated.");
   res.redirect(`/student/enrollments/${Number(req.params.id)}`);
+});
+
+app.post("/student/enrollments/:id/discussions/:topicId/replies", requireAuth, requireRole("student"), (req, res) => {
+  if (isClassLocked(req.user)) {
+    flash(req, "Class access is locked until the office marks your student file as organized.");
+    return res.redirect("/student");
+  }
+  const enrollment = db.prepare(`
+    SELECT id, course_id
+    FROM enrollments
+    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed')
+  `).get(Number(req.params.id), req.user.id);
+  if (!enrollment) return res.status(404).send("Enrollment not found");
+  const topic = discussionTopicForCourse(req.params.topicId, enrollment.course_id);
+  if (!topic) return res.status(404).send("Discussion not found");
+  if (topic.status === "closed") {
+    flash(req, "This discussion is closed for replies.");
+    return res.redirect(`/student/enrollments/${enrollment.id}?view=discussions&topicId=${topic.id}`);
+  }
+  const body = String(req.body.body || "").trim();
+  if (!body) {
+    flash(req, "Reply text is required.");
+    return res.redirect(`/student/enrollments/${enrollment.id}?view=discussions&topicId=${topic.id}`);
+  }
+  db.prepare(`
+    INSERT INTO discussion_entries (topic_id, user_id, author_name, author_email, body, source, posted_at)
+    VALUES (?, ?, ?, ?, ?, 'portal', CURRENT_TIMESTAMP)
+  `).run(topic.id, req.user.id, personName(req.user), req.user.email, body);
+  flash(req, "Your discussion reply was posted.");
+  res.redirect(`/student/enrollments/${enrollment.id}?view=discussions&topicId=${topic.id}`);
 });
 
 app.get("/admin/ghl", requireAuth, requireRole("admin"), (req, res) => {

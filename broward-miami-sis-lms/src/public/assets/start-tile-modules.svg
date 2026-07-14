@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Learning modules">
+  <rect x="18" y="20" width="26" height="24" rx="5" fill="#e9f6f8" stroke="#174b61" stroke-width="4"/>
+  <rect x="52" y="20" width="26" height="24" rx="5" fill="#ffffff" stroke="#174b61" stroke-width="4"/>
+  <rect x="18" y="52" width="26" height="24" rx="5" fill="#ffffff" stroke="#174b61" stroke-width="4"/>
+  <rect x="52" y="52" width="26" height="24" rx="5" fill="#e9f6f8" stroke="#174b61" stroke-width="4"/>
+  <path d="M44 32h8M31 44v8M65 44v8M44 64h8" stroke="#aeb719" stroke-width="4" stroke-linecap="round"/>
+</svg>

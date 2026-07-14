@@ -154,6 +154,10 @@ nav a {
   color: #aeb7bf;
 }
 
+.sis-topbar-spacer {
+  min-width: 0;
+}
+
 .sis-app-nav,
 .sis-subnav {
   align-items: center;
@@ -1069,6 +1073,86 @@ nav a {
   min-height: 34px;
 }
 
+.admissions-required-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admissions-required-row {
+  background: #fbfcfd;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 1.1fr) minmax(240px, 1fr) minmax(220px, 1fr) minmax(150px, auto);
+  padding: 12px;
+}
+
+.admissions-required-row.complete,
+.admissions-required-row.waived {
+  background: #f1fbf5;
+  border-color: #bfe7ce;
+}
+
+.admissions-required-main {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.admissions-required-main strong,
+.admissions-required-main small {
+  display: block;
+}
+
+.admissions-required-main small,
+.admissions-required-file span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.admissions-required-status,
+.admissions-required-upload,
+.admissions-required-file {
+  align-content: end;
+  display: grid;
+  gap: 7px;
+}
+
+.admissions-required-status {
+  grid-template-columns: minmax(110px, 140px) minmax(0, 1fr) auto;
+}
+
+.admissions-required-status label:first-child {
+  grid-column: 1;
+}
+
+.admissions-required-status select {
+  grid-column: 1;
+}
+
+.admissions-required-status label:nth-of-type(2) {
+  grid-column: 2;
+}
+
+.admissions-required-status input {
+  grid-column: 2;
+}
+
+.admissions-required-status button {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.admissions-section-detail {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
 .registrar-item-head {
   align-items: flex-start;
   display: flex;
@@ -1902,6 +1986,27 @@ button.danger {
   margin-bottom: 24px;
 }
 
+.dashboard-filter-card {
+  margin-bottom: 18px;
+  padding: 14px;
+}
+
+.dashboard-cohort-filter {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.dashboard-cohort-filter > div {
+  min-width: min(100%, 280px);
+}
+
+.dashboard-cohort-filter label {
+  display: block;
+  margin-bottom: 6px;
+}
+
 .grid {
   display: grid;
   gap: 16px;
@@ -2285,6 +2390,112 @@ button.small {
   background: #fff4ee;
   border-color: #f1c8b5;
   color: var(--accent);
+}
+
+.ticket-workspace {
+  margin-top: 18px;
+}
+
+.ticket-form {
+  display: grid;
+  gap: 10px;
+}
+
+.ticket-form textarea {
+  min-height: 120px;
+}
+
+.ticket-urgency-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ticket-urgency-options label {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: inline-flex;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.ticket-practice p {
+  margin-top: 0;
+}
+
+.ticket-table-card {
+  margin-top: 18px;
+}
+
+.ticket-row-urgent td:first-child {
+  border-left: 4px solid var(--accent);
+}
+
+.compact-actions {
+  align-items: center;
+  gap: 8px;
+}
+
+.compact-actions select {
+  min-width: 140px;
+}
+
+.staff-picker {
+  align-items: end;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  margin-top: 18px;
+}
+
+.staff-portal-grid {
+  margin-top: 18px;
+}
+
+.time-clock-card,
+.pay-summary-card {
+  min-height: 100%;
+}
+
+.time-clock-card .table-card-head,
+.pay-summary-card .table-card-head {
+  margin-bottom: 14px;
+}
+
+.time-clock-form {
+  display: grid;
+  gap: 10px;
+}
+
+.time-clock-form textarea,
+.staff-pay-form-card textarea {
+  min-height: 84px;
+}
+
+.pay-summary-list {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pay-summary-list p {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 150px minmax(0, 1fr);
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.pay-summary-list p:last-child {
+  border-bottom: 0;
+}
+
+.pay-summary-list strong {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .progress {
@@ -3046,7 +3257,7 @@ button.small {
 
 .canvas-start {
   margin: 0 auto 34px;
-  max-width: 850px;
+  max-width: 1120px;
 }
 
 .canvas-start h2,
@@ -3059,68 +3270,73 @@ button.small {
 
 .start-tile-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .start-tile {
   border: 2px solid #174b61;
+  box-sizing: border-box;
   color: white;
   display: grid;
-  grid-template-rows: 116px 88px;
-  margin-left: -2px;
+  grid-template-rows: 128px 92px;
+  min-width: 0;
   overflow: hidden;
   text-align: center;
 }
 
 .start-tile:first-child {
   border-radius: 6px 0 0 6px;
-  margin-left: 0;
 }
 
 .start-tile:last-child {
   border-radius: 0 6px 6px 0;
 }
 
-.start-tile span {
+.start-tile-image {
   align-items: center;
   background: white;
   display: flex;
-  font-size: 38px;
   justify-content: center;
+  padding: 18px;
+}
+
+.start-tile-image img {
+  display: block;
+  height: clamp(58px, 42%, 76px);
+  object-fit: contain;
+  width: clamp(58px, 42%, 76px);
 }
 
 .start-tile .book::before {
-  content: "▤";
+  content: "";
 }
 
 .start-tile .brain::before {
-  content: "●";
+  content: "";
 }
 
 .start-tile .check::before {
-  content: "✓";
+  content: "";
 }
 
 .start-tile .question::before {
-  content: "?";
+  content: "";
 }
 
 .student-course-home .start-tile .book::before {
-  content: "📖";
+  content: "";
 }
 
 .student-course-home .start-tile .brain::before {
-  content: "🧠";
+  content: "";
 }
 
 .student-course-home .start-tile .check::before {
-  color: #f2b700;
-  content: "✓";
+  content: "";
 }
 
 .student-course-home .start-tile .question::before {
-  color: #d10000;
-  content: "?";
+  content: "";
 }
 
 .start-tile strong {
@@ -3135,6 +3351,8 @@ button.small {
 }
 
 .start-tile:hover {
+  box-shadow: 0 8px 22px rgba(23, 75, 97, 0.18);
+  transform: translateY(-1px);
   text-decoration: none;
 }
 
@@ -3225,6 +3443,24 @@ button.small {
   content: "✓";
 }
 
+.canvas-unpublished-dot {
+  align-items: center;
+  border: 2px solid #7f878f;
+  border-radius: 999px;
+  color: #7f878f;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 14px;
+  font-weight: 900;
+  height: 18px;
+  justify-content: center;
+  width: 18px;
+}
+
+.canvas-unpublished-dot::before {
+  content: "⊘";
+}
+
 .canvas-module-list {
   display: grid;
   gap: 64px;
@@ -3295,6 +3531,10 @@ button.small {
 .canvas-module-row:hover {
   background: #f7fbff;
   text-decoration: none;
+}
+
+.canvas-module-row.is-unpublished {
+  background: white;
 }
 
 .module-type {
@@ -3378,6 +3618,53 @@ button.small {
 .canvas-page-copy strong {
   color: #2d3b45;
   font-weight: 700;
+}
+
+.lesson-action-card {
+  background: #f8fbfc;
+  border: 1px solid #d7e4e9;
+  border-radius: 6px;
+  margin-top: 22px;
+  max-width: 920px;
+  padding: 18px;
+}
+
+.lesson-action-card h2 {
+  color: #2d3b45;
+  font-size: 22px;
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+
+.lesson-action-card p {
+  color: #5f6f7f;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.45;
+  margin: 0 0 14px;
+}
+
+.lesson-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.acknowledgment-form,
+.acknowledgment-preview {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.acknowledgment-form label,
+.acknowledgment-preview label {
+  align-items: center;
+  color: #2d3b45;
+  display: flex;
+  font-weight: 700;
+  gap: 8px;
 }
 
 .canvas-page-copy h2,
@@ -3905,7 +4192,8 @@ button.small {
   font-weight: 500;
 }
 
-.announcements-main {
+.announcements-main,
+.discussions-main {
   grid-column: 3 / -1;
   padding-top: 40px;
 }
@@ -3965,6 +4253,12 @@ button.small {
   margin: 0;
 }
 
+.form-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .announcement-form button,
 .calendar-event-form button,
 .people-green-button,
@@ -4022,6 +4316,99 @@ button.small {
   display: grid;
   gap: 4px;
   justify-items: end;
+}
+
+.discussion-layout {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+}
+
+.discussion-topic-list {
+  border-right: 1px solid #e3e8ed;
+  display: grid;
+  gap: 4px;
+  padding-right: 12px;
+}
+
+.discussion-topic-row {
+  align-items: start;
+  border-radius: 4px;
+  color: #2d3b48;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 12px;
+  text-decoration: none;
+}
+
+.discussion-topic-row.active,
+.discussion-topic-row:hover {
+  background: #eef7fb;
+}
+
+.discussion-topic-row strong,
+.discussion-topic-row small {
+  display: block;
+}
+
+.discussion-topic-row small {
+  color: #596877;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.discussion-thread-panel {
+  min-width: 0;
+}
+
+.discussion-prompt {
+  border-bottom: 1px solid #e3e8ed;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+}
+
+.discussion-prompt h1 {
+  color: #2d3b48;
+  font-size: 28px;
+  font-weight: 500;
+  margin: 0 0 12px;
+}
+
+.discussion-prompt p,
+.discussion-reply div {
+  color: #2d3b48;
+  line-height: 1.55;
+}
+
+.discussion-replies {
+  display: grid;
+  gap: 12px;
+}
+
+.discussion-replies h2 {
+  color: #2d3b48;
+  font-size: 18px;
+  margin: 0;
+}
+
+.discussion-reply {
+  border-top: 1px solid #edf0f2;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 16px 0;
+}
+
+.discussion-reply header {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.discussion-reply-form {
+  margin-top: 18px;
 }
 
 .calendar-main {
@@ -6903,7 +7290,8 @@ button.small {
   .calendar-main,
   .global-dashboard-rightbar,
   .calendar-sidebar,
-  .announcements-main {
+  .announcements-main,
+  .discussions-main {
     grid-column: 1;
     grid-row: auto;
     padding: 24px 16px;
@@ -6913,10 +7301,18 @@ button.small {
   .calendar-toolbar,
   .activity-group header,
   .announcement-row,
+  .discussion-layout,
+  .form-row,
   .staff-help-hero,
   .help-reset-panel,
   .help-grid {
     grid-template-columns: 1fr;
+  }
+
+  .discussion-topic-list {
+    border-right: 0;
+    border-bottom: 1px solid #e3e8ed;
+    padding: 0 0 12px;
   }
 
   .announcement-row {

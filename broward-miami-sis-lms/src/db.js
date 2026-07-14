@@ -72,7 +72,9 @@ function migrate() {
       content TEXT NOT NULL DEFAULT '',
       external_url TEXT,
       duration_minutes INTEGER NOT NULL DEFAULT 30,
-      position INTEGER NOT NULL DEFAULT 1
+      position INTEGER NOT NULL DEFAULT 1,
+      published INTEGER NOT NULL DEFAULT 1,
+      instructor_only INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS course_imports (
@@ -265,6 +267,36 @@ function migrate() {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS discussion_topics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      prompt TEXT NOT NULL DEFAULT '',
+      points_possible REAL NOT NULL DEFAULT 0,
+      due_at TEXT,
+      status TEXT NOT NULL DEFAULT 'published' CHECK(status IN ('draft','published','closed')),
+      source_url TEXT,
+      source_external_id TEXT,
+      posted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      posted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(course_id, title)
+    );
+
+    CREATE TABLE IF NOT EXISTS discussion_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      topic_id INTEGER NOT NULL REFERENCES discussion_topics(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      parent_id INTEGER REFERENCES discussion_entries(id) ON DELETE CASCADE,
+      author_name TEXT NOT NULL,
+      author_email TEXT,
+      body TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'portal',
+      source_external_id TEXT,
+      posted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS calendar_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       course_id INTEGER REFERENCES courses(id) ON DELETE CASCADE,
@@ -302,6 +334,12 @@ function migrate() {
       title TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'missing' CHECK(status IN ('missing','complete','waived')),
       note TEXT,
+      file_original_name TEXT,
+      file_storage_name TEXT,
+      file_mime_type TEXT,
+      file_size INTEGER,
+      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      uploaded_at TEXT,
       completed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       completed_at TEXT,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -365,6 +403,49 @@ function migrate() {
       submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS staff_time_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      clock_in_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      clock_out_at TEXT,
+      clock_in_note TEXT,
+      clock_out_note TEXT,
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','submitted','approved')),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS staff_pay_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      period_start TEXT NOT NULL,
+      period_end TEXT NOT NULL,
+      timesheet_due TEXT,
+      paycheck_date TEXT NOT NULL,
+      regular_hours REAL NOT NULL DEFAULT 0,
+      overtime_hours REAL NOT NULL DEFAULT 0,
+      gross_pay_cents INTEGER NOT NULL DEFAULT 0,
+      net_pay_cents INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','posted','paid')),
+      note TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS task_tickets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      urgency TEXT NOT NULL DEFAULT 'not_urgent' CHECK(urgency IN ('urgent','not_urgent')),
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','in_progress','done')),
+      due_date TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      completed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   const courseColumns = db.prepare("PRAGMA table_info(courses)").all().map((column) => column.name);
@@ -380,6 +461,12 @@ function migrate() {
   const lessonColumns = db.prepare("PRAGMA table_info(lessons)").all().map((column) => column.name);
   if (!lessonColumns.includes("external_url")) {
     db.exec("ALTER TABLE lessons ADD COLUMN external_url TEXT;");
+  }
+  if (!lessonColumns.includes("published")) {
+    db.exec("ALTER TABLE lessons ADD COLUMN published INTEGER NOT NULL DEFAULT 1;");
+  }
+  if (!lessonColumns.includes("instructor_only")) {
+    db.exec("ALTER TABLE lessons ADD COLUMN instructor_only INTEGER NOT NULL DEFAULT 0;");
   }
   const userColumns = db.prepare("PRAGMA table_info(users)").all().map((column) => column.name);
   if (!userColumns.includes("organization_status")) {
@@ -423,6 +510,28 @@ function migrate() {
   if (!messageColumns.includes("external_delivered_at")) {
     db.exec("ALTER TABLE messages ADD COLUMN external_delivered_at TEXT;");
   }
+  const admissionsDocumentColumns = db.prepare("PRAGMA table_info(student_admissions_document_checklist)").all().map((column) => column.name);
+  if (!admissionsDocumentColumns.includes("file_original_name")) {
+    db.exec("ALTER TABLE student_admissions_document_checklist ADD COLUMN file_original_name TEXT;");
+  }
+  if (!admissionsDocumentColumns.includes("file_storage_name")) {
+    db.exec("ALTER TABLE student_admissions_document_checklist ADD COLUMN file_storage_name TEXT;");
+  }
+  if (!admissionsDocumentColumns.includes("file_mime_type")) {
+    db.exec("ALTER TABLE student_admissions_document_checklist ADD COLUMN file_mime_type TEXT;");
+  }
+  if (!admissionsDocumentColumns.includes("file_size")) {
+    db.exec("ALTER TABLE student_admissions_document_checklist ADD COLUMN file_size INTEGER;");
+  }
+  if (!admissionsDocumentColumns.includes("uploaded_by")) {
+    db.exec("ALTER TABLE student_admissions_document_checklist ADD COLUMN uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL;");
+  }
+  if (!admissionsDocumentColumns.includes("uploaded_at")) {
+    db.exec("ALTER TABLE student_admissions_document_checklist ADD COLUMN uploaded_at TEXT;");
+  }
+  db.exec("CREATE INDEX IF NOT EXISTS idx_task_tickets_status_urgency ON task_tickets(status, urgency, created_at);");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_discussion_topics_course ON discussion_topics(course_id, posted_at);");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_discussion_entries_topic ON discussion_entries(topic_id, posted_at);");
 }
 
 function seed() {
@@ -504,6 +613,7 @@ function seed() {
   const insertSeedVersion = db.prepare("INSERT OR IGNORE INTO course_seed_versions (course_id, seed_key) VALUES (?, ?)");
   const insertModule = db.prepare("INSERT INTO modules (course_id, title, position) VALUES (?, ?, ?)");
   const insertLesson = db.prepare("INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position) VALUES (?, ?, ?, ?, ?, ?)");
+  const insertLessonWithVisibility = db.prepare("INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
   const insertGradeItem = db.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, ?, ?)");
 
   for (const course of courses) {
@@ -536,7 +646,20 @@ function seed() {
         course.modules.forEach((module, moduleIndex) => {
           const moduleId = insertModule.run(saved.id, module.title, moduleIndex + 1).lastInsertRowid;
           module.lessons.forEach((lesson, lessonIndex) => {
-            insertLesson.run(moduleId, lesson.title, lesson.content, lesson.externalUrl || null, lesson.durationMinutes || 45, lessonIndex + 1);
+            if (lesson.published === false || lesson.instructorOnly) {
+              insertLessonWithVisibility.run(
+                moduleId,
+                lesson.title,
+                lesson.content,
+                lesson.externalUrl || null,
+                lesson.durationMinutes || 45,
+                lessonIndex + 1,
+                lesson.published === false ? 0 : 1,
+                lesson.instructorOnly ? 1 : 0
+              );
+            } else {
+              insertLesson.run(moduleId, lesson.title, lesson.content, lesson.externalUrl || null, lesson.durationMinutes || 45, lessonIndex + 1);
+            }
           });
         });
       } else {
@@ -592,6 +715,8 @@ function seed() {
   const medicalTerminology = db.prepare("SELECT id FROM courses WHERE slug = ?").get("medical-terminology");
   const practicalNursing = db.prepare("SELECT id FROM courses WHERE slug = ?").get("practical-nursing");
   const introNursing = db.prepare("SELECT id FROM courses WHERE slug = ?").get("introduction-to-nursing-practical-nursing");
+  const anatomyPhysiology = db.prepare("SELECT id FROM courses WHERE slug = ?").get("anatomy-and-physiology");
+  const acls = db.prepare("SELECT id FROM courses WHERE slug = ?").get("advanced-cardiovascular-life-support");
   db.prepare(`
     INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)
     VALUES (?, ?, 'active', 35, 'seed', 'seed-demo')
@@ -613,6 +738,18 @@ function seed() {
       INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)
       VALUES (?, ?, 'active', 83, 'seed', 'seed-demo-pn102')
     `).run(demoStudent.id, introNursing.id);
+  }
+  if (anatomyPhysiology) {
+    db.prepare(`
+      INSERT OR IGNORE INTO enrollments (user_id, course_id, status, start_date, progress, source, external_order_id)
+      VALUES (?, ?, 'active', '2026-07-13', 0, 'seed', 'seed-demo-pn104')
+    `).run(demoStudent.id, anatomyPhysiology.id);
+  }
+  if (acls) {
+    db.prepare(`
+      INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)
+      VALUES (?, ?, 'active', 0, 'seed', 'seed-demo-acls')
+    `).run(demoStudent.id, acls.id);
   }
 
   const cohortTwoStudents = [
@@ -668,6 +805,9 @@ function seed() {
     }
     if (student && practicalNursing) {
       insertCohortEnrollment.run(student.id, practicalNursing.id, cohortStartDate, `cohort-2-practical-nursing-${student.id}`);
+    }
+    if (student && anatomyPhysiology) {
+      insertCohortEnrollment.run(student.id, anatomyPhysiology.id, "2026-07-13", `cohort-2-pn104-${student.id}`);
     }
   });
 
@@ -898,6 +1038,76 @@ function seed() {
     if (course && announcementCount.get(course.id).count === 0) {
       group.rows.forEach(([title, body, postedAt]) => insertAnnouncement.run(course.id, instructorUser?.id || adminUser.id, title, body, postedAt));
     }
+  });
+
+  const upsertDiscussionTopic = db.prepare(`
+    INSERT INTO discussion_topics (course_id, title, prompt, points_possible, due_at, posted_by, posted_at, source_external_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(course_id, title) DO UPDATE SET
+      prompt = CASE WHEN discussion_topics.prompt = '' THEN excluded.prompt ELSE discussion_topics.prompt END,
+      points_possible = CASE WHEN discussion_topics.points_possible = 0 THEN excluded.points_possible ELSE discussion_topics.points_possible END,
+      due_at = COALESCE(discussion_topics.due_at, excluded.due_at),
+      posted_by = COALESCE(discussion_topics.posted_by, excluded.posted_by),
+      source_external_id = COALESCE(discussion_topics.source_external_id, excluded.source_external_id)
+  `);
+  const discussionSeedGroups = [
+    {
+      slug: "medical-terminology",
+      rows: [
+        [
+          "[PN101 2026] Discussion 1: Introductions and Professional Goals",
+          "Introduce yourself to the class. Share one professional goal and explain how learning medical terminology can help you communicate safely in healthcare.",
+          "2026-06-28 23:59:00"
+        ],
+        [
+          "[PN101 2026] Discussion 2: Decoding Medical Words",
+          "Choose two unfamiliar medical terms from this week's reading. Break each term into word parts, define the meaning, and explain how the term may appear in a patient-care setting.",
+          "2026-07-29 23:59:00"
+        ],
+        [
+          "[PN101 2026] Discussion 3: Clinical Documentation",
+          "Review a sample clinical note or healthcare scenario. Identify medical terms that must be documented clearly and explain why accurate terminology protects patients and staff.",
+          "2026-08-18 23:59:00"
+        ],
+        [
+          "[PN101 2026] Discussion 4: Patient Education",
+          "Rewrite a complex medical term or instruction in plain language for a patient. Explain what you changed and why patient-friendly communication matters.",
+          "2026-09-01 23:59:00"
+        ]
+      ]
+    },
+    {
+      slug: "introduction-to-nursing-practical-nursing",
+      rows: [
+        ["Week 1 Discussion: Nursing Identity, Purpose, and the Practical Nurse Role", "Describe why nursing matters to you and identify one practical nurse responsibility that supports safe, compassionate care.", "2026-06-28 23:59:00"],
+        ["Week 2 Discussion: Nursing Then and Now, Reform, Education, and Public Trust", "Compare one historical nursing challenge with one current expectation in nursing practice. Explain how public trust is earned.", "2026-07-05 23:59:00"],
+        ["Week 3 Discussion: Caring, Comfort, Safety, Advocacy, and Healing", "Share an example of a caring behavior that protects comfort, safety, dignity, or healing for a patient.", "2026-07-12 23:59:00"],
+        ["Week 4 Discussion: Health Care Teamwork, Scope, Delegation, and Communication", "Use a simple patient-care scenario to explain who should be notified, what should be reported, and why scope of practice matters.", "2026-07-19 23:59:00"],
+        ["Week 5 Discussion: Ethics, Boundaries, Confidentiality, and Patient Rights", "Choose one ethical principle and apply it to a realistic classroom, lab, clinical, or patient privacy situation.", "2026-07-26 23:59:00"],
+        ["Week 6 Discussion: Legal Foundations, Privacy, Documentation, and Accountability", "Explain why factual documentation, privacy, and accountability protect patients and nurses.", "2026-08-02 23:59:00"],
+        ["Week 7 Discussion: Culture, Health Equity, and Respectful Care", "Describe one respectful communication strategy that supports cultural humility and health equity.", "2026-08-09 23:59:00"],
+        ["Week 8 Discussion: Safety, Quality, Infection Prevention, and the Nurse's Watchful Eye", "Identify one common safety risk and explain what a beginning practical nursing student should observe, report, or do.", "2026-08-16 23:59:00"],
+        ["Week 9 Discussion: Nursing Process and Clinical Judgment", "Use noticing, interpreting, responding, and reflecting to walk through a simple patient scenario.", "2026-08-23 23:59:00"],
+        ["Week 10 Discussion: Patient Teaching, Health Promotion, and Community Impact", "Write a short teaching message using plain language and explain how you would check understanding.", "2026-08-30 23:59:00"],
+        ["Week 11 Discussion: Professionalism, Resilience, Leadership, and Lifelong Learning", "Identify one professional habit you will practice this term and explain how it supports patient safety and student success.", "2026-09-06 23:59:00"]
+      ]
+    }
+  ];
+  discussionSeedGroups.forEach((group) => {
+    const course = db.prepare("SELECT id FROM courses WHERE slug = ?").get(group.slug);
+    if (!course) return;
+    group.rows.forEach(([title, prompt, dueAt]) => {
+      upsertDiscussionTopic.run(
+        course.id,
+        title,
+        prompt,
+        10,
+        dueAt,
+        instructorUser?.id || adminUser.id,
+        "2026-06-22 08:00:00",
+        `${group.slug}:${title}`
+      );
+    });
   });
 
   const calendarCount = db.prepare("SELECT COUNT(*) AS count FROM calendar_events");

@@ -28,24 +28,28 @@ function navFor(user) {
     <a href="/admin/features">Features</a>
     <a href="/admin/admin-roles">Admin Roles</a>
     <a href="/admin/students">Students</a>
+    <a href="/admin/cohort-2-schedule">Cohort 2 Schedule</a>
     <a href="/admin/hesi">HESI Scores</a>
     <a href="/admin/courses">Courses</a>
     <a href="/admin/onsite-visit">OSV Visit</a>
     <a href="/admin/financial-aid">Financial Aid</a>
     <a href="/admin/billing">Billing</a>
+    <a href="/admin/staff-portal">Staff Portal</a>
+    <a href="/admin/tickets">Task Tickets</a>
     <a href="/admin/messages">Inbox</a>
     <a href="/catalog">Catalog</a>
     <a href="/admin/ghl">GHL</a>
-    <a href="/admin/help">Help</a>
   `;
   const instructorLinks = `
     <a href="/admin">Dashboard</a>
     <a href="/admin/students">Students</a>
+    <a href="/admin/cohort-2-schedule">Cohort 2 Schedule</a>
     <a href="/admin/hesi">HESI Scores</a>
     <a href="/admin/courses">Courses</a>
+    <a href="/admin/staff-portal">Staff Portal</a>
+    <a href="/admin/tickets">Task Tickets</a>
     <a href="/admin/messages">Inbox</a>
     <a href="/catalog">Catalog</a>
-    <a href="/admin/help">Help</a>
   `;
   const studentLinks = `
     <a href="/student/dashboard">Dashboard</a>
@@ -111,30 +115,16 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
           <label class="sr-only" for="sis-search">Search</label>
           <input id="sis-search" type="search" placeholder="Search students, courses, reports">
         </form>
-        <nav class="sis-app-nav" aria-label="SIS applications">
-          <a href="/admin">Home</a>
-          ${user.role === "admin" ? `<a href="/admin/admissions">Admissions</a>` : ""}
-          <a href="/admin/students">People</a>
-          <a href="/admin/courses">Academics</a>
-          <a href="/admin/courses">LMS</a>
-          ${user.role === "admin" ? `<a href="/admin/financial-aid">Financial Aid</a>` : ""}
-          ${user.role === "admin" ? `<a href="/admin/billing">Billing</a>` : ""}
-          <a href="/admin/messages">Inbox</a>
-          ${user.role === "admin" ? `<a href="/admin/features/reports">Reports</a>` : ""}
-          <a href="/admin/help">Help</a>
-        </nav>
+        <span class="sis-topbar-spacer" aria-hidden="true"></span>
         <div class="sis-tools">
           <a class="sis-tool" href="/admin/features/system-settings" title="Settings">Settings</a>
           <a class="sis-tool" href="/catalog" title="Catalog">Catalog</a>
+          <a class="sis-tool" href="/admin/help" title="Help">Help</a>
           <span class="sis-avatar" title="${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)}">${escapeHtml(initialsFor(user))}</span>
           <form method="post" action="/logout">
             <button class="sis-signout" type="submit">Sign out</button>
           </form>
         </div>
-      </div>
-      <div class="sis-subbar">
-        <nav class="sis-subnav" aria-label="Current area">${navFor(user)}</nav>
-        <span class="sis-session">Current session: 2026-27</span>
       </div>
     </header>
   ` : isStudentPortal ? `

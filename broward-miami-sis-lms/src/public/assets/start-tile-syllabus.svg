@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Course syllabus">
+  <rect x="22" y="14" width="52" height="68" rx="6" fill="#ffffff" stroke="#174b61" stroke-width="4"/>
+  <path d="M34 30h28M34 42h28M34 54h20M34 66h24" stroke="#174b61" stroke-width="4" stroke-linecap="round"/>
+  <path d="M64 14v18l-7-5-7 5V14" fill="#e9f6f8" stroke="#174b61" stroke-width="4" stroke-linejoin="round"/>
+</svg>
