@@ -126,6 +126,12 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
           </form>
         </div>
       </div>
+      <div class="sis-subbar">
+        <nav class="sis-subnav" aria-label="Admin portal menu">
+          ${navFor(user)}
+        </nav>
+        <span class="sis-session">Current session: 2026-27</span>
+      </div>
     </header>
   ` : isStudentPortal ? `
     <header class="student-topbar">

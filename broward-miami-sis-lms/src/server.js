@@ -4104,12 +4104,30 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
   const selectedCohort = cohorts.includes(requestedCohort) ? requestedCohort : "";
   const stats = dashboardStats(selectedCohort);
   const recentSql = `
-    SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email, u.cohort_name, u.photo_storage_name, c.title AS course_title
-    FROM enrollments e
-    JOIN users u ON u.id = e.user_id
-    JOIN courses c ON c.id = e.course_id
-    ${selectedCohort ? "WHERE u.cohort_name = ?" : ""}
-    ORDER BY e.created_at DESC
+    SELECT
+      u.id AS user_id,
+      u.first_name,
+      u.last_name,
+      u.email,
+      u.cohort_name,
+      u.photo_storage_name,
+      GROUP_CONCAT(DISTINCT c.title) AS course_titles,
+      CASE
+        WHEN SUM(CASE WHEN e.status = 'active' THEN 1 ELSE 0 END) > 0 THEN 'active'
+        WHEN SUM(CASE WHEN e.status = 'completed' THEN 1 ELSE 0 END) > 0 THEN 'completed'
+        WHEN COUNT(e.id) > 0 THEN COALESCE(MAX(e.status), 'enrolled')
+        ELSE 'not enrolled'
+      END AS student_status,
+      ROUND(COALESCE(AVG(e.progress), 0)) AS progress,
+      MIN(e.start_date) AS start_date,
+      MAX(e.created_at) AS latest_enrollment_at
+    FROM users u
+    LEFT JOIN enrollments e ON e.user_id = u.id
+    LEFT JOIN courses c ON c.id = e.course_id
+    WHERE u.role = 'student'
+    ${selectedCohort ? "AND u.cohort_name = ?" : ""}
+    GROUP BY u.id
+    ORDER BY latest_enrollment_at DESC, u.last_name, u.first_name
     LIMIT 100
   `;
   const recent = selectedCohort ? db.prepare(recentSql).all(selectedCohort) : db.prepare(recentSql).all();
@@ -4149,15 +4167,15 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
     </section>
     <section class="table-card" style="margin-top:18px">
       <table>
-        <thead><tr><th>Photo</th><th>Student</th><th>Cohort</th><th>Course</th><th>Status</th><th>Progress</th><th>Started</th></tr></thead>
+        <thead><tr><th>Photo</th><th>Student</th><th>Cohort</th><th>Courses</th><th>Status</th><th>Progress</th><th>Started</th></tr></thead>
         <tbody>
           ${recent.map((row) => `
             <tr>
               <td>${studentPhotoThumb({ ...row, id: row.user_id }, "student-thumb")}</td>
               <td><strong>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</strong><br><span class="muted">${escapeHtml(row.email)}</span></td>
               <td>${row.cohort_name ? `<span class="pill">${escapeHtml(row.cohort_name)}</span>` : `<span class="muted">Not assigned</span>`}</td>
-              <td>${escapeHtml(row.course_title)}</td>
-              <td><span class="pill">${escapeHtml(row.status)}</span></td>
+              <td>${row.course_titles ? escapeHtml(String(row.course_titles).split(",").join(", ")) : `<span class="muted">No active course</span>`}</td>
+              <td><span class="pill">${escapeHtml(row.student_status)}</span></td>
               <td>${progressBar(row.progress)}<span class="muted">${escapeHtml(row.progress)}%</span></td>
               <td>${date(row.start_date)}</td>
             </tr>
@@ -6631,7 +6649,10 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
           <h2>Course Construction Toolkit</h2>
           <p class="muted">Customize course content, assessment, collaboration, outcomes, analytics, and integrations for this course shell.</p>
         </div>
-        <a class="button small" href="/admin/courses/${course.id}/tools">Open tools</a>
+        <div class="actions">
+          <a class="button small" href="/admin/courses/${course.id}/student-view">View as Student</a>
+          <a class="button small ghost" href="/admin/courses/${course.id}/tools">Open tools</a>
+        </div>
       </div>
       ${renderLmsToolkit(course, { compact: true })}
     </section>
@@ -6817,6 +6838,10 @@ app.get("/admin/courses/:id/tools", requireAuth, requireRole("admin", "instructo
         <a class="button small ghost" href="#course-import-tool">Course Import Tool</a>
       </div>
       ${renderLmsToolkit(course)}
+      <div class="lms-tool-actions">
+        <a class="button" href="/admin/courses/${course.id}/student-view">View as Student</a>
+        <a class="button ghost" href="/admin/courses/${course.id}">Return to instructor view</a>
+      </div>
     </section>
 
     <section class="card" style="margin-top:18px">

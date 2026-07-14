@@ -2244,6 +2244,16 @@ textarea {
   margin: 4px 0 0;
 }
 
+.lms-tool-actions {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+}
+
 .tool-status {
   border: 1px solid var(--line);
   border-radius: 999px;
