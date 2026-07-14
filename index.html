@@ -1,0 +1,1518 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PN Program Enrollment - Broward-Miami Health Institute</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="navbar">
+        <div class="container">
+            <div class="logo">
+                <img
+                    src="logo-top.png"
+                    onerror="this.onerror=null;this.src='brand-wordmark.svg';"
+                    alt="Broward-Miami Health Institute"
+                    class="logo-wordmark">
+                <p class="tagline">Practical Nursing Student Enrollment &amp; Milestone Tracker</p>
+            </div>
+            <div class="progress-indicator">
+                    <div class="step-indicator">
+                        <div class="step active" id="step-indicator-1">1. Intro</div>
+                        <div class="step" id="step-indicator-2">2. Register</div>
+                        <div class="step" id="step-indicator-3">3. Portal</div>
+                        <div class="step" id="step-indicator-4">4. Entrance Exam</div>
+                        <div class="step" id="step-indicator-5">5. Agreement</div>
+                        <div class="step" id="step-indicator-6">6. Payment</div>
+                        <div class="step" id="step-indicator-7">7. Acceptance</div>
+                        <div class="step" id="step-indicator-8">8. Tracker</div>
+                    </div>
+                </div>
+            </div>
+    </div>
+
+    <div class="container">
+        <!-- STEP 1: INTRODUCTION -->
+        <div class="step-content active" id="step-1">
+            <div class="intro-section">
+                <h2>Welcome to the Practical Nursing Program</h2>
+                <p class="intro-text">Join us on your journey to becoming a Licensed Practical Nurse (LPN). Watch this video to understand the enrollment process and program requirements.</p>
+                
+                <div class="video-container" id="video-container">
+                    <iframe
+                        id="intro-youtube"
+                        data-video-id="ZBX1CoJZ-JY"
+                        src=""
+                        title="Enrollment Process Video"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        referrerpolicy="origin-when-cross-origin"
+                        loading="lazy"
+                        allowfullscreen>
+                    </iframe>
+                </div>
+                <div class="video-file-fallback" id="video-file-fallback">
+                    <p>If the embedded video is blocked in this browser, use this button:</p>
+                    <a class="btn btn-primary" href="https://youtu.be/ZBX1CoJZ-JY" target="_blank" rel="noopener">Watch Video on YouTube</a>
+                    <p class="video-file-help">For in-page playback, run <strong>start-local-server.bat</strong> in this folder and open http://localhost:5500.</p>
+                </div>
+                <p class="video-help">If the video does not start automatically, click play.</p>
+
+                <div class="workflow-section">
+                    <h3>Step-by-Step Student Workflow</h3>
+                    <ol class="step-by-step-list">
+                        <li>Watch the overview video and review admission requirements.</li>
+                        <li>Complete the registration form with personal and education details.</li>
+                        <li>Create and activate your student portal account.</li>
+                        <li>Complete the entrance exam requirement and submit your score.</li>
+                        <li>Review and sign the enrollment agreement.</li>
+                        <li>Select a payment plan and submit payment information.</li>
+                        <li>Receive your acceptance letter and onboarding details.</li>
+                        <li>Track milestones and complete each checkbox as you progress.</li>
+                    </ol>
+                </div>
+
+                <div class="process-overview">
+                    <h3>8-Step Enrollment Process</h3>
+                    <div class="process-grid">
+                        <div class="process-card">
+                            <div class="process-number">1</div>
+                            <h4>Introduction</h4>
+                            <p>Watch the program admission overview and understand the process</p>
+                        </div>
+                        <div class="process-card">
+                            <div class="process-number">2</div>
+                            <h4>Registration</h4>
+                            <p>Complete your personal and educational information</p>
+                        </div>
+                        <div class="process-card">
+                            <div class="process-number">3</div>
+                            <h4>Student Portal</h4>
+                            <p>Create your student portal account and set your login credentials</p>
+                        </div>
+                        <div class="process-card">
+                            <div class="process-number">4</div>
+                            <h4>Entrance Exam</h4>
+                            <p>Complete the entrance exam and review your status</p>
+                        </div>
+                        <div class="process-card">
+                            <div class="process-number">5</div>
+                            <h4>Agreement</h4>
+                            <p>Review and sign the Practical Nursing enrollment agreement</p>
+                        </div>
+                        <div class="process-card">
+                            <div class="process-number">6</div>
+                            <h4>Payment</h4>
+                            <p>Choose your payment plan and submit your payment information</p>
+                        </div>
+                        <div class="process-card">
+                            <div class="process-number">7</div>
+                            <h4>Acceptance Letter</h4>
+                            <p>Receive your acceptance confirmation and next-step instructions</p>
+                        </div>
+                        <div class="process-card">
+                            <div class="process-number">8</div>
+                            <h4>Milestone Tracker</h4>
+                            <p>Track your progress and complete milestones through the program</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="requirements-section">
+                    <h3>Program Requirements</h3>
+                    <ul>
+                        <li>High School Diploma or GED</li>
+                        <li>Must be at least 18 years old</li>
+                        <li>CPR Certification (Basic Life Support)</li>
+                        <li>Background Check</li>
+                        <li>Physical examination and health screening</li>
+                        <li>Immunization records</li>
+                    </ul>
+                </div>
+
+                <div class="intro-cta">
+                    <button class="btn btn-primary btn-large" onclick="goToStep(2)">Start Enrollment</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 2: REGISTRATION -->
+        <div class="step-content" id="step-2">
+            <h2>Student Registration</h2>
+            <form id="registration-form" class="form-section">
+                <div class="form-group">
+                    <h3>Personal Information</h3>
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label for="firstName">First Name *</label>
+                            <input type="text" id="firstName" name="firstName" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="lastName">Last Name *</label>
+                            <input type="text" id="lastName" name="lastName" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label for="email">Email Address *</label>
+                            <input type="email" id="email" name="email" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="phone">Phone Number *</label>
+                            <input type="tel" id="phone" name="phone" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label for="dob">Date of Birth *</label>
+                            <input type="date" id="dob" name="dob" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="ssn">Last 4 Digits of SSN *</label>
+                            <input type="text" id="ssn" name="ssn" placeholder="XXXX" maxlength="4" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <h3>Address Information</h3>
+                    <div class="form-row">
+                        <div class="form-field full-width">
+                            <label for="street">Street Address *</label>
+                            <input type="text" id="street" name="street" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label for="city">City *</label>
+                            <input type="text" id="city" name="city" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="state">State *</label>
+                            <input type="text" id="state" name="state" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="zip">ZIP Code *</label>
+                            <input type="text" id="zip" name="zip" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <h3>Educational Background</h3>
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label for="highschool">High School Name *</label>
+                            <input type="text" id="highschool" name="highschool" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="graduation">Graduation Year *</label>
+                            <input type="number" id="graduation" name="graduation" min="1950" max="2099" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="startTerm">Preferred Start Term *</label>
+                            <select id="startTerm" name="startTerm" required>
+                                <option value="">Select term</option>
+                                <option value="Spring">Spring</option>
+                                <option value="Summer">Summer</option>
+                                <option value="Fall">Fall</option>
+                                <option value="Winter">Winter</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field full-width">
+                            <label for="education">Prior Healthcare Experience? *</label>
+                            <textarea id="education" name="education" rows="3" placeholder="Describe any healthcare experience..." required></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label for="educationCredential">Diploma / GED Type *</label>
+                            <select id="educationCredential" name="educationCredential" required>
+                                <option value="">Select credential type</option>
+                                <option value="hs-diploma">High School Diploma</option>
+                                <option value="hs-diploma-translation">High School Diploma with Translation</option>
+                                <option value="ged">GED</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field full-width">
+                            <label for="id-document-upload">Upload ID or Driver's License *</label>
+                            <input type="file" id="id-document-upload" name="id-document-upload" accept=".pdf,.jpg,.jpeg,.png" required>
+                            <p class="field-help">Accepted formats: PDF, JPG, JPEG, PNG.</p>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field full-width">
+                            <label for="diploma-ged-upload">Upload High School Diploma or GED *</label>
+                            <input type="file" id="diploma-ged-upload" name="diploma-ged-upload" accept=".pdf,.jpg,.jpeg,.png" required>
+                            <p class="field-help">Upload your high school diploma or GED document.</p>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field full-width">
+                            <label for="diploma-translation-upload">Upload Diploma Translation (if applicable)</label>
+                            <input type="file" id="diploma-translation-upload" name="diploma-translation-upload" accept=".pdf,.jpg,.jpeg,.png">
+                            <p class="field-help">Required only if your high school diploma is not in English.</p>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field full-width">
+                            <label for="hearAboutUs">How did you hear about us? *</label>
+                            <select id="hearAboutUs" name="hearAboutUs" required>
+                                <option value="">Select an option</option>
+                                <option value="Google Search">Google Search</option>
+                                <option value="Social Media">Social Media</option>
+                                <option value="Friend or Family">Friend or Family</option>
+                                <option value="School Counselor">School Counselor</option>
+                                <option value="Job Fair/Event">Job Fair/Event</option>
+                                <option value="Advertisement">Advertisement</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="goToStep(1)">Back</button>
+                    <button type="button" class="btn btn-primary" onclick="validateAndSaveRegistration()">Continue</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- STEP 3: PORTAL SETUP & AGREEMENT -->
+        <div class="step-content" id="step-3">
+            <h2 id="step-3-title">Create Student Portal Account</h2>
+            <div class="portal-account-section" id="portal-setup-section">
+                <h3>Create Student Portal Account</h3>
+                <p class="portal-account-text">Set up your student portal account to access documents, class updates, and milestones.</p>
+
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="portal-username">Portal Username *</label>
+                        <input type="text" id="portal-username" name="portal-username" placeholder="username" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="portal-password">Portal Password *</label>
+                        <input type="password" id="portal-password" name="portal-password" placeholder="Minimum 8 characters" required>
+                    </div>
+                    <div class="form-field">
+                        <label for="portal-confirm-password">Confirm Password *</label>
+                        <input type="password" id="portal-confirm-password" name="portal-confirm-password" placeholder="Re-enter password" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="portal-security-question">Security Question *</label>
+                        <select id="portal-security-question" name="portal-security-question" required>
+                            <option value="">Select a question</option>
+                            <option value="first-pet">What was the name of your first pet?</option>
+                            <option value="birth-city">What city were you born in?</option>
+                            <option value="favorite-teacher">What is your favorite teacher's name?</option>
+                            <option value="favorite-book">What is your favorite book?</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label for="portal-security-answer">Security Answer *</label>
+                        <input type="text" id="portal-security-answer" name="portal-security-answer" required>
+                    </div>
+                </div>
+
+                <div class="form-field full-width">
+                    <label>
+                        <input type="checkbox" id="portal-terms-checkbox">
+                        I understand this account is required to access student portal services.
+                    </label>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="goToStep(2)">Back</button>
+                    <button type="button" class="btn btn-primary" onclick="validateAndSavePortalAccount()">Continue to Entrance Exam</button>
+                </div>
+            </div>
+            <div class="entrance-exam-section" id="entrance-exam-section" hidden>
+                <h3>Entrance Exam Registration</h3>
+                <div class="entrance-exam-layout">
+                    <div class="entrance-exam-card">
+                        <p class="entrance-exam-location">
+                            Testing takes place at Broward-Miami Health Institute:<br>
+                            6320 Miramar Pkwy Suite I, Miramar, FL 33023 | Tel: (954) 248-0669
+                        </p>
+
+                        <div class="entrance-exam-step-item">
+                            <div class="entrance-exam-step-number">1</div>
+                            <div class="entrance-exam-step-body">
+                                <label for="exam-center">Choose Testing Center <span class="required-text">(required)</span></label>
+                                <select id="exam-center" name="exam-center">
+                                    <option value="">Select an option</option>
+                                    <option value="On Campus">On Campus</option>
+                                    <option value="Online Proctored">Online Proctored</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="entrance-exam-step-item">
+                            <div class="entrance-exam-step-number">2</div>
+                            <div class="entrance-exam-step-body">
+                                <label for="exam-type">Choose an exam <span class="required-text">(required)</span></label>
+                                <select id="exam-type" name="exam-type">
+                                    <option value="">Select an exam</option>
+                                    <option value="PN Entrance Exam">PN Entrance Exam</option>
+                                    <option value="PN Retest">PN Entrance Exam Retest</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="entrance-exam-step-item">
+                            <div class="entrance-exam-step-number">3</div>
+                            <div class="entrance-exam-step-body">
+                                <label for="exam-date">Choose a Date <span class="required-text">(required)</span></label>
+                                <input type="date" id="exam-date" name="exam-date">
+                            </div>
+                        </div>
+
+                        <div class="entrance-exam-step-item">
+                            <div class="entrance-exam-step-number">4</div>
+                            <div class="entrance-exam-step-body">
+                                <label for="exam-time">Choose a Time <span class="required-text">(required)</span></label>
+                                <select id="exam-time" name="exam-time">
+                                    <option value="">Select a time</option>
+                                    <option value="8:30 AM">8:30 AM</option>
+                                    <option value="10:30 AM">10:30 AM</option>
+                                    <option value="1:00 PM">1:00 PM</option>
+                                    <option value="3:00 PM">3:00 PM</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="entrance-exam-step-item">
+                            <div class="entrance-exam-step-number">5</div>
+                            <div class="entrance-exam-step-body">
+                                <p class="entrance-exam-step-title">Who is taking this exam?</p>
+                                <p class="entrance-exam-step-help">Please enter the test taker's information.</p>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label for="exam-first-name">First Name <span class="required-text">(required)</span></label>
+                                        <input type="text" id="exam-first-name" name="exam-first-name">
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="exam-last-name">Last Name <span class="required-text">(required)</span></label>
+                                        <input type="text" id="exam-last-name" name="exam-last-name">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label for="exam-email">Email <span class="required-text">(required)</span></label>
+                                        <input type="email" id="exam-email" name="exam-email">
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="exam-text-phone">Text Notifications (optional)</label>
+                                        <input type="tel" id="exam-text-phone" name="exam-text-phone" placeholder="(555) 555-5555">
+                                    </div>
+                                </div>
+                                <div class="form-field full-width">
+                                    <label>
+                                        <input type="checkbox" id="exam-terms-checkbox" name="exam-terms-checkbox">
+                                        I confirm this exam registration information is accurate.
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="entrance-exam-step-item">
+                            <div class="entrance-exam-step-number">6</div>
+                            <div class="entrance-exam-step-body">
+                                <label for="exam-access-code">Admissions Access Code <span class="required-text">(required)</span></label>
+                                <input type="password" id="exam-access-code" name="exam-access-code" autocomplete="off" placeholder="Enter admissions access code">
+                                <p class="entrance-exam-step-help">Enter the access code provided by Admissions to continue to the agreement page.</p>
+                            </div>
+                        </div>
+
+                        <div class="entrance-exam-alt-section">
+                            <h4>Alternative Admissions Review (Optional)</h4>
+                            <p class="entrance-exam-step-help">
+                                Applicants may submit prior exam results or request a degree-based waiver for admissions review.
+                            </p>
+
+                            <div class="form-field full-width">
+                                <label class="entrance-exam-option-title" for="exam-prior-score-checkbox">
+                                    <input type="checkbox" id="exam-prior-score-checkbox" name="exam-prior-score-checkbox">
+                                    Prior Entrance Exam Scores (taken within the last 2 years)
+                                </label>
+                                <p class="field-help">
+                                    If you completed an equivalent entrance exam at another institution within the past 2 years, upload your official score report for admissions review.
+                                </p>
+                                <input type="file" id="exam-prior-score-upload" name="exam-prior-score-upload" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                <p id="exam-prior-score-upload-name" class="entrance-exam-upload-name">No file uploaded yet.</p>
+                            </div>
+
+                            <div class="form-field full-width">
+                                <label class="entrance-exam-option-title" for="exam-degree-waiver-checkbox">
+                                    <input type="checkbox" id="exam-degree-waiver-checkbox" name="exam-degree-waiver-checkbox">
+                                    Degree-Based Entrance Exam Waiver Request
+                                </label>
+                                <p class="field-help">
+                                    Applicants with an approved degree may request a waiver of the entrance exam. Waiver approval is determined by Admissions and is not automatic.
+                                </p>
+                                <label for="exam-degree-level">Highest Degree Completed (for waiver request)</label>
+                                <select id="exam-degree-level" name="exam-degree-level">
+                                    <option value="">Select degree level</option>
+                                    <option value="Associate">Associate Degree</option>
+                                    <option value="Bachelor">Bachelor Degree</option>
+                                    <option value="Master">Master Degree</option>
+                                    <option value="Doctorate">Doctorate Degree</option>
+                                    <option value="International">International Degree (evaluated)</option>
+                                </select>
+                                <label for="exam-degree-proof-upload">Upload transcript or degree documentation</label>
+                                <input type="file" id="exam-degree-proof-upload" name="exam-degree-proof-upload" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                <p id="exam-degree-proof-upload-name" class="entrance-exam-upload-name">No file uploaded yet.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <aside class="entrance-exam-info-card">
+                        <h4>More Information</h4>
+                        <ul>
+                            <li>Hours of Operation</li>
+                            <li>Testing Fees</li>
+                            <li>Testing Guidelines</li>
+                            <li>Remote Testing</li>
+                            <li>How to Schedule an Exam</li>
+                            <li>How to Reschedule an Exam</li>
+                            <li>How to Cancel an Exam</li>
+                            <li>Trouble Scheduling?</li>
+                            <li>Contact Us</li>
+                        </ul>
+                    </aside>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="goToStep(3, 3)">Back</button>
+                    <button type="button" class="btn btn-primary" onclick="validateAndContinueFromEntranceExam()">Continue to Agreement</button>
+                </div>
+            </div>
+            <div class="agreement-section" id="agreement-content-section">
+                <div class="agreement-document">
+                    <h3>PRACTICAL NURSING PROGRAM ENROLLMENT AGREEMENT</h3>
+                    <p><strong>Broward-Miami Health Institute</strong></p>
+                    <p><em>Effective Date: February 2, 2026</em></p>
+
+                    <div class="agreement-content">
+                        <h4>1. Program Description</h4>
+                        <p>This Practical Nursing (PN) Program is designed to prepare students to become Licensed Practical Nurses (LPNs) in accordance with Florida Department of Education and Workforce standards. The program includes classroom instruction, laboratory work, and clinical experience.</p>
+
+                        <h4>2. Program Duration and Schedule</h4>
+                        <p>The program is approximately 12 months in duration. Day schedule: Monday and Wednesday, 9:00 AM - 2:00 PM. Evening schedule: Wednesday and Thursday, 5:00 PM - 9:00 PM. Students are required to maintain a minimum attendance rate of 90% to remain in good standing. Class days, times, clinical placements, and calendar dates are subject to change.</p>
+
+                        <h4>3. Tuition and Fees</h4>
+                        <p>The total program cost is $15,150 (subject to change). This includes tuition, books, materials, uniforms, and examination fees. Additional fees may apply for background checks and certifications.</p>
+                        <p><strong>Tuition:</strong> $14,000<br><strong>Books/Supplies:</strong> $1,000.00<br><strong>Registration Fee:</strong> $150</p>
+
+                        <h4>4. Payment Terms</h4>
+                        <p>Payment plans are available as detailed in the Payment Plan section. Full payment is required before completion of the program. Failure to maintain payment arrangements may result in dismissal.</p>
+
+                        <h4 class="agreement-policy-title">5. Cancellation and Refund Policy</h4>
+                        <p>Should the student be terminated or cancel for any reason, all refunds will be made per the following refund schedule:</p>
+                        <ol>
+                            <li>Cancellation must be made in person or by certified mail.</li>
+                            <li>All monies will be refunded if the school does not accept the applicant or if the student cancels within three (3) business days after signing the Enrollment Agreement and making initial payment.</li>
+                            <li>Cancellation after the third business day, but before the first class, will result in a refund of all monies paid with the exception of the registration fee (not to exceed $150.00) and background fee.</li>
+                            <li>A student canceling after attendance has begun through 40% completion of the program will result in a Pro-Rata refund computed based on the numbers of hours completed to the total program hours. There is no refund of the registration fee and background fee after the third business day.</li>
+                            <li>Cancellation after completing more than 40% of the program will result in no refund.</li>
+                            <li>The termination date for refund computation purposes is the last date of actual attendance by the student unless earlier written notice is received.</li>
+                            <li>Refunds will be made within 30 days of termination or receipt of Cancellation Notice.</li>
+                            <li>A student can be dismissed, at the discretion of the President, for insufficient progress, nonpayment of costs, or failure to comply with the rules.</li>
+                            <li>If the school terminates a program for any reason prior to student graduation, the student will receive a 100% refund on monies paid to the school.</li>
+                            <li>For a student who is on a leave of absence, the termination date is the last date of attendance before the student left on the leave of absence.</li>
+                        </ol>
+
+                        <h4>6. Code of Conduct</h4>
+                        <p>Students agree to abide by all school policies and maintain professional and ethical standards. Violations may result in disciplinary action up to and including expulsion.</p>
+
+                        <h4>7. Health and Safety</h4>
+                        <p>Students must comply with all health and safety requirements, including immunizations, TB testing, and drug screening. Students with contagious illnesses must not attend classes.</p>
+
+                        <h4>8. Confidentiality</h4>
+                        <p>All patient information encountered during clinical experience must be kept strictly confidential in accordance with HIPAA regulations.</p>
+
+                        <h4>9. Grounds for Termination</h4>
+                        <p>A student's enrollment can be terminated at the discretion of the institution for insufficient academic progress, non-payment of academic costs, or failure to comply with rules and policies established by the institution as outlined in the catalog and this agreement.</p>
+
+                        <h4>10. Employment Assistance</h4>
+                        <p>Although placement assistance may be offered, the institution does not guarantee employment. Students are assisted with placement and furnished names and addresses of employment possibilities. Inquiries made to the school from potential employers will be posted on a placement opportunity bulletin board.</p>
+                        <p>Placement services are provided free of charge. Nevertheless, the school does not guarantee employment.</p>
+
+                        <h4>11. Acknowledgement</h4>
+                        <p>This document and the catalog constitute a binding contract between the institution and the student and no further modification or representation except as herein expressed by both parties will be recognized.</p>
+
+                        <h4>12. Graduation Requirements</h4>
+                        <p>To graduate from Broward-Miami Health Institute, and to receive a diploma, the student must:</p>
+                        <p>Complete each required course / meet each course's minimum standards in addition to obtaining an overall CGPA of a 3.0 or higher and satisfy all financial obligations.</p>
+
+                        <h4>13. Credential Awarded</h4>
+                        <p>Upon satisfactory completion of the program, the student will be awarded a Diploma.</p>
+
+                        <h4>14. Read, Sign and Date</h4>
+                        <p><strong>Notice to student:</strong> Do not sign this Enrollment Agreement before you read it or if it contains any blank spaces. You are entitled to an exact copy of this signed document. Keep it to protect your legal rights.</p>
+                        <p>Please initial the statements below:</p>
+
+                        <div class="read-sign-list">
+                            <div class="read-sign-item">
+                                <div class="read-sign-initial-controls">
+                                    <input type="text" id="initial-1" class="read-sign-initial-input" maxlength="4" placeholder="Init" aria-label="Statement 1 initials">
+                                </div>
+                                <p>I have read the terms and conditions contained in this Enrollment Agreement and the Catalog and understand that this agreement constitutes a binding contract upon written acceptance by the Institution.</p>
+                            </div>
+                            <div class="read-sign-item">
+                                <div class="read-sign-initial-controls">
+                                    <input type="text" id="initial-2" class="read-sign-initial-input" maxlength="4" placeholder="Init" aria-label="Statement 2 initials">
+                                </div>
+                                <p>I understand that the submission of inaccurate or incomplete information can be considered sufficient cause for terminating my enrollment.</p>
+                            </div>
+                            <div class="read-sign-item">
+                                <div class="read-sign-initial-controls">
+                                    <input type="text" id="initial-3" class="read-sign-initial-input" maxlength="4" placeholder="Init" aria-label="Statement 3 initials">
+                                </div>
+                                <p>I confirm that the information contained in this enrollment agreement is complete and accurate.</p>
+                            </div>
+                            <div class="read-sign-item">
+                                <div class="read-sign-initial-controls">
+                                    <input type="text" id="initial-4" class="read-sign-initial-input" maxlength="4" placeholder="Init" aria-label="Statement 4 initials">
+                                </div>
+                                <p>I have received a copy of the current catalog and have read it.</p>
+                            </div>
+                            <div class="read-sign-item">
+                                <div class="read-sign-initial-controls">
+                                    <input type="text" id="initial-5" class="read-sign-initial-input" maxlength="4" placeholder="Init" aria-label="Statement 5 initials">
+                                </div>
+                                <p>I understand I will receive a copy of this Enrollment Agreement, signed by the school and me as student/parent.</p>
+                            </div>
+                        </div>
+
+                        <p class="agreement-read-sign-warning">DO NOT SIGN THIS CONTRACT BEFORE YOU HAVE READ IT OR IF IT CONTAINS ANY BLANK SPACES. ALL SIGNERS HAVE RECEIVED AND READ A COPY OF THE BINDING DOCUMENT AND CATALOG.</p>
+                    </div>
+                </div>
+
+                <div class="signature-section">
+                    <h3>Digital Signature</h3>
+                    <p style="color: #666; margin-bottom: 20px;">Please sign below to acknowledge that you have read and agree to the terms of this enrollment agreement.</p>
+                    
+                    <div class="signature-box">
+                        <canvas id="signatureCanvas" width="520" height="120"></canvas>
+                        <p style="font-size: 12px; color: #999; margin-top: 5px;">Sign here</p>
+                    </div>
+
+                    <div style="margin-top: 10px; display: flex; gap: 10px;">
+                        <button type="button" class="btn btn-secondary" onclick="clearSignature()">Clear Signature</button>
+                        <button type="button" class="btn btn-primary" onclick="saveSignature()">Sign & Save</button>
+                    </div>
+
+                    <div class="form-field" style="margin-top: 20px;">
+                        <label for="agreementFullName">Type your full legal name *</label>
+                        <input type="text" id="agreementFullName" name="agreementFullName" placeholder="First Last" required>
+                    </div>
+
+                    <div class="form-field" style="margin-top: 20px;">
+                        <label for="agree-checkbox">
+                            <input type="checkbox" id="agree-checkbox" name="agree">
+                            I have read and agree to all terms in the Enrollment Agreement
+                        </label>
+                    </div>
+
+                    <div class="signature-acknowledgment">
+                        <div class="form-row">
+                            <div class="form-field">
+                                <label for="signature-name">Student Name (Print) *</label>
+                                <input type="text" id="signature-name" name="signatureName" placeholder="First Last">
+                            </div>
+                            <div class="form-field">
+                                <label for="signature-date">Date *</label>
+                                <input type="date" id="signature-date" name="signatureDate">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="goToStep(3, 4)">Back</button>
+                    <button type="button" class="btn btn-primary" onclick="validateAndContinueFromAgreement()">Continue to Payment</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 4: PAYMENT -->
+        <div class="step-content" id="step-4">
+            <h2>Payment Plan & Information</h2>
+            
+                <div class="payment-section">
+                    <div class="payment-info-box">
+                        <h3>Program Total Cost: $15,150</h3>
+                        <p class="payment-info-subtext">Choose a payment plan that works best for your budget</p>
+                    </div>
+
+                <h3 class="payment-plan-heading">Choose Payment Plan</h3>
+                <div class="payment-plans">
+                    <div class="payment-plan-card" onclick="selectPaymentPlan(1)">
+                        <input type="radio" id="plan1" name="payment-plan" value="full-payment">
+                        <label for="plan1" class="plan-label">
+                            <h4>Plan 1: Full Payment</h4>
+                            <p class="plan-amount">$15,150</p>
+                            <p class="plan-description">Pay in full upfront</p>
+                            <p class="plan-fee"><strong>No additional fees</strong></p>
+                        </label>
+                    </div>
+
+                    <div class="payment-plan-card" onclick="selectPaymentPlan(2)">
+                        <input type="radio" id="plan2" name="payment-plan" value="two-payment">
+                        <label for="plan2" class="plan-label">
+                            <h4>Plan 2: Two Payments</h4>
+                            <p class="plan-amount">$7,800 x 2</p>
+                            <p class="plan-description">50% upfront, 50% at 6 months</p>
+                            <p class="plan-fee"><strong>Total: $15,600 (+$450)</strong></p>
+                        </label>
+                    </div>
+
+                    <div class="payment-plan-card" onclick="selectPaymentPlan(3)">
+                        <input type="radio" id="plan3" name="payment-plan" value="monthly-12">
+                        <label for="plan3" class="plan-label">
+                            <h4>Plan 3: 12 Monthly Payments</h4>
+                            <p class="plan-amount">$1,350/month</p>
+                            <p class="plan-description">First payment due at enrollment</p>
+                            <p class="plan-fee"><strong>Total: $16,200 (+$1,050)</strong></p>
+                        </label>
+                    </div>
+
+                    <div class="payment-plan-card" onclick="selectPaymentPlan(4)">
+                        <input type="radio" id="plan4" name="payment-plan" value="monthly-6">
+                        <label for="plan4" class="plan-label">
+                            <h4>Plan 4: 6 Monthly Payments</h4>
+                            <p class="plan-amount">$2,650/month</p>
+                            <p class="plan-description">Faster payment period</p>
+                            <p class="plan-fee"><strong>Total: $15,900 (+$750)</strong></p>
+                        </label>
+                    </div>
+
+                    <div class="payment-plan-card" onclick="selectPaymentPlan(5)">
+                        <input type="radio" id="plan5" name="payment-plan" value="monthly-500-balance">
+                        <label for="plan5" class="plan-label">
+                            <h4>Plan 5: $500 Monthly + Month 12 Balance</h4>
+                            <p class="plan-amount">$500/month (Months 1-11)</p>
+                            <p class="plan-description">Month 12 final payment: $9,650</p>
+                            <p class="plan-fee"><strong>Total: $15,150 (no additional fee)</strong></p>
+                        </label>
+                    </div>
+
+                    <div class="payment-plan-card" onclick="selectPaymentPlan(6)">
+                        <input type="radio" id="plan6" name="payment-plan" value="2000-down-rest-monthly">
+                        <label for="plan6" class="plan-label">
+                            <h4>Plan 6: $2,000 Down + Monthly Payments</h4>
+                            <p class="plan-amount">$2,000 at enrollment</p>
+                            <p class="plan-description">Remaining balance paid monthly over 11 payments</p>
+                            <p class="plan-fee"><strong>Total: $15,150 (no additional fee)</strong></p>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="methods-of-payment-section">
+                    <h3>METHODS OF PAYMENT</h3>
+                    <p class="methods-note">Select one method of payment.</p>
+                    <div class="methods-list">
+                        <label><input type="radio" name="method-of-payment" id="method-full-payment"> Full payment at the time of signing the enrollment agreement.</label>
+                        <label><input type="radio" name="method-of-payment" id="method-reg-fee-start"> Registration fee at the time of signing the enrollment agreement with balance paid prior to program start date.</label>
+                        <label><input type="radio" name="method-of-payment" id="method-reg-fee-graduation"> Registration fee at the time of signing the Enrollment Agreement with balance paid prior to graduation.</label>
+                    </div>
+                    <p class="methods-note">Card payments accepted: Visa, MasterCard, Discover, and American Express (15-digit card number).</p>
+                    <p class="methods-note">NOTE: For schools offering a payment plan with four or more payments, the federal boxes or vertical listing must be included on the contract. Enter N/A or line through if not applicable.</p>
+
+                    <div class="finance-calculator-section">
+                        <h4>Finance Disclosure Calculator</h4>
+
+                        <div class="form-row">
+                            <div class="form-field">
+                                <label for="finance-apr">Annual Percentage Rate (%)</label>
+                                <input type="number" id="finance-apr" min="0" step="0.01" placeholder="0.00">
+                            </div>
+                            <div class="form-field">
+                                <label for="finance-down-payment">Down Payment / Registration Fee ($)</label>
+                                <input type="number" id="finance-down-payment" min="0" step="0.01" placeholder="0.00">
+                            </div>
+                            <div class="form-field">
+                                <label for="finance-begin-date">Beginning On</label>
+                                <input type="date" id="finance-begin-date">
+                            </div>
+                            <div class="form-field">
+                                <label for="finance-frequency">Payment Frequency</label>
+                                <select id="finance-frequency">
+                                    <option value="weekly">Weekly</option>
+                                    <option value="bi-weekly">Bi-Weekly</option>
+                                    <option value="monthly" selected>Monthly</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <table class="finance-table">
+                            <thead>
+                                <tr>
+                                    <th>ANNUAL PERCENTAGE RATE %</th>
+                                    <th>FINANCE CHARGE</th>
+                                    <th>AMOUNT FINANCED</th>
+                                    <th>TOTAL OF PAYMENT</th>
+                                    <th>TOTAL SALES PRICE</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td id="finance-apr-output">0.00%</td>
+                                    <td id="finance-charge-output">$0</td>
+                                    <td id="amount-financed-output">$0</td>
+                                    <td id="total-of-payment-output">$0</td>
+                                    <td id="total-sales-price-output">$0</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="finance-schedule-section">
+                            <h5>YOUR PAYMENT SCHEDULE WILL BE:</h5>
+                            <div class="form-row">
+                                <div class="form-field">
+                                    <label for="finance-number-payments">Number of Payments</label>
+                                    <input type="text" id="finance-number-payments" readonly>
+                                </div>
+                                <div class="form-field">
+                                    <label for="finance-amount-each-payment">Amount of Each Payment</label>
+                                    <input type="text" id="finance-amount-each-payment" readonly>
+                                </div>
+                                <div class="form-field full-width">
+                                    <label>When Payments Are Due</label>
+                                    <p class="finance-when-due" id="finance-when-due">Select a payment plan to calculate due schedule.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="finance-footnote">Any late fee payments and conditions thereof must be disclosed on the enrollment agreement and in the catalog. Contracts are not sold to a third party at any time. There are no carrying charges, interest charges, or service charges connected or charged with any of these programs unless stated.</p>
+                    </div>
+                </div>
+
+                <div class="payment-breakdown" id="payment-breakdown">
+                    <h3>Payment Breakdown</h3>
+                    <table class="breakdown-table">
+                        <thead>
+                            <tr>
+                                <th>Payment</th>
+                                <th>Amount</th>
+                                <th>Due Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="breakdown-body">
+                            <tr>
+                                <td colspan="3" style="text-align: center; color: #999;">Select a payment plan above</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="payment-form">
+                    <h3>Payment Information</h3>
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label for="card-name">Name on Card *</label>
+                            <input type="text" id="card-name" name="card-name" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label for="card-number">Card Number *</label>
+                            <input type="text" id="card-number" name="card-number" placeholder="1234 5678 9012 3456" maxlength="19" required>
+                            <p class="field-help">Accepted cards: Visa, MasterCard, Discover, and American Express (15 digits).</p>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label for="expiry">Expiration Date *</label>
+                            <input type="text" id="expiry" name="expiry" placeholder="MM/YY" maxlength="5" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="cvv">CVV *</label>
+                            <input type="text" id="cvv" name="cvv" placeholder="123 or 1234" maxlength="4" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label for="billing-zip">Billing ZIP Code *</label>
+                            <input type="text" id="billing-zip" name="billing-zip" placeholder="12345" maxlength="5" required>
+                        </div>
+                    </div>
+
+                    <div class="form-field full-width">
+                        <label>
+                            <input type="checkbox" id="auto-pay-checkbox">
+                            Enable AutoPay for monthly installments (if applicable)
+                        </label>
+                    </div>
+
+                    <div class="form-field full-width">
+                        <label>
+                            <input type="checkbox" id="payment-authorize-checkbox" required>
+                            I authorize Broward-Miami Health Institute to process my selected payment plan.
+                        </label>
+                    </div>
+
+                    <div class="form-field full-width">
+                        <label>
+                            <input type="checkbox" id="no-refund-chargeback-checkbox" required>
+                            I understand payments are non-refundable and I will not file a chargeback.
+                        </label>
+                    </div>
+
+                    <div class="form-field full-width">
+                        <label>
+                            <input type="checkbox" id="promise-to-pay-checkbox" required>
+                            I promise to pay all amounts due under my selected payment plan on time.
+                        </label>
+                    </div>
+
+                    <div class="payment-authorization-section">
+                        <h4>Payment Authorization Signature</h4>
+                        <p class="payment-authorization-note">Please complete name, signature, and date for this payment authorization.</p>
+                        <div class="form-row">
+                            <div class="form-field">
+                                <label for="payment-authorization-name">Authorized Name *</label>
+                                <input type="text" id="payment-authorization-name" name="payment-authorization-name" required>
+                            </div>
+                            <div class="form-field">
+                                <label for="payment-authorization-date">Authorization Date *</label>
+                                <input type="date" id="payment-authorization-date" name="payment-authorization-date" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-field full-width">
+                                <div class="payment-signature-heading">
+                                    <label for="paymentSignatureCanvas">Signature *</label>
+                                    <span class="payment-signature-badge" id="payment-signature-badge" hidden>Signature saved</span>
+                                </div>
+                                <div class="payment-signature-box">
+                                    <canvas id="paymentSignatureCanvas" width="520" height="120"></canvas>
+                                    <p style="font-size: 12px; color: #999; margin-top: 5px;">Sign here</p>
+                                </div>
+                                <div class="payment-signature-actions">
+                                    <button type="button" class="btn btn-secondary" onclick="clearPaymentSignature()">Clear Signature</button>
+                                    <button type="button" class="btn btn-primary" onclick="savePaymentSignature()">Sign & Save</button>
+                                </div>
+                                <p class="payment-signature-status" id="payment-signature-status">Signature not saved yet.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="goToStep(3, 5)">Back</button>
+                        <button type="button" class="btn btn-primary" onclick="validateAndProcessPayment()">Confirm and Continue</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 5: MILESTONES -->
+        <div class="step-content" id="step-5">
+            <h2 id="step-5-title">Acceptance & Next Steps</h2>
+
+            <div id="step-5-tracker-content" hidden>
+            <div class="success-message">
+                <h3>✓ Enrollment Complete!</h3>
+                <p>Congratulations! You have successfully enrolled in the Practical Nursing Program at Broward-Miami Health Institute.</p>
+                <p>Below is your personalized milestone tracker. Complete each milestone to progress through the program.</p>
+            </div>
+
+            <div class="milestone-progress-summary">
+                <div class="milestone-progress-header">
+                    <h3>Milestone Completion</h3>
+                    <p id="milestone-progress-text">0 of 9 completed</p>
+                </div>
+                <div class="milestone-progress-track">
+                    <div class="milestone-progress-bar" id="milestone-progress-bar"></div>
+                </div>
+            </div>
+
+            <div class="term-curriculum-section">
+                <h3>7-Term Course and Hours Tracker</h3>
+                <p class="term-curriculum-note">Track each term with course name, theory hours, lab hours, clinical hours, and total hours.</p>
+                <div class="term-curriculum-table-wrap">
+                    <table class="term-curriculum-table">
+                        <thead>
+                            <tr>
+                                <th>Term</th>
+                                <th>Course Code</th>
+                                <th>Course Name</th>
+                                <th>Theory Hours</th>
+                                <th>Lab Hours</th>
+                                <th>Clinical Hours</th>
+                                <th>Total Hours</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Term 1</td><td>PN 101</td><td>Medical Terminology</td><td>45</td><td>0</td><td>0</td><td>45</td></tr>
+                            <tr><td>Term 1</td><td>PN 102</td><td>Introduction to Nursing</td><td>55</td><td>0</td><td>45</td><td>100</td></tr>
+                            <tr><td>Term 2</td><td>PN 103</td><td>Long Term Care Nursing</td><td>65</td><td>0</td><td>45</td><td>110</td></tr>
+                            <tr><td>Term 2</td><td>PN 104</td><td>Anatomy and Physiology</td><td>15</td><td>30</td><td>45</td><td>90</td></tr>
+                            <tr><td>Term 3</td><td>PN 112</td><td>Community Health</td><td>30</td><td>0</td><td>0</td><td>30</td></tr>
+                            <tr><td>Term 3</td><td>PN 105</td><td>Fundamentals of Nursing</td><td>60</td><td>0</td><td>100</td><td>160</td></tr>
+                            <tr><td>Term 4</td><td>PN 106</td><td>Pharmacology and Intravenous Therapy</td><td>60</td><td>0</td><td>30</td><td>90</td></tr>
+                            <tr><td>Term 4</td><td>PN 107</td><td>Medical Surgical Nursing I</td><td>90</td><td>20</td><td>120</td><td>230</td></tr>
+                            <tr><td>Term 5</td><td>PN 108</td><td>Medical Surgical Nursing II</td><td>90</td><td>20</td><td>120</td><td>230</td></tr>
+                            <tr><td>Term 6</td><td>PN 109</td><td>Maternal Newborn Nursing</td><td>75</td><td>0</td><td>0</td><td>75</td></tr>
+                            <tr><td>Term 6</td><td>PN 110</td><td>Pediatric Nursing</td><td>75</td><td>0</td><td>0</td><td>75</td></tr>
+                            <tr><td>Term 7</td><td>PN 111</td><td>Mental Health Concepts</td><td>25</td><td>0</td><td>45</td><td>70</td></tr>
+                            <tr><td>Term 7</td><td>PN 113</td><td>Transition to Practice</td><td>15</td><td>0</td><td>30</td><td>45</td></tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3"><strong>Total Program Hours</strong></td>
+                                <td><strong>700</strong></td>
+                                <td><strong>70</strong></td>
+                                <td><strong>580</strong></td>
+                                <td><strong>1350</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <div class="milestones-container">
+                <div class="milestone-section">
+                    <h3>Term Milestones (Every 7 Weeks / About Every 2 Months)</h3>
+                    <div class="milestones">
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox"><input type="checkbox" class="milestone-check" id="m5"></div>
+                                <div class="milestone-info">
+                                    <h4>Term 1 Complete (PN 101 & PN 102)</h4>
+                                    <p class="milestone-date">Due: End of Week 7</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Complete Medical Terminology and Introduction to Nursing requirements.</p>
+                            <div class="milestone-scheduler">
+                                <label for="term1-eval1">Program Evaluation</label>
+                                <p class="term-evaluation-due">Due: Week 4 of this term</p>
+                                <select id="term1-eval1" data-term-evaluation="term1-eval1">
+                                    <option value="">Select an option</option>
+                                    <option value="scheduled">Scheduled with Faculty</option>
+                                    <option value="completed">Completed with Faculty</option>
+                                    <option value="follow-up">Needs Follow-Up</option>
+                                </select>
+                                <label class="term-evaluation-complete"><input type="checkbox" data-term-evaluation-complete="term1-eval1"> Mark complete</label>
+                                <input type="file" id="term1-eval1-upload" data-term-evaluation-upload="term1-eval1" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                <p class="term-evaluation-upload-name" data-term-evaluation-upload-name="term1-eval1">No file uploaded yet.</p>
+                                <button type="button" class="btn btn-secondary term-eval-save" onclick="saveTermEvaluation('term1-eval1')">Save Evaluation</button>
+                            </div>
+                        </div>
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox"><input type="checkbox" class="milestone-check" id="m6"></div>
+                                <div class="milestone-info">
+                                    <h4>Term 2 Complete (PN 103 & PN 104)</h4>
+                                    <p class="milestone-date">Due: End of Week 14</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Complete Long Term Care Nursing and Anatomy and Physiology requirements.</p>
+                            <div class="milestone-scheduler">
+                                <label for="term2-eval1">Program Evaluation</label>
+                                <p class="term-evaluation-due">Due: Week 4 of this term</p>
+                                <select id="term2-eval1" data-term-evaluation="term2-eval1">
+                                    <option value="">Select an option</option>
+                                    <option value="scheduled">Scheduled with Faculty</option>
+                                    <option value="completed">Completed with Faculty</option>
+                                    <option value="follow-up">Needs Follow-Up</option>
+                                </select>
+                                <label class="term-evaluation-complete"><input type="checkbox" data-term-evaluation-complete="term2-eval1"> Mark complete</label>
+                                <input type="file" id="term2-eval1-upload" data-term-evaluation-upload="term2-eval1" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                <p class="term-evaluation-upload-name" data-term-evaluation-upload-name="term2-eval1">No file uploaded yet.</p>
+                                <button type="button" class="btn btn-secondary term-eval-save" onclick="saveTermEvaluation('term2-eval1')">Save Evaluation</button>
+                            </div>
+                        </div>
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox"><input type="checkbox" class="milestone-check" id="m7"></div>
+                                <div class="milestone-info">
+                                    <h4>Term 3 Complete (PN 112 & PN 105)</h4>
+                                    <p class="milestone-date">Due: End of Week 21</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Complete Community Health and Fundamentals of Nursing requirements.</p>
+                            <div class="milestone-scheduler">
+                                <label for="term3-eval1">Program Evaluation</label>
+                                <p class="term-evaluation-due">Due: Week 4 of this term</p>
+                                <select id="term3-eval1" data-term-evaluation="term3-eval1">
+                                    <option value="">Select an option</option>
+                                    <option value="scheduled">Scheduled with Faculty</option>
+                                    <option value="completed">Completed with Faculty</option>
+                                    <option value="follow-up">Needs Follow-Up</option>
+                                </select>
+                                <label class="term-evaluation-complete"><input type="checkbox" data-term-evaluation-complete="term3-eval1"> Mark complete</label>
+                                <input type="file" id="term3-eval1-upload" data-term-evaluation-upload="term3-eval1" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                <p class="term-evaluation-upload-name" data-term-evaluation-upload-name="term3-eval1">No file uploaded yet.</p>
+                                <button type="button" class="btn btn-secondary term-eval-save" onclick="saveTermEvaluation('term3-eval1')">Save Evaluation</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="milestone-section">
+                    <h3 class="milestone-group-title">Mid Term Milestones</h3>
+                    <div class="milestones">
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox"><input type="checkbox" class="milestone-check" id="m8"></div>
+                                <div class="milestone-info">
+                                    <h4>Term 4 Complete (PN 106 & PN 107)</h4>
+                                    <p class="milestone-date">Due: End of Week 28</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Complete Pharmacology/IV Therapy and Medical Surgical Nursing I requirements.</p>
+                            <div class="milestone-scheduler">
+                                <label for="term4-eval1">Program Evaluation</label>
+                                <p class="term-evaluation-due">Due: Week 4 of this term</p>
+                                <select id="term4-eval1" data-term-evaluation="term4-eval1">
+                                    <option value="">Select an option</option>
+                                    <option value="scheduled">Scheduled with Faculty</option>
+                                    <option value="completed">Completed with Faculty</option>
+                                    <option value="follow-up">Needs Follow-Up</option>
+                                </select>
+                                <label class="term-evaluation-complete"><input type="checkbox" data-term-evaluation-complete="term4-eval1"> Mark complete</label>
+                                <input type="file" id="term4-eval1-upload" data-term-evaluation-upload="term4-eval1" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                <p class="term-evaluation-upload-name" data-term-evaluation-upload-name="term4-eval1">No file uploaded yet.</p>
+                                <button type="button" class="btn btn-secondary term-eval-save" onclick="saveTermEvaluation('term4-eval1')">Save Evaluation</button>
+                            </div>
+                        </div>
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox"><input type="checkbox" class="milestone-check" id="m9"></div>
+                                <div class="milestone-info">
+                                    <h4>Term 5 Complete (PN 108)</h4>
+                                    <p class="milestone-date">Due: End of Week 35</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Complete Medical Surgical Nursing II requirements.</p>
+                            <div class="milestone-scheduler">
+                                <label for="term5-eval1">Program Evaluation</label>
+                                <p class="term-evaluation-due">Due: Week 4 of this term</p>
+                                <select id="term5-eval1" data-term-evaluation="term5-eval1">
+                                    <option value="">Select an option</option>
+                                    <option value="scheduled">Scheduled with Faculty</option>
+                                    <option value="completed">Completed with Faculty</option>
+                                    <option value="follow-up">Needs Follow-Up</option>
+                                </select>
+                                <label class="term-evaluation-complete"><input type="checkbox" data-term-evaluation-complete="term5-eval1"> Mark complete</label>
+                                <input type="file" id="term5-eval1-upload" data-term-evaluation-upload="term5-eval1" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                <p class="term-evaluation-upload-name" data-term-evaluation-upload-name="term5-eval1">No file uploaded yet.</p>
+                                <button type="button" class="btn btn-secondary term-eval-save" onclick="saveTermEvaluation('term5-eval1')">Save Evaluation</button>
+                            </div>
+                        </div>
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox"><input type="checkbox" class="milestone-check" id="m10"></div>
+                                <div class="milestone-info">
+                                    <h4>Term 6 Complete (PN 109 & PN 110)</h4>
+                                    <p class="milestone-date">Due: End of Week 42</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Complete Maternal Newborn and Pediatric Nursing requirements.</p>
+                            <div class="milestone-scheduler">
+                                <label for="term6-eval1">Program Evaluation</label>
+                                <p class="term-evaluation-due">Due: Week 4 of this term</p>
+                                <select id="term6-eval1" data-term-evaluation="term6-eval1">
+                                    <option value="">Select an option</option>
+                                    <option value="scheduled">Scheduled with Faculty</option>
+                                    <option value="completed">Completed with Faculty</option>
+                                    <option value="follow-up">Needs Follow-Up</option>
+                                </select>
+                                <label class="term-evaluation-complete"><input type="checkbox" data-term-evaluation-complete="term6-eval1"> Mark complete</label>
+                                <input type="file" id="term6-eval1-upload" data-term-evaluation-upload="term6-eval1" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                <p class="term-evaluation-upload-name" data-term-evaluation-upload-name="term6-eval1">No file uploaded yet.</p>
+                                <button type="button" class="btn btn-secondary term-eval-save" onclick="saveTermEvaluation('term6-eval1')">Save Evaluation</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="milestone-section">
+                    <h3 class="milestone-group-title">Final Term and Completion Milestones</h3>
+                    <div class="milestones">
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox"><input type="checkbox" class="milestone-check" id="m11"></div>
+                                <div class="milestone-info">
+                                    <h4>Term 7 Complete (PN 111 & PN 113)</h4>
+                                    <p class="milestone-date">Due: End of Week 49</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Complete Mental Health Concepts and Transition to Practice requirements.</p>
+                            <div class="milestone-scheduler">
+                                <label for="term7-eval1">Program Evaluation</label>
+                                <p class="term-evaluation-due">Due: Week 4 of this term</p>
+                                <select id="term7-eval1" data-term-evaluation="term7-eval1">
+                                    <option value="">Select an option</option>
+                                    <option value="scheduled">Scheduled with Faculty</option>
+                                    <option value="completed">Completed with Faculty</option>
+                                    <option value="follow-up">Needs Follow-Up</option>
+                                </select>
+                                <label class="term-evaluation-complete"><input type="checkbox" data-term-evaluation-complete="term7-eval1"> Mark complete</label>
+                                <input type="file" id="term7-eval1-upload" data-term-evaluation-upload="term7-eval1" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                <p class="term-evaluation-upload-name" data-term-evaluation-upload-name="term7-eval1">No file uploaded yet.</p>
+                                <button type="button" class="btn btn-secondary term-eval-save" onclick="saveTermEvaluation('term7-eval1')">Save Evaluation</button>
+                            </div>
+                        </div>
+                        <div class="milestone-card"><div class="milestone-header"><div class="milestone-checkbox"><input type="checkbox" class="milestone-check" id="m12"></div><div class="milestone-info"><h4>Graduation Completion</h4><p class="milestone-date">After Term 7 completion</p></div></div><p class="milestone-desc">Complete all program hours, financial obligations, and exit requirements.</p></div>
+                        <div class="milestone-card"><div class="milestone-header"><div class="milestone-checkbox"><input type="checkbox" class="milestone-check" id="m13"></div><div class="milestone-info"><h4>NCLEX-PN Completion</h4><p class="milestone-date">After graduation</p></div></div><p class="milestone-desc">Register, test, and pass NCLEX-PN to obtain licensure.</p><details class="nclex-guide"><summary>Ready to Take the NCLEX? Learn How to Register</summary><div class="nclex-guide-content"><p>Registering for the NCLEX is a multi-step process through your nursing regulatory body (NRB) and Pearson VUE.</p><ol><li><strong>Apply for Licensure and Registration:</strong> Submit your application to the NRB.</li><li><strong>Register with Pearson:</strong> Complete NCLEX registration and scheduling.</li><li><strong>Pay Fees:</strong> Pay exam fees and any applicable change fees.</li><li><strong>Receive ATT:</strong> Use your Authorization to Test email to schedule your exam appointment.</li></ol><p>For official information, visit <a href="https://www.nclex.com/" target="_blank" rel="noopener">NCLEX.com</a>.</p></div></details></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="contact-section">
+                <h3>Need Help?</h3>
+                <p><strong>Email:</strong> support@browardmiamihi.com</p>
+                <p><strong>Tel:</strong> (954) 248-0669</p>
+                <p><strong>Address:</strong> 6320 Miramar Pkwy Suite I, Miramar, FL 33023</p>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-success" onclick="completeEnrollment()">Complete Enrollment</button>
+                <button type="button" class="btn btn-secondary" onclick="resetEnrollment()">Start New Enrollment</button>
+            </div>
+            </div>
+
+            <div id="step-5-acceptance-content">
+
+            <div class="milestone-progress-summary">
+                <div class="milestone-progress-header">
+                    <h3>Enrollment Tracker</h3>
+                    <p id="acceptance-progress-text">0 of 9 completed</p>
+                </div>
+                <div class="milestone-progress-track">
+                    <div class="milestone-progress-bar" id="acceptance-progress-bar"></div>
+                </div>
+            </div>
+
+            <div class="milestones-container">
+                <div class="milestone-section">
+                    <h3>Pre-Program Milestones (Before Start Date)</h3>
+                    <div class="milestones">
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox">
+                                    <input type="checkbox" class="milestone-check" id="m14">
+                                </div>
+                                <div class="milestone-info">
+                                    <h4>Complete Registration</h4>
+                                    <p class="milestone-date">Due: Before entrance exam scheduling</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Confirm all registration fields are complete and submitted.</p>
+                        </div>
+
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox">
+                                    <input type="checkbox" class="milestone-check" id="m15">
+                                </div>
+                                <div class="milestone-info">
+                                    <h4>Create Student Portal</h4>
+                                    <p class="milestone-date">Due: Immediately after registration</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Create your portal account to receive updates and upload required items.</p>
+                        </div>
+
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox">
+                                    <input type="checkbox" class="milestone-check" id="m16">
+                                </div>
+                                <div class="milestone-info">
+                                    <h4>Register for Entrance Exam</h4>
+                                    <p class="milestone-date">Due: Before signing final agreement package</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Select testing option (on campus or online proctored), then schedule your exam date and time.</p>
+                        </div>
+
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox">
+                                    <input type="checkbox" class="milestone-check" id="m17">
+                                </div>
+                                <div class="milestone-info">
+                                    <h4>Complete Student Agreement</h4>
+                                    <p class="milestone-date">Due: Before payment processing</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Review and sign the student enrollment agreement and initials section.</p>
+                        </div>
+
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox">
+                                    <input type="checkbox" class="milestone-check" id="m0">
+                                </div>
+                                <div class="milestone-info">
+                                    <h4>Create Complio Account</h4>
+                                    <p class="milestone-date">Due: As soon as enrollment is completed</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Create your account at <a href="https://browardmiamihi.complio.com/" target="_blank" rel="noopener">browardmiamihi.complio.com</a>, complete immunizations, and upload required compliance documents.</p>
+                        </div>
+
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox">
+                                    <input type="checkbox" class="milestone-check" id="m1">
+                                </div>
+                                <div class="milestone-info">
+                                    <h4>Complete Background Check</h4>
+                                    <p class="milestone-date">Due: 2 weeks before start date</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Submit to an approved background check agency through Complio, or schedule an appointment with the school.</p>
+                            <div class="milestone-scheduler">
+                                <label for="background-check-date">Schedule background check appointment with school (calendar)</label>
+                                <input type="date" id="background-check-date" name="background-check-date">
+                                <button type="button" class="btn btn-secondary milestone-schedule-submit" onclick="submitMilestoneScheduleRequest('Background Check Appointment', 'background-check-date')">Submit Request</button>
+                            </div>
+                        </div>
+
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox">
+                                    <input type="checkbox" class="milestone-check" id="m2">
+                                </div>
+                                <div class="milestone-info">
+                                    <h4>Obtain CPR Certification (BLS)</h4>
+                                    <p class="milestone-date">Due: 1 week before start date</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">American Heart Association Basic Life Support certification</p>
+                            <div class="milestone-scheduler">
+                                <label for="cpr-course-date">Schedule BLS course with school (calendar)</label>
+                                <input type="date" id="cpr-course-date" name="cpr-course-date">
+                                <button type="button" class="btn btn-secondary milestone-schedule-submit" onclick="submitMilestoneScheduleRequest('BLS Course Appointment', 'cpr-course-date')">Submit Request</button>
+                                <p class="milestone-fee-note">Additional $80 fee applies.</p>
+                            </div>
+                        </div>
+
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox">
+                                    <input type="checkbox" class="milestone-check" id="m3">
+                                </div>
+                                <div class="milestone-info">
+                                    <h4>Physical Examination & Immunizations</h4>
+                                    <p class="milestone-date">Due: 1 week before start date</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Complete health screening and provide immunization records, or schedule an appointment with the school.</p>
+                            <div class="milestone-scheduler">
+                                <label for="physical-exam-date">Schedule physical exam appointment with school (calendar)</label>
+                                <input type="date" id="physical-exam-date" name="physical-exam-date">
+                                <button type="button" class="btn btn-secondary milestone-schedule-submit" onclick="submitMilestoneScheduleRequest('Physical Exam Appointment', 'physical-exam-date')">Submit Request</button>
+                            </div>
+                        </div>
+
+                        <div class="milestone-card">
+                            <div class="milestone-header">
+                                <div class="milestone-checkbox">
+                                    <input type="checkbox" class="milestone-check" id="m4">
+                                </div>
+                                <div class="milestone-info">
+                                    <h4>Receive Welcome Package</h4>
+                                    <p class="milestone-date">Due: 3 days before start date</p>
+                                </div>
+                            </div>
+                            <p class="milestone-desc">Receive student ID, login credentials, and orientation materials</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="enrollment-summary">
+                <h3>Your Enrollment Summary</h3>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <h5>Student Name</h5>
+                        <p id="summary-name">-</p>
+                    </div>
+                    <div class="summary-item">
+                        <h5>Email</h5>
+                        <p id="summary-email">-</p>
+                    </div>
+                    <div class="summary-item">
+                        <h5>Phone Number</h5>
+                        <p id="summary-phone">-</p>
+                    </div>
+                    <div class="summary-item">
+                        <h5>Student Address</h5>
+                        <p id="summary-address">-</p>
+                    </div>
+                    <div class="summary-item">
+                        <h5>Payment Plan</h5>
+                        <p id="summary-payment">-</p>
+                    </div>
+                    <div class="summary-item">
+                        <h5>Enrollment Date</h5>
+                        <p id="summary-date">-</p>
+                    </div>
+                </div>
+
+                <div class="document-downloads">
+                    <h4>Important Documents</h4>
+                    <button class="btn btn-secondary" onclick="downloadEnrollmentConfirmation()">📄 Download Enrollment Confirmation</button>
+                    <button class="btn btn-secondary" onclick="downloadPaymentSchedule()">📄 Download Payment Schedule</button>
+                    <button class="btn btn-secondary" onclick="downloadAcceptanceLetter()">📄 Download Acceptance Letter</button>
+                    <button class="btn btn-secondary" onclick="downloadAgreement()">📄 Download Signed Agreement</button>
+                </div>
+            </div>
+
+            <div class="institution-rep-section">
+                <h3>PROGRAM INFORMATION (INSTITUTION ONLY)</h3>
+                <p class="institution-rep-note">Institution representative: complete this section after student submission.</p>
+
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="inst-ssn">Social Security Number</label>
+                        <input type="text" id="inst-ssn" data-institution-field placeholder="___-__-____">
+                    </div>
+                    <div class="form-field">
+                        <label for="inst-dob">Date of Birth</label>
+                        <input type="date" id="inst-dob" data-institution-field>
+                    </div>
+                    <div class="form-field">
+                        <label>Circle One</label>
+                        <div class="institution-inline-options">
+                            <label><input type="radio" name="inst-gender" id="inst-gender-male" value="Male" data-institution-field> Male</label>
+                            <label><input type="radio" name="inst-gender" id="inst-gender-female" value="Female" data-institution-field> Female</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="inst-program-title">Program Title</label>
+                        <input type="text" id="inst-program-title" data-institution-field>
+                    </div>
+                    <div class="form-field">
+                        <label for="inst-clock-hours">Clock Hours</label>
+                        <input type="text" id="inst-clock-hours" data-institution-field>
+                    </div>
+                    <div class="form-field">
+                        <label for="inst-weeks">Weeks</label>
+                        <input type="text" id="inst-weeks" data-institution-field>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-field full-width">
+                        <label>Class Schedule</label>
+                        <div class="institution-inline-options institution-inline-wrap">
+                            <label><input type="checkbox" id="inst-full-time" data-institution-field> Full Time</label>
+                            <label><input type="checkbox" id="inst-part-time" data-institution-field> Part Time</label>
+                            <label><input type="checkbox" id="inst-day-classes" data-institution-field> Day Classes</label>
+                            <label><input type="checkbox" id="inst-evening-classes" data-institution-field> Evening Classes</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="inst-hours-per-week">Hours per Week</label>
+                        <input type="text" id="inst-hours-per-week" data-institution-field>
+                    </div>
+                    <div class="form-field">
+                        <label for="inst-start-date">Start Date</label>
+                        <input type="date" id="inst-start-date" data-institution-field>
+                    </div>
+                    <div class="form-field">
+                        <label for="inst-anticipated-end-date">Anticipated Ending Date</label>
+                        <input type="date" id="inst-anticipated-end-date" data-institution-field>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="inst-tuition">Tuition</label>
+                        <input type="text" id="inst-tuition" data-institution-field placeholder="$">
+                    </div>
+                    <div class="form-field">
+                        <label for="inst-registration-fee">Registration Fee</label>
+                        <input type="text" id="inst-registration-fee" data-institution-field placeholder="$">
+                    </div>
+                    <div class="form-field">
+                        <label for="inst-books">Books</label>
+                        <input type="text" id="inst-books" data-institution-field placeholder="$">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="inst-materials">Materials</label>
+                        <input type="text" id="inst-materials" data-institution-field placeholder="$">
+                    </div>
+                    <div class="form-field">
+                        <label for="inst-background-check">Background Check</label>
+                        <input type="text" id="inst-background-check" data-institution-field placeholder="$">
+                    </div>
+                    <div class="form-field">
+                        <label for="inst-total-program-cost"><strong>Total Program Cost</strong></label>
+                        <input type="text" id="inst-total-program-cost" data-institution-field placeholder="$">
+                    </div>
+                </div>
+            </div>
+
+            <div class="contact-section">
+                <h3>Need Help?</h3>
+                <p><strong>Email:</strong> support@browardmiamihi.com</p>
+                <p><strong>Tel:</strong> (954) 248-0669</p>
+                <p><strong>Address:</strong> 6320 Miramar Pkwy Suite I, Miramar, FL 33023</p>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="goToStep(4)">Back</button>
+                <button type="button" class="btn btn-primary" onclick="goToStep(5, 8)">Continue to Tracker</button>
+                <button type="button" class="btn btn-secondary" id="reset-enrollment">Start New Enrollment</button>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <div class="footer-logo-wrap">
+                <img
+                    src="logo-footer.png"
+                    onerror="this.onerror=null;this.src='brand-seal.svg';"
+                    alt="Broward-Miami Health Institute Seal"
+                    class="footer-logo">
+            </div>
+            <p>&copy; 2026 Broward-Miami Health Institute. All rights reserved.</p>
+            <p>6320 Miramar Pkwy Suite I, Miramar, FL 33023 | Tel: (954) 248-0669</p>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
