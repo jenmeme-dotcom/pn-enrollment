@@ -279,6 +279,199 @@ const weeklyModules = [
   }
 ];
 
+const weeklyStudyDetails = {
+  1: {
+    reading:
+      "Review the syllabus, attendance expectations, professional behavior policy, grading categories, and the student handbook sections on classroom conduct and communication.",
+    keyTerms: ["professional identity", "scope of practice", "accountability", "compassion", "patient advocacy", "lifelong learning"],
+    clinicalConnection:
+      "A practical nurse begins building trust before performing a skill. Showing up prepared, listening carefully, using respectful language, and reporting concerns early are part of safe care.",
+    discussionPrompt:
+      "Describe one moment when a nurse or healthcare worker made a difference for a patient or family. What behavior made that person trustworthy?",
+    practice:
+      "Write a professional beginning statement that includes why you chose nursing, what patients should be able to expect from you, and one habit you will practice this week."
+  },
+  2: {
+    reading:
+      "Review the assigned nursing history notes and compare early caregiving, hospital-based training schools, public health nursing, and current practical nursing education.",
+    keyTerms: ["public trust", "nursing reform", "professional standards", "public health", "equity", "licensure"],
+    clinicalConnection:
+      "Patients trust nurses because the profession developed standards for cleanliness, education, documentation, confidentiality, and accountability. Those standards still guide daily practice.",
+    discussionPrompt:
+      "Choose one nursing leader from this week and explain how that leader's work connects to the way nurses care for patients today.",
+    practice:
+      "Complete a then-and-now chart comparing nursing education, infection control, patient rights, documentation, and technology."
+  },
+  3: {
+    reading:
+      "Review the assigned content on human needs, comfort, dignity, patient-centered care, therapeutic communication, and the nurse's role in supporting independence.",
+    keyTerms: ["caring", "comfort", "dignity", "therapeutic communication", "advocacy", "holistic care"],
+    clinicalConnection:
+      "Patients may remember how a nurse made them feel as much as the task performed. Privacy, warmth, clear explanations, and comfort measures reduce fear and support healing.",
+    discussionPrompt:
+      "Give an example of a small nursing action that protects patient dignity. Explain why it matters.",
+    practice:
+      "Role-play a patient who is anxious, embarrassed, angry, or grieving. Practice one helpful response and one response that should be avoided."
+  },
+  4: {
+    reading:
+      "Review the practical nurse role, team roles, delegation basics, SBAR communication, reporting expectations, and examples of when a student must notify the instructor.",
+    keyTerms: ["collaboration", "delegation", "assignment", "supervision", "SBAR", "closed-loop communication"],
+    clinicalConnection:
+      "Safe care depends on knowing who is responsible for what. A student protects the patient by staying within role limits, asking questions, and reporting changes promptly.",
+    discussionPrompt:
+      "Explain why it is unsafe for a student to perform a task without proper instruction, supervision, or permission.",
+    practice:
+      "Use SBAR to report a change in condition from a short patient scenario. Include what you noticed, what you are concerned about, and what help you need."
+  },
+  5: {
+    reading:
+      "Review ethical principles, patient rights, confidentiality, professional boundaries, social media expectations, and the school's conduct standards.",
+    keyTerms: ["autonomy", "beneficence", "nonmaleficence", "justice", "fidelity", "veracity", "confidentiality", "boundaries"],
+    clinicalConnection:
+      "Ethics shows up in ordinary moments: closing a curtain, telling the truth, protecting privacy, not judging, and speaking up when something seems unsafe.",
+    discussionPrompt:
+      "A classmate posts a patient-related comment online without using the patient's name. Explain the risks and the correct professional response.",
+    practice:
+      "Work through an ethics case using this pattern: identify the issue, name the ethical principles, decide who should be notified, and choose the safest next action."
+  },
+  6: {
+    reading:
+      "Review legal responsibilities, the nurse practice act concept, HIPAA, documentation rules, informed consent, incident reporting, mandatory reporting, negligence, and malpractice.",
+    keyTerms: ["scope of practice", "HIPAA", "protected health information", "informed consent", "negligence", "malpractice", "incident report"],
+    clinicalConnection:
+      "Documentation is a legal record. If care, teaching, refusal, notification, or a change in condition is not documented correctly, the record may not support what happened.",
+    discussionPrompt:
+      "Why should documentation be factual, timely, objective, and complete? Give one example of wording that should be avoided.",
+    practice:
+      "Correct a sample nursing note by removing opinions, adding missing facts, and identifying what should be reported to the instructor or nurse."
+  },
+  7: {
+    reading:
+      "Review cultural humility, bias, respectful communication, language access, family roles, health beliefs, social determinants of health, and equitable care.",
+    keyTerms: ["cultural humility", "bias", "stereotyping", "health equity", "interpreter", "social determinants of health"],
+    clinicalConnection:
+      "Respectful care means asking rather than assuming. Nurses protect safety when they verify understanding, use interpreter services, and consider barriers that affect follow-through.",
+    discussionPrompt:
+      "Describe a respectful question a nurse can ask when a patient's health belief, language, or family role is different from the nurse's own experience.",
+    practice:
+      "Practice a short patient interview that uses plain language, avoids assumptions, and confirms understanding with teach-back."
+  },
+  8: {
+    reading:
+      "Review patient identification, fall prevention, hand hygiene, standard precautions, infection prevention, incident reporting, near misses, and quality improvement.",
+    keyTerms: ["patient safety", "standard precautions", "fall risk", "near miss", "quality improvement", "just culture"],
+    clinicalConnection:
+      "The nurse's watchful eye prevents harm. Noticing a wet floor, an unlabeled specimen, a missing armband, or a patient trying to get up alone can prevent injury.",
+    discussionPrompt:
+      "Explain the difference between blaming a person and improving a process after a safety concern.",
+    practice:
+      "Complete a safety room scan. List hazards, explain the risk, and identify the correct action for a practical nursing student."
+  },
+  9: {
+    reading:
+      "Review the nursing process, data collection, recognizing cues, reporting changes, priorities, implementation, evaluation, and reflection after care.",
+    keyTerms: ["nursing process", "assessment", "planning", "implementation", "evaluation", "clinical judgment", "priority"],
+    clinicalConnection:
+      "Clinical judgment begins with noticing. A student should report abnormal vital signs, new confusion, pain, shortness of breath, bleeding, unsafe behavior, or any unexpected change.",
+    discussionPrompt:
+      "What does it mean to notice, interpret, respond, and reflect? Apply those steps to one basic patient scenario.",
+    practice:
+      "Complete a simple case map: cues noticed, possible meaning, priority concern, who to notify, and safe student-level action."
+  },
+  10: {
+    reading:
+      "Review health promotion, illness prevention, patient teaching, health literacy, plain language, teach-back, chronic disease support, and community nursing impact.",
+    keyTerms: ["health promotion", "health literacy", "teach-back", "plain language", "prevention", "community health"],
+    clinicalConnection:
+      "Patient teaching is only complete when the patient understands. Teach-back helps the nurse check understanding without embarrassing the patient.",
+    discussionPrompt:
+      "Choose one health topic and explain how you would teach it in plain language to a patient or family member.",
+    practice:
+      "Create a three-minute teaching script and include one teach-back question that checks understanding."
+  },
+  11: {
+    reading:
+      "Review professionalism, punctuality, appearance, respectful communication, feedback, stress management, remediation, leadership, and reflective practice.",
+    keyTerms: ["professionalism", "resilience", "feedback", "remediation", "leadership", "reflective practice"],
+    clinicalConnection:
+      "Professional behavior builds patient safety. Being late, unprepared, defensive, or disrespectful can affect teamwork and patient confidence.",
+    discussionPrompt:
+      "Describe one professional habit that will help you succeed in nursing school and one habit you need to strengthen.",
+    practice:
+      "Build a professional development plan with strengths, growth areas, support resources, and weekly study habits."
+  },
+  12: {
+    reading:
+      "Review all weekly notes, nursing leaders, ethical and legal principles, safety themes, communication tools, professional expectations, and final exam study guide.",
+    keyTerms: ["professional impact", "lifelong learning", "advocacy", "accountability", "patient-centered care", "professional commitment"],
+    clinicalConnection:
+      "Nursing impact is built through consistent safe actions: preparing before class, treating patients with dignity, following policy, reporting concerns, and continuing to learn.",
+    discussionPrompt:
+      "Connect one nursing leader, one ethical or legal responsibility, and one personal commitment you will carry into future courses.",
+    practice:
+      "Prepare a final impact presentation and complete a final review plan that identifies topics needing more study."
+  }
+};
+
+function bulletList(items) {
+  return items.map((item) => `- ${item}`).join("\n");
+}
+
+function buildWeeklyOverviewContent(week) {
+  const details = weeklyStudyDetails[week.week] || {};
+  return [
+    "Purpose of This Week",
+    week.focus,
+    "",
+    "Nursing Leaders",
+    week.nursingLeaders,
+    "",
+    "Assigned Preparation",
+    details.reading || "Review instructor-provided readings, module notes, and related handbook sections before class.",
+    "",
+    "Core Topics",
+    bulletList(week.topics),
+    "",
+    "Key Vocabulary",
+    bulletList(details.keyTerms || []),
+    "",
+    "Clinical Connection",
+    details.clinicalConnection || "Connect this week's concepts to safe beginning practical nursing practice.",
+    "",
+    "Before You Move On",
+    "Students should be able to explain the weekly topic in their own words, connect it to practical nursing responsibilities, and identify when to ask the instructor or supervising nurse for help."
+  ].join("\n");
+}
+
+function buildWeeklyActivityContent(week) {
+  const details = weeklyStudyDetails[week.week] || {};
+  return [
+    "Learning Objectives",
+    bulletList(week.objectives),
+    "",
+    "Class or Online Learning Activity",
+    week.activities,
+    "",
+    "Student Practice Task",
+    details.practice || "Complete the assigned learning activity and submit the required reflection or worksheet.",
+    "",
+    "Discussion or Reflection Prompt",
+    details.discussionPrompt || "Explain how this week's content connects to safe, respectful practical nursing care.",
+    "",
+    "Evidence of Completion",
+    `Assessment: ${week.assessment}.`,
+    "",
+    "Study Questions",
+    bulletList([
+      "What are the most important safety points from this week?",
+      "What words or ideas do I need to review before the next class?",
+      "How does this topic affect patient trust, communication, dignity, or outcomes?",
+      "What would I report to the instructor or nurse if I noticed a concern related to this topic?"
+    ])
+  ].join("\n");
+}
+
 const gradeItems = [
   { title: "Class Participation and Professionalism", pointsPossible: 100 },
   { title: "Professional Beginning Reflection", pointsPossible: 50 },
@@ -313,12 +506,53 @@ const modules = [
     lessons: [
       {
         title: "Course Welcome and Expectations",
-        content: `${courseDescription}\n\nStudents review course expectations, grading, attendance, professional conduct, and the purpose of this introductory course in the practical nursing sequence.`
+        content: [
+          "Course Welcome",
+          courseDescription,
+          "",
+          "What Students Should Do First",
+          bulletList([
+            "Review the syllabus, course schedule, grading categories, and attendance expectations.",
+            "Confirm how to access modules, discussions, assignments, quizzes, grades, inbox messages, and calendar reminders.",
+            "Read the professionalism expectations for classroom, online, lab, and clinical learning.",
+            "Write down instructor contact expectations and how to ask for help before a due date passes."
+          ]),
+          "",
+          "How This Course Fits the Practical Nursing Program",
+          "This course introduces the purpose of nursing, the history of the profession, ethical and legal responsibilities, communication, safety, cultural respect, clinical judgment, and professional identity. These ideas support later nursing skills, clinical rotations, and NCLEX-PN preparation.",
+          "",
+          "Student Success Expectations",
+          bulletList([
+            "Attend and participate in each scheduled session.",
+            "Complete readings and module activities before discussion or class review.",
+            "Use respectful communication with classmates, instructors, patients, and staff.",
+            "Ask questions early when instructions, grades, attendance, or assignments are unclear.",
+            "Protect confidentiality in every classroom, online, and clinical conversation."
+          ])
+        ].join("\n")
       },
       {
         title: "How This Course Builds a Practical Nurse",
-        content:
-          "This course helps students connect nursing history, nursing leaders, ethical/legal responsibilities, communication, patient safety, and personal purpose before moving deeper into skills and clinical courses."
+        content: [
+          "Professional Foundation",
+          "This course helps students connect nursing history, nursing leaders, ethical and legal responsibilities, communication, patient safety, cultural humility, and personal purpose before moving deeper into skills and clinical courses.",
+          "",
+          "What a Beginning Practical Nursing Student Practices",
+          bulletList([
+            "Preparing before class and arriving ready to learn.",
+            "Using nursing vocabulary accurately and respectfully.",
+            "Recognizing the limits of the student role and asking for supervision.",
+            "Reporting patient concerns promptly using organized communication.",
+            "Documenting and discussing patient information only in approved ways.",
+            "Accepting feedback and turning it into safer practice."
+          ]),
+          "",
+          "Course Habits That Carry Into Clinical",
+          "The habits built here become clinical habits: punctuality, preparation, hand hygiene, privacy, accurate reporting, respectful care, teamwork, and accountability.",
+          "",
+          "Checkpoint",
+          "By the end of orientation, students should be able to explain how nursing history, ethics, legal duties, communication, and safety connect to the daily work of a practical nurse."
+        ].join("\n")
       }
     ]
   },
@@ -327,11 +561,11 @@ const modules = [
     lessons: [
       {
         title: "Weekly Overview",
-        content: `${week.focus}\n\nNursing leaders: ${week.nursingLeaders}\n\nTopics: ${week.topics.join("; ")}.`
+        content: buildWeeklyOverviewContent(week)
       },
       {
         title: "Objectives and Learning Activity",
-        content: `Objectives:\n${week.objectives.map((objective) => `- ${objective}`).join("\n")}\n\nLearning activity: ${week.activities}\n\nAssessment: ${week.assessment}.`
+        content: buildWeeklyActivityContent(week)
       }
     ]
   })),
@@ -355,6 +589,7 @@ const modules = [
 const introNursingCourse = {
   title: "Introduction to Nursing for Practical Nursing Students",
   slug: "introduction-to-nursing-practical-nursing",
+  seedVersion: "2026-07-15-detailed-lessons",
   category: "Practical Nursing Course",
   hours: 48,
   credentialType: "Course Completion",
