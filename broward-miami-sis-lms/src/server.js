@@ -8775,7 +8775,7 @@ app.get("/student/transcript", requireAuth, requireRole("student"), (req, res) =
         </div>
         <div class="financial-actions">
           <a class="button ghost" href="/student/registration">Registration</a>
-          <button class="button" type="button">Print Transcript</button>
+          <a class="button" href="/student/transcript/print" target="_blank" rel="noopener">Print Transcript</a>
         </div>
       </div>
 
@@ -8806,6 +8806,77 @@ app.get("/student/transcript", requireAuth, requireRole("student"), (req, res) =
     </section>
   `;
   render(req, res, "Transcript", body, { studentPortal: true, activeStudentNav: "transcript" });
+});
+
+app.get("/student/transcript/print", requireAuth, requireRole("student"), (req, res) => {
+  const records = db.prepare(`
+    SELECT e.*, c.title, c.category, c.hours, c.credential_type, cr.id AS credential_id, cr.number AS credential_number
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    LEFT JOIN credentials cr ON cr.enrollment_id = e.id
+    WHERE e.user_id = ?
+    ORDER BY e.start_date DESC, e.created_at DESC
+  `).all(req.user.id);
+  const totalHours = records.reduce((sum, row) => sum + Number(row.hours || 0), 0);
+  const completedHours = records.filter((row) => row.status === "completed").reduce((sum, row) => sum + Number(row.hours || 0), 0);
+  const studentId = `BMHI-${String(req.user.id).padStart(5, "0")}`;
+  const body = `
+    <section class="print-document transcript-print">
+      <div class="print-actions no-print">
+        <button class="button" type="button" onclick="window.print()">Print Transcript</button>
+        <a class="button ghost" href="/student/transcript">Back to transcript</a>
+      </div>
+      <header class="print-document-head">
+        <img src="/assets/bmhi-logo-transparent.png" alt="${escapeHtml(instituteName)} logo">
+        <div>
+          <p class="eyebrow">Official Student Record</p>
+          <h1>Academic Transcript</h1>
+          <p>${escapeHtml(instituteName)}</p>
+          <p>${escapeHtml(instituteAddress)} · ${escapeHtml(institutePhone)} · ${escapeHtml(instituteEmail)}</p>
+        </div>
+      </header>
+      <section class="print-summary-grid">
+        <p><strong>Student</strong><br>${escapeHtml(req.user.first_name)} ${escapeHtml(req.user.last_name)}</p>
+        <p><strong>Student ID</strong><br>${escapeHtml(studentId)}</p>
+        <p><strong>Issued</strong><br>${date(new Date().toISOString().slice(0, 10))}</p>
+        <p><strong>Attempted Hours</strong><br>${escapeHtml(totalHours)}</p>
+        <p><strong>Completed Hours</strong><br>${escapeHtml(completedHours)}</p>
+        <p><strong>Courses</strong><br>${escapeHtml(records.length)}</p>
+      </section>
+      <table class="print-table">
+        <thead>
+          <tr>
+            <th>Course</th>
+            <th>Program</th>
+            <th>Hours</th>
+            <th>Status</th>
+            <th>Grade</th>
+            <th>Credential</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${records.map((row) => `
+            <tr>
+              <td><strong>${escapeHtml(row.title)}</strong><br><span>Started ${date(row.start_date)}</span></td>
+              <td>${escapeHtml(row.category)}</td>
+              <td>${escapeHtml(row.hours)}</td>
+              <td>${escapeHtml(row.status)}${row.completion_date ? `<br><span>Completed ${date(row.completion_date)}</span>` : `<br><span>${escapeHtml(row.progress)}% complete</span>`}</td>
+              <td>${escapeHtml(row.final_grade || "In progress")}</td>
+              <td>${escapeHtml(row.credential_number || "Not issued")}</td>
+            </tr>
+          `).join("") || `<tr><td colspan="6">No academic records yet.</td></tr>`}
+        </tbody>
+      </table>
+      <footer class="print-signature">
+        <span>Registrar Signature</span>
+        <span>Date</span>
+      </footer>
+    </section>
+    <script>
+      window.addEventListener("load", () => setTimeout(() => window.print(), 350));
+    </script>
+  `;
+  render(req, res, "Print Transcript", body, { full: true });
 });
 
 app.get("/student/email", requireAuth, requireRole("student"), (req, res) => {

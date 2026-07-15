@@ -7141,6 +7141,87 @@ button.small {
   margin: 18px;
 }
 
+.print-document {
+  color: #17212b;
+  margin: 24px auto;
+  max-width: 980px;
+  padding: 24px;
+}
+
+.print-document-head {
+  align-items: center;
+  border-bottom: 3px solid var(--brand);
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 96px minmax(0, 1fr);
+  padding-bottom: 18px;
+}
+
+.print-document-head img {
+  height: 88px;
+  object-fit: contain;
+  width: 88px;
+}
+
+.print-document-head h1 {
+  font-size: 34px;
+  margin: 4px 0;
+}
+
+.print-document-head p {
+  margin: 3px 0;
+}
+
+.print-summary-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 22px 0;
+}
+
+.print-summary-grid p {
+  border: 1px solid #d7e0e7;
+  border-radius: 4px;
+  margin: 0;
+  padding: 10px;
+}
+
+.print-table {
+  border-collapse: collapse;
+  font-size: 12px;
+  width: 100%;
+}
+
+.print-table th,
+.print-table td {
+  border: 1px solid #cfd8df;
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.print-table th {
+  background: #eef4f6;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.print-table span {
+  color: #5d6b78;
+}
+
+.print-signature {
+  display: grid;
+  gap: 36px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 64px;
+}
+
+.print-signature span {
+  border-top: 1px solid #17212b;
+  padding-top: 8px;
+}
+
 .message-workspace {
   align-items: start;
   margin-top: 18px;
@@ -7971,9 +8052,16 @@ button.small {
 
 @media print {
   .print-actions,
+  .no-print,
   .topbar,
   .flash {
     display: none;
+  }
+
+  .print-document {
+    margin: 0;
+    max-width: none;
+    padding: 0;
   }
 
   .credential {
