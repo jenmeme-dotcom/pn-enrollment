@@ -27,6 +27,7 @@ function navFor(user) {
     <a href="/admin/admissions">Admissions</a>
     <a href="/admin/features">Features</a>
     <a href="/admin/admin-roles">Admin Roles</a>
+    <a href="/admin/instructor-roles">Instructor Roles</a>
     <a href="/admin/students">Students</a>
     <a href="/admin/cohort-2-schedule">Cohort 2 Schedule</a>
     <a href="/admin/hesi">HESI Scores</a>

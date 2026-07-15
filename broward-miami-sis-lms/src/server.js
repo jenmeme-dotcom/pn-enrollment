@@ -22,6 +22,8 @@ const {
   catalogAttendancePolicy,
   catalogProgramSummaries
 } = require("./catalog");
+
+const instructorAccessDefaultPassword = "InstructorPass123!";
 const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = require("./ui");
 
@@ -819,7 +821,8 @@ function courseNavHref(baseHref, item, firstLessonId) {
   if (item === "Announcements") return `${baseHref}?view=announcements`;
   if (item === "Calendar") return `${baseHref}?view=calendar`;
   if (item === "Inbox") return baseHref.startsWith("/student/") ? "/student/email" : "/admin/messages";
-  if (["Assignments", "Quizzes"].includes(item)) return `${baseHref}?view=syllabus#course-assignments`;
+  if (item === "Assignments") return `${baseHref}?view=assignments`;
+  if (item === "Quizzes") return `${baseHref}?view=quizzes`;
   return baseHref;
 }
 
@@ -1181,7 +1184,7 @@ function renderCourseToDo(gradeItems = [], baseHref = "#", { limit = 3, courseTi
         <article class="canvas-task-item">
           <span>${escapeHtml(index + 1)}</span>
           <div>
-            <a href="${escapeHtml(baseHref)}?view=syllabus#course-assignments">${escapeHtml(item.title)}</a>
+            <a href="${escapeHtml(baseHref)}?view=assignments">${escapeHtml(item.title)}</a>
             <em>${escapeHtml(courseTitle)}</em>
             <small>${escapeHtml(item.points_possible || 0)} points · ${item.due_date ? date(item.due_date) : "No Due Date"}</small>
           </div>
@@ -1320,7 +1323,7 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
             ${rows.map((row) => `
               <tr class="${row.highlighted ? "highlighted" : ""}">
                 <td>
-                  <a href="${escapeHtml(baseHref)}?view=syllabus#course-assignments">${escapeHtml(row.title)}</a>
+                  <a href="${escapeHtml(baseHref)}?view=assignments">${escapeHtml(row.title)}</a>
                   <small>${escapeHtml(row.group || "Assignments")}</small>
                 </td>
                 <td>${escapeHtml(formatGradeDue(row.due_date))}</td>
@@ -2450,6 +2453,104 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
   `;
 }
 
+function normalizedTitle(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\[[^\]]+\]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function assignmentTypeLabel(item = {}) {
+  const title = String(item.title || "").toLowerCase();
+  if (title.includes("quiz")) return "Quiz";
+  if (title.includes("discussion")) return "Discussion";
+  if (title.includes("exam") || title.includes("midterm") || title.includes("final")) return "Exam";
+  if (title.includes("acknowledg")) return "Acknowledgment";
+  if (title.includes("worksheet") || title.includes("exercise") || title.includes("drill")) return "Course assignment";
+  return item.group || "Assignment";
+}
+
+function assignmentItemHref(item = {}, lessons = [], baseHref = "#") {
+  const itemTitle = normalizedTitle(item.title);
+  const match = lessons.find((lesson) => {
+    const lessonTitle = normalizedTitle(lesson.title);
+    return lessonTitle && itemTitle && (lessonTitle.includes(itemTitle) || itemTitle.includes(lessonTitle));
+  });
+  return match ? `${baseHref}?lesson=${match.id}` : `${baseHref}?view=assignments`;
+}
+
+function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeItems = [], lessons = [], quizzesOnly = false, instructor = false }) {
+  const filteredItems = gradeItems.filter((item) => {
+    const isQuiz = String(item.title || "").toLowerCase().includes("quiz");
+    return quizzesOnly ? isQuiz : true;
+  });
+  const fallbackItems = quizzesOnly
+    ? lessons.filter((lesson) => moduleItemKind(lesson.title) === "quiz").map((lesson) => ({
+      id: lesson.id,
+      title: lesson.title,
+      points_possible: 10,
+      due_date: lesson.due_date || null,
+      group: "Quiz",
+      lesson_id: lesson.id
+    }))
+    : lessons.filter((lesson) => ["assignment", "discussion", "quiz"].includes(moduleItemKind(lesson.title))).map((lesson) => ({
+      id: lesson.id,
+      title: lesson.title,
+      points_possible: moduleItemKind(lesson.title) === "assignment" ? 15 : 10,
+      due_date: lesson.due_date || null,
+      group: assignmentTypeLabel(lesson),
+      lesson_id: lesson.id
+    }));
+  const rows = filteredItems.length ? filteredItems : fallbackItems;
+  const title = quizzesOnly ? "Quizzes" : "Assignments";
+  const description = quizzesOnly
+    ? "Course quizzes are listed here with due dates, points, and module links."
+    : "Course assignments are listed here with due dates, points, and module links.";
+  return `
+    <main class="canvas-course-main canvas-assignments-main">
+      <div class="canvas-mini-head">
+        <span></span>
+        <strong>${escapeHtml(courseCode)} &gt; ${escapeHtml(title)}</strong>
+        ${instructor ? `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=modules">Manage Modules</a>` : `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=modules">View Modules</a>`}
+      </div>
+      <section class="syllabus-card">
+        <div class="syllabus-title-row">
+          <div>
+            <h1>${escapeHtml(title)}</h1>
+            <p>${escapeHtml(description)}</p>
+          </div>
+          ${instructor ? `<a class="button ghost small" href="${escapeHtml(baseHref)}?view=grades">Open Gradebook</a>` : `<a class="button ghost small" href="${escapeHtml(baseHref)}?view=grades">View Grades</a>`}
+        </div>
+        <table class="syllabus-table">
+          <thead>
+            <tr><th>Name</th><th>Type</th><th>Due Date</th><th>Points</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            ${rows.map((item) => {
+              const href = item.lesson_id ? `${baseHref}?lesson=${item.lesson_id}` : assignmentItemHref(item, lessons, baseHref);
+              const status = Number(item.published ?? 1) === 0 ? "Unpublished" : "Published";
+              return `
+                <tr>
+                  <td><a href="${escapeHtml(href)}">${escapeHtml(item.title)}</a></td>
+                  <td>${escapeHtml(assignmentTypeLabel(item))}</td>
+                  <td>${escapeHtml(formatGradeDue(item.due_date) || "No due date")}</td>
+                  <td>${escapeHtml(item.points_possible || 0)}</td>
+                  <td><span class="pill ${status === "Unpublished" ? "orange" : ""}">${escapeHtml(status)}</span></td>
+                </tr>
+              `;
+            }).join("") || `<tr><td colspan="5" class="empty">No ${escapeHtml(title.toLowerCase())} have been added yet.</td></tr>`}
+          </tbody>
+        </table>
+      </section>
+      <section class="syllabus-card">
+        <h2>${escapeHtml(courseTitle)}</h2>
+        <p>Use Modules for weekly directions and Files for supporting handouts, worksheets, slides, and readings.</p>
+      </section>
+    </main>
+  `;
+}
+
 function normalizeExternalUrl(value = "") {
   const raw = String(value || "").trim();
   if (!raw) return null;
@@ -3115,7 +3216,7 @@ const adminFeatureGroups = [
   {
     title: "System Settings",
     code: "SYS",
-    items: ["General preparation", "Session preparation", "Setup notification", "WhatsApp messaging", "SMS messages", "Email setup", "Payment methods", "Print header and footer", "CMS front-end setup", { label: "Admin roles", href: "/admin/admin-roles" }, "Role permits", "Data retrieval", "Languages", "Users", "File types", "Sidebar menu"]
+    items: ["General preparation", "Session preparation", "Setup notification", "WhatsApp messaging", "SMS messages", "Email setup", "Payment methods", "Print header and footer", "CMS front-end setup", { label: "Admin roles", href: "/admin/admin-roles" }, { label: "Instructor roles", href: "/admin/instructor-roles" }, "Role permits", "Data retrieval", "Languages", "Users", "File types", "Sidebar menu"]
   },
   {
     title: "Reports",
@@ -4142,6 +4243,7 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
       <div class="actions">
         ${req.user.role === "admin" ? `<a class="button ghost" href="/admin/features">Admin features</a>` : ""}
         ${req.user.role === "admin" ? `<a class="button ghost" href="/admin/admin-roles">Admin roles</a>` : ""}
+        ${req.user.role === "admin" ? `<a class="button ghost" href="/admin/instructor-roles">Instructor roles</a>` : ""}
         <a class="button ghost" href="/admin/staff-portal">Staff time</a>
         <a class="button" href="/admin/students">Add student</a>
       </div>
@@ -4916,6 +5018,79 @@ app.post("/admin/admin-roles/:email/reset-password", requireAuth, requireRole("a
   `).run(account.firstName, account.lastName, account.email, bcrypt.hashSync(adminAccessDefaultPassword, 12));
   flash(req, `${account.firstName} ${account.lastName}'s password was reset to the temporary password.`);
   res.redirect("/admin/admin-roles");
+});
+
+app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res) => {
+  const instructors = db.prepare(`
+    SELECT id, first_name, last_name, email, phone, status, created_at
+    FROM users
+    WHERE role = 'instructor'
+    ORDER BY last_name, first_name
+  `).all();
+  const body = `
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">System Settings</p>
+        <h1>Instructor Roles</h1>
+        <p>Portal access list for BMHI faculty and instructors. These usernames are used on the faculty sign-in page.</p>
+      </div>
+      <div class="actions">
+        <a class="button ghost" href="/admin/admin-roles">Admin roles</a>
+        <a class="button ghost" href="/admin/staff-portal">Staff time</a>
+        <a class="button" href="/admin">Dashboard</a>
+      </div>
+    </div>
+
+    <section class="grid cols-3">
+      ${stat("Instructor accounts", instructors.length)}
+      ${stat("Access role", "Instructor")}
+      ${stat("Temporary password", instructorAccessDefaultPassword)}
+    </section>
+
+    <section class="table-card" style="margin-top:18px">
+      <div class="table-card-head">
+        <div>
+          <h2>Faculty usernames and passwords</h2>
+          <p class="muted">Use the email as the username. Instructors can access LMS, students, HESI scores, staff time, task tickets, inbox, and catalog. Billing, admissions, financial aid, and OSV visit records stay admin-only.</p>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Instructor</th><th>Username</th><th>Phone</th><th>Role</th><th>Temporary password</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${instructors.map((instructor) => `
+            <tr>
+              <td><strong>${escapeHtml(instructor.first_name)} ${escapeHtml(instructor.last_name)}</strong></td>
+              <td>${escapeHtml(instructor.email)}</td>
+              <td>${escapeHtml(instructor.phone || "")}</td>
+              <td><span class="pill">instructor</span></td>
+              <td><code>${escapeHtml(instructorAccessDefaultPassword)}</code></td>
+              <td><span class="pill">${escapeHtml(instructor.status || "active")}</span></td>
+              <td>
+                <form method="post" action="/admin/instructor-roles/${encodeURIComponent(instructor.email)}/reset-password" class="actions">
+                  <button class="small ghost" type="submit">Reset to temporary password</button>
+                  <a class="button small ghost" href="/admin/staff-portal?staffId=${instructor.id}">Staff time</a>
+                </form>
+              </td>
+            </tr>
+          `).join("") || `<tr><td colspan="7" class="empty">No instructor accounts have been created yet.</td></tr>`}
+        </tbody>
+      </table>
+    </section>
+  `;
+  render(req, res, "Instructor Roles", body);
+});
+
+app.post("/admin/instructor-roles/:email/reset-password", requireAuth, requireRole("admin"), (req, res) => {
+  const email = String(req.params.email || "").toLowerCase();
+  const instructor = db.prepare("SELECT id, first_name, last_name, email FROM users WHERE lower(email) = ? AND role = 'instructor'").get(email);
+  if (!instructor) return res.status(404).send("Instructor account not found");
+  db.prepare(`
+    UPDATE users
+    SET password_hash = ?, status = 'active', organization_status = 'organized', class_lock_reason = NULL
+    WHERE id = ?
+  `).run(bcrypt.hashSync(instructorAccessDefaultPassword, 12), instructor.id);
+  flash(req, `${instructor.first_name} ${instructor.last_name}'s password was reset to the instructor temporary password.`);
+  res.redirect("/admin/instructor-roles");
 });
 
 app.get("/admin/messages", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -6998,6 +7173,34 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         instructor: true
       })}
     </section>
+  ` : activeView === "assignments" || activeView === "quizzes" ? `
+    <section class="canvas-course-shell instructor-preview">
+      <aside class="canvas-global-rail">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
+        <span>${escapeHtml(initialsFor(req.user))}</span>
+        <i></i><i></i><i></i><i></i><i></i>
+      </aside>
+
+      ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
+        { label: courseCode, href: adminCourseBaseHref },
+        { label: activeView === "quizzes" ? "Quizzes" : "Assignments" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(navItems, adminCourseBaseHref, activeView === "quizzes" ? "Quizzes" : "Assignments", firstLesson?.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+
+      ${renderCourseAssignmentsPage({
+        courseTitle: course.title,
+        courseCode,
+        baseHref: adminCourseBaseHref,
+        gradeItems,
+        lessons,
+        quizzesOnly: activeView === "quizzes",
+        instructor: true
+      })}
+    </section>
   ` : activeView === "announcements" ? `
     <section class="canvas-course-shell instructor-preview">
       <aside class="canvas-global-rail">
@@ -8752,7 +8955,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   const navItems = visibleCourseNavItems(enrollment);
   const courseBaseHref = `/student/enrollments/${enrollment.id}`;
   const activeView = String(req.query.view || "");
-  const studentCourseNavItems = navItems.filter((item) => ["Home", "Announcements", "Modules", "Discussions", "Files", "Grades", "Syllabus", "Calendar"].includes(item));
+  const studentCourseNavItems = navItems.filter((item) => ["Home", "Announcements", "Modules", "Assignments", "Discussions", "Files", "Grades", "Syllabus", "Quizzes", "Calendar"].includes(item));
   const startTiles = [
     { icon: "book", label: "Course Syllabus", href: `${courseBaseHref}?view=syllabus`, image: "/assets/start-tile-syllabus.svg" },
     { icon: "brain", label: "Learning Modules", href: `${courseBaseHref}?view=modules`, image: "/assets/start-tile-modules.svg" },
@@ -8804,6 +9007,29 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         courseCode,
         baseHref: courseBaseHref,
         moduleGroups,
+        instructor: false
+      })}
+    </section>
+  ` : activeView === "assignments" || activeView === "quizzes" ? `
+    <section class="canvas-course-shell student-course-shell">
+      ${renderStudentCanvasRail("courses")}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+        { label: courseCode, href: courseBaseHref },
+        { label: activeView === "quizzes" ? "Quizzes" : "Assignments" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(studentCourseNavItems, courseBaseHref, activeView === "quizzes" ? "Quizzes" : "Assignments", firstLesson.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+      ${courseOutlinePanel}
+      ${renderCourseAssignmentsPage({
+        courseTitle: enrollment.title,
+        courseCode,
+        baseHref: courseBaseHref,
+        gradeItems,
+        lessons,
+        quizzesOnly: activeView === "quizzes",
         instructor: false
       })}
     </section>
