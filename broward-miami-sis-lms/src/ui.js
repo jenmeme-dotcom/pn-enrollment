@@ -166,7 +166,7 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
         ${studentPortalLink(activeStudentNav, "timetable", "/student/profile#attendance", "Class Timetable")}
         ${studentPortalLink(activeStudentNav, "help", "/help/browser-cache", "Help")}
         ${studentPortalLink(activeStudentNav, "lesson-plan", "/student/lesson-plan", "Lesson Plan")}
-        ${studentPortalLink(activeStudentNav, "syllabus", "/student", "Syllabus Status")}
+        ${studentPortalLink(activeStudentNav, "syllabus", "/student/syllabus-status", "Syllabus Status")}
         ${studentPortalLink(activeStudentNav, "homework", "/student#homework", "Homework")}
         ${studentPortalLink(activeStudentNav, "exam", "/student/profile#exam", "Online Exam")}
         ${studentPortalLink(activeStudentNav, "leave", "/student/profile#timeline", "Apply Leave")}

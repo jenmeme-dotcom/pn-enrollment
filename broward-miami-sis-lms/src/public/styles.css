@@ -1450,7 +1450,8 @@ button.danger {
 
 .student-registration,
 .student-transcript,
-.student-lesson-plan {
+.student-lesson-plan,
+.student-syllabus-status {
   display: grid;
   gap: 12px;
 }
@@ -1532,6 +1533,88 @@ button.danger {
 .lesson-plan-item small {
   color: var(--muted);
   flex: 0 0 auto;
+}
+
+.syllabus-status-card {
+  min-height: auto;
+}
+
+.syllabus-status-head {
+  align-items: center;
+  border-bottom: 1px solid #edf0f2;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.syllabus-status-head h2 {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.syllabus-status-head p,
+.syllabus-status-progress small {
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+.syllabus-status-pill {
+  border-radius: 999px;
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 7px 12px;
+}
+
+.syllabus-status-pill.complete {
+  background: #e7f7ed;
+  color: #0f6b37;
+}
+
+.syllabus-status-pill.pending {
+  background: #fff3e8;
+  color: #a64713;
+}
+
+.syllabus-status-progress,
+.syllabus-status-actions {
+  padding: 12px 14px 0;
+}
+
+.syllabus-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.syllabus-status-items {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.syllabus-status-item {
+  align-items: center;
+  border: 1px solid #dfe4e8;
+  border-radius: 4px;
+  color: #17212b;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.syllabus-status-item:hover {
+  background: #f8fbfc;
+  text-decoration: none;
+}
+
+.syllabus-status-item small {
+  color: var(--muted);
+  display: block;
+  margin-top: 3px;
 }
 
 .registration-panel table,

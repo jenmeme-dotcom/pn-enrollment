@@ -8556,6 +8556,113 @@ app.get("/student/lesson-plan", requireAuth, requireRole("student"), (req, res) 
   render(req, res, "Lesson Plan", body, { studentPortal: true, activeStudentNav: "lesson-plan" });
 });
 
+app.get("/student/syllabus-status", requireAuth, requireRole("student"), (req, res) => {
+  if (isClassLocked(req.user)) return renderClassLockPage(req, res);
+  const enrollments = db.prepare(`
+    SELECT e.*, c.title, c.slug, c.category, c.hours
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    WHERE e.user_id = ?
+    ORDER BY
+      CASE e.status WHEN 'active' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
+      e.start_date DESC,
+      c.title
+  `).all(req.user.id);
+  const courseIds = enrollments.map((enrollment) => enrollment.course_id);
+  const placeholders = courseIds.map(() => "?").join(",");
+  const syllabusItems = courseIds.length ? db.prepare(`
+    SELECT
+      c.id AS course_id,
+      m.title AS module_title,
+      m.position AS module_position,
+      l.id AS lesson_id,
+      l.title AS lesson_title,
+      l.position AS lesson_position,
+      l.duration_minutes
+    FROM courses c
+    JOIN modules m ON m.course_id = c.id
+    JOIN lessons l ON l.module_id = m.id
+    WHERE c.id IN (${placeholders})
+      AND l.published = 1
+      AND l.instructor_only = 0
+      AND (
+        lower(l.title) LIKE '%syllabus%'
+        OR lower(l.title) LIKE '%acknowledg%'
+        OR lower(l.title) LIKE '%orientation%'
+      )
+    ORDER BY c.title, m.position, l.position
+  `).all(...courseIds) : [];
+  const itemsByCourse = syllabusItems.reduce((groups, item) => {
+    const items = groups.get(item.course_id) || [];
+    items.push(item);
+    groups.set(item.course_id, items);
+    return groups;
+  }, new Map());
+  const completeCount = enrollments.filter((enrollment) => enrollment.status === "completed" || Number(enrollment.progress || 0) >= 100).length;
+  const body = `
+    <section class="student-syllabus-status">
+      <div class="financial-head">
+        <div>
+          <p class="eyebrow">Student Records</p>
+          <h1>Syllabus Status</h1>
+          <p>Open your course syllabus, orientation, and acknowledgement items from one place.</p>
+        </div>
+        <div class="financial-actions">
+          <a class="button ghost" href="/student">SIS Home</a>
+          <a class="button" href="/student/courses">My Courses</a>
+        </div>
+      </div>
+
+      <article class="student-panel">
+        <div class="lesson-plan-summary">
+          ${stat("Enrolled courses", String(enrollments.length))}
+          ${stat("Completed", String(completeCount))}
+          ${stat("Pending", String(Math.max(0, enrollments.length - completeCount)))}
+        </div>
+      </article>
+
+      ${enrollments.map((enrollment) => {
+        const items = itemsByCourse.get(enrollment.course_id) || [];
+        const acknowledgement = items.find((item) => /acknowledg/i.test(item.lesson_title));
+        const isComplete = enrollment.status === "completed" || Number(enrollment.progress || 0) >= 100;
+        const progress = Math.max(0, Math.min(100, Number(enrollment.progress || 0)));
+        return `
+          <article class="student-panel syllabus-status-card">
+            <header class="syllabus-status-head">
+              <div>
+                <h2>${escapeHtml(enrollment.title)}</h2>
+                <p>${escapeHtml(enrollment.category)} · ${escapeHtml(enrollment.hours)} clock hours · ${escapeHtml(enrollment.status)}</p>
+              </div>
+              <span class="syllabus-status-pill ${isComplete ? "complete" : "pending"}">${isComplete ? "Complete" : "Pending"}</span>
+            </header>
+            <div class="syllabus-status-progress">
+              ${progressBar(progress)}
+              <small>${escapeHtml(progress)}% course progress</small>
+            </div>
+            <div class="syllabus-status-actions">
+              <a class="button small" href="/student/enrollments/${enrollment.id}?view=syllabus">Open Syllabus</a>
+              ${acknowledgement ? `<a class="button small ghost" href="/student/enrollments/${enrollment.id}?lesson=${acknowledgement.lesson_id}">Open Acknowledgement</a>` : ""}
+              <a class="button small ghost" href="/student/enrollments/${enrollment.id}?view=modules">Open Modules</a>
+            </div>
+            <div class="syllabus-status-items">
+              ${items.map((item) => `
+                <a class="syllabus-status-item" href="/student/enrollments/${enrollment.id}?lesson=${item.lesson_id}">
+                  <span>
+                    <strong>${escapeHtml(item.lesson_title)}</strong>
+                    <small>${escapeHtml(item.module_title)} · ${escapeHtml(item.duration_minutes || 0)} min</small>
+                  </span>
+                  <span>Open</span>
+                </a>
+              `).join("") || `<p class="empty compact">No published syllabus or acknowledgement item is available for this course yet.</p>`}
+            </div>
+          </article>
+        `;
+      }).join("") || `<article class="student-panel"><p class="empty">No course enrollments yet.</p></article>`}
+    </section>
+  `;
+  render(req, res, "Syllabus Status", body, { studentPortal: true, activeStudentNav: "syllabus" });
+});
+
 app.get("/student/dashboard", requireAuth, requireRole("student"), (req, res) => {
   if (isClassLocked(req.user)) return renderClassLockPage(req, res);
   const data = dashboardDataForStudent(req.user.id);
