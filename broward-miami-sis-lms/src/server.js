@@ -3975,6 +3975,21 @@ function ticketStatusLabel(value = "") {
   return "Open";
 }
 
+function activeUrgentTickets(limit = 3) {
+  return db.prepare(`
+    SELECT t.*, u.first_name, u.last_name
+    FROM task_tickets t
+    LEFT JOIN users u ON u.id = t.created_by
+    WHERE t.urgency = 'urgent' AND t.status <> 'done'
+    ORDER BY
+      CASE t.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
+      t.due_date IS NULL,
+      t.due_date,
+      t.created_at DESC
+    LIMIT ?
+  `).all(limit);
+}
+
 app.get("/admin/tickets", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const tickets = db.prepare(`
     SELECT t.*, u.first_name, u.last_name, u.email
@@ -4233,6 +4248,12 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
   `;
   const recent = selectedCohort ? db.prepare(recentSql).all(selectedCohort) : db.prepare(recentSql).all();
   const cohortLabel = selectedCohort || "All cohorts";
+  const urgentTickets = activeUrgentTickets(3);
+  const urgentTicketCount = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM task_tickets
+    WHERE urgency = 'urgent' AND status <> 'done'
+  `).get().count;
 
   const body = `
     <div class="page-head">
@@ -4248,6 +4269,23 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
         <a class="button" href="/admin/students">Add student</a>
       </div>
     </div>
+    ${urgentTicketCount ? `
+      <section class="staff-urgent-banner" role="alert">
+        <div>
+          <p class="eyebrow">Urgent staff notification</p>
+          <h2>${escapeHtml(urgentTicketCount)} urgent task${urgentTicketCount === 1 ? " needs" : "s need"} attention</h2>
+          <ul>
+            ${urgentTickets.map((ticket) => `
+              <li>
+                <strong>${escapeHtml(ticket.title)}</strong>
+                <span>${escapeHtml(ticketStatusLabel(ticket.status))}${ticket.due_date ? ` · Due ${date(ticket.due_date)}` : ""}</span>
+              </li>
+            `).join("")}
+          </ul>
+        </div>
+        <a class="button urgent-banner-action" href="/admin/tickets">Open Task Tickets</a>
+      </section>
+    ` : ""}
     <section class="card dashboard-filter-card">
       <form method="get" action="/admin" class="dashboard-cohort-filter">
         <div>

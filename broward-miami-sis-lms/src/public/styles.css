@@ -1991,6 +1991,67 @@ button.danger {
   padding: 14px;
 }
 
+.staff-urgent-banner {
+  align-items: center;
+  background: #b42318;
+  border: 1px solid #7a0f0a;
+  border-radius: 8px;
+  box-shadow: 0 14px 28px rgba(180, 35, 24, 0.2);
+  color: #fff;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin: 0 0 18px;
+  padding: 18px 20px;
+}
+
+.staff-urgent-banner .eyebrow,
+.staff-urgent-banner h2,
+.staff-urgent-banner ul,
+.staff-urgent-banner li {
+  color: #fff;
+  margin: 0;
+}
+
+.staff-urgent-banner .eyebrow {
+  opacity: 0.85;
+}
+
+.staff-urgent-banner h2 {
+  font-size: 1.55rem;
+  line-height: 1.15;
+  margin-top: 4px;
+}
+
+.staff-urgent-banner ul {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin-top: 10px;
+  padding: 0;
+}
+
+.staff-urgent-banner li {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.staff-urgent-banner li span {
+  color: #fee4e2;
+}
+
+.staff-urgent-banner .urgent-banner-action {
+  background: #fff;
+  color: #7a0f0a;
+  flex: 0 0 auto;
+}
+
+.staff-urgent-banner .urgent-banner-action:hover {
+  background: #fee4e2;
+}
+
 .dashboard-cohort-filter {
   align-items: end;
   display: flex;
