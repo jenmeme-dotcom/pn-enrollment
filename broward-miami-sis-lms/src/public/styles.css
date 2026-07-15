@@ -2721,6 +2721,11 @@ textarea {
   gap: 10px;
 }
 
+.inline-form {
+  display: inline-flex;
+  margin: 0;
+}
+
 .button,
 button {
   align-items: center;

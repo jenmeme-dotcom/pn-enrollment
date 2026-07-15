@@ -28,10 +28,77 @@ const instructorLoginRepairs = new Map([
   ["dayana.diaz@browardmiamihi.com", { firstName: "Dayana", lastName: "Diaz" }],
   ["roney.hernandez@browardmiamihi.com", { firstName: "Roney", lastName: "Hernandez" }]
 ]);
+const instructorAccessAccounts = [
+  { firstName: "Dayana", lastName: "Diaz", email: "dayana.diaz@browardmiamihi.com", phone: "" },
+  { firstName: "Roney", lastName: "Hernandez", email: "roney.hernandez@browardmiamihi.com", phone: "" }
+];
 const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = require("./ui");
 
 initialize();
+
+function ensureInstructorAccessAccounts() {
+  const legacyRoney = db.prepare("SELECT id FROM users WHERE lower(email) = 'roney.hernandez.instructor@browardmiamihi.com' AND role = 'instructor'").get();
+  const currentRoney = db.prepare("SELECT id FROM users WHERE lower(email) = 'roney.hernandez@browardmiamihi.com' AND role = 'instructor'").get();
+  if (legacyRoney && !currentRoney) {
+    db.prepare("UPDATE users SET email = 'roney.hernandez@browardmiamihi.com' WHERE id = ?").run(legacyRoney.id);
+  } else if (legacyRoney && currentRoney) {
+    db.prepare("UPDATE users SET email = 'roney.hernandez.instructor-retired@browardmiamihi.com', status = 'inactive' WHERE id = ?").run(legacyRoney.id);
+  }
+
+  const upsertInstructor = db.prepare(`
+    INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
+    VALUES ('instructor', ?, ?, ?, ?, ?, 'active', 'organized', NULL)
+    ON CONFLICT(email) DO UPDATE SET
+      role = 'instructor',
+      first_name = excluded.first_name,
+      last_name = excluded.last_name,
+      phone = COALESCE(NULLIF(users.phone, ''), excluded.phone),
+      password_hash = excluded.password_hash,
+      status = 'active',
+      organization_status = 'organized',
+      class_lock_reason = NULL
+  `);
+  instructorAccessAccounts.forEach((account) => {
+    upsertInstructor.run(
+      account.firstName,
+      account.lastName,
+      account.email,
+      account.phone || "",
+      bcrypt.hashSync(instructorAccessDefaultPassword, 12)
+    );
+  });
+}
+
+ensureInstructorAccessAccounts();
+
+function saveInstructorAccount({ firstName, lastName, email, phone = "" }) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const existing = db.prepare("SELECT id, role FROM users WHERE lower(email) = ?").get(normalizedEmail);
+  if (existing && existing.role !== "instructor") {
+    throw new Error("That email is already used by a non-instructor account.");
+  }
+  db.prepare(`
+    INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
+    VALUES ('instructor', ?, ?, ?, ?, ?, 'active', 'organized', NULL)
+    ON CONFLICT(email) DO UPDATE SET
+      role = 'instructor',
+      first_name = excluded.first_name,
+      last_name = excluded.last_name,
+      phone = excluded.phone,
+      password_hash = excluded.password_hash,
+      status = 'active',
+      organization_status = 'organized',
+      class_lock_reason = NULL
+  `).run(
+    String(firstName || "").trim(),
+    String(lastName || "").trim(),
+    normalizedEmail,
+    String(phone || "").trim(),
+    bcrypt.hashSync(instructorAccessDefaultPassword, 12)
+  );
+  return normalizedEmail;
+}
 
 const app = express();
 const port = Number(process.env.PORT || 4321);
@@ -4403,8 +4470,23 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
         </article>
         ` : ""}
 
+        ${isAdmin ? `
         <article class="help-card staff-sop-card">
           <span class="sop-step">05</span>
+          <h2>Add or reset instructor login</h2>
+          <ol>
+            <li>Open Instructor Roles from the staff navigation.</li>
+            <li>Use Create instructor login to enter the faculty member's name, email username, and optional phone number.</li>
+            <li>Use Refresh approved instructors to restore approved faculty accounts such as Dayana Diaz and Roney Hernandez.</li>
+            <li>Give the instructor their email username and the temporary password shown on the page.</li>
+            <li>If the login fails, use Reset to temporary password and have the instructor try Faculty Login again.</li>
+          </ol>
+          <a class="button small ghost" href="/admin/instructor-roles">Open instructor roles</a>
+        </article>
+        ` : ""}
+
+        <article class="help-card staff-sop-card">
+          <span class="sop-step">${isAdmin ? "06" : "05"}</span>
           <h2>Manage courses and LMS content</h2>
           <ol>
             <li>Open Courses and select the program or class.</li>
@@ -4416,7 +4498,7 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
         </article>
 
         <article class="help-card staff-sop-card">
-          <span class="sop-step">06</span>
+          <span class="sop-step">${isAdmin ? "07" : "06"}</span>
           <h2>Communicate with students</h2>
           <ol>
             <li>Open Inbox to view incoming student messages.</li>
@@ -4428,7 +4510,7 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
         </article>
 
         <article class="help-card staff-sop-card">
-          <span class="sop-step">07</span>
+          <span class="sop-step">${isAdmin ? "08" : "07"}</span>
           <h2>Track HESI and cohort records</h2>
           <ol>
             <li>Open HESI Scores and choose the correct cohort.</li>
@@ -4441,7 +4523,7 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
 
         ${isAdmin ? `
         <article class="help-card staff-sop-card">
-          <span class="sop-step">08</span>
+          <span class="sop-step">09</span>
           <h2>Prepare OSV visit evidence</h2>
           <ol>
             <li>Open OSV Visit from the staff navigation.</li>
@@ -4455,7 +4537,7 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
 
         ${isAdmin ? `
         <article class="help-card staff-sop-card">
-          <span class="sop-step">09</span>
+          <span class="sop-step">10</span>
           <h2>Billing and financial aid</h2>
           <ol>
             <li>Open Billing for tuition balances, payment plans, and account clearance.</li>
@@ -5607,6 +5689,7 @@ app.post("/admin/admin-roles/:email/reset-password", requireAuth, requireRole("a
 });
 
 app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res) => {
+  ensureInstructorAccessAccounts();
   const instructors = db.prepare(`
     SELECT id, first_name, last_name, email, phone, status, created_at
     FROM users
@@ -5623,6 +5706,9 @@ app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res)
       <div class="actions">
         <a class="button ghost" href="/admin/admin-roles">Admin roles</a>
         <a class="button ghost" href="/admin/staff-portal">Staff time</a>
+        <form method="post" action="/admin/instructor-roles/refresh-approved" class="inline-form">
+          <button class="button ghost" type="submit">Refresh approved instructors</button>
+        </form>
         <a class="button" href="/admin">Dashboard</a>
       </div>
     </div>
@@ -5631,6 +5717,30 @@ app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res)
       ${stat("Instructor accounts", instructors.length)}
       ${stat("Access role", "Instructor")}
       ${stat("Temporary password", instructorAccessDefaultPassword)}
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <div class="table-card-head">
+        <div>
+          <h2>Create instructor login</h2>
+          <p class="muted">Add faculty with their school email. The temporary password is ${escapeHtml(instructorAccessDefaultPassword)}.</p>
+        </div>
+      </div>
+      <form method="post" action="/admin/instructor-roles" class="form-grid">
+        <label>First name
+          <input name="firstName" required placeholder="Dayana">
+        </label>
+        <label>Last name
+          <input name="lastName" required placeholder="Diaz">
+        </label>
+        <label>Email username
+          <input type="email" name="email" required placeholder="dayana.diaz@browardmiamihi.com">
+        </label>
+        <label>Phone
+          <input name="phone" placeholder="Optional">
+        </label>
+        <button class="button" type="submit">Create or reset instructor</button>
+      </form>
     </section>
 
     <section class="table-card" style="margin-top:18px">
@@ -5664,6 +5774,29 @@ app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res)
     </section>
   `;
   render(req, res, "Instructor Roles", body);
+});
+
+app.post("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res) => {
+  const firstName = String(req.body.firstName || "").trim();
+  const lastName = String(req.body.lastName || "").trim();
+  const email = String(req.body.email || "").trim().toLowerCase();
+  if (!firstName || !lastName || !email) {
+    flash(req, "First name, last name, and email are required for instructor logins.");
+    return res.redirect("/admin/instructor-roles");
+  }
+  try {
+    const normalizedEmail = saveInstructorAccount({ firstName, lastName, email, phone: req.body.phone });
+    flash(req, `${firstName} ${lastName}'s instructor login is ready: ${normalizedEmail} / ${instructorAccessDefaultPassword}`);
+  } catch (error) {
+    flash(req, error.message || "Unable to create instructor login.");
+  }
+  res.redirect("/admin/instructor-roles");
+});
+
+app.post("/admin/instructor-roles/refresh-approved", requireAuth, requireRole("admin"), (req, res) => {
+  ensureInstructorAccessAccounts();
+  flash(req, "Approved instructor accounts were refreshed. Dayana Diaz can use Faculty Login now.");
+  res.redirect("/admin/instructor-roles");
 });
 
 app.post("/admin/instructor-roles/:email/reset-password", requireAuth, requireRole("admin"), (req, res) => {
