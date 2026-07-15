@@ -3341,7 +3341,7 @@ button.small {
 
 .start-tile-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
 }
 
 .start-tile {
@@ -3783,6 +3783,174 @@ button.small {
   color: #2d3b48;
   font-weight: 800;
   margin: 3px 0 0;
+}
+
+.canvas-live-main {
+  padding: 38px clamp(22px, 4vw, 52px) 48px;
+}
+
+.live-class-hero {
+  align-items: center;
+  border-bottom: 6px solid #174b61;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  margin: 0 0 26px;
+  max-width: 980px;
+  padding: 0 0 22px;
+}
+
+.live-class-hero h1 {
+  color: #2d3b48;
+  font-size: clamp(34px, 3vw, 46px);
+  font-weight: 300;
+  letter-spacing: 0;
+  line-height: 1.18;
+  margin: 5px 0 10px;
+}
+
+.live-class-hero p {
+  color: #526576;
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 720px;
+}
+
+.live-class-provider {
+  align-items: center;
+  background: #eef8fb;
+  border: 1px solid #cfe2e9;
+  border-radius: 8px;
+  color: #174b61;
+  display: grid;
+  flex: 0 0 auto;
+  height: 116px;
+  justify-items: center;
+  padding: 14px 18px;
+  text-align: center;
+  width: 132px;
+}
+
+.live-class-provider span {
+  align-items: center;
+  background: #174b61;
+  border-radius: 999px;
+  color: white;
+  display: inline-flex;
+  font-size: 16px;
+  font-weight: 800;
+  height: 58px;
+  justify-content: center;
+  width: 58px;
+}
+
+.live-class-provider strong {
+  font-size: 14px;
+  text-transform: uppercase;
+}
+
+.live-class-card,
+.live-class-admin-card {
+  background: white;
+  border: 1px solid #d8e1e8;
+  border-radius: 8px;
+  margin: 0 0 20px;
+  max-width: 980px;
+  padding: 22px;
+}
+
+.live-class-details {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.live-class-details div {
+  background: #f8fafb;
+  border: 1px solid #e3e9ef;
+  border-radius: 6px;
+  padding: 14px;
+}
+
+.live-class-details span {
+  color: #6d7d8b;
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+.live-class-details strong {
+  color: #263947;
+  display: block;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.live-class-actions {
+  border-top: 1px solid #e2e8ed;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+.live-class-admin-card h2 {
+  color: #2d3b48;
+  font-size: 24px;
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+
+.live-class-admin-card p {
+  color: #526576;
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
+.live-class-admin-card dl {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 12px;
+}
+
+.live-class-admin-card dl div {
+  border: 1px solid #e2e8ed;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.live-class-admin-card dt {
+  color: #6d7d8b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.live-class-admin-card dd {
+  color: #1c2b36;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+  font-weight: 800;
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .live-class-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .live-class-details,
+  .live-class-admin-card dl {
+    grid-template-columns: 1fr;
+  }
 }
 
 .quiz-instructions {

@@ -769,6 +769,37 @@ function canvasCourseCode(course = {}) {
   return `BMHI-${String(id).padStart(3, "0")}`;
 }
 
+function courseLiveClassConfig(course = {}) {
+  const slug = course.slug || "";
+  const liveClasses = {
+    "medical-terminology": {
+      code: "PN 101",
+      title: "PN 101 Medical Terminology Night Class",
+      provider: "Zoom",
+      schedule: "Wednesdays, 6:00 PM - 8:00 PM",
+      dates: "June 17, 2026 - September 1, 2026",
+      audience: "Cohort 2 night students",
+      joinUrl: process.env.PN101_ZOOM_URL || "",
+      meetingId: process.env.PN101_ZOOM_MEETING_ID || "",
+      passcode: process.env.PN101_ZOOM_PASSCODE || "",
+      envPrefix: "PN101"
+    },
+    "introduction-to-nursing-practical-nursing": {
+      code: "PN 102",
+      title: "PN 102 Introduction to Nursing Night Review",
+      provider: "Zoom",
+      schedule: "Night Zoom review, office hours, and LMS discussion support",
+      dates: "June 22, 2026 - September 6, 2026",
+      audience: "Cohort 2 night students",
+      joinUrl: process.env.PN102_ZOOM_URL || "",
+      meetingId: process.env.PN102_ZOOM_MEETING_ID || "",
+      passcode: process.env.PN102_ZOOM_PASSCODE || "",
+      envPrefix: "PN102"
+    }
+  };
+  return liveClasses[slug] || null;
+}
+
 function toolStatus(course = {}, tool = {}) {
   if (tool.adminOnly) return { label: "Admin tool", className: "neutral" };
   if (!tool.section) return { label: "Enabled", className: "enabled" };
@@ -821,6 +852,7 @@ function courseNavHref(baseHref, item, firstLessonId) {
   if (item === "Announcements") return `${baseHref}?view=announcements`;
   if (item === "Calendar") return `${baseHref}?view=calendar`;
   if (item === "Inbox") return baseHref.startsWith("/student/") ? "/student/email" : "/admin/messages";
+  if (item === "Conferences") return `${baseHref}?view=conferences`;
   if (item === "Assignments") return `${baseHref}?view=assignments`;
   if (item === "Quizzes") return `${baseHref}?view=quizzes`;
   return baseHref;
@@ -2606,6 +2638,94 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
         <h2>${escapeHtml(courseTitle)}</h2>
         <p>Use Modules for weekly directions and Files for supporting handouts, worksheets, slides, and readings.</p>
       </section>
+    </main>
+  `;
+}
+
+function renderCourseConferencesPage({ course, courseCode, baseHref, instructor = false }) {
+  const liveClass = courseLiveClassConfig(course);
+  const title = liveClass?.title || `${courseCode} Live Class`;
+  const inboxHref = baseHref.startsWith("/student/") ? "/student/email" : "/admin/messages";
+  const joinButton = liveClass?.joinUrl
+    ? `<a class="button" href="${escapeHtml(liveClass.joinUrl)}" target="_blank" rel="noopener">Join Zoom Class</a>`
+    : `<span class="button disabled">Zoom link pending</span>`;
+  return `
+    <main class="canvas-course-main canvas-live-main">
+      <div class="canvas-mini-head">
+        <span></span>
+        <strong>${escapeHtml(courseCode)} &gt; Conferences</strong>
+        <a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=calendar">View Course Calendar</a>
+      </div>
+      <section class="live-class-hero">
+        <div>
+          <p class="eyebrow">Live online course meeting</p>
+          <h1>${escapeHtml(title)}</h1>
+          <p>${liveClass
+            ? `Use this conference page for the ${escapeHtml(liveClass.provider)} night class connection, meeting details, and live-session reminders.`
+            : "No live video conference has been scheduled for this course yet."}</p>
+        </div>
+        <div class="live-class-provider" aria-label="Video provider">
+          <span>Zoom</span>
+          <strong>Video</strong>
+        </div>
+      </section>
+      ${liveClass ? `
+        <section class="live-class-card">
+          <div class="live-class-details">
+            <div>
+              <span>Provider</span>
+              <strong>${escapeHtml(liveClass.provider)}</strong>
+            </div>
+            <div>
+              <span>Schedule</span>
+              <strong>${escapeHtml(liveClass.schedule)}</strong>
+            </div>
+            <div>
+              <span>Dates</span>
+              <strong>${escapeHtml(liveClass.dates)}</strong>
+            </div>
+            <div>
+              <span>Audience</span>
+              <strong>${escapeHtml(liveClass.audience)}</strong>
+            </div>
+            <div>
+              <span>Meeting ID</span>
+              <strong>${liveClass.meetingId ? escapeHtml(liveClass.meetingId) : "Pending"}</strong>
+            </div>
+            <div>
+              <span>Passcode</span>
+              <strong>${liveClass.passcode ? escapeHtml(liveClass.passcode) : "Pending"}</strong>
+            </div>
+          </div>
+          <div class="live-class-actions">
+            ${joinButton}
+            <a class="button ghost" href="${escapeHtml(baseHref)}?view=modules">Course Modules</a>
+            <a class="button ghost" href="${escapeHtml(inboxHref)}">${instructor ? "Open Inbox" : "Message Instructor"}</a>
+          </div>
+        </section>
+        ${instructor ? `
+          <section class="live-class-admin-card">
+            <h2>Instructor Zoom setup</h2>
+            <p>Create the official Zoom meeting in the BMHI Zoom account, then add the join details to Render environment variables and redeploy.</p>
+            <dl>
+              <div><dt>Join URL variable</dt><dd>${escapeHtml(liveClass.envPrefix)}_ZOOM_URL</dd></div>
+              <div><dt>Meeting ID variable</dt><dd>${escapeHtml(liveClass.envPrefix)}_ZOOM_MEETING_ID</dd></div>
+              <div><dt>Passcode variable</dt><dd>${escapeHtml(liveClass.envPrefix)}_ZOOM_PASSCODE</dd></div>
+            </dl>
+            <p class="muted">This keeps the student portal ready without exposing private Zoom details in the source code.</p>
+          </section>
+        ` : `
+          <section class="live-class-admin-card">
+            <h2>Before joining</h2>
+            <p>Log in a few minutes early, keep your microphone muted until called on, and use the course Inbox if the Zoom link is not visible.</p>
+          </section>
+        `}
+      ` : `
+        <section class="live-class-card">
+          <p class="empty">No conference has been configured for this course.</p>
+          <a class="button ghost" href="${escapeHtml(baseHref)}?view=modules">Back to Modules</a>
+        </section>
+      `}
     </main>
   `;
 }
@@ -4408,7 +4528,7 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       start: "2026-06-17",
       end: "2026-09-01",
       meeting: "Wednesdays, 6:00 PM - 8:00 PM",
-      format: "Online / Google Meet",
+      format: "Online / Zoom",
       status: "Current"
     },
     {
@@ -4417,8 +4537,8 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       title: "Introduction to Nursing",
       start: "2026-06-22",
       end: "2026-09-06",
-      meeting: "Weekly modules and discussions",
-      format: "Online / LMS",
+      meeting: "Night Zoom review, weekly modules, and discussions",
+      format: "Online / Zoom + LMS",
       status: "Current"
     },
     {
@@ -4550,16 +4670,18 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
         </div>
       </div>
       <table>
-        <thead><tr><th>Code</th><th>Course</th><th>Dates</th><th>Meeting pattern</th><th>Portal</th></tr></thead>
+        <thead><tr><th>Code</th><th>Course</th><th>Dates</th><th>Meeting pattern</th><th>Live class</th><th>Portal</th></tr></thead>
         <tbody>
           ${currentRows.map((row) => {
             const course = courseBySlug.get(row.slug);
+            const liveClass = course ? courseLiveClassConfig(course) : null;
             return `
               <tr>
                 <td><strong>${escapeHtml(row.code)}</strong><br><span class="pill">${escapeHtml(row.status)}</span></td>
                 <td><strong>${escapeHtml(row.title)}</strong><br><span class="muted">${escapeHtml(row.format)}</span></td>
                 <td>${escapeHtml(date(row.start))}<br><span class="muted">to ${escapeHtml(date(row.end))}</span></td>
                 <td>${escapeHtml(row.meeting)}</td>
+                <td>${course && liveClass ? `<a class="button small ghost" href="/admin/courses/${course.id}/student-view?view=conferences">Zoom setup</a>` : `<span class="muted">Not scheduled</span>`}</td>
                 <td>${course ? `<a class="button small" href="/admin/courses/${course.id}/student-view">Open LMS</a>` : `<span class="muted">Course shell pending</span>`}</td>
               </tr>
             `;
@@ -7244,7 +7366,8 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     { icon: "brain", label: "Learning Modules", href: `${adminCourseBaseHref}?view=modules`, image: "/assets/start-tile-modules.svg" },
     { icon: "files", label: "Course Files", href: `${adminCourseBaseHref}?view=files`, image: "/assets/start-tile-files.svg" },
     { icon: "check", label: "Assignments & Grades", href: `${adminCourseBaseHref}?view=grades`, image: "/assets/start-tile-grades.svg" },
-    { icon: "question", label: "Course Q & A", href: `${adminCourseBaseHref}?view=discussions`, image: "/assets/start-tile-qa.svg" }
+    { icon: "question", label: "Course Q & A", href: `${adminCourseBaseHref}?view=discussions`, image: "/assets/start-tile-qa.svg" },
+    ...(courseLiveClassConfig(course) ? [{ icon: "video", label: "Live Zoom Class", href: `${adminCourseBaseHref}?view=conferences`, image: "/assets/start-tile-qa.svg" }] : [])
   ];
   const activeView = String(req.query.view || "");
   const body = activeView === "modules" ? `
@@ -7380,6 +7503,31 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         currentCourseId: course.id,
         instructor: true,
         postAction: `/admin/courses/${course.id}/calendar-events`
+      })}
+    </section>
+  ` : activeView === "conferences" ? `
+    <section class="canvas-course-shell instructor-preview">
+      <aside class="canvas-global-rail">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
+        <span>${escapeHtml(initialsFor(req.user))}</span>
+        <i></i><i></i><i></i><i></i><i></i>
+      </aside>
+
+      ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
+        { label: courseCode, href: adminCourseBaseHref },
+        { label: "Conferences" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(navItems, adminCourseBaseHref, "Conferences", firstLesson?.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+
+      ${renderCourseConferencesPage({
+        course,
+        courseCode,
+        baseHref: adminCourseBaseHref,
+        instructor: true
       })}
     </section>
   ` : activeView === "files" ? `
@@ -9056,13 +9204,14 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   const navItems = visibleCourseNavItems(enrollment);
   const courseBaseHref = `/student/enrollments/${enrollment.id}`;
   const activeView = String(req.query.view || "");
-  const studentCourseNavItems = navItems.filter((item) => ["Home", "Announcements", "Modules", "Assignments", "Discussions", "Files", "Grades", "Syllabus", "Quizzes", "Calendar"].includes(item));
+  const studentCourseNavItems = navItems.filter((item) => ["Home", "Announcements", "Modules", "Assignments", "Discussions", "Files", "Grades", "Syllabus", "Quizzes", "Calendar", "Conferences"].includes(item));
   const startTiles = [
     { icon: "book", label: "Course Syllabus", href: `${courseBaseHref}?view=syllabus`, image: "/assets/start-tile-syllabus.svg" },
     { icon: "brain", label: "Learning Modules", href: `${courseBaseHref}?view=modules`, image: "/assets/start-tile-modules.svg" },
     { icon: "files", label: "Course Files", href: `${courseBaseHref}?view=files`, image: "/assets/start-tile-files.svg" },
     { icon: "check", label: "Assignments & Grades", href: `${courseBaseHref}?view=grades`, image: "/assets/start-tile-grades.svg" },
-    { icon: "question", label: "Course Q & A", href: `${courseBaseHref}?view=discussions`, image: "/assets/start-tile-qa.svg" }
+    { icon: "question", label: "Course Q & A", href: `${courseBaseHref}?view=discussions`, image: "/assets/start-tile-qa.svg" },
+    ...(courseLiveClassConfig(enrollment) ? [{ icon: "video", label: "Live Zoom Class", href: `${courseBaseHref}?view=conferences`, image: "/assets/start-tile-qa.svg" }] : [])
   ];
   const currentLessonId = Number(req.query.lesson || 0);
   const courseOutlinePanel = `
@@ -9196,6 +9345,26 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         events: calendarEvents,
         courses: [{ id: enrollment.course_id, title: enrollment.title, slug: enrollment.slug }],
         currentCourseId: enrollment.course_id,
+        instructor: false
+      })}
+    </section>
+  ` : activeView === "conferences" ? `
+    <section class="canvas-course-shell student-course-shell">
+      ${renderStudentCanvasRail("courses")}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+        { label: courseCode, href: courseBaseHref },
+        { label: "Conferences" }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(studentCourseNavItems, courseBaseHref, "Conferences", firstLesson.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+      ${courseOutlinePanel}
+      ${renderCourseConferencesPage({
+        course: enrollment,
+        courseCode,
+        baseHref: courseBaseHref,
         instructor: false
       })}
     </section>
