@@ -69,8 +69,35 @@ function initialsFor(user) {
   return `${String(user.first_name || "").charAt(0)}${String(user.last_name || "").charAt(0)}`.toUpperCase() || "U";
 }
 
-function studentPortalLink(activeStudentNav, key, href, label) {
-  return `<a class="${activeStudentNav === key ? "active" : ""}" href="${href}">${label}</a>`;
+const studentNavItems = [
+  { key: "dashboard", href: "/student/dashboard", label: "Dashboard" },
+  { key: "sis-home", href: "/student", label: "Home" },
+  { key: "courses", href: "/student/courses", label: "Enrolled Courses" },
+  { key: "calendar", href: "/student/calendar", label: "Calendar" },
+  { key: "email", href: "/student/email", label: "Inbox" },
+  { key: "profile", href: "/student/profile", label: "My Profile" },
+  { key: "fees", href: "/student/financial", label: "Fees" },
+  { key: "registration", href: "/student/registration", label: "Registration" },
+  { key: "transcript", href: "/student/transcript", label: "Transcript" },
+  { key: "timetable", href: "/student/profile#attendance", label: "Class Timetable" },
+  { key: "help", href: "/help/browser-cache", label: "Help" },
+  { key: "lesson-plan", href: "/student/lesson-plan", label: "Lesson Plan" },
+  { key: "syllabus", href: "/student/syllabus-status", label: "Syllabus Status" },
+  { key: "homework", href: "/student#homework", label: "Homework" },
+  { key: "exam", href: "/student/profile#exam", label: "Online Exam" },
+  { key: "leave", href: "/student/profile#timeline", label: "Apply Leave" },
+  { key: "visitor", href: "/student/profile#timeline", label: "Visitor Book" },
+  { key: "download", href: "/catalog", label: "Download Center" },
+  { key: "attendance", href: "/student/profile#attendance", label: "Attendance" },
+  { key: "exams", href: "/student/profile#exam", label: "Examinations" }
+];
+
+function studentPortalLink(activeStudentNav, { key, href, label }) {
+  return `<a class="${activeStudentNav === key ? "active" : ""}" href="${escapeHtml(href)}">${escapeHtml(label)}</a>`;
+}
+
+function studentPortalLinks(activeStudentNav) {
+  return studentNavItems.map((item) => studentPortalLink(activeStudentNav, item)).join("");
 }
 
 function layout({ title, user, flash, body, full = false, studentPortal = false, activeStudentNav = "dashboard", courseCanvas = false }) {
@@ -78,6 +105,7 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
   const isSis = Boolean(user && user.role !== "student" && !full);
   const isStudentPortal = Boolean(user && user.role === "student" && studentPortal && !full && !courseCanvas);
   const bodyClass = full ? "credential-page" : courseCanvas ? "course-canvas-mode" : isSis ? "sis-mode" : isStudentPortal ? "student-portal-mode" : "";
+  const studentNav = studentPortalLinks(activeStudentNav);
   const courseCanvasScript = courseCanvas ? `
   <script>
     (() => {
@@ -103,6 +131,54 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
           localStorage.setItem(key, String(collapsed));
           applyState(collapsed);
         });
+      });
+    })();
+    (() => {
+      const button = document.querySelector("[data-course-menu-toggle]");
+      const menu = document.getElementById("canvas-course-submenu");
+      if (!button || !menu) return;
+
+      const setOpen = (open) => {
+        menu.hidden = !open;
+        button.setAttribute("aria-expanded", String(open));
+      };
+
+      button.addEventListener("click", () => setOpen(menu.hidden));
+      menu.addEventListener("click", (event) => {
+        if (event.target.closest("a")) setOpen(false);
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") setOpen(false);
+      });
+      document.addEventListener("click", (event) => {
+        if (menu.hidden || button.contains(event.target) || menu.contains(event.target)) return;
+        setOpen(false);
+      });
+    })();
+  </script>` : "";
+  const studentPortalScript = isStudentPortal ? `
+  <script>
+    (() => {
+      const button = document.querySelector("[data-student-menu-toggle]");
+      const menu = document.getElementById("student-submenu");
+      if (!button || !menu) return;
+
+      const setOpen = (open) => {
+        menu.hidden = !open;
+        document.body.classList.toggle("student-submenu-open", open);
+        button.setAttribute("aria-expanded", String(open));
+      };
+
+      button.addEventListener("click", () => setOpen(menu.hidden));
+      menu.addEventListener("click", (event) => {
+        if (event.target.closest("a")) setOpen(false);
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") setOpen(false);
+      });
+      document.addEventListener("click", (event) => {
+        if (menu.hidden || button.contains(event.target) || menu.contains(event.target)) return;
+        setOpen(false);
       });
     })();
   </script>` : "";
@@ -139,7 +215,10 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
       <a class="student-brand" href="/student">
         <img src="/assets/bmhi-wordmark.jpeg" alt="${institute}">
       </a>
-      <button class="student-menu" type="button" aria-label="Menu">Menu</button>
+      <button class="student-menu" type="button" aria-label="Open student menu" aria-expanded="false" aria-controls="student-submenu" data-student-menu-toggle>
+        <span aria-hidden="true">☰</span>
+        <span>Menu</span>
+      </button>
       <strong>${institute}</strong>
       <div class="student-top-actions">
         <span>USD</span>
@@ -151,29 +230,13 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
         </form>
       </div>
     </header>
+    <nav id="student-submenu" class="student-submenu" aria-label="Student submenu" hidden>
+      ${studentNav}
+    </nav>
     <aside class="student-sidebar">
       <div class="student-session">Current Session: 2026-27</div>
       <nav aria-label="Student portal">
-        ${studentPortalLink(activeStudentNav, "dashboard", "/student/dashboard", "Dashboard")}
-        ${studentPortalLink(activeStudentNav, "sis-home", "/student", "Home")}
-        ${studentPortalLink(activeStudentNav, "courses", "/student/courses", "Enrolled Courses")}
-        ${studentPortalLink(activeStudentNav, "calendar", "/student/calendar", "Calendar")}
-        ${studentPortalLink(activeStudentNav, "email", "/student/email", "Inbox")}
-        ${studentPortalLink(activeStudentNav, "profile", "/student/profile", "My Profile")}
-        ${studentPortalLink(activeStudentNav, "fees", "/student/financial", "Fees")}
-        ${studentPortalLink(activeStudentNav, "registration", "/student/registration", "Registration")}
-        ${studentPortalLink(activeStudentNav, "transcript", "/student/transcript", "Transcript")}
-        ${studentPortalLink(activeStudentNav, "timetable", "/student/profile#attendance", "Class Timetable")}
-        ${studentPortalLink(activeStudentNav, "help", "/help/browser-cache", "Help")}
-        ${studentPortalLink(activeStudentNav, "lesson-plan", "/student/lesson-plan", "Lesson Plan")}
-        ${studentPortalLink(activeStudentNav, "syllabus", "/student/syllabus-status", "Syllabus Status")}
-        ${studentPortalLink(activeStudentNav, "homework", "/student#homework", "Homework")}
-        ${studentPortalLink(activeStudentNav, "exam", "/student/profile#exam", "Online Exam")}
-        ${studentPortalLink(activeStudentNav, "leave", "/student/profile#timeline", "Apply Leave")}
-        ${studentPortalLink(activeStudentNav, "visitor", "/student/profile#timeline", "Visitor Book")}
-        ${studentPortalLink(activeStudentNav, "download", "/catalog", "Download Center")}
-        ${studentPortalLink(activeStudentNav, "attendance", "/student/profile#attendance", "Attendance")}
-        ${studentPortalLink(activeStudentNav, "exams", "/student/profile#exam", "Examinations")}
+        ${studentNav}
       </nav>
     </aside>
   ` : `
@@ -207,6 +270,7 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
     ${body}
   </main>
   ${courseCanvasScript}
+  ${studentPortalScript}
 </body>
 </html>`;
 }

@@ -316,13 +316,66 @@ nav a {
 }
 
 .student-menu {
-  background: transparent;
-  border: 0;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 4px;
   color: white;
+  display: inline-flex;
   font-size: 12px;
+  font-weight: 800;
+  gap: 7px;
   min-height: 30px;
   padding: 5px 8px;
+}
+
+.student-menu span[aria-hidden="true"] {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.student-menu:hover,
+.student-menu[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.student-submenu {
+  background: #ffffff;
+  border-bottom: 1px solid #d8e2e8;
+  box-shadow: 0 10px 24px rgba(15, 47, 79, 0.18);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  left: 0;
+  padding: 12px 18px;
+  position: sticky;
+  right: 0;
+  top: 52px;
+  z-index: 29;
+}
+
+.student-submenu[hidden] {
+  display: none;
+}
+
+.student-submenu a {
+  align-items: center;
+  background: #f6fafb;
+  border: 1px solid #d8e2e8;
+  border-radius: 6px;
+  color: #0b5661;
+  display: flex;
+  font-size: 13px;
+  font-weight: 900;
+  min-height: 38px;
+  padding: 9px 11px;
+}
+
+.student-submenu a.active,
+.student-submenu a:hover {
+  background: #0b414a;
+  color: #ffffff;
+  text-decoration: none;
 }
 
 .student-topbar > strong {
@@ -3177,9 +3230,57 @@ button.small {
 }
 
 .canvas-menu-button {
+  background: #eef6f7;
+  border: 1px solid #cddfe4;
+  border-radius: 4px;
   color: #2d7fd4;
+  cursor: pointer;
   font-size: 28px;
   font-weight: 400;
+  line-height: 1;
+  min-height: 38px;
+  min-width: 46px;
+  padding: 4px 10px;
+}
+
+.canvas-menu-button[aria-expanded="true"],
+.canvas-menu-button:hover {
+  background: #dff0f3;
+  text-decoration: none;
+}
+
+.canvas-course-submenu {
+  background: #ffffff;
+  border-bottom: 1px solid #dce3e8;
+  box-shadow: 0 10px 24px rgba(45, 59, 72, 0.14);
+  display: grid;
+  gap: 8px;
+  grid-column: 2 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  padding: 12px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 24;
+}
+
+.canvas-course-submenu[hidden] {
+  display: none;
+}
+
+.canvas-course-submenu a {
+  background: #f6fafb;
+  border: 1px solid #d8e2e8;
+  border-radius: 5px;
+  color: #0b5661;
+  font-size: 13px;
+  font-weight: 850;
+  padding: 9px 11px;
+}
+
+.canvas-course-submenu a:hover {
+  background: #0b414a;
+  color: #ffffff;
+  text-decoration: none;
 }
 
 .canvas-sidebar-toggle,

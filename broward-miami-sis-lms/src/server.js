@@ -993,12 +993,22 @@ function renderStudentCanvasRail(active = "courses") {
 
 function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = []) {
   const crumbTrail = breadcrumbs.length ? breadcrumbs : [{ label: courseCode, href: baseHref }];
-  const menuHref = baseHref.includes("/enrollments/") || baseHref.includes("/courses/")
-    ? `${baseHref}?view=modules`
-    : baseHref;
+  const courseMenuItems = [
+    { label: "Home", href: baseHref },
+    { label: "Announcements", href: `${baseHref}?view=announcements` },
+    { label: "Modules", href: `${baseHref}?view=modules` },
+    { label: "Assignments", href: `${baseHref}?view=assignments` },
+    { label: "Discussions", href: `${baseHref}?view=discussions` },
+    { label: "Grades", href: `${baseHref}?view=grades` },
+    { label: "Files", href: `${baseHref}?view=files` },
+    { label: "Syllabus", href: `${baseHref}?view=syllabus` },
+    { label: "Quizzes", href: `${baseHref}?view=quizzes` },
+    { label: "Conferences", href: `${baseHref}?view=conferences` },
+    { label: "Calendar", href: `${baseHref}?view=calendar` }
+  ];
   return `
     <header class="canvas-populi-bar student-canvas-topbar">
-      <a class="canvas-menu-button" href="${escapeHtml(menuHref)}" aria-label="Course menu">☰</a>
+      <button class="canvas-menu-button" type="button" aria-label="Open course menu" aria-expanded="false" aria-controls="canvas-course-submenu" data-course-menu-toggle>☰</button>
       <nav class="canvas-crumbs" aria-label="Course breadcrumbs">
         ${crumbTrail.map((crumb, index) => `
           ${index ? `<span>›</span>` : ""}
@@ -1008,6 +1018,9 @@ function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = []) {
       <span class="canvas-top-spacer"></span>
       ${breadcrumbs.length ? "" : `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=syllabus">Immersive Reader</a>`}
     </header>
+    <nav id="canvas-course-submenu" class="canvas-course-submenu" aria-label="${escapeHtml(courseCode)} course menu" hidden>
+      ${courseMenuItems.map((item) => `<a href="${escapeHtml(item.href)}">${escapeHtml(item.label)}</a>`).join("")}
+    </nav>
   `;
 }
 
