@@ -2258,6 +2258,7 @@ button.danger {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 8px;
+  min-width: 0;
 }
 
 .card {
@@ -2282,6 +2283,7 @@ button.danger {
 }
 
 .stat {
+  overflow: hidden;
   padding: 18px;
 }
 
@@ -2290,10 +2292,17 @@ button.danger {
   display: block;
   font-size: 13px;
   margin-bottom: 8px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .stat strong {
-  font-size: 28px;
+  display: block;
+  font-size: clamp(22px, 2vw, 28px);
+  line-height: 1.15;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 table {
