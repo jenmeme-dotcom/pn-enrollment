@@ -812,7 +812,17 @@ function seed() {
   const insertCohortEnrollment = db.prepare(`
     INSERT OR IGNORE INTO enrollments (user_id, course_id, status, start_date, progress, source, external_order_id)
     VALUES (?, ?, 'active', ?, 0, 'cohort_seed', ?)
+    ON CONFLICT(user_id, course_id, external_order_id) DO UPDATE SET
+      status = 'active',
+      start_date = excluded.start_date,
+      source = 'cohort_seed'
   `);
+  const cohortTwoCourses = [
+    { code: "pn101", course: medicalTerminology, startDate: "2026-06-17" },
+    { code: "pn102", course: introNursing, startDate: "2026-06-22" },
+    { code: "pn103", course: fundamentals, startDate: "2026-07-02" },
+    { code: "pn104", course: anatomyPhysiology, startDate: "2026-07-13" }
+  ];
   cohortTwoStudents.forEach(([firstName, lastName, email, uniformSize]) => {
     upsertCohortStudent.run(
       firstName,
@@ -825,16 +835,48 @@ function seed() {
       uniformSize
     );
     const student = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
-    if (student && medicalTerminology) {
-      insertCohortEnrollment.run(student.id, medicalTerminology.id, cohortStartDate, `cohort-2-pn101-${student.id}`);
-    }
-    if (student && practicalNursing) {
-      insertCohortEnrollment.run(student.id, practicalNursing.id, cohortStartDate, `cohort-2-practical-nursing-${student.id}`);
-    }
-    if (student && anatomyPhysiology) {
-      insertCohortEnrollment.run(student.id, anatomyPhysiology.id, "2026-07-13", `cohort-2-pn104-${student.id}`);
+    if (student) {
+      cohortTwoCourses.forEach(({ code, course, startDate }) => {
+        if (course) insertCohortEnrollment.run(student.id, course.id, startDate, `cohort-2-${code}-${student.id}`);
+      });
     }
   });
+  const cohortTwoCourseIds = cohortTwoCourses.filter(({ course }) => course).map(({ course }) => course.id);
+  if (cohortTwoCourseIds.length) {
+    const cohortTwoCoursePlaceholders = cohortTwoCourseIds.map(() => "?").join(",");
+    db.prepare(`
+      DELETE FROM enrollments
+      WHERE user_id IN (
+        SELECT id
+        FROM users
+        WHERE role = 'student' AND cohort_name = ?
+      )
+        AND course_id NOT IN (${cohortTwoCoursePlaceholders})
+    `).run(cohortName, ...cohortTwoCourseIds);
+    db.prepare(`
+      DELETE FROM enrollments
+      WHERE user_id IN (
+        SELECT id
+        FROM users
+        WHERE role = 'student' AND cohort_name = ?
+      )
+        AND id NOT IN (
+          SELECT keep_id
+          FROM (
+            SELECT COALESCE(
+              MIN(CASE WHEN e.source = 'cohort_seed' THEN e.id END),
+              MIN(e.id)
+            ) AS keep_id
+            FROM enrollments e
+            JOIN users u ON u.id = e.user_id
+            WHERE u.role = 'student'
+              AND u.cohort_name = ?
+              AND e.course_id IN (${cohortTwoCoursePlaceholders})
+            GROUP BY e.user_id, e.course_id
+          )
+        )
+    `).run(cohortName, cohortName, ...cohortTwoCourseIds);
+  }
 
   const hesiSubjects = [
     ["Critical Thinking", 700],
