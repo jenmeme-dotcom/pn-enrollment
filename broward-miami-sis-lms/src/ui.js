@@ -54,7 +54,7 @@ function navFor(user) {
   `;
   const studentLinks = `
     <a href="/student/dashboard">Dashboard</a>
-    <a href="/student">SIS Home</a>
+    <a href="/student">Home</a>
     <a href="/student/courses">My Courses</a>
     <a href="/student/calendar">Calendar</a>
     <a href="/student/email">Inbox</a>
@@ -155,7 +155,7 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
       <div class="student-session">Current Session: 2026-27</div>
       <nav aria-label="Student portal">
         ${studentPortalLink(activeStudentNav, "dashboard", "/student/dashboard", "Dashboard")}
-        ${studentPortalLink(activeStudentNav, "sis-home", "/student", "SIS Home")}
+        ${studentPortalLink(activeStudentNav, "sis-home", "/student", "Home")}
         ${studentPortalLink(activeStudentNav, "courses", "/student/courses", "Enrolled Courses")}
         ${studentPortalLink(activeStudentNav, "calendar", "/student/calendar", "Calendar")}
         ${studentPortalLink(activeStudentNav, "email", "/student/email", "Inbox")}

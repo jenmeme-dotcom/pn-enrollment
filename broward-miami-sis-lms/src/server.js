@@ -967,7 +967,7 @@ function renderCourseNav(navItems, baseHref, activeItem, firstLessonId) {
 
 function renderStudentCanvasRail(active = "courses") {
   const items = [
-    { key: "sis-home", label: "SIS Home", href: "/student", icon: "⌂" },
+    { key: "sis-home", label: "Home", href: "/student", icon: "⌂" },
     { key: "account", label: "Account", href: "/student/profile", icon: "○" },
     { key: "dashboard", label: "Dashboard", href: "/student/dashboard", icon: "⌁" },
     { key: "courses", label: "Courses", href: "/student/courses", icon: "▤" },
@@ -2282,7 +2282,7 @@ function renderCanvasDashboardPage({ user, data }) {
     <main class="canvas-global-dashboard-main">
       <div class="dashboard-title-row">
         <h1>Dashboard</h1>
-        <a class="canvas-top-button" href="/student">SIS Home</a>
+        <a class="canvas-top-button" href="/student">Home</a>
       </div>
       <section class="recent-activity">
         <h2>Recent Activity</h2>
@@ -8558,7 +8558,7 @@ app.get("/student", requireAuth, (req, res) => {
       </article>
     </section>
   `;
-  render(req, res, "SIS Home", body, { studentPortal: true, activeStudentNav: "sis-home" });
+  render(req, res, "Student Home", body, { studentPortal: true, activeStudentNav: "sis-home" });
 });
 
 app.get("/student/lesson-plan", requireAuth, requireRole("student"), (req, res) => {
@@ -8623,7 +8623,7 @@ app.get("/student/lesson-plan", requireAuth, requireRole("student"), (req, res) 
           <p>Review the weekly modules and lesson items for your enrolled courses.</p>
         </div>
         <div class="financial-actions">
-          <a class="button ghost" href="/student">SIS Home</a>
+          <a class="button ghost" href="/student">Home</a>
           <a class="button" href="/student/courses">My Courses</a>
         </div>
       </div>
@@ -8719,7 +8719,7 @@ app.get("/student/syllabus-status", requireAuth, requireRole("student"), (req, r
           <p>Open your course syllabus, orientation, and acknowledgement items from one place.</p>
         </div>
         <div class="financial-actions">
-          <a class="button ghost" href="/student">SIS Home</a>
+          <a class="button ghost" href="/student">Home</a>
           <a class="button" href="/student/courses">My Courses</a>
         </div>
       </div>
