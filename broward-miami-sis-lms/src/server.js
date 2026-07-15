@@ -996,7 +996,72 @@ function lessonMaterialLinks(lesson = {}) {
   return [...links.entries()].map(([href, label]) => ({ href, label }));
 }
 
-function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false }) {
+function quizChapterLabel(title = "") {
+  const cleanTitle = String(title || "").replace(/^\[[^\]]+\]\s*/, "");
+  const chapterMatch = cleanTitle.match(/Chapter\s+(\d+)\s*[-:]?\s*(.*)$/i);
+  if (chapterMatch) {
+    const chapterTitle = chapterMatch[2] ? `: ${chapterMatch[2].trim()}` : "";
+    return `Chapter ${chapterMatch[1]}${chapterTitle}`;
+  }
+  if (/midterm/i.test(cleanTitle)) return "Midterm exam";
+  if (/final/i.test(cleanTitle)) return "Final exam";
+  return cleanTitle || "Course quiz";
+}
+
+function quizDueAndPoints(lesson = {}, gradeItems = []) {
+  const lessonTitle = normalizedTitle(lesson.title);
+  const gradeItem = gradeItems.find((item) => {
+    const gradeTitle = normalizedTitle(item.title);
+    return gradeTitle && lessonTitle && (gradeTitle.includes(lessonTitle) || lessonTitle.includes(gradeTitle));
+  });
+  return {
+    dueDate: gradeItem?.due_date || lesson.due_date || null,
+    points: gradeItem?.points_possible || 10
+  };
+}
+
+function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, instructor = false }) {
+  const quizMeta = quizDueAndPoints(lesson, gradeItems);
+  const topic = quizChapterLabel(lesson.title);
+  return `
+    <div class="lesson-action-card quiz-action-card">
+      <div class="quiz-action-head">
+        <div>
+          <h2>Quiz</h2>
+          <p>${escapeHtml(topic)}</p>
+        </div>
+        <dl>
+          <div><dt>Due</dt><dd>${escapeHtml(formatGradeDue(quizMeta.dueDate) || "No due date")}</dd></div>
+          <div><dt>Points</dt><dd>${escapeHtml(quizMeta.points)}</dd></div>
+        </dl>
+      </div>
+      <p class="quiz-instructions">Read each question and select the best answer. This quiz page stays with the module item so students do not get redirected to grades.</p>
+      <form class="quiz-preview-form" method="post" action="${enrollmentId ? `/student/enrollments/${enrollmentId}/progress` : "#"}">
+        ${enrollmentId ? `<input type="hidden" name="progress" value="100">` : ""}
+        <fieldset>
+          <legend>1. Select the best description for this topic.</legend>
+          <label><input type="radio" name="q1" ${instructor ? "disabled" : ""}> Apply the correct medical terms for ${escapeHtml(topic.toLowerCase())}.</label>
+          <label><input type="radio" name="q1" ${instructor ? "disabled" : ""}> Skip the chapter materials and submit without review.</label>
+          <label><input type="radio" name="q1" ${instructor ? "disabled" : ""}> Use unrelated abbreviations in clinical documentation.</label>
+        </fieldset>
+        <fieldset>
+          <legend>2. Short answer</legend>
+          <label for="quiz-short-answer-${escapeHtml(lesson.id)}">Write one key term or concept from this module.</label>
+          <textarea id="quiz-short-answer-${escapeHtml(lesson.id)}" name="q2" rows="4" placeholder="Enter your response here." ${instructor ? "disabled" : ""}></textarea>
+        </fieldset>
+        <div class="quiz-submit-row">
+          ${instructor ? `
+            <button class="button" type="button" disabled>Student submit button preview</button>
+          ` : `
+            <button class="button" type="submit">Submit Quiz</button>
+          `}
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false, gradeItems = [] }) {
   const title = String(lesson.title || "");
   const lower = title.toLowerCase();
   const kind = moduleItemKind(title);
@@ -1036,13 +1101,7 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
   }
 
   if (kind === "quiz") {
-    return `
-      <div class="lesson-action-card">
-        <h2>Quiz</h2>
-        <p>This quiz is listed in the course gradebook. Review the module materials first, then begin when ready.</p>
-        <a class="button" href="${escapeHtml(baseHref)}?view=grades">View Quiz in Grades</a>
-      </div>
-    `;
+    return renderQuizActionPanel({ lesson, gradeItems, enrollmentId, instructor });
   }
 
   if (kind === "discussion") {
@@ -1074,7 +1133,7 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
   `;
 }
 
-function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false }) {
+function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false, gradeItems = [] }) {
   const firstLesson = lessons[0];
   const selectedLesson = lessons.find((lesson) => lesson.id === Number(lessonId)) || firstLesson;
   if (!selectedLesson) return `<main class="canvas-course-main canvas-page-main"><p class="empty">No lesson was found.</p></main>`;
@@ -1106,7 +1165,7 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
           ` : ""}
           ${renderCanvasLessonContent(selectedLesson.content, selectedLesson.title)}
         </div>
-        ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor })}
+        ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems })}
         ${!instructor && enrollmentId ? `
           <form method="post" action="/student/enrollments/${enrollmentId}/progress" class="canvas-complete-action">
             <input type="hidden" name="progress" value="100">
@@ -2761,6 +2820,9 @@ function renderCanvasLessonContent(value = "", lessonTitle = "") {
     const nextLine = lines[index + 1]?.trim() || "";
     if (!line) {
       flushParagraphRun();
+      continue;
+    }
+    if (/^Canvas item type:/i.test(line)) {
       continue;
     }
 
@@ -7476,6 +7538,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         lessons,
         moduleGroups,
         lessonId: req.query.lesson,
+        gradeItems,
         instructor: true
       })}
     </section>
@@ -9221,6 +9284,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         moduleGroups,
         lessonId: req.query.lesson,
         enrollmentId: enrollment.id,
+        gradeItems,
         instructor: false
       })}
     </section>
