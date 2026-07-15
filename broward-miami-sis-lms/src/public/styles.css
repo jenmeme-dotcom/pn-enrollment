@@ -4921,9 +4921,19 @@ button.small {
 }
 
 .activity-group header a,
+.activity-group header button,
 .activity-row {
   color: #1c75bc;
   font-weight: 700;
+}
+
+.activity-group header button {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 12px;
+  min-height: 0;
+  padding: 0;
 }
 
 .activity-row {

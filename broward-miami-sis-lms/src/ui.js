@@ -155,6 +155,26 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
         setOpen(false);
       });
     })();
+    (() => {
+      document.querySelectorAll("[data-activity-group]").forEach((group) => {
+        const button = group.querySelector(".activity-toggle");
+        const body = group.querySelector(".activity-body");
+        if (!button || !body) return;
+
+        const setExpanded = (expanded) => {
+          body.hidden = !expanded;
+          group.classList.toggle("expanded", expanded);
+          group.classList.toggle("compact", !expanded);
+          button.setAttribute("aria-expanded", String(expanded));
+          button.textContent = expanded ? "SHOW LESS" : "SHOW MORE";
+        };
+
+        setExpanded(button.getAttribute("aria-expanded") === "true");
+        button.addEventListener("click", () => {
+          setExpanded(button.getAttribute("aria-expanded") !== "true");
+        });
+      });
+    })();
   </script>` : "";
   const studentPortalScript = isStudentPortal ? `
   <script>

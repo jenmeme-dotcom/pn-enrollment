@@ -2321,6 +2321,9 @@ function dashboardDataForStudent(studentId) {
 
 function renderCanvasDashboardPage({ user, data }) {
   const announcementRows = data.announcements.slice(0, 16);
+  const messageRows = data.messages.slice(0, 8);
+  const assignmentRows = data.gradeItems.slice(0, 10);
+  const discussionRows = data.gradeItems.filter((item) => String(item.title || "").toLowerCase().includes("discussion")).slice(0, 10);
   const conversationCount = data.messages.length;
   const assignmentCount = data.gradeItems.length;
   const discussionCount = data.gradeItems.filter((item) => String(item.title || "").toLowerCase().includes("discussion")).length;
@@ -2342,14 +2345,14 @@ function renderCanvasDashboardPage({ user, data }) {
       </div>
       <section class="recent-activity">
         <h2>Recent Activity</h2>
-        <article class="activity-group expanded">
+        <article class="activity-group expanded" data-activity-group>
           <header>
             <span class="activity-icon">☰</span>
             <strong>${escapeHtml(announcementRows.length)} Announcements</strong>
             <small>${escapeHtml([...new Set(announcementRows.map((row) => canvasCourseCode(row)))].slice(0, 3).join(" and ") || "Your courses")}</small>
-            <a href="/student/dashboard#announcements">SHOW LESS</a>
+            <button class="activity-toggle" type="button" aria-expanded="true">SHOW LESS</button>
           </header>
-          <div id="announcements">
+          <div class="activity-body" id="announcements">
             ${announcementRows.map((row) => `
               <a class="activity-row" href="/student/enrollments/${data.enrollments.find((enrollment) => enrollment.course_id === row.course_id)?.id || ""}?view=announcements">
                 <strong>${escapeHtml(row.title)}</strong>
@@ -2359,29 +2362,56 @@ function renderCanvasDashboardPage({ user, data }) {
             `).join("") || `<p class="empty compact">No announcements have been posted yet.</p>`}
           </div>
         </article>
-        <article class="activity-group compact">
+        <article class="activity-group compact" data-activity-group>
           <header>
             <span class="activity-icon">✉</span>
             <strong>${escapeHtml(conversationCount)} Conversation Messages</strong>
             <small>${escapeHtml(data.messages.map((row) => `${row.sender_first_name || ""} ${row.sender_last_name || ""}`.trim()).filter(Boolean).slice(0, 2).join(" and ") || "No unread messages")}</small>
-            <a href="/student/email">SHOW MORE</a>
+            <button class="activity-toggle" type="button" aria-expanded="false">SHOW MORE</button>
           </header>
+          <div class="activity-body" hidden>
+            ${messageRows.map((row) => `
+              <a class="activity-row" href="/student/email">
+                <strong>${escapeHtml(row.subject || "Message")}</strong>
+                <span>${escapeHtml(formatAnnouncementDate(row.created_at))}</span>
+                <b>×</b>
+              </a>
+            `).join("") || `<p class="empty compact">No conversation messages yet.</p>`}
+          </div>
         </article>
-        <article class="activity-group compact">
+        <article class="activity-group compact" data-activity-group>
           <header>
             <span class="activity-icon">▧</span>
             <strong>${escapeHtml(assignmentCount)} Assignment Notifications</strong>
             <small>${escapeHtml([...new Set(data.gradeItems.map((row) => canvasCourseCode(row)))].slice(0, 3).join(", ") || "Assignments")}</small>
-            <a href="/student/courses">SHOW MORE</a>
+            <button class="activity-toggle" type="button" aria-expanded="false">SHOW MORE</button>
           </header>
+          <div class="activity-body" hidden>
+            ${assignmentRows.map((item) => `
+              <a class="activity-row" href="/student/enrollments/${escapeHtml(item.enrollment_id)}?view=assignments">
+                <strong>${escapeHtml(item.title)}</strong>
+                <span>${item.due_date ? date(item.due_date) : "No Due Date"}</span>
+                <b>×</b>
+              </a>
+            `).join("") || `<p class="empty compact">No assignment notifications yet.</p>`}
+          </div>
         </article>
-        <article class="activity-group compact">
+        <article class="activity-group compact" data-activity-group>
           <header>
             <span class="activity-icon">▱</span>
             <strong>${escapeHtml(discussionCount)} Discussions</strong>
             <small>Course discussions and Q&A</small>
-            <a href="/student/courses">SHOW MORE</a>
+            <button class="activity-toggle" type="button" aria-expanded="false">SHOW MORE</button>
           </header>
+          <div class="activity-body" hidden>
+            ${discussionRows.map((item) => `
+              <a class="activity-row" href="/student/enrollments/${escapeHtml(item.enrollment_id)}?view=discussions">
+                <strong>${escapeHtml(item.title)}</strong>
+                <span>${item.due_date ? date(item.due_date) : "No Due Date"}</span>
+                <b>×</b>
+              </a>
+            `).join("") || `<p class="empty compact">No discussion activity yet.</p>`}
+          </div>
         </article>
       </section>
     </main>
