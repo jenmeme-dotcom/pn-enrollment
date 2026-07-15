@@ -586,9 +586,56 @@ function seed() {
 
   createUser.run("admin", "BMHI", "Administrator", "admin@browardmiamihi.com", "(954) 555-0100", hash("AdminPass123!"));
   createUser.run("instructor", "Program", "Instructor", "instructor@browardmiamihi.com", "(954) 555-0101", hash("InstructorPass123!"));
-  createUser.run("instructor", "Roney", "Hernandez", "roney.hernandez.instructor@browardmiamihi.com", "", hash("InstructorPass123!"));
+  createUser.run("instructor", "Roney", "Hernandez", "roney.hernandez@browardmiamihi.com", "", hash("InstructorPass123!"));
   createUser.run("instructor", "Dayana", "Diaz", "dayana.diaz@browardmiamihi.com", "", hash("InstructorPass123!"));
   createUser.run("student", "Demo", "Student", "student@browardmiamihi.com", "(954) 555-0102", hash("StudentPass123!"));
+
+  db.prepare(`
+    UPDATE users
+    SET email = 'roney.hernandez.admin-removed@browardmiamihi.com',
+      status = 'inactive'
+    WHERE lower(email) = 'roney.hernandez@browardmiamihi.com'
+      AND role = 'admin'
+  `).run();
+
+  const legacyRoneyInstructor = db.prepare(`
+    SELECT id
+    FROM users
+    WHERE lower(email) = 'roney.hernandez.instructor@browardmiamihi.com'
+      AND role = 'instructor'
+  `).get();
+  const currentRoneyInstructor = db.prepare(`
+    SELECT id
+    FROM users
+    WHERE lower(email) = 'roney.hernandez@browardmiamihi.com'
+      AND role = 'instructor'
+  `).get();
+  if (legacyRoneyInstructor && !currentRoneyInstructor) {
+    db.prepare(`
+      UPDATE users
+      SET email = 'roney.hernandez@browardmiamihi.com'
+      WHERE id = ?
+    `).run(legacyRoneyInstructor.id);
+  } else if (legacyRoneyInstructor && currentRoneyInstructor) {
+    db.prepare(`
+      UPDATE users
+      SET email = 'roney.hernandez.instructor-retired@browardmiamihi.com',
+        status = 'inactive'
+      WHERE id = ?
+    `).run(legacyRoneyInstructor.id);
+  }
+
+  db.prepare(`
+    UPDATE users
+    SET role = 'instructor',
+      first_name = 'Roney',
+      last_name = 'Hernandez',
+      password_hash = ?,
+      status = 'active',
+      organization_status = 'organized',
+      class_lock_reason = NULL
+    WHERE lower(email) = 'roney.hernandez@browardmiamihi.com'
+  `).run(hash("InstructorPass123!"));
 
   const upsertAdminAccessUser = db.prepare(`
     INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
@@ -604,12 +651,6 @@ function seed() {
   adminAccessAccounts.forEach((account) => {
     upsertAdminAccessUser.run(account.firstName, account.lastName, account.email, hash(adminAccessDefaultPassword));
   });
-
-  db.prepare(`
-    UPDATE users
-    SET status = 'inactive'
-    WHERE lower(email) = 'roney.hernandez@browardmiamihi.com' AND role = 'admin'
-  `).run();
 
   db.prepare(`
     UPDATE users
