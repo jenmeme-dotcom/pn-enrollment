@@ -455,6 +455,49 @@ function renderAdmissionsDocumentRows(student, admissionsChecklist = []) {
   `;
 }
 
+function renderStudentRegistrationDocuments(admissionsChecklist = []) {
+  const progress = admissionsDocumentProgress(admissionsChecklist);
+  return `
+    <article class="student-panel registration-documents-panel" id="registration-documents">
+      <div class="registration-documents-head">
+        <div>
+          <h2>Missing Registration Documents</h2>
+          <p>Upload required admissions documents for registrar review.</p>
+        </div>
+        <span class="admissions-complete-badge ${progress.ready ? "complete" : "incomplete"}">
+          ${progress.ready ? "Complete" : `${progress.complete}/${progress.total} complete`}
+        </span>
+      </div>
+      <div class="registration-document-list">
+        ${admissionsChecklist.map((doc) => {
+          const isComplete = ["complete", "waived"].includes(doc.status);
+          return `
+            <section class="registration-document-row ${escapeHtml(doc.status)}" id="student-registration-doc-${escapeHtml(doc.item_key)}">
+              <div class="registration-document-main">
+                <span class="check-icon" aria-hidden="true">${isComplete ? "✓" : ""}</span>
+                <div>
+                  <strong>${escapeHtml(doc.title)}</strong>
+                  <small>${doc.file_storage_name ? `Uploaded: ${escapeHtml(doc.file_original_name || "File")}` : "Needed for registration file"}</small>
+                </div>
+              </div>
+              <span class="pill ${isComplete ? "" : "orange"}">${isComplete ? (doc.status === "waived" ? "Waived" : "Complete") : "Missing"}</span>
+              <form class="registration-document-upload" method="post" action="/student/registration/documents/${escapeHtml(doc.item_key)}/upload" enctype="multipart/form-data">
+                <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,application/pdf,image/*" required>
+                <button class="small ghost" type="submit">${doc.file_storage_name ? "Replace" : "Upload"}</button>
+              </form>
+              ${doc.file_storage_name ? `
+                <a class="button small ghost" href="/student/registration/documents/${escapeHtml(doc.item_key)}/file">
+                  View file
+                </a>
+              ` : ""}
+            </section>
+          `;
+        }).join("")}
+      </div>
+    </article>
+  `;
+}
+
 function syncAdmissionsDocumentRegistrarStatus(userId, reviewerId = null) {
   ensureRegistrarChecklist(userId);
   const rows = admissionsDocumentChecklistForStudent(userId);
@@ -8983,6 +9026,7 @@ app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
 });
 
 app.get("/student/registration", requireAuth, requireRole("student"), (req, res) => {
+  const admissionsChecklist = admissionsDocumentChecklistForStudent(req.user.id);
   const enrollments = db.prepare(`
     SELECT e.*, c.title, c.category, c.hours, c.credential_type, c.delivery_mode
     FROM enrollments e
@@ -9079,6 +9123,8 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
         ${stat("Completed", String(enrollments.filter((row) => row.status === "completed").length))}
       </section>
 
+      ${renderStudentRegistrationDocuments(admissionsChecklist)}
+
       <section class="grid cols-2" style="margin-top:12px">
         <article class="student-panel registration-panel">
           <h2>Available Programs</h2>
@@ -9146,6 +9192,62 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
     </section>
   `;
   render(req, res, "Registration", body, { studentPortal: true, activeStudentNav: "registration" });
+});
+
+app.post("/student/registration/documents/:itemKey/upload", requireAuth, requireRole("student"), upload.single("document"), (req, res) => {
+  const itemKey = String(req.params.itemKey || "");
+  if (!admissionsDocumentChecklistItems.some((item) => item.key === itemKey)) return res.status(404).send("Admissions document item not found");
+  if (!req.file) {
+    flash(req, "Choose a registration document to upload.");
+    return res.redirect(`/student/registration#student-registration-doc-${encodeURIComponent(itemKey)}`);
+  }
+  ensureAdmissionsDocumentChecklist(req.user.id);
+  const existing = db.prepare("SELECT file_storage_name FROM student_admissions_document_checklist WHERE user_id = ? AND item_key = ?").get(req.user.id, itemKey);
+  if (existing?.file_storage_name) {
+    const oldPath = path.join(uploadDir, existing.file_storage_name);
+    if (isPathInside(uploadDir, oldPath) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+  }
+  db.prepare(`
+    UPDATE student_admissions_document_checklist
+    SET status = 'complete',
+      note = COALESCE(NULLIF(note, ''), 'Uploaded by student for registrar review.'),
+      file_original_name = ?,
+      file_storage_name = ?,
+      file_mime_type = ?,
+      file_size = ?,
+      uploaded_by = ?,
+      uploaded_at = CURRENT_TIMESTAMP,
+      completed_by = ?,
+      completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+      updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = ? AND item_key = ?
+  `).run(
+    req.file.originalname,
+    req.file.filename,
+    req.file.mimetype,
+    req.file.size,
+    req.user.id,
+    req.user.id,
+    req.user.id,
+    itemKey
+  );
+  syncAdmissionsDocumentRegistrarStatus(req.user.id, req.user.id);
+  flash(req, "Registration document uploaded.");
+  res.redirect(`/student/registration#student-registration-doc-${encodeURIComponent(itemKey)}`);
+});
+
+app.get("/student/registration/documents/:itemKey/file", requireAuth, requireRole("student"), (req, res) => {
+  const itemKey = String(req.params.itemKey || "");
+  if (!admissionsDocumentChecklistItems.some((item) => item.key === itemKey)) return res.status(404).send("Admissions document item not found");
+  const item = db.prepare(`
+    SELECT *
+    FROM student_admissions_document_checklist
+    WHERE user_id = ? AND item_key = ?
+  `).get(req.user.id, itemKey);
+  if (!item?.file_storage_name) return res.status(404).send("Registration document file not found");
+  const filePath = path.join(uploadDir, item.file_storage_name);
+  if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Registration document file not found");
+  res.download(filePath, item.file_original_name || item.file_storage_name);
 });
 
 app.post("/student/registration/enroll", requireAuth, requireRole("student"), (req, res) => {
