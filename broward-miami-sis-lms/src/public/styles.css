@@ -1504,9 +1504,33 @@ button.danger {
 .student-registration,
 .student-transcript,
 .student-lesson-plan,
+.student-homework-page,
 .student-syllabus-status {
   display: grid;
   gap: 12px;
+}
+
+.student-homework-card {
+  min-height: auto;
+  overflow: hidden;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.student-homework-table {
+  min-width: 860px;
+}
+
+.student-homework-table td strong,
+.student-homework-table td small {
+  display: block;
+}
+
+.student-homework-table td small {
+  color: var(--muted);
+  margin-top: 3px;
 }
 
 .registration-panel,

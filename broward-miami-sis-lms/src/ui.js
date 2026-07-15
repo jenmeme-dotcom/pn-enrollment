@@ -83,7 +83,7 @@ const studentNavItems = [
   { key: "help", href: "/help/browser-cache", label: "Help" },
   { key: "lesson-plan", href: "/student/lesson-plan", label: "Lesson Plan" },
   { key: "syllabus", href: "/student/syllabus-status", label: "Syllabus Status" },
-  { key: "homework", href: "/student#homework", label: "Homework" },
+  { key: "homework", href: "/student/homework", label: "Homework" },
   { key: "exam", href: "/student/profile#exam", label: "Online Exam" },
   { key: "leave", href: "/student/profile#timeline", label: "Apply Leave" },
   { key: "visitor", href: "/student/profile#timeline", label: "Visitor Book" },

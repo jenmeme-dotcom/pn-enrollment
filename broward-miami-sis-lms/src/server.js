@@ -8680,6 +8680,90 @@ app.get("/student/lesson-plan", requireAuth, requireRole("student"), (req, res) 
   render(req, res, "Lesson Plan", body, { studentPortal: true, activeStudentNav: "lesson-plan" });
 });
 
+app.get("/student/homework", requireAuth, requireRole("student"), (req, res) => {
+  if (isClassLocked(req.user)) return renderClassLockPage(req, res);
+  const rows = db.prepare(`
+    SELECT
+      gi.*,
+      c.title AS course_title,
+      c.slug AS course_slug,
+      e.id AS enrollment_id,
+      e.progress,
+      g.score,
+      g.updated_at AS graded_at
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    JOIN grade_items gi ON gi.course_id = c.id
+    LEFT JOIN grades g ON g.grade_item_id = gi.id AND g.enrollment_id = e.id
+    WHERE e.user_id = ?
+    ORDER BY gi.due_date IS NULL, gi.due_date, c.title, gi.id
+  `).all(req.user.id);
+  const assignmentRows = rows.filter((row) => {
+    const title = String(row.title || "").toLowerCase();
+    return !title.includes("quiz") && !title.includes("exam") && !title.includes("midterm") && !title.includes("final");
+  });
+  const homeworkRows = assignmentRows.length ? assignmentRows : rows;
+  const pendingCount = homeworkRows.filter((row) => row.score === null || row.score === undefined).length;
+  const completedCount = homeworkRows.length - pendingCount;
+  const body = `
+    <section class="student-homework-page">
+      <div class="financial-head">
+        <div>
+          <p class="eyebrow">Coursework</p>
+          <h1>Homework</h1>
+          <p>Open pending assignments, discussions, worksheets, acknowledgements, and course work from one place.</p>
+        </div>
+        <div class="financial-actions">
+          <a class="button ghost" href="/student">Home</a>
+          <a class="button" href="/student/courses">My Courses</a>
+        </div>
+      </div>
+
+      <section class="grid cols-3">
+        ${stat("Homework items", String(homeworkRows.length))}
+        ${stat("Pending", String(pendingCount))}
+        ${stat("Completed", String(completedCount))}
+      </section>
+
+      <article class="student-panel student-homework-card">
+        <div class="table-scroll">
+          <table class="student-homework-table">
+            <thead>
+              <tr>
+                <th>Course</th>
+                <th>Homework</th>
+                <th>Due Date</th>
+                <th>Points</th>
+                <th>Status</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${homeworkRows.map((row) => {
+                const isComplete = row.score !== null && row.score !== undefined;
+                return `
+                  <tr>
+                    <td>${escapeHtml(row.course_title)}</td>
+                    <td>
+                      <strong>${escapeHtml(row.title)}</strong>
+                      <small>${escapeHtml(assignmentTypeLabel(row))}</small>
+                    </td>
+                    <td>${escapeHtml(formatGradeDue(row.due_date) || "No due date")}</td>
+                    <td>${escapeHtml(row.points_possible || 0)}</td>
+                    <td><span class="pill ${isComplete ? "" : "orange"}">${isComplete ? "Completed" : "Pending"}</span></td>
+                    <td><a class="button small" href="/student/enrollments/${row.enrollment_id}?assignment=${row.id}">Open</a></td>
+                  </tr>
+                `;
+              }).join("") || `<tr><td colspan="6" class="empty">No homework has been posted for your current courses yet.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  `;
+  render(req, res, "Homework", body, { studentPortal: true, activeStudentNav: "homework" });
+});
+
 app.get("/student/syllabus-status", requireAuth, requireRole("student"), (req, res) => {
   if (isClassLocked(req.user)) return renderClassLockPage(req, res);
   const enrollments = db.prepare(`
