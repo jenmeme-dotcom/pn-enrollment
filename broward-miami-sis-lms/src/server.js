@@ -967,6 +967,7 @@ function renderCourseNav(navItems, baseHref, activeItem, firstLessonId) {
 
 function renderStudentCanvasRail(active = "courses") {
   const items = [
+    { key: "sis-home", label: "SIS Home", href: "/student", icon: "⌂" },
     { key: "account", label: "Account", href: "/student/profile", icon: "○" },
     { key: "dashboard", label: "Dashboard", href: "/student/dashboard", icon: "⌁" },
     { key: "courses", label: "Courses", href: "/student/courses", icon: "▤" },
@@ -992,9 +993,12 @@ function renderStudentCanvasRail(active = "courses") {
 
 function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = []) {
   const crumbTrail = breadcrumbs.length ? breadcrumbs : [{ label: courseCode, href: baseHref }];
+  const menuHref = baseHref.includes("/enrollments/") || baseHref.includes("/courses/")
+    ? `${baseHref}?view=modules`
+    : baseHref;
   return `
     <header class="canvas-populi-bar student-canvas-topbar">
-      <a class="canvas-menu-button" href="${escapeHtml(baseHref)}" aria-label="Course menu">☰</a>
+      <a class="canvas-menu-button" href="${escapeHtml(menuHref)}" aria-label="Course menu">☰</a>
       <nav class="canvas-crumbs" aria-label="Course breadcrumbs">
         ${crumbTrail.map((crumb, index) => `
           ${index ? `<span>›</span>` : ""}
@@ -8303,7 +8307,10 @@ app.get("/credentials/:id/print", requireAuth, (req, res) => {
   render(req, res, noun, body, { full: true });
 });
 
-app.get("/student", requireAuth, requireRole("student"), (req, res) => {
+app.get("/student", requireAuth, (req, res) => {
+  if (req.user.role !== "student") {
+    return res.redirect("/admin");
+  }
   const enrollments = db.prepare(`
     SELECT e.*, c.title, c.slug, c.category, c.description, c.hours, c.credential_type, cr.id AS credential_id
     FROM enrollments e
@@ -8440,7 +8447,7 @@ app.get("/student", requireAuth, requireRole("student"), (req, res) => {
       </article>
     </section>
   `;
-  render(req, res, "Student Dashboard", body, { studentPortal: true, activeStudentNav: "dashboard" });
+  render(req, res, "SIS Home", body, { studentPortal: true, activeStudentNav: "sis-home" });
 });
 
 app.get("/student/dashboard", requireAuth, requireRole("student"), (req, res) => {
