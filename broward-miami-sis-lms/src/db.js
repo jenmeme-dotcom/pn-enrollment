@@ -637,6 +637,18 @@ function seed() {
     WHERE lower(email) = 'roney.hernandez@browardmiamihi.com'
   `).run(hash("InstructorPass123!"));
 
+  db.prepare(`
+    UPDATE users
+    SET role = 'instructor',
+      first_name = 'Dayana',
+      last_name = 'Diaz',
+      password_hash = ?,
+      status = 'active',
+      organization_status = 'organized',
+      class_lock_reason = NULL
+    WHERE lower(email) = 'dayana.diaz@browardmiamihi.com'
+  `).run(hash("InstructorPass123!"));
+
   const upsertAdminAccessUser = db.prepare(`
     INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
     VALUES ('admin', ?, ?, ?, '', ?, 'active', 'organized', NULL)
