@@ -29,7 +29,7 @@ function navFor(user) {
     <a href="/admin/admin-roles">Admin Roles</a>
     <a href="/admin/instructor-roles">Instructor Roles</a>
     <a href="/admin/students">Students</a>
-    <a href="/admin/cohort-2-schedule">Cohort 2 Schedule</a>
+    <a href="/admin/schedule">Schedule</a>
     <a href="/admin/hesi">HESI Scores</a>
     <a href="/admin/courses">Courses</a>
     <a href="/admin/onsite-visit">OSV Visit</a>
@@ -44,7 +44,7 @@ function navFor(user) {
   const instructorLinks = `
     <a href="/admin">Dashboard</a>
     <a href="/admin/students">Students</a>
-    <a href="/admin/cohort-2-schedule">Cohort 2 Schedule</a>
+    <a href="/admin/schedule">Schedule</a>
     <a href="/admin/hesi">HESI Scores</a>
     <a href="/admin/courses">Courses</a>
     <a href="/admin/staff-portal">Staff Portal</a>

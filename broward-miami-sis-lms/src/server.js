@@ -4509,7 +4509,13 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
   render(req, res, "Dashboard", body);
 });
 
-app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+function addScheduleDays(value, days) {
+  const parsed = new Date(`${value}T12:00:00`);
+  parsed.setDate(parsed.getDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}
+
+function renderAdminSchedule(req, res) {
   const cohortName = "Cohort 2";
   const cohortStudents = db.prepare(`
     SELECT id, first_name, last_name, email, cohort_start_date, cohort_end_date, organization_status
@@ -4520,13 +4526,12 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
   const cohortStart = cohortStudents.find((student) => student.cohort_start_date)?.cohort_start_date || "2026-07-01";
   const cohortEnd = cohortStudents.find((student) => student.cohort_end_date)?.cohort_end_date || "2027-07-31";
   const courseBySlug = new Map(db.prepare("SELECT id, slug, title FROM courses").all().map((course) => [course.slug, course]));
-  const scheduleRows = [
+  const baseScheduleRows = [
     {
       code: "PN 101",
       slug: "medical-terminology",
       title: "Medical Terminology",
       start: "2026-06-17",
-      end: "2026-09-01",
       meeting: "Wednesdays, 6:00 PM - 8:00 PM",
       format: "Online / Zoom",
       status: "Current"
@@ -4536,7 +4541,6 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       slug: "introduction-to-nursing-practical-nursing",
       title: "Introduction to Nursing",
       start: "2026-06-22",
-      end: "2026-09-06",
       meeting: "Night Zoom review, weekly modules, and discussions",
       format: "Online / Zoom + LMS",
       status: "Current"
@@ -4546,7 +4550,6 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       slug: "fundamental-nursing-skills-and-concepts-new-cohort",
       title: "Fundamentals of Nursing",
       start: "2026-07-02",
-      end: "2026-09-30",
       meeting: "Skills lab and CoursePoint assignments",
       format: "Blended",
       status: "Current"
@@ -4556,7 +4559,6 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       slug: "anatomy-and-physiology",
       title: "Anatomy and Physiology",
       start: "2026-07-13",
-      end: "2026-10-04",
       meeting: "Weekly lecture, lab, and LMS work",
       format: "Blended",
       status: "Starting"
@@ -4566,7 +4568,6 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       slug: "pharmacology-and-intravenous-therapy-skills",
       title: "Pharmacology and Intravenous Therapy Skills",
       start: "2026-09-07",
-      end: "2026-11-15",
       meeting: "Lecture, dosage calculation, skills validation",
       format: "Blended",
       status: "Upcoming"
@@ -4576,7 +4577,6 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       slug: "medical-surgical-nursing-i",
       title: "Medical Surgical Nursing I",
       start: "2026-10-05",
-      end: "2026-12-20",
       meeting: "Theory, lab, and clinical rotation",
       format: "Campus / clinical",
       status: "Upcoming"
@@ -4586,7 +4586,6 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       slug: "maternal-newborn-nursing",
       title: "Maternal Newborn Nursing",
       start: "2027-01-04",
-      end: "2027-02-14",
       meeting: "Theory and clinical experience",
       format: "Campus / clinical",
       status: "Upcoming"
@@ -4596,7 +4595,6 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       slug: "pediatric-nursing",
       title: "Pediatric Nursing",
       start: "2027-02-15",
-      end: "2027-03-28",
       meeting: "Theory and clinical experience",
       format: "Campus / clinical",
       status: "Upcoming"
@@ -4606,7 +4604,6 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       slug: "mental-health-concepts",
       title: "Mental Health Concepts",
       start: "2027-03-29",
-      end: "2027-05-02",
       meeting: "Theory, case studies, and clinical preparation",
       format: "Blended / clinical",
       status: "Upcoming"
@@ -4616,7 +4613,6 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       slug: "community-health",
       title: "Community Health",
       start: "2027-05-03",
-      end: "2027-05-30",
       meeting: "Community health assignments and clinical activities",
       format: "Blended / clinical",
       status: "Upcoming"
@@ -4626,7 +4622,6 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       slug: "medical-surgical-nursing-ii",
       title: "Medical Surgical Nursing II",
       start: "2027-06-01",
-      end: "2027-07-18",
       meeting: "Advanced med-surg theory and clinical rotation",
       format: "Campus / clinical",
       status: "Upcoming"
@@ -4636,20 +4631,33 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       slug: "practical-nursing",
       title: "Transition, Review, Graduation, and NCLEX Readiness",
       start: "2027-07-19",
-      end: "2027-07-31",
       meeting: "Exit review, graduation clearance, and credential audit",
       format: "Campus / review",
       status: "Upcoming"
     }
   ];
-  const currentRows = scheduleRows.filter((row) => row.status === "Current" || row.status === "Starting");
+  const scheduleRows = baseScheduleRows.map((row) => ({ ...row, end: addScheduleDays(row.start, 83) }));
+  const requestedCourse = String(req.query.course || "").trim();
+  const selectedRow = scheduleRows.find((row) => row.slug === requestedCourse) || scheduleRows[0];
+  const selectedCourse = courseBySlug.get(selectedRow.slug);
+  const selectedLiveClass = selectedCourse ? courseLiveClassConfig(selectedCourse) : null;
+  const selectedWeeks = Array.from({ length: 12 }, (_, index) => {
+    const weekStart = addScheduleDays(selectedRow.start, index * 7);
+    const weekEnd = addScheduleDays(weekStart, 6);
+    return {
+      number: index + 1,
+      start: weekStart,
+      end: weekEnd,
+      label: index === 0 ? "Orientation and course launch" : index === 11 ? "Final review and completion" : `Course work and assessments`
+    };
+  });
   const lockedCount = cohortStudents.filter((student) => student.organization_status === "not_organized").length;
   const body = `
     <div class="page-head">
       <div>
         <p class="eyebrow">Academic Schedule</p>
-        <h1>Cohort 2 Course Schedule</h1>
-        <p>Current course schedule for Cohort 2, July 2026 - July 2027.</p>
+        <h1>Schedule</h1>
+        <p>Choose a course to view the current 12-week schedule dates for Cohort 2.</p>
       </div>
       <div class="actions">
         <a class="button ghost" href="/admin/students">Cohort students</a>
@@ -4665,56 +4673,61 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
     <section class="table-card" style="margin-top:18px">
       <div class="table-card-head">
         <div>
-          <h2>Current Courses</h2>
-          <p class="muted">Courses Cohort 2 should be using now in the student portal.</p>
+          <h2>Choose Course Schedule</h2>
+          <p class="muted">Select the course schedule staff need to review.</p>
+        </div>
+      </div>
+      <form method="get" action="/admin/schedule" class="dashboard-cohort-filter schedule-course-picker">
+        <div>
+          <label for="schedule-course">Course</label>
+          <select id="schedule-course" name="course">
+            ${scheduleRows.map((row) => `<option value="${escapeHtml(row.slug)}" ${row.slug === selectedRow.slug ? "selected" : ""}>${escapeHtml(`${row.code} · ${row.title}`)}</option>`).join("")}
+          </select>
+        </div>
+        <button type="submit">View schedule</button>
+      </form>
+    </section>
+    <section class="table-card" style="margin-top:18px">
+      <div class="table-card-head">
+        <div>
+          <h2>${escapeHtml(selectedRow.code)} · ${escapeHtml(selectedRow.title)}</h2>
+          <p class="muted">${escapeHtml(selectedRow.format)} · ${escapeHtml(selectedRow.meeting)}</p>
+        </div>
+        <div class="actions">
+          ${selectedCourse && selectedLiveClass ? `<a class="button ghost" href="/admin/courses/${selectedCourse.id}/student-view?view=conferences">Zoom setup</a>` : ""}
+          ${selectedCourse ? `<a class="button" href="/admin/courses/${selectedCourse.id}/student-view">Open LMS</a>` : ""}
         </div>
       </div>
       <table>
-        <thead><tr><th>Code</th><th>Course</th><th>Dates</th><th>Meeting pattern</th><th>Live class</th><th>Portal</th></tr></thead>
+        <thead><tr><th>Course</th><th>12-week date range</th><th>Status</th><th>Meeting pattern</th></tr></thead>
         <tbody>
-          ${currentRows.map((row) => {
-            const course = courseBySlug.get(row.slug);
-            const liveClass = course ? courseLiveClassConfig(course) : null;
-            return `
-              <tr>
-                <td><strong>${escapeHtml(row.code)}</strong><br><span class="pill">${escapeHtml(row.status)}</span></td>
-                <td><strong>${escapeHtml(row.title)}</strong><br><span class="muted">${escapeHtml(row.format)}</span></td>
-                <td>${escapeHtml(date(row.start))}<br><span class="muted">to ${escapeHtml(date(row.end))}</span></td>
-                <td>${escapeHtml(row.meeting)}</td>
-                <td>${course && liveClass ? `<a class="button small ghost" href="/admin/courses/${course.id}/student-view?view=conferences">Zoom setup</a>` : `<span class="muted">Not scheduled</span>`}</td>
-                <td>${course ? `<a class="button small" href="/admin/courses/${course.id}/student-view">Open LMS</a>` : `<span class="muted">Course shell pending</span>`}</td>
-              </tr>
-            `;
-          }).join("")}
+          <tr>
+            <td><strong>${escapeHtml(selectedRow.code)} · ${escapeHtml(selectedRow.title)}</strong></td>
+            <td>${escapeHtml(date(selectedRow.start))} - ${escapeHtml(date(selectedRow.end))}</td>
+            <td><span class="pill ${selectedRow.status === "Upcoming" ? "" : "orange"}">${escapeHtml(selectedRow.status)}</span></td>
+            <td>${escapeHtml(selectedRow.meeting)}</td>
+          </tr>
         </tbody>
       </table>
     </section>
     <section class="table-card" style="margin-top:18px">
       <div class="table-card-head">
         <div>
-          <h2>Full July 2026 - July 2027 Sequence</h2>
-          <p class="muted">Use this as the current planning schedule for Cohort 2. Dates can be adjusted as the academic calendar is finalized.</p>
+          <h2>12-Week Class Calendar</h2>
+          <p class="muted">Current weekly dates for ${escapeHtml(selectedRow.code)}.</p>
         </div>
       </div>
       <table>
-        <thead><tr><th>Term order</th><th>Course</th><th>Start</th><th>End</th><th>Delivery</th><th>Status</th></tr></thead>
+        <thead><tr><th>Week</th><th>Dates</th><th>Focus</th><th>Notes</th></tr></thead>
         <tbody>
-          ${scheduleRows.map((row, index) => {
-            const course = courseBySlug.get(row.slug);
-            return `
-              <tr>
-                <td>${index + 1}</td>
-                <td>
-                  <strong>${escapeHtml(row.code)} · ${escapeHtml(row.title)}</strong><br>
-                  ${course ? `<a href="/admin/courses/${course.id}">Course record</a>` : `<span class="muted">Course shell pending</span>`}
-                </td>
-                <td>${escapeHtml(date(row.start))}</td>
-                <td>${escapeHtml(date(row.end))}</td>
-                <td>${escapeHtml(row.format)}<br><span class="muted">${escapeHtml(row.meeting)}</span></td>
-                <td><span class="pill ${row.status === "Upcoming" ? "" : "orange"}">${escapeHtml(row.status)}</span></td>
-              </tr>
-            `;
-          }).join("")}
+          ${selectedWeeks.map((week) => `
+            <tr>
+              <td><strong>Week ${week.number}</strong></td>
+              <td>${escapeHtml(date(week.start))} - ${escapeHtml(date(week.end))}</td>
+              <td>${escapeHtml(week.label)}</td>
+              <td>${week.number === 1 ? "Open orientation, syllabus, modules, and first assignments." : week.number === 12 ? "Complete final assignments, grades, and course closeout." : "Use LMS modules, assignments, quizzes, discussions, and live class notes for this week."}</td>
+            </tr>
+          `).join("")}
         </tbody>
       </table>
     </section>
@@ -4740,7 +4753,14 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
       </table>
     </section>
   `;
-  render(req, res, "Cohort 2 Schedule", body);
+  render(req, res, "Schedule", body);
+}
+
+app.get("/admin/schedule", requireAuth, requireRole("admin", "instructor"), renderAdminSchedule);
+
+app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  res.redirect(`/admin/schedule${query}`);
 });
 
 app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), (req, res) => {
