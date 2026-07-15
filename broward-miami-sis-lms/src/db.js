@@ -446,6 +446,13 @@ function migrate() {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS portal_sessions (
+      sid TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   const courseColumns = db.prepare("PRAGMA table_info(courses)").all().map((column) => column.name);

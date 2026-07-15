@@ -31,6 +31,9 @@ initialize();
 
 const app = express();
 const port = Number(process.env.PORT || 4321);
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
 const instituteName = process.env.INSTITUTE_NAME || "Broward-Miami Health Institute";
 const instituteAddress = process.env.INSTITUTE_ADDRESS || "6320 Miramar Pkwy Suite I, Miramar, FL 33023";
 const institutePhone = process.env.INSTITUTE_PHONE || "954-248-0669";
@@ -143,6 +146,81 @@ if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
   throw new Error("SESSION_SECRET is required in production.");
 }
 
+class SqliteSessionStore extends session.Store {
+  constructor(database) {
+    super();
+    this.database = database;
+    this.getSession = database.prepare("SELECT data FROM portal_sessions WHERE sid = ? AND expires_at > ?");
+    this.setSession = database.prepare(`
+      INSERT INTO portal_sessions (sid, data, expires_at, updated_at)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(sid) DO UPDATE SET
+        data = excluded.data,
+        expires_at = excluded.expires_at,
+        updated_at = CURRENT_TIMESTAMP
+    `);
+    this.touchSession = database.prepare("UPDATE portal_sessions SET expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE sid = ?");
+    this.destroySession = database.prepare("DELETE FROM portal_sessions WHERE sid = ?");
+    this.deleteExpired = database.prepare("DELETE FROM portal_sessions WHERE expires_at <= ?");
+    this.cleanupExpired();
+    this.cleanupTimer = setInterval(() => this.cleanupExpired(), 1000 * 60 * 30);
+    this.cleanupTimer.unref?.();
+  }
+
+  sessionExpiresAt(sessionData) {
+    const cookieExpires = sessionData?.cookie?.expires;
+    if (cookieExpires) {
+      const expiresAt = new Date(cookieExpires).getTime();
+      if (Number.isFinite(expiresAt)) return expiresAt;
+    }
+    return Date.now() + 1000 * 60 * 60 * 8;
+  }
+
+  cleanupExpired() {
+    try {
+      this.deleteExpired.run(Date.now());
+    } catch (error) {
+      console.error("Unable to clear expired portal sessions.", error);
+    }
+  }
+
+  get(sessionId, callback) {
+    try {
+      const row = this.getSession.get(sessionId, Date.now());
+      callback(null, row ? JSON.parse(row.data) : null);
+    } catch (error) {
+      callback(error);
+    }
+  }
+
+  set(sessionId, sessionData, callback = () => {}) {
+    try {
+      this.setSession.run(sessionId, JSON.stringify(sessionData), this.sessionExpiresAt(sessionData));
+      callback(null);
+    } catch (error) {
+      callback(error);
+    }
+  }
+
+  touch(sessionId, sessionData, callback = () => {}) {
+    try {
+      this.touchSession.run(this.sessionExpiresAt(sessionData), sessionId);
+      callback(null);
+    } catch (error) {
+      callback(error);
+    }
+  }
+
+  destroy(sessionId, callback = () => {}) {
+    try {
+      this.destroySession.run(sessionId);
+      callback(null);
+    } catch (error) {
+      callback(error);
+    }
+  }
+}
+
 const allowedUploadTypes = new Set([
   "application/pdf",
   "image/jpeg",
@@ -189,6 +267,7 @@ app.use(express.static(`${__dirname}/public`));
 app.use(
   session({
     name: "bmhi.sid",
+    store: new SqliteSessionStore(db),
     secret: process.env.SESSION_SECRET || "local-development-secret-change-me",
     resave: false,
     saveUninitialized: false,
