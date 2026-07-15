@@ -876,7 +876,29 @@ function courseLiveClassConfig(course = {}) {
       envPrefix: "PN102"
     }
   };
-  return liveClasses[slug] || null;
+  const base = liveClasses[slug];
+  if (!base) return null;
+  let saved = null;
+  if (course.id) {
+    try {
+      saved = db.prepare("SELECT * FROM course_live_meetings WHERE course_id = ?").get(Number(course.id));
+    } catch {
+      saved = null;
+    }
+  }
+  if (!saved) return base;
+  return {
+    ...base,
+    provider: saved.provider || base.provider,
+    title: saved.title || base.title,
+    schedule: saved.schedule || base.schedule,
+    dates: saved.dates || base.dates,
+    audience: saved.audience || base.audience,
+    joinUrl: saved.join_url || base.joinUrl,
+    meetingId: saved.meeting_id || base.meetingId,
+    passcode: saved.passcode || base.passcode,
+    updatedAt: saved.updated_at || ""
+  };
 }
 
 function toolStatus(course = {}, tool = {}) {
@@ -2721,6 +2743,54 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
   `;
 }
 
+function renderLiveClassAdminForm(course = {}, liveClass = {}, redirectTo = "") {
+  if (!course.id || !liveClass) return "";
+  const lastSynced = liveClass.updatedAt ? date(String(liveClass.updatedAt).slice(0, 10)) : "";
+  return `
+    <form method="post" action="/admin/courses/${course.id}/live-class" class="live-class-form">
+      <input type="hidden" name="redirectTo" value="${escapeHtml(redirectTo || `/admin/courses/${course.id}/student-view?view=conferences`)}">
+      <div class="form-grid">
+        <div>
+          <label>Provider</label>
+          <input name="provider" value="${escapeHtml(liveClass.provider || "Zoom")}" required>
+        </div>
+        <div>
+          <label>Meeting ID</label>
+          <input name="meetingId" value="${escapeHtml(liveClass.meetingId || "")}" placeholder="123 4567 8901">
+        </div>
+        <div>
+          <label>Passcode</label>
+          <input name="passcode" value="${escapeHtml(liveClass.passcode || "")}" placeholder="Optional">
+        </div>
+        <div class="span-2">
+          <label>Meeting title</label>
+          <input name="title" value="${escapeHtml(liveClass.title || "")}" required>
+        </div>
+        <div>
+          <label>Audience</label>
+          <input name="audience" value="${escapeHtml(liveClass.audience || "")}" required>
+        </div>
+        <div>
+          <label>Schedule</label>
+          <input name="schedule" value="${escapeHtml(liveClass.schedule || "")}" required>
+        </div>
+        <div>
+          <label>Dates</label>
+          <input name="dates" value="${escapeHtml(liveClass.dates || "")}" required>
+        </div>
+        <div class="span-2">
+          <label>Zoom join URL</label>
+          <input name="joinUrl" type="url" value="${escapeHtml(liveClass.joinUrl || "")}" placeholder="https://zoom.us/j/...">
+        </div>
+      </div>
+      <div class="live-class-form-actions">
+        <button type="submit">Save Zoom meeting</button>
+        ${lastSynced ? `<span class="muted">Last synced ${escapeHtml(lastSynced)}</span>` : `<span class="muted">No Zoom meeting has been synced yet.</span>`}
+      </div>
+    </form>
+  `;
+}
+
 function renderCourseConferencesPage({ course, courseCode, baseHref, instructor = false }) {
   const liveClass = courseLiveClassConfig(course);
   const title = liveClass?.title || `${courseCode} Live Class`;
@@ -2784,14 +2854,9 @@ function renderCourseConferencesPage({ course, courseCode, baseHref, instructor 
         </section>
         ${instructor ? `
           <section class="live-class-admin-card">
-            <h2>Instructor Zoom setup</h2>
-            <p>Create the official Zoom meeting in the BMHI Zoom account, then add the join details to Render environment variables and redeploy.</p>
-            <dl>
-              <div><dt>Join URL variable</dt><dd>${escapeHtml(liveClass.envPrefix)}_ZOOM_URL</dd></div>
-              <div><dt>Meeting ID variable</dt><dd>${escapeHtml(liveClass.envPrefix)}_ZOOM_MEETING_ID</dd></div>
-              <div><dt>Passcode variable</dt><dd>${escapeHtml(liveClass.envPrefix)}_ZOOM_PASSCODE</dd></div>
-            </dl>
-            <p class="muted">This keeps the student portal ready without exposing private Zoom details in the source code.</p>
+            <h2>Instructor Zoom sync</h2>
+            <p>Paste the official Zoom meeting details here after creating or copying the meeting from the BMHI Zoom account. Students will see the Join Zoom Class button once the join URL is saved.</p>
+            ${renderLiveClassAdminForm(course, liveClass, `${baseHref}?view=conferences`)}
           </section>
         ` : `
           <section class="live-class-admin-card">
@@ -4773,6 +4838,7 @@ function renderAdminSchedule(req, res) {
           <p class="muted">${escapeHtml(selectedRow.format)} · ${escapeHtml(selectedRow.meeting)}</p>
         </div>
         <div class="actions">
+          ${selectedLiveClass?.joinUrl ? `<a class="button ghost" href="${escapeHtml(selectedLiveClass.joinUrl)}" target="_blank" rel="noopener">Join Zoom</a>` : ""}
           ${selectedCourse && selectedLiveClass ? `<a class="button ghost" href="/admin/courses/${selectedCourse.id}/student-view?view=conferences">Zoom setup</a>` : ""}
           ${selectedCourse ? `<a class="button" href="/admin/courses/${selectedCourse.id}/student-view">Open LMS</a>` : ""}
         </div>
@@ -4788,6 +4854,14 @@ function renderAdminSchedule(req, res) {
           </tr>
         </tbody>
       </table>
+      ${selectedLiveClass ? `
+        <div class="schedule-live-status">
+          <strong>${escapeHtml(selectedLiveClass.provider)} meeting:</strong>
+          ${selectedLiveClass.joinUrl
+            ? `<span class="pill">synced</span><span class="muted">Meeting ID ${escapeHtml(selectedLiveClass.meetingId || "saved in link")}</span>`
+            : `<span class="pill orange">needs Zoom link</span><span class="muted">Open Zoom setup to paste the official meeting details.</span>`}
+        </div>
+      ` : ""}
     </section>
     <section class="table-card" style="margin-top:18px">
       <div class="table-card-head">
@@ -7107,6 +7181,7 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
     ORDER BY last_name, first_name
   `).all(course.id);
   const hiddenSections = parseHiddenSections(course);
+  const liveClass = courseLiveClassConfig(course);
   const childCourses = course.slug === "practical-nursing"
     ? db.prepare(`
       SELECT c.*,
@@ -7152,6 +7227,18 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
       </div>
       ${renderLmsToolkit(course, { compact: true })}
     </section>
+    ${liveClass ? `
+      <section class="card" id="zoom-sync" style="margin-top:18px">
+        <div class="actions" style="justify-content:space-between">
+          <div>
+            <h2>Zoom live class sync</h2>
+            <p class="muted">Store the official ${escapeHtml(liveClass.code)} Zoom meeting for students and instructors.</p>
+          </div>
+          <a class="button small ghost" href="/admin/courses/${course.id}/student-view?view=conferences">Open Conferences</a>
+        </div>
+        ${renderLiveClassAdminForm(course, liveClass, `/admin/courses/${course.id}#zoom-sync`)}
+      </section>
+    ` : ""}
     ${childCourses.length ? `
       <section class="card" style="margin-top:18px">
         <div class="actions" style="justify-content:space-between">
@@ -7965,6 +8052,58 @@ app.post("/admin/courses/:id/details", requireAuth, requireRole("admin", "instru
   flash(req, "Course details updated.");
   const redirectTo = String(req.body.redirectTo || "");
   res.redirect(redirectTo.startsWith(`/admin/courses/${course.id}`) ? redirectTo : `/admin/courses/${course.id}`);
+});
+
+app.post("/admin/courses/:id/live-class", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!course) return res.status(404).send("Course not found");
+  const liveClass = courseLiveClassConfig(course);
+  if (!liveClass) {
+    flash(req, "This course does not have a live Zoom class configured.");
+    return res.redirect(`/admin/courses/${course.id}`);
+  }
+
+  const redirectTo = String(req.body.redirectTo || "");
+  const destination = redirectTo.startsWith(`/admin/courses/${course.id}`) ? redirectTo : `/admin/courses/${course.id}/student-view?view=conferences`;
+  const rawJoinUrl = String(req.body.joinUrl || "").trim();
+  const joinUrl = rawJoinUrl ? normalizeExternalUrl(rawJoinUrl) : "";
+  if (rawJoinUrl && !joinUrl) {
+    flash(req, "Enter a valid Zoom join URL.");
+    return res.redirect(destination);
+  }
+
+  const provider = String(req.body.provider || "Zoom").trim() || "Zoom";
+  const title = String(req.body.title || liveClass.title).trim();
+  const schedule = String(req.body.schedule || liveClass.schedule).trim();
+  const dates = String(req.body.dates || liveClass.dates).trim();
+  const audience = String(req.body.audience || liveClass.audience).trim();
+  const meetingId = String(req.body.meetingId || "").trim();
+  const passcode = String(req.body.passcode || "").trim();
+  if (!title || !schedule || !dates || !audience) {
+    flash(req, "Complete the title, schedule, dates, and audience before saving Zoom details.");
+    return res.redirect(destination);
+  }
+
+  db.prepare(`
+    INSERT INTO course_live_meetings (
+      course_id, provider, title, schedule, dates, audience, join_url, meeting_id, passcode, updated_by, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(course_id) DO UPDATE SET
+      provider = excluded.provider,
+      title = excluded.title,
+      schedule = excluded.schedule,
+      dates = excluded.dates,
+      audience = excluded.audience,
+      join_url = excluded.join_url,
+      meeting_id = excluded.meeting_id,
+      passcode = excluded.passcode,
+      updated_by = excluded.updated_by,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(course.id, provider, title, schedule, dates, audience, joinUrl || null, meetingId || null, passcode || null, req.user.id);
+
+  flash(req, `${liveClass.code} Zoom meeting details saved.`);
+  res.redirect(destination);
 });
 
 app.post("/admin/courses/:id/sections", requireAuth, requireRole("admin", "instructor"), (req, res) => {

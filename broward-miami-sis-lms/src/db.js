@@ -309,6 +309,22 @@ function migrate() {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS course_live_meetings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      course_id INTEGER NOT NULL UNIQUE REFERENCES courses(id) ON DELETE CASCADE,
+      provider TEXT NOT NULL DEFAULT 'Zoom',
+      title TEXT NOT NULL,
+      schedule TEXT NOT NULL,
+      dates TEXT NOT NULL,
+      audience TEXT NOT NULL DEFAULT 'Cohort 2 night students',
+      join_url TEXT,
+      meeting_id TEXT,
+      passcode TEXT,
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS student_record_checklist (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -537,6 +553,7 @@ function migrate() {
     db.exec("ALTER TABLE student_admissions_document_checklist ADD COLUMN uploaded_at TEXT;");
   }
   db.exec("CREATE INDEX IF NOT EXISTS idx_task_tickets_status_urgency ON task_tickets(status, urgency, created_at);");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_course_live_meetings_course ON course_live_meetings(course_id);");
   db.exec("CREATE INDEX IF NOT EXISTS idx_discussion_topics_course ON discussion_topics(course_id, posted_at);");
   db.exec("CREATE INDEX IF NOT EXISTS idx_discussion_entries_topic ON discussion_entries(topic_id, posted_at);");
 }
