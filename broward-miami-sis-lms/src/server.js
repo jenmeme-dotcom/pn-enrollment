@@ -8450,6 +8450,112 @@ app.get("/student", requireAuth, (req, res) => {
   render(req, res, "SIS Home", body, { studentPortal: true, activeStudentNav: "sis-home" });
 });
 
+app.get("/student/lesson-plan", requireAuth, requireRole("student"), (req, res) => {
+  if (isClassLocked(req.user)) return renderClassLockPage(req, res);
+  const enrollments = db.prepare(`
+    SELECT e.*, c.title, c.slug, c.category, c.hours
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    WHERE e.user_id = ?
+    ORDER BY
+      CASE e.status WHEN 'active' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
+      e.start_date DESC,
+      c.title
+  `).all(req.user.id);
+  const enrollmentIdsByCourse = new Map(enrollments.map((enrollment) => [enrollment.course_id, enrollment.id]));
+  const courseIds = enrollments.map((enrollment) => enrollment.course_id);
+  const placeholders = courseIds.map(() => "?").join(",");
+  const lessonRows = courseIds.length ? db.prepare(`
+    SELECT
+      c.id AS course_id,
+      c.title AS course_title,
+      m.id AS module_id,
+      m.title AS module_title,
+      m.position AS module_position,
+      l.id AS lesson_id,
+      l.title AS lesson_title,
+      l.duration_minutes,
+      l.position AS lesson_position,
+      l.published,
+      l.instructor_only
+    FROM courses c
+    JOIN modules m ON m.course_id = c.id
+    LEFT JOIN lessons l ON l.module_id = m.id AND l.published = 1 AND l.instructor_only = 0
+    WHERE c.id IN (${placeholders})
+    ORDER BY c.title, m.position, l.position
+  `).all(...courseIds) : [];
+  const lessonsByCourse = lessonRows.reduce((groups, row) => {
+    const course = groups.get(row.course_id) || {
+      courseTitle: row.course_title,
+      enrollmentId: enrollmentIdsByCourse.get(row.course_id),
+      modules: new Map()
+    };
+    const module = course.modules.get(row.module_id) || {
+      id: row.module_id,
+      title: row.module_title,
+      position: row.module_position,
+      lessons: []
+    };
+    if (row.lesson_id) {
+      module.lessons.push(row);
+    }
+    course.modules.set(row.module_id, module);
+    groups.set(row.course_id, course);
+    return groups;
+  }, new Map());
+  const body = `
+    <section class="student-lesson-plan">
+      <div class="financial-head">
+        <div>
+          <p class="eyebrow">Academic Planning</p>
+          <h1>Lesson Plan</h1>
+          <p>Review the weekly modules and lesson items for your enrolled courses.</p>
+        </div>
+        <div class="financial-actions">
+          <a class="button ghost" href="/student">SIS Home</a>
+          <a class="button" href="/student/courses">My Courses</a>
+        </div>
+      </div>
+
+      ${enrollments.map((enrollment) => {
+        const coursePlan = lessonsByCourse.get(enrollment.course_id);
+        const modules = coursePlan ? [...coursePlan.modules.values()] : [];
+        const lessonCount = modules.reduce((count, module) => count + module.lessons.length, 0);
+        return `
+          <article class="student-panel lesson-plan-course">
+            <header class="lesson-plan-course-head">
+              <div>
+                <h2>${escapeHtml(enrollment.title)}</h2>
+                <p>${escapeHtml(enrollment.category)} · ${escapeHtml(enrollment.hours)} clock hours · ${escapeHtml(enrollment.status)}</p>
+              </div>
+              <a class="button small" href="/student/enrollments/${enrollment.id}?view=modules">Open Modules</a>
+            </header>
+            <div class="lesson-plan-summary">
+              ${stat("Modules", String(modules.length))}
+              ${stat("Lessons", String(lessonCount))}
+              ${stat("Progress", `${Math.max(0, Math.min(100, Number(enrollment.progress) || 0))}%`)}
+            </div>
+            <div class="lesson-plan-modules">
+              ${modules.map((module) => `
+                <section class="lesson-plan-module">
+                  <h3>Week ${escapeHtml(module.position)}: ${escapeHtml(module.title)}</h3>
+                  ${module.lessons.map((lesson) => `
+                    <a class="lesson-plan-item" href="/student/enrollments/${enrollment.id}?lesson=${lesson.lesson_id}">
+                      <span>${escapeHtml(lesson.lesson_title)}</span>
+                      <small>${escapeHtml(lesson.duration_minutes || 0)} min</small>
+                    </a>
+                  `).join("") || `<p class="empty compact">No published student lessons in this module yet.</p>`}
+                </section>
+              `).join("") || `<p class="empty">No lesson plan has been published for this course yet.</p>`}
+            </div>
+          </article>
+        `;
+      }).join("") || `<article class="student-panel"><p class="empty">No course enrollments yet.</p></article>`}
+    </section>
+  `;
+  render(req, res, "Lesson Plan", body, { studentPortal: true, activeStudentNav: "lesson-plan" });
+});
+
 app.get("/student/dashboard", requireAuth, requireRole("student"), (req, res) => {
   if (isClassLocked(req.user)) return renderClassLockPage(req, res);
   const data = dashboardDataForStudent(req.user.id);

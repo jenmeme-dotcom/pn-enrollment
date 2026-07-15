@@ -1449,7 +1449,8 @@ button.danger {
 }
 
 .student-registration,
-.student-transcript {
+.student-transcript,
+.student-lesson-plan {
   display: grid;
   gap: 12px;
 }
@@ -1457,6 +1458,80 @@ button.danger {
 .registration-panel,
 .transcript-panel {
   min-height: auto;
+}
+
+.lesson-plan-course {
+  min-height: auto;
+}
+
+.lesson-plan-course-head {
+  align-items: center;
+  border-bottom: 1px solid #edf0f2;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.lesson-plan-course-head h2 {
+  border: 0;
+  padding: 0;
+}
+
+.lesson-plan-course-head p {
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+.lesson-plan-summary {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 12px 14px;
+}
+
+.lesson-plan-modules {
+  display: grid;
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+
+.lesson-plan-module {
+  border: 1px solid #dfe4e8;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.lesson-plan-module h3 {
+  background: #f4f7f8;
+  border-bottom: 1px solid #dfe4e8;
+  font-size: 15px;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.lesson-plan-item {
+  align-items: center;
+  border-bottom: 1px solid #edf0f2;
+  color: #17212b;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.lesson-plan-item:last-child {
+  border-bottom: 0;
+}
+
+.lesson-plan-item:hover {
+  background: #f8fbfc;
+  text-decoration: none;
+}
+
+.lesson-plan-item small {
+  color: var(--muted);
+  flex: 0 0 auto;
 }
 
 .registration-panel table,
