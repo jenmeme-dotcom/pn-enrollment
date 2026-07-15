@@ -1380,7 +1380,7 @@ function renderCourseToDo(gradeItems = [], baseHref = "#", { limit = 3, courseTi
         <article class="canvas-task-item">
           <span>${escapeHtml(index + 1)}</span>
           <div>
-            <a href="${escapeHtml(baseHref)}?view=assignments">${escapeHtml(item.title)}</a>
+            <a href="${escapeHtml(item.id ? `${baseHref}?assignment=${item.id}` : `${baseHref}?view=assignments`)}">${escapeHtml(item.title)}</a>
             <em>${escapeHtml(courseTitle)}</em>
             <small>${escapeHtml(item.points_possible || 0)} points · ${item.due_date ? date(item.due_date) : "No Due Date"}</small>
           </div>
@@ -1519,7 +1519,7 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
             ${rows.map((row) => `
               <tr class="${row.highlighted ? "highlighted" : ""}">
                 <td>
-                  <a href="${escapeHtml(baseHref)}?view=assignments">${escapeHtml(row.title)}</a>
+                  <a href="${escapeHtml(row.id ? `${baseHref}?assignment=${row.id}` : `${baseHref}?view=assignments`)}">${escapeHtml(row.title)}</a>
                   <small>${escapeHtml(row.group || "Assignments")}</small>
                 </td>
                 <td>${escapeHtml(formatGradeDue(row.due_date))}</td>
@@ -2673,7 +2673,88 @@ function assignmentItemHref(item = {}, lessons = [], baseHref = "#") {
     const lessonTitle = normalizedTitle(lesson.title);
     return lessonTitle && itemTitle && (lessonTitle.includes(itemTitle) || itemTitle.includes(lessonTitle));
   });
-  return match ? `${baseHref}?lesson=${match.id}` : `${baseHref}?view=assignments`;
+  if (match) return `${baseHref}?lesson=${match.id}`;
+  return item.id ? `${baseHref}?assignment=${item.id}` : `${baseHref}?view=assignments`;
+}
+
+function gradeItemInstructions(item = {}) {
+  const title = String(item.title || "").toLowerCase();
+  if (title.includes("attendance") || title.includes("participation")) {
+    return "Attendance and participation are reviewed by the instructor. Students should attend scheduled sessions, participate in course activities, and follow the instructor's directions for make-up work or documentation.";
+  }
+  if (title.includes("skills")) {
+    return "Use this checklist to track required hands-on skills. The instructor will verify each competency after demonstration, practice, or skills lab review.";
+  }
+  if (title.includes("final") || title.includes("completion")) {
+    return "This item is used for final course completion review. The instructor confirms required coursework, attendance, skills, and file readiness before completion is posted.";
+  }
+  if (title.includes("quiz") || title.includes("exam") || title.includes("midterm")) {
+    return "Review the module materials before beginning. Quiz and exam scores are recorded in the gradebook after the assessment is submitted or entered by the instructor.";
+  }
+  if (title.includes("discussion")) {
+    return "Read the discussion prompt, post your response, and reply to classmates when required. The instructor reviews participation and posts feedback in the gradebook.";
+  }
+  if (title.includes("acknowledg")) {
+    return "Review the required course information, then acknowledge that you understand the expectations for this item.";
+  }
+  return "Review the instructions for this assignment and complete the required course activity. Submission status and scoring are tracked in the gradebook.";
+}
+
+function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons = [], instructor = false, studentScore = null }) {
+  const type = assignmentTypeLabel(item);
+  const relatedLessonHref = assignmentItemHref({ ...item, id: null }, lessons, baseHref);
+  const hasRelatedLesson = relatedLessonHref.includes("?lesson=");
+  const status = Number(item.published ?? 1) === 0 ? "Unpublished" : "Published";
+  const scoreLabel = studentScore === null || studentScore === undefined
+    ? "Not graded"
+    : `${studentScore} / ${item.points_possible || 0}`;
+  return `
+    <main class="canvas-course-main canvas-page-main">
+      <div class="canvas-mini-head">
+        <span></span>
+        <strong>${escapeHtml(courseCode)} &gt; Assignments</strong>
+      </div>
+      <article class="canvas-page-content">
+        <p class="canvas-page-breadcrumb">
+          <a href="${escapeHtml(baseHref)}">Home</a>
+          <span>/</span>
+          <a href="${escapeHtml(baseHref)}?view=assignments">Assignments</a>
+          <span>/</span>
+          <span>${escapeHtml(item.title)}</span>
+        </p>
+        <h1>${escapeHtml(item.title)}</h1>
+        <section class="lesson-action-card assignment-detail-summary">
+          <h2>${escapeHtml(type)}</h2>
+          <dl class="assignment-meta-grid">
+            <div><dt>Due date</dt><dd>${escapeHtml(formatGradeDue(item.due_date) || "No due date")}</dd></div>
+            <div><dt>Points</dt><dd>${escapeHtml(item.points_possible || 0)}</dd></div>
+            <div><dt>Status</dt><dd><span class="pill ${status === "Unpublished" ? "orange" : ""}">${escapeHtml(status)}</span></dd></div>
+            ${!instructor ? `<div><dt>Grade</dt><dd>${escapeHtml(scoreLabel)}</dd></div>` : ""}
+          </dl>
+        </section>
+        <section class="lesson-action-card">
+          <h2>Instructions</h2>
+          <p>${escapeHtml(gradeItemInstructions(item))}</p>
+          <div class="lesson-file-actions">
+            ${hasRelatedLesson ? `<a class="button" href="${escapeHtml(relatedLessonHref)}">Open Module Item</a>` : ""}
+            <a class="button ghost" href="${escapeHtml(baseHref)}?view=grades">${instructor ? "Open Gradebook" : "View Grades"}</a>
+            <a class="button ghost" href="${escapeHtml(baseHref)}?view=modules">View Modules</a>
+          </div>
+        </section>
+        ${type === "Quiz" || type === "Exam" ? `
+          <section class="lesson-action-card">
+            <h2>${escapeHtml(type)}</h2>
+            <p>This assessment is connected to the course gradebook. Use the module materials first, then complete the quiz or exam when your instructor opens it.</p>
+            ${instructor ? `<button class="button" type="button" disabled>Student assessment preview</button>` : `<a class="button" href="${escapeHtml(baseHref)}?view=quizzes">Open Quizzes</a>`}
+          </section>
+        ` : ""}
+        <nav class="canvas-page-actions" aria-label="Assignment navigation">
+          <a class="button ghost" href="${escapeHtml(baseHref)}?view=assignments">Back to Assignments</a>
+          <a class="button ghost" href="${escapeHtml(baseHref)}">Course Home</a>
+        </nav>
+      </article>
+    </main>
+  `;
 }
 
 function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeItems = [], lessons = [], quizzesOnly = false, instructor = false }) {
@@ -7560,7 +7641,37 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     ...(courseLiveClassConfig(course) ? [{ icon: "video", label: "Live Zoom Class", href: `${adminCourseBaseHref}?view=conferences`, image: "/assets/start-tile-qa.svg" }] : [])
   ];
   const activeView = String(req.query.view || "");
-  const body = activeView === "modules" ? `
+  const selectedAssignmentId = Number(req.query.assignment || 0);
+  const selectedAssignment = selectedAssignmentId ? gradeItems.find((item) => item.id === selectedAssignmentId) : null;
+  const selectedAssignmentNav = selectedAssignment && assignmentTypeLabel(selectedAssignment) === "Quiz" ? "Quizzes" : "Assignments";
+  const body = selectedAssignment ? `
+    <section class="canvas-course-shell instructor-preview">
+      <aside class="canvas-global-rail">
+        <img src="/assets/bmhi-favicon.png" alt="BMHI">
+        <span>${escapeHtml(initialsFor(req.user))}</span>
+        <i></i><i></i><i></i><i></i><i></i>
+      </aside>
+
+      ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
+        { label: courseCode, href: adminCourseBaseHref },
+        { label: selectedAssignmentNav, href: `${adminCourseBaseHref}?view=${selectedAssignmentNav.toLowerCase()}` },
+        { label: selectedAssignment.title }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(navItems, adminCourseBaseHref, selectedAssignmentNav, firstLesson?.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+
+      ${renderCourseAssignmentDetailPage({
+        courseCode,
+        baseHref: adminCourseBaseHref,
+        item: selectedAssignment,
+        lessons,
+        instructor: true
+      })}
+    </section>
+  ` : activeView === "modules" ? `
     <section class="canvas-course-shell canvas-modules-shell instructor-preview">
       <aside class="canvas-global-rail">
         <img src="/assets/bmhi-favicon.png" alt="BMHI">
@@ -9768,7 +9879,34 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       </nav>
     </aside>
   `;
-  const body = activeView === "modules" ? `
+  const selectedAssignmentId = Number(req.query.assignment || 0);
+  const selectedAssignment = selectedAssignmentId ? gradeItems.find((item) => item.id === selectedAssignmentId) : null;
+  const selectedAssignmentGrade = selectedAssignment ? grades.find((grade) => grade.grade_item_id === selectedAssignment.id) : null;
+  const selectedAssignmentNav = selectedAssignment && assignmentTypeLabel(selectedAssignment) === "Quiz" ? "Quizzes" : "Assignments";
+  const body = selectedAssignment ? `
+    <section class="canvas-course-shell student-course-shell">
+      ${renderStudentCanvasRail("courses")}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+        { label: courseCode, href: courseBaseHref },
+        { label: selectedAssignmentNav, href: `${courseBaseHref}?view=${selectedAssignmentNav.toLowerCase()}` },
+        { label: selectedAssignment.title }
+      ])}
+
+      <aside class="canvas-course-nav" id="canvas-course-navigation">
+        ${renderCourseNav(studentCourseNavItems, courseBaseHref, selectedAssignmentNav, firstLesson.id)}
+      </aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+      ${courseOutlinePanel}
+      ${renderCourseAssignmentDetailPage({
+        courseCode,
+        baseHref: courseBaseHref,
+        item: selectedAssignment,
+        lessons,
+        instructor: false,
+        studentScore: selectedAssignmentGrade?.score
+      })}
+    </section>
+  ` : activeView === "modules" ? `
     <section class="canvas-course-shell canvas-modules-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
       ${renderStudentCanvasHeader(courseCode, courseBaseHref, [

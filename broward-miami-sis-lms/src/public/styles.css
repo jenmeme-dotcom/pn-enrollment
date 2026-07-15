@@ -3882,6 +3882,36 @@ button.small {
   margin: 0 0 14px;
 }
 
+.assignment-meta-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  margin: 12px 0 0;
+}
+
+.assignment-meta-grid div {
+  background: #fff;
+  border: 1px solid #d7e4e9;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.assignment-meta-grid dt {
+  color: #5f6f7f;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+.assignment-meta-grid dd {
+  color: #1f2d3a;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
 .lesson-file-actions {
   display: flex;
   flex-wrap: wrap;
