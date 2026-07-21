@@ -26,6 +26,7 @@ function migrate() {
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
+      personal_email TEXT,
       phone TEXT,
       password_hash TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'active',
@@ -313,6 +314,30 @@ function migrate() {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS weekly_reminder_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      announcement_id INTEGER REFERENCES announcements(id) ON DELETE SET NULL,
+      week_start TEXT NOT NULL,
+      week_end TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(course_id, week_start)
+    );
+
+    CREATE TABLE IF NOT EXISTS weekly_reminder_deliveries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id INTEGER NOT NULL REFERENCES weekly_reminder_runs(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      email TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sent','failed','not_configured')),
+      error TEXT,
+      sent_at TEXT,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(run_id, user_id)
+    );
+
     CREATE TABLE IF NOT EXISTS discussion_topics (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
@@ -538,6 +563,9 @@ function migrate() {
     db.exec("ALTER TABLE lessons ADD COLUMN instructor_only INTEGER NOT NULL DEFAULT 0;");
   }
   const userColumns = db.prepare("PRAGMA table_info(users)").all().map((column) => column.name);
+  if (!userColumns.includes("personal_email")) {
+    db.exec("ALTER TABLE users ADD COLUMN personal_email TEXT;");
+  }
   if (!userColumns.includes("organization_status")) {
     db.exec("ALTER TABLE users ADD COLUMN organization_status TEXT NOT NULL DEFAULT 'organized';");
   }

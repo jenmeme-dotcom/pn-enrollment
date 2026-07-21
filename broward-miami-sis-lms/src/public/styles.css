@@ -1216,6 +1216,35 @@ nav a {
   font-weight: 700;
 }
 
+.profile-reminder-email {
+  border-top: 1px solid #dfe7eb;
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 18px 12px 6px;
+}
+
+.profile-reminder-email label {
+  display: grid;
+  font-weight: 750;
+  gap: 6px;
+}
+
+.profile-reminder-email input {
+  border: 1px solid #b9c4cf;
+  border-radius: 5px;
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.profile-reminder-email button {
+  justify-self: start;
+}
+
+.profile-reminder-email p {
+  margin: 0;
+}
+
 .summary-stats {
   display: grid;
   gap: 10px;
@@ -6220,6 +6249,58 @@ button.small {
   padding: 16px;
 }
 
+.weekly-reminder-status {
+  background: #f4fafb;
+  border: 1px solid #cfe1e5;
+  border-left: 5px solid #0e727c;
+  border-radius: 6px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin: 0 0 18px;
+  padding: 18px;
+}
+
+.weekly-reminder-status h2,
+.weekly-reminder-status p {
+  margin: 0;
+}
+
+.weekly-reminder-status > div > p:last-child {
+  color: #566875;
+  line-height: 1.5;
+  margin-top: 7px;
+}
+
+.weekly-reminder-status > strong {
+  align-self: start;
+  border-radius: 999px;
+  padding: 7px 12px;
+}
+
+.weekly-reminder-status > strong.is-ready {
+  background: #dff4e7;
+  color: #17643a;
+}
+
+.weekly-reminder-status > strong.has-issue {
+  background: #fff1db;
+  color: #8b5100;
+}
+
+.weekly-reminder-status table {
+  border-collapse: collapse;
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.weekly-reminder-status th,
+.weekly-reminder-status td {
+  border-top: 1px solid #d8e5e8;
+  padding: 9px 10px;
+  text-align: left;
+}
+
 .announcement-form h2,
 .calendar-event-form h2 {
   color: #2d3b48;
@@ -9389,6 +9470,7 @@ button.small {
   .calendar-toolbar,
   .activity-group header,
   .announcement-row,
+  .weekly-reminder-status,
   .discussion-layout,
   .form-row,
   .staff-help-hero,

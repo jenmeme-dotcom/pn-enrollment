@@ -382,7 +382,7 @@ app.use(
 
 function currentUser(req) {
   if (!req.session.userId) return null;
-  return db.prepare("SELECT id, role, first_name, last_name, email, status, organization_status, class_lock_reason, photo_storage_name, photo_original_name FROM users WHERE id = ?").get(req.session.userId);
+  return db.prepare("SELECT id, role, first_name, last_name, email, personal_email, phone, status, organization_status, class_lock_reason, photo_storage_name, photo_original_name, created_at FROM users WHERE id = ?").get(req.session.userId);
 }
 
 function studentHasUsablePhoto(user) {
@@ -859,6 +859,140 @@ async function deliverExternalEmail({ sender, recipient, subject, body }) {
   } catch (error) {
     console.error("External email delivery failed", error);
     return { sent: false, reason: error.message };
+  }
+}
+
+const weeklyReminderTimeZone = "America/New_York";
+let weeklyReminderJobRunning = false;
+
+function easternDateParts(value = new Date()) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: weeklyReminderTimeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(value).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return { ...parts, date: `${parts.year}-${parts.month}-${parts.day}` };
+}
+
+function addCalendarDays(dateString, days) {
+  const date = new Date(`${dateString}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function reminderDateLabel(value) {
+  const date = new Date(`${value}T12:00:00Z`);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(date);
+}
+
+function reminderRangeLabel(start, end) {
+  const startDate = new Date(`${start}T12:00:00Z`);
+  const endDate = new Date(`${end}T12:00:00Z`);
+  const sameYear = startDate.getUTCFullYear() === endDate.getUTCFullYear();
+  const startLabel = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", ...(sameYear ? {} : { year: "numeric" }), timeZone: "UTC" }).format(startDate);
+  const endLabel = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(endDate);
+  return `${startLabel}–${endLabel}`;
+}
+
+function weeklyReminderContent(course, weekStart, weekEnd) {
+  const items = db.prepare(`
+    SELECT title, points_possible, due_date
+    FROM grade_items
+    WHERE course_id = ? AND due_date BETWEEN ? AND ?
+    ORDER BY due_date, id
+  `).all(course.id, weekStart, weekEnd);
+  const range = reminderRangeLabel(weekStart, weekEnd);
+  const subject = `${canvasCourseCode(course)} Weekly Reminder: Due This Week (${range})`;
+  const itemLines = items.length
+    ? items.map((item) => `• ${item.title} — due ${reminderDateLabel(item.due_date)}${Number(item.points_possible || 0) > 0 ? ` — ${rubricPoints(item.points_possible)} points` : ""}`)
+    : ["• No graded assignments are due this week. Continue completing the lessons and activities listed in Modules."];
+  const body = [
+    `This reminder follows the published ${course.title} syllabus and gradebook for ${range}.`,
+    "",
+    "Due this week:",
+    ...itemLines,
+    "",
+    "Open the course Modules page to complete the readings, slides, videos, discussions, assignments, and quizzes in order.",
+    `Course portal: ${externalBaseUrl}`,
+    "",
+    "If an instructor changes a due date, the updated syllabus, Modules page, and course Calendar are the official course record."
+  ].join("\n");
+  return { subject, body, items };
+}
+
+async function sendWeeklyReminderForCourse(course, weekStart, weekEnd) {
+  const content = weeklyReminderContent(course, weekStart, weekEnd);
+  let run = db.prepare("SELECT * FROM weekly_reminder_runs WHERE course_id = ? AND week_start = ?").get(course.id, weekStart);
+  if (!run) {
+    const author = db.prepare("SELECT id FROM users WHERE role IN ('instructor','admin') AND status = 'active' ORDER BY CASE role WHEN 'instructor' THEN 0 ELSE 1 END, id LIMIT 1").get();
+    const announcement = db.prepare(`
+      INSERT INTO announcements (course_id, author_id, title, body, posted_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(course.id, author?.id || null, content.subject, content.body);
+    const result = db.prepare(`
+      INSERT INTO weekly_reminder_runs (course_id, announcement_id, week_start, week_end, subject, body)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(course.id, announcement.lastInsertRowid, weekStart, weekEnd, content.subject, content.body);
+    run = db.prepare("SELECT * FROM weekly_reminder_runs WHERE id = ?").get(result.lastInsertRowid);
+  }
+
+  const sender = db.prepare("SELECT * FROM users WHERE role IN ('instructor','admin') AND status = 'active' ORDER BY CASE role WHEN 'instructor' THEN 0 ELSE 1 END, id LIMIT 1").get() || { first_name: instituteName, last_name: "", email: emailFrom };
+  const students = db.prepare(`
+    SELECT DISTINCT u.id, u.first_name, u.last_name, u.email AS portal_email,
+      COALESCE(NULLIF(TRIM(u.personal_email), ''), u.email) AS email
+    FROM enrollments e
+    JOIN users u ON u.id = e.user_id
+    WHERE e.course_id = ? AND e.status = 'active' AND u.status = 'active' AND u.role = 'student'
+    ORDER BY u.last_name, u.first_name
+  `).all(course.id);
+  for (const student of students) {
+    const prior = db.prepare("SELECT * FROM weekly_reminder_deliveries WHERE run_id = ? AND user_id = ?").get(run.id, student.id);
+    if (prior?.status === "sent") continue;
+    db.prepare(`
+      INSERT INTO weekly_reminder_deliveries (run_id, user_id, email, status, updated_at)
+      VALUES (?, ?, ?, 'pending', CURRENT_TIMESTAMP)
+      ON CONFLICT(run_id, user_id) DO UPDATE SET email = excluded.email, status = 'pending', error = NULL, updated_at = CURRENT_TIMESTAMP
+    `).run(run.id, student.id, student.email);
+    const delivery = await deliverExternalEmail({
+      sender,
+      recipient: student,
+      subject: run.subject,
+      body: `Hello ${student.first_name},\n\n${run.body}`
+    });
+    db.prepare(`
+      UPDATE weekly_reminder_deliveries
+      SET status = ?, error = ?, sent_at = CASE WHEN ? = 'sent' THEN CURRENT_TIMESTAMP ELSE sent_at END, updated_at = CURRENT_TIMESTAMP
+      WHERE run_id = ? AND user_id = ?
+    `).run(delivery.sent ? "sent" : (smtpReady() ? "failed" : "not_configured"), delivery.sent ? null : delivery.reason, delivery.sent ? "sent" : "", run.id, student.id);
+  }
+}
+
+async function runWeeklyReminderJob({ force = false } = {}) {
+  if (weeklyReminderJobRunning || process.env.WEEKLY_REMINDERS_ENABLED === "false") return;
+  const now = easternDateParts();
+  if (!force && now.weekday !== "Sun") return;
+  weeklyReminderJobRunning = true;
+  try {
+    const sunday = now.date;
+    const weekStart = addCalendarDays(sunday, 1);
+    const weekEnd = addCalendarDays(sunday, 7);
+    const courses = db.prepare(`
+      SELECT c.*
+      FROM courses c
+      WHERE c.published = 1
+        AND EXISTS (SELECT 1 FROM enrollments e WHERE e.course_id = c.id AND e.status = 'active')
+      ORDER BY c.id
+    `).all();
+    for (const course of courses) await sendWeeklyReminderForCourse(course, weekStart, weekEnd);
+  } catch (error) {
+    console.error("Weekly reminder job failed", error);
+  } finally {
+    weeklyReminderJobRunning = false;
   }
 }
 
@@ -2880,6 +3014,17 @@ function renderCanvasDashboardPage({ user, data }) {
 }
 
 function renderCourseAnnouncementsPage({ course, courseCode, baseHref, announcements = [], instructor = false }) {
+  const reminderRuns = instructor ? db.prepare(`
+    SELECT wr.*, COUNT(wd.id) AS recipient_count,
+      SUM(CASE WHEN wd.status = 'sent' THEN 1 ELSE 0 END) AS sent_count,
+      SUM(CASE WHEN wd.status IN ('failed','not_configured') THEN 1 ELSE 0 END) AS issue_count
+    FROM weekly_reminder_runs wr
+    LEFT JOIN weekly_reminder_deliveries wd ON wd.run_id = wr.id
+    WHERE wr.course_id = ?
+    GROUP BY wr.id
+    ORDER BY wr.week_start DESC
+    LIMIT 8
+  `).all(course.id) : [];
   return `
     <main class="canvas-course-main announcements-main">
       <div class="announcement-toolbar">
@@ -2889,6 +3034,20 @@ function renderCourseAnnouncementsPage({ course, courseCode, baseHref, announcem
         <button type="button">Mark All as Read</button>
       </div>
       ${instructor ? `
+        <section class="weekly-reminder-status">
+          <div>
+            <p class="eyebrow">Automatic student reminders</p>
+            <h2>Sunday Weekly Email</h2>
+            <p>Every Sunday at 12:00 AM Eastern, the portal posts an announcement and emails each active student the assignments due Monday through Sunday, using the published syllabus and gradebook dates.</p>
+          </div>
+          <strong class="${smtpReady() ? "is-ready" : "has-issue"}">${smtpReady() ? "Email delivery enabled" : "SMTP setup required"}</strong>
+          ${reminderRuns.length ? `
+            <table>
+              <thead><tr><th>Week</th><th>Recipients</th><th>Sent</th><th>Issues</th></tr></thead>
+              <tbody>${reminderRuns.map((run) => `<tr><td>${escapeHtml(reminderRangeLabel(run.week_start, run.week_end))}</td><td>${run.recipient_count || 0}</td><td>${run.sent_count || 0}</td><td>${run.issue_count || 0}</td></tr>`).join("")}</tbody>
+            </table>
+          ` : `<p class="muted">The first delivery record will appear after the next Sunday reminder runs.</p>`}
+        </section>
         <form class="announcement-form" id="add-announcement" method="post" action="/admin/courses/${course.id}/announcements">
           <h2>Add Announcement</h2>
           <input name="title" required maxlength="160" placeholder="Announcement title">
@@ -6172,13 +6331,14 @@ app.post("/admin/admissions/:id/create-student", requireAuth, requireRole("admin
   }
   const result = db.prepare(`
     INSERT INTO users (
-      role, first_name, last_name, email, phone, password_hash, status, organization_status,
+      role, first_name, last_name, email, personal_email, phone, password_hash, status, organization_status,
       class_lock_reason, cohort_name, notes
     )
-    VALUES ('student', ?, ?, ?, ?, ?, 'active', 'not_organized', ?, ?, ?)
+    VALUES ('student', ?, ?, ?, ?, ?, ?, 'active', 'not_organized', ?, ?, ?)
   `).run(
     application.first_name,
     application.last_name,
+    application.email,
     application.email,
     application.phone,
     bcrypt.hashSync("StudentPass123!", 12),
@@ -7131,7 +7291,8 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
         <div class="form-grid">
           <div><label>First name</label><input name="firstName" required></div>
           <div><label>Last name</label><input name="lastName" required></div>
-          <div><label>Email</label><input name="email" type="email" required></div>
+          <div><label>Portal login email</label><input name="email" type="email" required></div>
+          <div><label>Personal email for reminders</label><input name="personalEmail" type="email" required></div>
           <div><label>Phone</label><input name="phone"></div>
           <div><label>Password</label><input name="password" value="StudentPass123!" required></div>
           <div><label>Uniform size</label><select name="uniformSize">${uniformSizeOptions()}</select></div>
@@ -7241,6 +7402,10 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                     ${uniformSizeOptions(student.uniform_size || "")}
                   </select>
                   <button class="small ghost" type="submit">Save uniform</button>
+                </form>
+                <form method="post" action="/admin/students/${student.id}/personal-email" class="actions">
+                  <input name="personalEmail" type="email" value="${escapeHtml(student.personal_email || "")}" placeholder="Personal reminder email" required>
+                  <button class="small ghost" type="submit">Save reminder email</button>
                 </form>
                 <form method="post" action="/admin/students/${student.id}/reset-password" class="actions">
                   <input type="hidden" name="password" value="StudentPass123!">
@@ -7528,14 +7693,15 @@ app.post("/admin/students", requireAuth, requireRole("admin"), (req, res) => {
       : null;
     const result = db.prepare(`
       INSERT INTO users (
-        role, first_name, last_name, email, phone, password_hash,
+        role, first_name, last_name, email, personal_email, phone, password_hash,
         organization_status, class_lock_reason, cohort_name, cohort_start_date, cohort_end_date, uniform_size
       )
-      VALUES ('student', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES ('student', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       String(req.body.firstName || "").trim(),
       String(req.body.lastName || "").trim(),
       String(req.body.email || "").trim().toLowerCase(),
+      String(req.body.personalEmail || req.body.email || "").trim().toLowerCase(),
       String(req.body.phone || "").trim(),
       bcrypt.hashSync(password, 12),
       organizationStatus,
@@ -7575,6 +7741,17 @@ app.post("/admin/students/:id/uniform-size", requireAuth, requireRole("admin"), 
   const uniformSize = uniformSizes.includes(requestedSize) && requestedSize ? requestedSize : null;
   db.prepare("UPDATE users SET uniform_size = ? WHERE id = ? AND role = 'student'").run(uniformSize, Number(req.params.id));
   flash(req, uniformSize ? `Uniform size saved: ${uniformSize}.` : "Uniform size cleared.");
+  res.redirect("/admin/students");
+});
+
+app.post("/admin/students/:id/personal-email", requireAuth, requireRole("admin"), (req, res) => {
+  const personalEmail = String(req.body.personalEmail || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personalEmail)) {
+    flash(req, "Enter a valid personal email address for weekly reminders.");
+    return res.redirect("/admin/students");
+  }
+  const result = db.prepare("UPDATE users SET personal_email = ? WHERE id = ? AND role = 'student'").run(personalEmail, Number(req.params.id));
+  flash(req, result.changes ? "Personal reminder email updated." : "Student not found.");
   res.redirect("/admin/students");
 });
 
@@ -10524,6 +10701,17 @@ app.post("/student/email/reply", requireAuth, requireRole("student"), async (req
   res.redirect(`/student/email?threadId=${threadId}`);
 });
 
+app.post("/student/profile/personal-email", requireAuth, requireRole("student"), (req, res) => {
+  const personalEmail = String(req.body.personalEmail || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personalEmail)) {
+    flash(req, "Enter a valid personal email address.");
+    return res.redirect("/student/profile#profile");
+  }
+  db.prepare("UPDATE users SET personal_email = ? WHERE id = ?").run(personalEmail, req.user.id);
+  flash(req, "Personal reminder email updated.");
+  res.redirect("/student/profile#profile");
+});
+
 app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
   const enrollments = db.prepare(`
     SELECT e.*, c.title, c.category, c.hours, c.credential_type, c.delivery_mode, cr.id AS credential_id
@@ -10556,6 +10744,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
     ["Admission No.", `BMHI-${String(req.user.id).padStart(5, "0")}`],
     ["Student Name", name],
     ["Email", req.user.email],
+    ["Personal reminder email", req.user.personal_email || "Not set"],
     ["Phone", req.user.phone || "Not on file"],
     ["Program", activeEnrollment?.title || "Not enrolled"],
     ["Student Type", activeEnrollment ? `${activeEnrollment.category} Student` : "BMHI Student"],
@@ -10596,6 +10785,13 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
               <div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value || "")}</span></div>
             `).join("")}
           </div>
+          <form class="profile-reminder-email" method="post" action="/student/profile/personal-email">
+            <label>Weekly reminder email
+              <input name="personalEmail" type="email" value="${escapeHtml(req.user.personal_email || req.user.email)}" required>
+            </label>
+            <button class="small" type="submit">Save Personal Email</button>
+            <p class="muted">Sunday assignment reminders are sent to this personal inbox.</p>
+          </form>
         </article>
 
         <article class="student-panel profile-summary">
@@ -11697,11 +11893,12 @@ app.post("/webhooks/ghl/purchase", (req, res) => {
       const [firstName, lastName] = splitName(payload);
       temporaryPassword = randomPassword();
       const result = db.prepare(`
-        INSERT INTO users (role, first_name, last_name, email, phone, password_hash, organization_status, class_lock_reason)
-        VALUES ('student', ?, ?, ?, ?, ?, 'not_organized', ?)
+        INSERT INTO users (role, first_name, last_name, email, personal_email, phone, password_hash, organization_status, class_lock_reason)
+        VALUES ('student', ?, ?, ?, ?, ?, ?, 'not_organized', ?)
       `).run(
         firstName,
         lastName,
+        email,
         email,
         String(payload.phone || payload.contact?.phone || ""),
         bcrypt.hashSync(temporaryPassword, 12),
@@ -11746,4 +11943,10 @@ app.use((req, res) => {
 
 app.listen(port, () => {
   console.log(`${instituteName} SIS/LMS running at http://localhost:${port}`);
+  runWeeklyReminderJob();
+  const untilNextMinute = 60000 - (Date.now() % 60000);
+  setTimeout(() => {
+    runWeeklyReminderJob();
+    setInterval(() => runWeeklyReminderJob(), 60000);
+  }, untilNextMinute);
 });
