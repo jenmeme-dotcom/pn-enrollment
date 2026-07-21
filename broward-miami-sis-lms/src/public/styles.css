@@ -1596,6 +1596,135 @@ button.danger {
   width: 22px;
 }
 
+.instructor-course-section {
+  margin-top: 28px;
+}
+
+.instructor-course-section-head {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+}
+
+.instructor-course-section-head h2,
+.instructor-course-section-head p {
+  margin: 0;
+}
+
+.instructor-course-section-head h2 span {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.instructor-course-section-head p {
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+.instructor-course-grid {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.instructor-course-card {
+  background: #fff;
+  border: 1px solid #d9e1e7;
+  border-radius: 10px;
+  box-shadow: 0 3px 12px rgb(27 49 66 / 8%);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.instructor-course-banner {
+  background: linear-gradient(135deg, #173f62, #087480);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 120px;
+  padding: 20px;
+}
+
+.instructor-course-card.is-unpublished .instructor-course-banner {
+  background: linear-gradient(135deg, #525b65, #7d8790);
+}
+
+.instructor-course-banner span {
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.instructor-course-banner strong {
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.instructor-course-card-body {
+  padding: 18px;
+}
+
+.instructor-course-card-body h2 {
+  font-size: 20px;
+  margin: 10px 0 8px;
+}
+
+.instructor-course-card-body > p {
+  color: var(--muted);
+  display: -webkit-box;
+  line-height: 1.5;
+  margin: 0;
+  min-height: 4.5em;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.course-publication-badge {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 5px 10px;
+}
+
+.course-publication-badge.published {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.course-publication-badge.unpublished {
+  background: #f1f3f5;
+  color: #4b5563;
+}
+
+.instructor-course-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.instructor-course-meta span {
+  background: #f5f8fa;
+  border-radius: 5px;
+  color: #425466;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+@media (max-width: 1100px) {
+  .instructor-course-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .instructor-course-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media print {
   body.sis-mode {
     background: #fff;

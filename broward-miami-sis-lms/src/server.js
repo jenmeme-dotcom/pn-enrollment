@@ -7495,6 +7495,31 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
   const americanHeartAssociationCourses = courses.filter((course) => americanHeartAssociationSlugs.has(course.slug));
   const totalEnrollments = courses.reduce((sum, course) => sum + Number(course.enrollments || 0), 0);
   const totalCredentials = courses.reduce((sum, course) => sum + Number(course.credentials || 0), 0);
+  const publishedCourses = courses.filter((course) => Number(course.published) === 1);
+  const unpublishedCourses = courses.filter((course) => Number(course.published) !== 1);
+  const renderInstructorCourseCard = (course) => `
+    <article class="instructor-course-card ${course.published ? "is-published" : "is-unpublished"}">
+      <div class="instructor-course-banner">
+        <span>${escapeHtml(canvasCourseCode(course))}</span>
+        <strong>${escapeHtml(course.category)}</strong>
+      </div>
+      <div class="instructor-course-card-body">
+        <span class="course-publication-badge ${course.published ? "published" : "unpublished"}">${course.published ? "Published" : "Unpublished"}</span>
+        <h2>${escapeHtml(course.title)}</h2>
+        <p>${escapeHtml(course.description)}</p>
+        <div class="instructor-course-meta">
+          <span>${escapeHtml(course.hours)} hours</span>
+          <span>${escapeHtml(course.enrollments)} enrollments</span>
+          <span>${escapeHtml(course.delivery_mode)}</span>
+        </div>
+        <div class="actions">
+          <a class="button small" href="/admin/courses/${course.id}">Manage Course</a>
+          <a class="button small ghost" href="/admin/courses/${course.id}/student-view?view=details">Course Details</a>
+          <a class="button small ghost" href="/admin/courses/${course.id}/student-view">Preview</a>
+        </div>
+      </div>
+    </article>
+  `;
   const renderCourseGroupCard = ({ title, description, category, credentialType, deliveryMode, childLabel, childCourses }) => `
     <article class="card admin-program-card featured">
       <div class="actions" style="justify-content:space-between">
@@ -7561,7 +7586,33 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
     `;
   };
 
-  const body = `
+  const instructorBody = `
+    <div class="page-head">
+      <div>
+        <h1>Instructor Course Dashboard</h1>
+        <p>Open published courses currently available to students and prepare unpublished course shells before release.</p>
+      </div>
+    </div>
+    <section class="instructor-course-section">
+      <div class="instructor-course-section-head">
+        <h2>Published Courses <span>(${publishedCourses.length})</span></h2>
+        <p>These courses are available in the student portal.</p>
+      </div>
+      <div class="instructor-course-grid">
+        ${publishedCourses.map(renderInstructorCourseCard).join("") || `<p class="empty">No published courses.</p>`}
+      </div>
+    </section>
+    <section class="instructor-course-section unpublished-section">
+      <div class="instructor-course-section-head">
+        <h2>Unpublished Courses <span>(${unpublishedCourses.length})</span></h2>
+        <p>These courses remain hidden from students until an instructor publishes them.</p>
+      </div>
+      <div class="instructor-course-grid">
+        ${unpublishedCourses.map(renderInstructorCourseCard).join("") || `<p class="empty">No unpublished courses.</p>`}
+      </div>
+    </section>
+  `;
+  const adminBody = `
     <div class="page-head">
       <div>
         <h1>Programs and Courses</h1>
@@ -7588,7 +7639,7 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
       }) : ""}
     </section>
   `;
-  render(req, res, "Courses", body);
+  render(req, res, req.user.role === "instructor" ? "Instructor Course Dashboard" : "Courses", req.user.role === "instructor" ? instructorBody : adminBody);
 });
 
 app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (req, res) => {
