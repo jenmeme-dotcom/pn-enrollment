@@ -1566,10 +1566,49 @@ function lessonQuizQuestions(lesson = {}) {
   }
 }
 
-function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, instructor = false, baseHref = "#", quizGrade = null, courseId = null }) {
+function examSettingsForLesson(lesson = {}) {
+  const title = String(lesson.title || "");
+  if (/Midterm Exam 1/i.test(title)) return { label: "Midterm Exam 1", minutes: 30, opensAt: "2026-07-29T00:00:00-04:00", closesAt: "2026-08-05T23:59:59-04:00" };
+  if (/Midterm Exam 2/i.test(title)) return { label: "Midterm Exam 2", minutes: 30, opensAt: "2026-09-02T00:00:00-04:00", closesAt: "2026-09-08T23:59:59-04:00" };
+  if (/Final Comprehensive Exam/i.test(title)) return { label: "Final Comprehensive Exam", minutes: 50, opensAt: "2026-09-09T00:00:00-04:00", closesAt: "2026-09-09T23:59:59-04:00" };
+  return null;
+}
+
+function examDateTimeLabel(value) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+    timeZone: "America/New_York", timeZoneName: "short"
+  }).format(new Date(value));
+}
+
+function storedDateMilliseconds(value) {
+  if (!value) return 0;
+  const normalized = /(?:Z|[+-]\d\d:\d\d)$/.test(String(value)) ? String(value) : `${String(value).replace(" ", "T")}Z`;
+  return new Date(normalized).getTime();
+}
+
+function renderExamInstructions(settings) {
+  return `
+    <div class="exam-instructions">
+      <h3>Read before starting</h3>
+      <ul>
+        <li>This is an individual, closed-book examination. Do not use notes, textbooks, websites, artificial intelligence tools, phones, messaging, or help from another person.</li>
+        <li>Do not copy, photograph, record, share, or discuss exam questions or answers.</li>
+        <li>You have <strong>${escapeHtml(settings.minutes)} minutes</strong>. Complete the entire exam in one sitting.</li>
+        <li>The timer cannot be paused. You cannot restart the exam or receive another attempt after selecting Start Now.</li>
+        <li>Use the bathroom and address personal needs before starting. Do not leave the exam after it begins.</li>
+        <li>Unanswered questions are scored as incorrect. Submit before the timer reaches zero.</li>
+      </ul>
+      <p><strong>Availability:</strong> ${escapeHtml(examDateTimeLabel(settings.opensAt))} through ${escapeHtml(examDateTimeLabel(settings.closesAt))}.</p>
+    </div>
+  `;
+}
+
+function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, instructor = false, baseHref = "#", quizGrade = null, courseId = null, examAttempt = null }) {
   const quizMeta = quizDueAndPoints(lesson, gradeItems);
   const topic = quizChapterLabel(lesson.title);
   const questions = lessonQuizQuestions(lesson);
+  const examSettings = examSettingsForLesson(lesson);
   if (!instructor && quizGrade) {
     const percentage = quizMeta.points ? Math.round((Number(quizGrade.score || 0) / Number(quizMeta.points)) * 100) : 0;
     const resultMatch = String(quizGrade.note || "").match(/(\d+) of (\d+) correct/i);
@@ -1582,6 +1621,34 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
         <a class="button" href="${escapeHtml(baseHref)}?view=grades">View Grade</a>
       </div>
     `;
+  }
+  if (!instructor && examSettings) {
+    const now = Date.now();
+    const opensAt = new Date(examSettings.opensAt).getTime();
+    const closesAt = new Date(examSettings.closesAt).getTime();
+    const attemptExpiresAt = storedDateMilliseconds(examAttempt?.expires_at);
+    if (now < opensAt) {
+      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Exam not open</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamInstructions(examSettings)}<p class="exam-gate-message">Return during the availability period to begin.</p></div>`;
+    }
+    if (now > closesAt) {
+      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Exam closed</span><h2>${escapeHtml(examSettings.label)}</h2><p>This examination closed on ${escapeHtml(examDateTimeLabel(examSettings.closesAt))}. Contact your instructor if you need assistance.</p></div>`;
+    }
+    if (!examAttempt) {
+      return `
+        <div class="lesson-action-card exam-gate-card">
+          <span class="quiz-submitted-kicker">Ready to begin?</span>
+          <h2>${escapeHtml(examSettings.label)}</h2>
+          ${renderExamInstructions(examSettings)}
+          <form method="post" action="/student/enrollments/${enrollmentId}/exams/${lesson.id}/start">
+            <label class="exam-confirmation"><input type="checkbox" required> I have read these instructions, understand the academic-integrity requirements, and am ready to complete the exam in one sitting.</label>
+            <button class="button exam-start-button" type="submit">Start Now</button>
+          </form>
+        </div>
+      `;
+    }
+    if (examAttempt.status !== "in_progress" || now >= attemptExpiresAt) {
+      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Attempt ended</span><h2>${escapeHtml(examSettings.label)}</h2><p>This one-sitting examination attempt has ended and cannot be reopened. View Grades for the recorded result or contact your instructor.</p><a class="button" href="${escapeHtml(baseHref)}?view=grades">View Grades</a></div>`;
+    }
   }
   const questionFields = questions.length ? questions.map((question, questionIndex) => `
     <fieldset class="graded-quiz-question" data-quiz-question="${questionIndex}" ${questionIndex === 0 ? "" : "hidden"}>
@@ -1606,9 +1673,10 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
           <div><dt>Points</dt><dd>${escapeHtml(quizMeta.points)}</dd></div>
         </dl>
       </div>
-      <p class="quiz-instructions">Read each question and select the best answer.${instructor ? " This quiz page stays with the module item so students do not get redirected to grades." : ""}</p>
+      ${examSettings ? `${renderExamInstructions(examSettings)}${!instructor && examAttempt ? `<div class="exam-timer" role="timer" aria-live="polite" data-exam-expires="${escapeHtml(examAttempt.expires_at)}"><span>Time remaining</span><strong data-exam-countdown>--:--</strong></div>` : ""}` : `<p class="quiz-instructions">Read each question and select the best answer.${instructor ? " This quiz page stays with the module item so students do not get redirected to grades." : ""}</p>`}
       <form class="quiz-preview-form" method="post" action="${enrollmentId ? `/student/enrollments/${enrollmentId}/quiz-submit` : "#"}">
         ${enrollmentId ? `<input type="hidden" name="lessonId" value="${escapeHtml(lesson.id)}">` : ""}
+        ${examSettings ? `<input type="hidden" name="timedExam" value="1">` : ""}
         ${questions.length ? `<div class="quiz-page-status" aria-live="polite"><strong>Question <span data-quiz-current>1</span> of ${questions.length}</strong><span data-quiz-progress style="--quiz-progress:${100 / questions.length}%"></span></div>` : ""}
         ${questionFields}
         <div class="quiz-submit-row quiz-page-actions">
@@ -1635,6 +1703,8 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
             const submit = card.querySelector('[data-quiz-submit]');
             const current = card.querySelector('[data-quiz-current]');
             const progress = card.querySelector('[data-quiz-progress]');
+            const examTimer = card.querySelector('[data-exam-expires]');
+            const countdown = card.querySelector('[data-exam-countdown]');
             let page = 0;
             const showPage = (newPage) => {
               page = newPage;
@@ -1666,6 +1736,21 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
               pages[page].classList.remove('quiz-question-needs-answer');
               showPage(Math.min(pages.length - 1, page + 1));
             });
+            if (examTimer && countdown) {
+              const expiresAt = new Date(examTimer.dataset.examExpires).getTime();
+              let submitted = false;
+              const updateTimer = () => {
+                const seconds = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+                countdown.textContent = String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0');
+                examTimer.classList.toggle('exam-time-warning', seconds <= 300);
+                if (seconds === 0 && !submitted) {
+                  submitted = true;
+                  card.querySelector('.quiz-preview-form').submit();
+                }
+              };
+              updateTimer();
+              setInterval(updateTimer, 1000);
+            }
           })();
         </script>
       ` : ""}
@@ -1842,7 +1927,7 @@ function renderVideoAssignmentPanel({ lesson, enrollmentId = null, instructor = 
   `;
 }
 
-function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false, gradeItems = [], quizGrade = null, courseId = null }) {
+function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false, gradeItems = [], quizGrade = null, courseId = null, examAttempt = null }) {
   const title = String(lesson.title || "");
   const lower = title.toLowerCase();
   const kind = moduleItemKind(title);
@@ -1898,7 +1983,7 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
   }
 
   if (kind === "quiz") {
-    return renderQuizActionPanel({ lesson, gradeItems, enrollmentId, instructor, baseHref, quizGrade, courseId });
+    return renderQuizActionPanel({ lesson, gradeItems, enrollmentId, instructor, baseHref, quizGrade, courseId, examAttempt });
   }
 
   if (kind === "discussion") {
@@ -1940,6 +2025,9 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
   const selectedModule = moduleGroups.find((module) => module.id === selectedLesson.module_id) || moduleGroups[0];
   const selectedGradeItem = gradeItems.find((item) => normalizedTitle(item.title) === normalizedTitle(selectedLesson.title));
   const quizGrade = selectedGradeItem ? grades.find((grade) => grade.grade_item_id === selectedGradeItem.id) : null;
+  const examAttempt = !instructor && enrollmentId && examSettingsForLesson(selectedLesson)
+    ? db.prepare("SELECT * FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollmentId, selectedLesson.id)
+    : null;
   const lessonIsComplete = completedLessonIds.has(selectedLesson.id) || Boolean(quizGrade);
   return `
     <main class="canvas-course-main canvas-page-main">
@@ -1965,7 +2053,7 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
           ` : ""}
           ${renderCanvasLessonContent(selectedLesson.content, selectedLesson.title)}
         </div>
-        ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId })}
+        ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId, examAttempt })}
         ${!instructor && enrollmentId && moduleItemKind(selectedLesson.title) !== "quiz" && !db.prepare("SELECT id FROM video_assignments WHERE lesson_id = ?").get(selectedLesson.id) ? `
           <form method="post" action="/student/enrollments/${enrollmentId}/lesson-complete" class="canvas-complete-action">
             <input type="hidden" name="lessonId" value="${selectedLesson.id}">
@@ -11808,6 +11896,54 @@ app.post("/student/enrollments/:id/lesson-complete", requireAuth, requireRole("s
   res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
 });
 
+app.post("/student/enrollments/:id/exams/:lessonId/start", requireAuth, requireRole("student"), (req, res) => {
+  if (isClassLocked(req.user)) {
+    flash(req, "Class access is locked until the office marks your student file as organized.");
+    return res.redirect("/student");
+  }
+  const enrollmentId = Number(req.params.id);
+  const lessonId = Number(req.params.lessonId);
+  const enrollment = db.prepare(`
+    SELECT id, course_id FROM enrollments
+    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed')
+  `).get(enrollmentId, req.user.id);
+  if (!enrollment) return res.status(404).send("Enrollment not found");
+  const lesson = db.prepare(`
+    SELECT l.id, l.title FROM lessons l JOIN modules m ON m.id = l.module_id
+    WHERE l.id = ? AND m.course_id = ? AND COALESCE(l.published, 1) = 1
+  `).get(lessonId, enrollment.course_id);
+  const settings = examSettingsForLesson(lesson);
+  if (!lesson || !settings) return res.status(404).send("Exam not found");
+  const now = Date.now();
+  if (now < new Date(settings.opensAt).getTime()) {
+    flash(req, `This exam opens ${examDateTimeLabel(settings.opensAt)}.`);
+    return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
+  }
+  if (now > new Date(settings.closesAt).getTime()) {
+    flash(req, `This exam closed ${examDateTimeLabel(settings.closesAt)}.`);
+    return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
+  }
+  const gradeItem = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND title = ?").get(enrollment.course_id, lesson.title);
+  const existingGrade = gradeItem ? db.prepare("SELECT id FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").get(enrollmentId, gradeItem.id) : null;
+  if (existingGrade) {
+    flash(req, "This examination has already been submitted and graded.");
+    return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
+  }
+  const existingAttempt = db.prepare("SELECT * FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollmentId, lessonId);
+  if (existingAttempt && existingAttempt.status !== "in_progress") {
+    flash(req, "The one-sitting attempt for this examination has already ended.");
+    return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
+  }
+  if (!existingAttempt) {
+    const expiresAt = new Date(Math.min(now + settings.minutes * 60 * 1000, new Date(settings.closesAt).getTime())).toISOString();
+    db.prepare(`
+      INSERT INTO exam_attempts (enrollment_id, lesson_id, started_at, expires_at, status)
+      VALUES (?, ?, CURRENT_TIMESTAMP, ?, 'in_progress')
+    `).run(enrollmentId, lessonId, expiresAt);
+  }
+  res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
+});
+
 app.post("/student/enrollments/:id/quiz-submit", requireAuth, requireRole("student"), (req, res) => {
   if (isClassLocked(req.user)) {
     flash(req, "Class access is locked until the office marks your student file as organized.");
@@ -11831,13 +11967,34 @@ app.post("/student/enrollments/:id/quiz-submit", requireAuth, requireRole("stude
     flash(req, "This quiz does not have a published question set.");
     return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
   }
-  if (!questions.every((question, index) => req.body[`q${index + 1}`] !== undefined)) {
+  const examSettings = examSettingsForLesson(lesson);
+  const gradeItem = db.prepare("SELECT id, points_possible FROM grade_items WHERE course_id = ? AND title = ?").get(enrollment.course_id, lesson.title);
+  if (examSettings) {
+    const attempt = db.prepare("SELECT * FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollmentId, lessonId);
+    if (!attempt || attempt.status !== "in_progress") {
+      flash(req, "Start the examination from its instruction page before submitting answers.");
+      return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
+    }
+    const deadline = Math.min(storedDateMilliseconds(attempt.expires_at), new Date(examSettings.closesAt).getTime());
+    if (Date.now() > deadline + 5000) {
+      db.prepare("UPDATE exam_attempts SET status = 'expired', submitted_at = CURRENT_TIMESTAMP WHERE id = ?").run(attempt.id);
+      if (gradeItem) {
+        db.prepare(`
+          INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
+          VALUES (?, ?, 0, 'Timed examination expired before submission.', CURRENT_TIMESTAMP)
+          ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET score = 0, note = excluded.note, updated_at = CURRENT_TIMESTAMP
+        `).run(enrollmentId, gradeItem.id);
+      }
+      flash(req, "Time expired. The examination attempt has ended and unanswered questions were scored as incorrect.");
+      return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
+    }
+  }
+  if (!examSettings && !questions.every((question, index) => req.body[`q${index + 1}`] !== undefined)) {
     flash(req, "Answer every question before submitting the quiz.");
     return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
   }
   const correct = questions.reduce((total, question, index) =>
     total + (Number(req.body[`q${index + 1}`]) === question.answer ? 1 : 0), 0);
-  const gradeItem = db.prepare("SELECT id, points_possible FROM grade_items WHERE course_id = ? AND title = ?").get(enrollment.course_id, lesson.title);
   if (!gradeItem) {
     flash(req, `Quiz submitted: ${correct} of ${questions.length} correct. Instructor gradebook item was not found.`);
     return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
@@ -11849,6 +12006,10 @@ app.post("/student/enrollments/:id/quiz-submit", requireAuth, requireRole("stude
     ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET
       score = excluded.score, note = excluded.note, updated_at = CURRENT_TIMESTAMP
   `).run(enrollmentId, gradeItem.id, score, `Auto-graded: ${correct} of ${questions.length} correct.`);
+  if (examSettings) {
+    db.prepare("UPDATE exam_attempts SET status = 'submitted', submitted_at = CURRENT_TIMESTAMP WHERE enrollment_id = ? AND lesson_id = ?")
+      .run(enrollmentId, lessonId);
+  }
   db.prepare("INSERT OR IGNORE INTO lesson_completions (enrollment_id, lesson_id) VALUES (?, ?)").run(enrollmentId, lessonId);
   const completionCounts = db.prepare(`
     SELECT COUNT(DISTINCT l.id) AS total, COUNT(DISTINCT lc.lesson_id) AS completed

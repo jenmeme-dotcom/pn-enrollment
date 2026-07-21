@@ -109,14 +109,14 @@ const weeklyExtras = {
     itemLesson("Discussion", "[PN101 2026] Discussion 3: Clinical Documentation"),
     itemLesson("Assignment", "[PN101 2026] Nervous System Clinical Note", { files: ["PN101_nervous_system_clinical_note.pdf", "PN101_nervous_system_clinical_note.docx"] })
   ],
-  6: [itemLesson("Exam", "[PN101 2026] Midterm Exam 1 - Chapters 1-12", { note: quizNote("Midterm 1 assessment supplied by BMHI.", midtermOneQuestions), minutes: 75 })],
+  6: [itemLesson("Exam", "[PN101 2026] Midterm Exam 1 - Chapters 1-12", { note: quizNote("Midterm 1 assessment supplied by BMHI.", midtermOneQuestions), minutes: 30 })],
   7: [itemLesson("Assignment", "[PN101 2026] Cardiopulmonary and Hematology Case", { files: ["PN101_cardiopulmonary_hematology_case.pdf", "PN101_cardiopulmonary_hematology_case.docx"] })],
   8: [itemLesson("Discussion", "[PN101 2026] Discussion 4: Patient Education")],
   11: [
     itemLesson("Assignment", "[PN101 2026] Medical Term Flashcard Portfolio", { files: ["PN101_medical_term_flashcard_portfolio.pdf", "PN101_medical_term_flashcard_portfolio.docx"] }),
-    itemLesson("Exam", "[PN101 2026] Midterm Exam 2 - Chapters 13-22", { note: quizNote("Midterm 2 assessment supplied by BMHI.", midtermTwoQuestions), minutes: 75 })
+    itemLesson("Exam", "[PN101 2026] Midterm Exam 2 - Chapters 13-22", { note: quizNote("Midterm 2 assessment supplied by BMHI.", midtermTwoQuestions), minutes: 30 })
   ],
-  12: [itemLesson("Exam", "[PN101 2026] Final Comprehensive Exam - Chapters 1-22", { note: quizNote("Comprehensive final assessment supplied by BMHI.", finalExamQuestions), minutes: 120 })]
+  12: [itemLesson("Exam", "[PN101 2026] Final Comprehensive Exam - Chapters 1-22", { note: quizNote("Comprehensive final assessment supplied by BMHI.", finalExamQuestions), minutes: 50 })]
 };
 
 const weeklyModules = weeklyPlan.map((week) => ({

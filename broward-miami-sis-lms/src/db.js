@@ -181,6 +181,17 @@ function migrate() {
       UNIQUE(enrollment_id, grade_item_id)
     );
 
+    CREATE TABLE IF NOT EXISTS exam_attempts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+      lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+      started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      expires_at TEXT NOT NULL,
+      submitted_at TEXT,
+      status TEXT NOT NULL DEFAULT 'in_progress' CHECK(status IN ('in_progress','submitted','expired')),
+      UNIQUE(enrollment_id, lesson_id)
+    );
+
     CREATE TABLE IF NOT EXISTS assignment_rubrics (
       grade_item_id INTEGER PRIMARY KEY REFERENCES grade_items(id) ON DELETE CASCADE,
       rubric_json TEXT NOT NULL,
