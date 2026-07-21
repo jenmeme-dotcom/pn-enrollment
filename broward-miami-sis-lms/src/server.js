@@ -9785,26 +9785,43 @@ app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
         ${stat("Total clock hours", String(totalHours))}
       </section>
 
-      <article class="student-panel courses-panel" style="margin-top:12px">
-        <h2>My Enrolled Courses</h2>
-        <div class="student-course-list">
-          ${enrollments.map((row) => `
-            <div class="student-course-row">
-              <div>
-                <strong>${escapeHtml(row.title)}</strong>
-                <small>${escapeHtml(row.category)} · ${escapeHtml(row.credential_type)} · ${escapeHtml(row.delivery_mode)}</small>
-                <small>${escapeHtml(row.hours)} clock hours · ${escapeHtml(row.status)}</small>
-              </div>
-              <div>
-                ${progressBar(row.progress)}
-                <small>${escapeHtml(row.progress)}% complete</small>
-              </div>
-              ${isClassLocked(req.user) ? lockedButton("Locked") : `<a class="button small" href="/student/enrollments/${row.id}">Open</a>`}
-              ${row.credential_id ? `<a class="button small ghost" href="/credentials/${row.credential_id}/print">Credential</a>` : ""}
-            </div>
-          `).join("") || `<p class="empty">No course enrollments yet. Use registration to add an available course.</p>`}
+      <section class="student-courses-card-section">
+        <div class="student-courses-card-heading">
+          <div>
+            <p class="eyebrow">Your learning</p>
+            <h2>My Enrolled Courses</h2>
+          </div>
+          <span>${escapeHtml(enrollments.length)} course${enrollments.length === 1 ? "" : "s"}</span>
         </div>
-      </article>
+        <div class="student-course-card-grid">
+          ${enrollments.map((row, index) => `
+            <article class="student-course-card tone-${(index % 6) + 1}">
+              <div class="student-course-card-banner">
+                <img src="/assets/healthcare-students-login.png" alt="">
+                <span class="student-course-card-status ${escapeHtml(row.status)}">${escapeHtml(row.status)}</span>
+                <strong>${escapeHtml(row.category)}</strong>
+              </div>
+              <div class="student-course-card-body">
+                <h3>${escapeHtml(row.title)}</h3>
+                <p>${escapeHtml(row.description || "Open the course to review lessons, assignments, and learning resources.")}</p>
+                <dl class="student-course-card-meta">
+                  <div><dt>Hours</dt><dd>${escapeHtml(row.hours)} clock hours</dd></div>
+                  <div><dt>Format</dt><dd>${escapeHtml(row.delivery_mode)}</dd></div>
+                  <div><dt>Credential</dt><dd>${escapeHtml(row.credential_type)}</dd></div>
+                </dl>
+                <div class="student-course-card-progress">
+                  <div><strong>Course progress</strong><span>${escapeHtml(row.progress)}%</span></div>
+                  ${progressBar(row.progress)}
+                </div>
+                <div class="student-course-card-actions">
+                  ${isClassLocked(req.user) ? lockedButton("Course Locked") : `<a class="button" href="/student/enrollments/${row.id}">Open Course</a>`}
+                  ${row.credential_id ? `<a class="button ghost" href="/credentials/${row.credential_id}/print">View Credential</a>` : ""}
+                </div>
+              </div>
+            </article>
+          `).join("") || `<article class="student-panel"><p class="empty">No course enrollments yet. Use registration to add an available course.</p></article>`}
+        </div>
+      </section>
     </section>
   `;
   render(req, res, "Enrolled Courses", body, { studentPortal: true, activeStudentNav: "courses" });
