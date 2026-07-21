@@ -4484,6 +4484,18 @@ button.small {
   display: grid;
 }
 
+.canvas-module-block.is-collapsed .canvas-module-items {
+  display: none;
+}
+
+.canvas-module-block.is-collapsed .module-caret {
+  transform: rotate(-90deg);
+}
+
+.module-caret {
+  transition: transform 160ms ease;
+}
+
 .canvas-module-row {
   background: white;
   border-bottom: 1px solid #edf0f2;

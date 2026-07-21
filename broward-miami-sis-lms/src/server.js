@@ -1220,8 +1220,8 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
       <div class="canvas-modules-toolbar">
         <span></span>
         ${instructor ? `<a class="canvas-top-button" href="${escapeHtml(baseHref)}">View as Student</a>` : `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=syllabus">Immersive Reader</a>`}
-        <button type="button">Collapse All</button>
-        <button type="button">View Progress</button>
+        <button type="button" data-collapse-modules aria-expanded="true">Collapse All</button>
+        <a href="${escapeHtml(baseHref)}?view=grades">View Progress</a>
         <button type="button"><span class="canvas-published-dot"></span> Publish All</button>
         ${instructor && courseId ? `<a class="canvas-module-add" href="/admin/courses/${courseId}/tools">+ Module</a>` : ""}
         <button type="button" aria-label="More options">⋮</button>
@@ -1273,6 +1273,25 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
           </section>
         `}
       </div>
+      <script>
+        (() => {
+          const page = document.currentScript.closest('.canvas-modules-main');
+          if (!page) return;
+          const collapseButton = page.querySelector('[data-collapse-modules]');
+          const modules = [...page.querySelectorAll('.canvas-module-block')];
+          if (!collapseButton || !modules.length) return;
+
+          const setCollapsed = (collapsed) => {
+            modules.forEach((module) => module.classList.toggle('is-collapsed', collapsed));
+            collapseButton.textContent = collapsed ? 'Expand All' : 'Collapse All';
+            collapseButton.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+          };
+
+          collapseButton.addEventListener('click', () => {
+            setCollapsed(collapseButton.getAttribute('aria-expanded') === 'true');
+          });
+        })();
+      </script>
     </main>
   `;
 }
