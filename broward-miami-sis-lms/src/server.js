@@ -4607,6 +4607,7 @@ app.get("/student/photo-required", requireAuth, requireRole("student"), (req, re
         <div class="required-photo-preview" aria-hidden="true">
           <img src="/assets/bmhi-favicon.png" alt="">
           <span>Replace this school logo with your photo</span>
+          <strong class="required-photo-background-rule">Plain white photo background required</strong>
         </div>
         <div class="required-photo-content">
           <p class="eyebrow">Required account setup</p>
@@ -4616,6 +4617,7 @@ app.get("/student/photo-required", requireAuth, requireRole("student"), (req, re
             <strong>Photo requirements</strong>
             <ul>
               <li>Your face must be clearly visible.</li>
+              <li><strong>The photo must have a plain white background.</strong></li>
               <li>Use a recent individual photo, not the school logo or a group picture.</li>
               <li>Accepted formats: JPG, PNG, or WebP.</li>
               <li>Maximum file size: 25 MB.</li>
@@ -4628,7 +4630,7 @@ app.get("/student/photo-required", requireAuth, requireRole("student"), (req, re
             </label>
             <label class="required-photo-confirmation">
               <input type="checkbox" name="photoConfirmation" value="yes" required>
-              <span>I confirm this is a current photo of me and may be used as my student portal profile photo.</span>
+              <span>I confirm this is a current photo of me, my face is clearly visible, and the photo has a plain white background.</span>
             </label>
             <button class="button" type="submit">Upload Photo and Enter Portal</button>
           </form>
@@ -4668,7 +4670,7 @@ app.post("/student/photo-required", requireAuth, requireRole("student"), (req, r
     }
     if (req.body.photoConfirmation !== "yes") {
       removeRejectedUpload();
-      flash(req, "Confirm that the uploaded image is a current photo of you.");
+      flash(req, "Confirm that the uploaded image is a current photo of you with a plain white background.");
       return res.redirect("/student/photo-required");
     }
     db.prepare("UPDATE users SET photo_storage_name = ?, photo_original_name = ? WHERE id = ? AND role = 'student'")

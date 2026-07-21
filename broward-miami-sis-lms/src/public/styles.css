@@ -873,6 +873,14 @@ nav a {
   line-height: 1.4;
 }
 
+.required-photo-background-rule {
+  background: white;
+  border-radius: 999px;
+  color: #083d46;
+  font-size: 13px;
+  padding: 9px 14px;
+}
+
 .required-photo-content {
   padding: 42px;
 }
