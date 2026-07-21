@@ -840,6 +840,21 @@ function seed() {
   // Update every live PN101 assessment in place. This preserves lesson IDs,
   // enrollments, completion links, submissions, and existing gradebook history.
   const pn101CourseDefinition = courses.find((course) => course.slug === "medical-terminology");
+  const pn101CourseRow = db.prepare("SELECT id FROM courses WHERE slug = 'medical-terminology'").get();
+  if (pn101CourseRow) {
+    const renamePn101Lesson = db.prepare(`
+      UPDATE lessons SET title = ?
+      WHERE title = ? AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
+    `);
+    const renamePn101GradeItem = db.prepare("UPDATE grade_items SET title = ? WHERE title = ? AND course_id = ?");
+    [
+      ["[PN101 2026] Midterm Exam 1 - Chapters 1-12", "[PN101 2026] Midterm Exam 1 - Chapters 1-4"],
+      ["[PN101 2026] Midterm Exam 2 - Chapters 13-22", "[PN101 2026] Midterm Exam 2 - Chapters 5-10"]
+    ].forEach(([nextTitle, priorTitle]) => {
+      renamePn101Lesson.run(nextTitle, priorTitle, pn101CourseRow.id);
+      renamePn101GradeItem.run(nextTitle, priorTitle, pn101CourseRow.id);
+    });
+  }
   const pn101AssessmentDefinitions = pn101CourseDefinition?.modules
     ?.flatMap((module) => module.lessons || [])
     .filter((lesson) => String(lesson.content || "").includes("QUIZ_DATA_BASE64:")) || [];
@@ -863,8 +878,88 @@ function seed() {
       AND title = ?
   `);
   (pn101CourseDefinition?.gradeItems || []).forEach((item) => {
-    updatePn101GradeItem.run(item.pointsPossible, item.dueDate || null, item.title);
+    const result = updatePn101GradeItem.run(item.pointsPossible, item.dueDate || null, item.title);
+    if (!result.changes && pn101CourseRow) {
+      insertGradeItem.run(pn101CourseRow.id, item.title, item.pointsPossible, item.dueDate || null);
+    }
   });
+
+  // Keep the active 12-week PN101 shell synchronized without deleting lesson,
+  // completion, submission, or grade IDs that enrolled students already use.
+  if (pn101CourseRow && pn101CourseDefinition?.modules?.length === 12) {
+    const existingPn101Modules = db.prepare("SELECT id, title FROM modules WHERE course_id = ? ORDER BY position, id").all(pn101CourseRow.id);
+    const moduleForWeek = new Map();
+    existingPn101Modules.forEach((module) => {
+      const week = Number(String(module.title).match(/Week\s+(\d+)/i)?.[1] || 0);
+      if (week >= 1 && week <= 12 && !moduleForWeek.has(week)) moduleForWeek.set(week, module);
+    });
+    const updatePn101Module = db.prepare("UPDATE modules SET title = ?, position = ? WHERE id = ?");
+    const updatePn101LessonPlacement = db.prepare(`
+      UPDATE lessons
+      SET module_id = ?, content = ?, external_url = ?, duration_minutes = ?, position = ?
+      WHERE id = ?
+    `);
+    pn101CourseDefinition.modules.forEach((moduleDefinition, index) => {
+      const week = index + 1;
+      let module = moduleForWeek.get(week);
+      if (!module) {
+        const id = insertModule.run(pn101CourseRow.id, moduleDefinition.title, week).lastInsertRowid;
+        module = { id, title: moduleDefinition.title };
+        moduleForWeek.set(week, module);
+      }
+      updatePn101Module.run(moduleDefinition.title, week, module.id);
+      moduleDefinition.lessons.forEach((lessonDefinition, lessonIndex) => {
+        let lesson = db.prepare(`
+          SELECT l.id FROM lessons l
+          JOIN modules m ON m.id = l.module_id
+          WHERE m.course_id = ? AND l.title = ?
+          ORDER BY l.id LIMIT 1
+        `).get(pn101CourseRow.id, lessonDefinition.title);
+        if (!lesson) {
+          const id = insertLesson.run(
+            module.id,
+            lessonDefinition.title,
+            lessonDefinition.content,
+            lessonDefinition.externalUrl || null,
+            lessonDefinition.durationMinutes || 45,
+            lessonIndex + 1
+          ).lastInsertRowid;
+          lesson = { id };
+        }
+        updatePn101LessonPlacement.run(
+          module.id,
+          lessonDefinition.content,
+          lessonDefinition.externalUrl || null,
+          lessonDefinition.durationMinutes || 45,
+          lessonIndex + 1,
+          lesson.id
+        );
+      });
+    });
+    db.prepare(`
+      DELETE FROM modules
+      WHERE course_id = ?
+        AND title LIKE '%Chapter Quiz Bank%'
+        AND NOT EXISTS (SELECT 1 FROM lessons WHERE lessons.module_id = modules.id)
+    `).run(pn101CourseRow.id);
+
+    const updateSeedAnnouncement = db.prepare(`
+      UPDATE announcements SET title = ?, body = ?
+      WHERE course_id = ? AND title = ?
+    `);
+    updateSeedAnnouncement.run(
+      "PN 101 Weekly Reminder: Due This Week (June 28–July 4, 2026)",
+      "Complete Chapters 1–2, Quiz 1, Quiz 2, the Word Structure Worksheet, the Body Organization and Oncology Exercise, Discussion 1, and the syllabus acknowledgment by the dates listed in the syllabus.",
+      pn101CourseRow.id,
+      "PN 101 Week 2 Reminder: Due This Week (June 29-July 5, 2026)"
+    );
+    updateSeedAnnouncement.run(
+      "PN 101 Weekly Reminder: Due This Week (July 5–11, 2026)",
+      "Complete Chapters 3–4, Quiz 3, Quiz 4, the Suffix Flashcard Set, the Prefix Drill, and Discussion 2 by the dates listed in the syllabus.",
+      pn101CourseRow.id,
+      "PN 101 Week 3 Reminder: Due This Week (July 6-12, 2026)"
+    );
+  }
 
   const fundamentals = db.prepare("SELECT id FROM courses WHERE slug = ?").get("fundamental-nursing-skills-and-concepts-new-cohort");
   if (fundamentals) {
