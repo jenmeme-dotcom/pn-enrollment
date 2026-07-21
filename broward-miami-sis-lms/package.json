@@ -10,6 +10,7 @@
     "seed": "node --no-warnings src/seed.js",
     "build:canvas:fundamentals": "node --no-warnings scripts/build-fundamentals-canvas.js",
     "build:canvas:intro-nursing": "node --no-warnings scripts/build-intro-nursing-canvas.js",
+    "build:canvas:long-term-care": "node --no-warnings scripts/build-long-term-care-canvas.js",
     "publish:canvas:intro-nursing": "node --no-warnings scripts/publish-intro-nursing-to-canvas.js",
     "import:canvas:discussions": "node --no-warnings scripts/import-canvas-discussions.js"
   },

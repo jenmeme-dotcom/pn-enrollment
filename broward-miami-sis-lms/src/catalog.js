@@ -2,6 +2,7 @@ const { aclsCourse } = require("./aclsBuildout");
 const { fundamentalsCourse } = require("./fundamentalsBuildout");
 const { homeHealthAideEnglishCourse, homeHealthAideCreoleCourse } = require("./homeHealthAideBuildout");
 const { introNursingCourse } = require("./introNursingBuildout");
+const { longTermCareNursingCourse } = require("./longTermCareNursingBuildout");
 const { medicalAssistantCourse } = require("./medicalAssistantBuildout");
 const { medicalBillingCodingCourse } = require("./medicalBillingCodingBuildout");
 const { medicalTerminologyCourse } = require("./medicalTerminologyBuildout");
@@ -122,7 +123,8 @@ const courses = [
       { title: "Quiz 4: Body Systems Integration", pointsPossible: 50, dueDate: "2026-09-21" }
     ]
   },
-  introNursingCourse
+  introNursingCourse,
+  longTermCareNursingCourse
 ];
 
 const feeSchedule = [

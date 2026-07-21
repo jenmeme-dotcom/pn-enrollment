@@ -15,6 +15,10 @@ const courseMappings = [
   {
     slug: "introduction-to-nursing-practical-nursing",
     canvasCourseId: process.env.CANVAS_INTRO_NURSING_COURSE_ID || process.env.CANVAS_PN102_COURSE_ID || "282"
+  },
+  {
+    slug: "long-term-care-nursing-pn103",
+    canvasCourseId: process.env.CANVAS_LONG_TERM_CARE_NURSING_COURSE_ID || process.env.CANVAS_PN103_COURSE_ID
   }
 ].filter((mapping) => mapping.canvasCourseId);
 

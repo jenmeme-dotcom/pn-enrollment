@@ -1,0 +1,515 @@
+{
+  "course": {
+    "name": "Long-Term Care Nursing",
+    "course_code": "PN 103",
+    "license": "private",
+    "is_public": false
+  },
+  "pages": [
+    {
+      "title": "Course Home",
+      "published": true,
+      "front_page": true,
+      "file": "course-home.html"
+    },
+    {
+      "title": "Course Syllabus",
+      "published": true,
+      "file": "course-syllabus.html"
+    },
+    {
+      "title": "Weekly Course Schedule",
+      "published": true,
+      "file": "weekly-schedule.html"
+    }
+  ],
+  "modules": [
+    {
+      "title": "PN103 2026 - Orientation and Course Resources",
+      "lessons": [
+        {
+          "title": "[PN103 2026] Course Welcome and Syllabus",
+          "durationMinutes": 45,
+          "content": "PN 103 Long-Term Care Nursing prepares practical nursing students to provide safe, respectful, resident-centered care in long-term care, skilled nursing, rehabilitation, assisted living, dementia care, and end-of-life settings. The course emphasizes the practical nurse role, resident rights, communication, safety, infection prevention, mobility, personal care, nutrition, elimination, restorative care, common chronic conditions, dementia, emergencies, documentation, and professional accountability.\n\nRequired text: Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition.\n\nStudents review the syllabus, weekly schedule, grade items, discussion expectations, calendar due dates, attendance expectations, and long-term care professional standards."
+        },
+        {
+          "title": "[PN103 2026] Syllabus and Course Orientation Acknowledgment",
+          "durationMinutes": 20,
+          "content": "Canvas item type: Assignment. Students acknowledge the syllabus, course calendar, required readings, professionalism expectations, discussion requirements, and instructor communication policy."
+        },
+        {
+          "title": "Mosby's Long-Term Care Textbook PDF",
+          "durationMinutes": 20,
+          "content": "Canvas item type: Attachment.\n\nCourse file:\n- mosbys-long-term-care-nursing-assistants-8th-edition.pdf: /course-materials/long-term-care-nursing-pn103/mosbys-long-term-care-nursing-assistants-8th-edition.pdf\n\nUse only the selected assigned chapters listed in each weekly module unless the instructor assigns additional review."
+        }
+      ]
+    },
+    {
+      "title": "Week 1: Long-Term Care Foundations, Resident Rights, and Professional Accountability",
+      "lessons": [
+        {
+          "title": "Weekly Overview and Selected Reading",
+          "durationMinutes": 45,
+          "content": "Long-term care settings, nursing team roles, delegation, resident rights, ethics, laws, abuse prevention, work ethics, and professional behavior.\n\nReading: Selected readings from Chapters 1, 2, and 3 from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition.\n\nObjectives:\n- Describe major long-term care settings and the practical nurse's place on the team.\n- Connect resident rights, dignity, quality of life, and abuse prevention to daily care.\n- Identify professional behaviors expected in class, lab, clinical, and resident-care settings."
+        },
+        {
+          "title": "[PN103 2026] Week 1 Discussion: Dignity, Rights, and the Long-Term Care Nurse",
+          "durationMinutes": 30,
+          "content": "Canvas item type: Discussion.\n\nPrompt: Describe one resident right that must be protected in long-term care. Explain how a practical nurse can support that right while still maintaining safety and following the care plan.\n\nDue: 2026-06-28 at 11:59 PM."
+        },
+        {
+          "title": "[PN103 2026] Long-Term Care Role and Resident Rights Scenario",
+          "durationMinutes": 45,
+          "content": "Canvas item type: Assignment.\n\nAnalyze a short resident-care scenario. Identify the resident right involved, the nurse's responsibility, what should be reported, and how the team can protect dignity.\n\nDue: 2026-06-28 at 11:59 PM."
+        }
+      ]
+    },
+    {
+      "title": "Week 2: Communication, Nursing Process, Culture, Aging, and Person-Centered Care",
+      "lessons": [
+        {
+          "title": "Weekly Overview and Selected Reading",
+          "durationMinutes": 45,
+          "content": "Communication with residents and the health team, assisting with the nursing process, understanding the whole resident, cultural and religious considerations, body systems review, aging, and sexuality.\n\nReading: Selected readings from Chapters 4, 5, 6, 7, 8, 9, and 10 from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition.\n\nObjectives:\n- Use clear reporting and respectful communication with residents, families, and the care team.\n- Explain how practical nurses contribute to data collection, implementation, evaluation, and care-plan updates.\n- Describe how culture, religion, aging, and sexuality affect resident-centered care."
+        },
+        {
+          "title": "[PN103 2026] Week 2 Discussion: Seeing the Whole Resident",
+          "durationMinutes": 30,
+          "content": "Canvas item type: Discussion.\n\nPrompt: Long-term care residents have histories, preferences, beliefs, relationships, and goals. Choose one communication strategy that helps you learn what matters to a resident and explain why it supports better care.\n\nDue: 2026-07-05 at 11:59 PM."
+        },
+        {
+          "title": "[PN103 2026] Resident Profile and Communication Plan",
+          "durationMinutes": 45,
+          "content": "Canvas item type: Assignment.\n\nCreate a brief resident profile from a case scenario and write two communication approaches that protect dignity, culture, preferences, privacy, and safety.\n\nDue: 2026-07-05 at 11:59 PM."
+        }
+      ]
+    },
+    {
+      "title": "Week 3: Safety, Falls, Restraint Alternatives, Infection Prevention, and Safe Mobility",
+      "lessons": [
+        {
+          "title": "Weekly Overview and Selected Reading",
+          "durationMinutes": 45,
+          "content": "Environmental safety, fall prevention, restraint alternatives, standard precautions, infection prevention, body mechanics, transfers, and safe resident handling.\n\nReading: Selected readings from Chapters 11, 12, 13, 14, and 15 from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition.\n\nObjectives:\n- Identify common safety hazards and fall-risk factors in long-term care.\n- Explain why restraint alternatives and least-restrictive interventions are required.\n- Apply infection prevention, body mechanics, transfer safety, and reporting expectations."
+        },
+        {
+          "title": "[PN103 2026] Week 3 Discussion: Preventing Harm Before It Happens",
+          "durationMinutes": 30,
+          "content": "Canvas item type: Discussion.\n\nPrompt: Choose one preventable harm in long-term care, such as a fall, infection, unsafe transfer, or restraint-related injury. Explain what the nurse should observe, do, report, and document.\n\nDue: 2026-07-12 at 11:59 PM."
+        },
+        {
+          "title": "[PN103 2026] Safety and Infection Prevention Room Audit",
+          "durationMinutes": 45,
+          "content": "Canvas item type: Assignment.\n\nComplete a case-based room safety audit. Identify fall risks, infection risks, transfer concerns, restraint-alternative options, and priority reporting needs.\n\nDue: 2026-07-12 at 11:59 PM."
+        }
+      ]
+    },
+    {
+      "title": "Week 4: Resident Unit, Bedmaking, Hygiene, Grooming, Nutrition, Fluids, and Supportive Care",
+      "lessons": [
+        {
+          "title": "Weekly Overview and Selected Reading",
+          "durationMinutes": 45,
+          "content": "Resident room safety and comfort, bedmaking, bathing, oral care, grooming, nutrition, hydration, feeding assistance, aspiration precautions, nutritional support, and IV therapy observation limits.\n\nReading: Selected readings from Chapters 16, 17, 18, 19, 20, and 21 from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition.\n\nObjectives:\n- Describe care that maintains comfort, cleanliness, warmth, privacy, and resident choice.\n- Identify nutrition, hydration, dysphagia, aspiration, intake/output, and feeding-assistance concerns.\n- Explain what practical nurses must monitor and report related to nutritional support and IV therapy in long-term care."
+        },
+        {
+          "title": "[PN103 2026] Week 4 Discussion: Basic Care Is Skilled Care",
+          "durationMinutes": 30,
+          "content": "Canvas item type: Discussion.\n\nPrompt: Basic care can prevent serious complications. Choose hygiene, nutrition, hydration, or room comfort and explain how careful nursing care supports safety, dignity, and quality of life.\n\nDue: 2026-07-19 at 11:59 PM."
+        },
+        {
+          "title": "[PN103 2026] ADL, Nutrition, and Hydration Care Plan",
+          "durationMinutes": 45,
+          "content": "Canvas item type: Assignment.\n\nUse a resident scenario to identify ADL needs, nutrition/hydration risks, safety precautions, observations to report, and resident-centered comfort measures.\n\nDue: 2026-07-19 at 11:59 PM."
+        }
+      ]
+    },
+    {
+      "title": "Week 5: Elimination, Exercise, Activity, Comfort, Rest, Oxygen Needs, and Vital Signs",
+      "lessons": [
+        {
+          "title": "Weekly Overview and Selected Reading",
+          "durationMinutes": 45,
+          "content": "Urinary and bowel elimination, continence support, exercise, activity, comfort, rest, sleep, oxygen needs, respiratory therapies, and vital-sign measurement.\n\nReading: Selected readings from Chapters 22, 23, 24, 25, 26, and 27 from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition.\n\nObjectives:\n- Differentiate expected findings from changes in urinary, bowel, comfort, sleep, respiratory, and vital-sign status.\n- Promote independence and safety during elimination, activity, oxygen use, and rest.\n- Use timely reporting for abnormal findings and changes in condition."
+        },
+        {
+          "title": "[PN103 2026] Week 5 Discussion: Noticing Changes in Condition",
+          "durationMinutes": 30,
+          "content": "Canvas item type: Discussion.\n\nPrompt: Choose one change in condition related to elimination, breathing, pain, sleep, activity tolerance, or vital signs. Explain what you would notice, what questions you would ask, and what you would report.\n\nDue: 2026-07-26 at 11:59 PM."
+        },
+        {
+          "title": "[PN103 2026] Elimination, Oxygen, and Vital Signs Case Worksheet",
+          "durationMinutes": 45,
+          "content": "Canvas item type: Assignment.\n\nInterpret a resident case with elimination changes, respiratory concerns, and vital-sign data. Identify priority findings, immediate nursing actions, and reporting language.\n\nDue: 2026-07-26 at 11:59 PM."
+        }
+      ]
+    },
+    {
+      "title": "Week 6: Physical Examination Support, Specimens, Admissions, Transfers, Discharges, and Midterm Review",
+      "lessons": [
+        {
+          "title": "Weekly Overview and Selected Reading",
+          "durationMinutes": 45,
+          "content": "Assisting with examinations, collecting and testing specimens within policy, admission routines, room transfers, discharges, continuity of care, documentation, and midterm synthesis.\n\nReading: Selected readings from Chapters 28, 29, and 30; review Chapters 1-27 from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition.\n\nObjectives:\n- Prepare residents and the care environment for examinations and ordered specimen collection.\n- Explain how admissions, transfers, and discharges affect safety, communication, and resident adjustment.\n- Synthesize Weeks 1-6 concepts for the midterm assessment."
+        },
+        {
+          "title": "[PN103 2026] Week 6 Discussion: Smooth Transitions of Care",
+          "durationMinutes": 30,
+          "content": "Canvas item type: Discussion.\n\nPrompt: Admissions, room transfers, and discharges can be stressful for residents. Explain one nursing action that can reduce confusion, protect safety, or improve continuity of care.\n\nDue: 2026-08-02 at 11:59 PM."
+        },
+        {
+          "title": "[PN103 2026] Midterm Exam - Long-Term Care Foundations and Daily Care",
+          "durationMinutes": 90,
+          "content": "Canvas item type: Exam.\n\nMidterm exam covering Weeks 1-6: resident rights, communication, safety, infection prevention, mobility, personal care, nutrition, elimination, comfort, oxygen needs, vital signs, specimens, and transitions.\n\nDue: 2026-08-02 at 11:59 PM."
+        }
+      ]
+    },
+    {
+      "title": "Week 7: Wound Care, Pressure Injuries, Sensory Problems, Cancer, Immune, and Skin Disorders",
+      "lessons": [
+        {
+          "title": "Weekly Overview and Selected Reading",
+          "durationMinutes": 45,
+          "content": "Wound observation, nonsterile dressing support within scope, pressure-injury risk, prevention, skin changes, sensory impairment, cancer, immune conditions, and skin disorders.\n\nReading: Selected readings from Chapters 31, 32, 33, and 34 from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition.\n\nObjectives:\n- Recognize risk factors, warning signs, and prevention strategies for wounds and pressure injuries.\n- Support residents with hearing, speech, vision, skin, immune, or cancer-related needs.\n- Report skin changes and wound concerns promptly using objective language."
+        },
+        {
+          "title": "[PN103 2026] Week 7 Discussion: Skin Integrity and Quality of Life",
+          "durationMinutes": 30,
+          "content": "Canvas item type: Discussion.\n\nPrompt: Pressure injury prevention is daily nursing work. Choose one prevention strategy and explain how it protects both physical safety and resident dignity.\n\nDue: 2026-08-09 at 11:59 PM."
+        },
+        {
+          "title": "[PN103 2026] Skin Integrity and Pressure Injury Prevention Map",
+          "durationMinutes": 45,
+          "content": "Canvas item type: Assignment.\n\nCreate a prevention map for a high-risk resident. Include repositioning, skin inspection, nutrition/hydration, moisture, mobility, sensory needs, reporting, and documentation.\n\nDue: 2026-08-09 at 11:59 PM."
+        }
+      ]
+    },
+    {
+      "title": "Week 8: Common Chronic Disorders Across Body Systems",
+      "lessons": [
+        {
+          "title": "Weekly Overview and Selected Reading",
+          "durationMinutes": 45,
+          "content": "Nervous, musculoskeletal, cardiovascular, respiratory, digestive, endocrine, urinary, and reproductive disorders commonly affecting long-term care residents.\n\nReading: Selected readings from Chapters 35, 36, 37, and 38 from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition.\n\nObjectives:\n- Identify common long-term care conditions and related nursing observations.\n- Connect chronic disease changes with safety, mobility, nutrition, elimination, oxygenation, and comfort needs.\n- Use priority reporting for symptoms suggesting decline or acute change."
+        },
+        {
+          "title": "[PN103 2026] Week 8 Discussion: Chronic Conditions and Daily Nursing Priorities",
+          "durationMinutes": 30,
+          "content": "Canvas item type: Discussion.\n\nPrompt: Choose one chronic condition common in long-term care. Explain what daily nursing observations matter most and how those observations can prevent complications.\n\nDue: 2026-08-16 at 11:59 PM."
+        },
+        {
+          "title": "[PN103 2026] Chronic Disorder Nursing Priorities Case",
+          "durationMinutes": 45,
+          "content": "Canvas item type: Assignment.\n\nAnalyze a resident with multiple chronic disorders. Identify three priority nursing concerns, what to monitor, when to report, and how to support independence.\n\nDue: 2026-08-16 at 11:59 PM."
+        }
+      ]
+    },
+    {
+      "title": "Week 9: Mental Health, Confusion, Dementia, and Developmental Disabilities",
+      "lessons": [
+        {
+          "title": "Weekly Overview and Selected Reading",
+          "durationMinutes": 45,
+          "content": "Mental health disorders, confusion, delirium, dementia, Alzheimer's disease, behavioral expressions, communication strategies, safety, developmental disabilities, and family support.\n\nReading: Selected readings from Chapters 39, 40, and 41 from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition.\n\nObjectives:\n- Differentiate confusion, dementia-related changes, and urgent changes that require reporting.\n- Use supportive communication for residents with dementia, mental health concerns, or developmental disabilities.\n- Plan care that reduces distress, protects safety, and maintains dignity."
+        },
+        {
+          "title": "[PN103 2026] Week 9 Discussion: Dementia Care With Dignity",
+          "durationMinutes": 30,
+          "content": "Canvas item type: Discussion.\n\nPrompt: Describe one communication or environmental strategy that can reduce distress for a resident with dementia. Explain why the strategy is respectful and safe.\n\nDue: 2026-08-23 at 11:59 PM."
+        },
+        {
+          "title": "[PN103 2026] Dementia and Mental Health Communication Plan",
+          "durationMinutes": 45,
+          "content": "Canvas item type: Assignment.\n\nBuild a care communication plan for a resident with confusion, dementia, anxiety, or another mental health concern. Include triggers, calming approaches, safety concerns, and reporting.\n\nDue: 2026-08-23 at 11:59 PM."
+        }
+      ]
+    },
+    {
+      "title": "Week 10: Rehabilitation, Restorative Nursing, Assisted Living, and Basic Emergency Care",
+      "lessons": [
+        {
+          "title": "Weekly Overview and Selected Reading",
+          "durationMinutes": 45,
+          "content": "Restorative nursing, rehabilitation goals, functional independence, assisted living service plans, transfers/discharges from assisted living, basic emergency response, stroke, seizure, burns, hemorrhage, shock, and BLS awareness.\n\nReading: Selected readings from Chapters 42, 43, and 44 from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition.\n\nObjectives:\n- Explain how restorative nursing supports independence and quality of life.\n- Compare long-term care and assisted living care priorities.\n- Recognize emergencies and describe immediate reporting and response expectations."
+        },
+        {
+          "title": "[PN103 2026] Week 10 Discussion: Restorative Care and Emergency Readiness",
+          "durationMinutes": 30,
+          "content": "Canvas item type: Discussion.\n\nPrompt: Choose restorative care or emergency readiness. Explain one practical action the nurse can take that helps the resident remain safe, functional, and respected.\n\nDue: 2026-08-30 at 11:59 PM."
+        },
+        {
+          "title": "[PN103 2026] Restorative Nursing and Emergency Response Worksheet",
+          "durationMinutes": 45,
+          "content": "Canvas item type: Assignment.\n\nComplete scenarios involving restorative goals and emergency recognition. Identify safe first actions, who to notify, what to document, and how to support the resident afterward.\n\nDue: 2026-08-30 at 11:59 PM."
+        }
+      ]
+    },
+    {
+      "title": "Week 11: End-of-Life Care, Family Support, Caregiver Wellness, and Comprehensive Review",
+      "lessons": [
+        {
+          "title": "Weekly Overview and Selected Reading",
+          "durationMinutes": 45,
+          "content": "Terminal illness, comfort needs, family support, legal issues, signs of death, postmortem care awareness, grief, caregiver wellness, and final review.\n\nReading: Selected readings from Chapter 45; review Chapters 1-44 from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition.\n\nObjectives:\n- Describe comfort-focused care and supportive communication at the end of life.\n- Identify legal, cultural, family, privacy, and dignity considerations in end-of-life care.\n- Review major course priorities before final assessment."
+        },
+        {
+          "title": "[PN103 2026] Week 11 Discussion: Comfort, Family, and Dignity at End of Life",
+          "durationMinutes": 30,
+          "content": "Canvas item type: Discussion.\n\nPrompt: End-of-life care requires skill and compassion. Describe one action that supports comfort or family presence while protecting dignity, privacy, and policy requirements.\n\nDue: 2026-09-06 at 11:59 PM."
+        },
+        {
+          "title": "[PN103 2026] End-of-Life Comfort and Family Support Reflection",
+          "durationMinutes": 45,
+          "content": "Canvas item type: Assignment.\n\nReflect on a case involving terminal illness. Identify comfort measures, family support, cultural considerations, reporting needs, and professional self-care.\n\nDue: 2026-09-06 at 11:59 PM."
+        }
+      ]
+    },
+    {
+      "title": "Week 12: Final Synthesis: Safe, Respectful Long-Term Care Nursing",
+      "lessons": [
+        {
+          "title": "Weekly Overview and Selected Reading",
+          "durationMinutes": 45,
+          "content": "Comprehensive synthesis of resident-centered long-term care nursing, safety, communication, chronic illness, dementia, restorative care, end-of-life care, and professional accountability.\n\nReading: Comprehensive review of selected course chapters from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition.\n\nObjectives:\n- Synthesize long-term care priorities into safe practical nursing judgment.\n- Use case-based reasoning to prioritize resident needs, reporting, documentation, and team communication.\n- Describe the professional habits needed for safe long-term care practice."
+        },
+        {
+          "title": "[PN103 2026] Week 12 Discussion: Professional Commitment to Long-Term Care",
+          "durationMinutes": 30,
+          "content": "Canvas item type: Discussion.\n\nPrompt: Identify one professional habit you will carry into long-term care clinical practice. Explain how it protects residents and strengthens the health care team.\n\nDue: 2026-09-09 at 11:59 PM."
+        },
+        {
+          "title": "[PN103 2026] Final Comprehensive Exam - Long-Term Care Nursing",
+          "durationMinutes": 90,
+          "content": "Canvas item type: Exam.\n\nCumulative final exam covering resident rights, safety, infection prevention, basic care, chronic conditions, dementia, restorative care, emergencies, end-of-life care, and professional accountability.\n\nDue: 2026-09-09 at 11:59 PM."
+        }
+      ]
+    },
+    {
+      "title": "PN103 2026 - Final Review and Course Completion",
+      "lessons": [
+        {
+          "title": "Comprehensive Final Review",
+          "durationMinutes": 90,
+          "content": "Review resident rights, communication, nursing process, culture, aging, safety, falls, restraints, infection prevention, mobility, ADLs, nutrition, elimination, oxygen needs, vital signs, wounds, pressure injuries, chronic disorders, mental health, dementia, developmental disabilities, restorative care, assisted living, emergencies, and end-of-life care."
+        },
+        {
+          "title": "[PN103 2026] Long-Term Care Participation and Professionalism",
+          "durationMinutes": 20,
+          "content": "Canvas item type: Assignment. Instructor evaluates preparation, participation, professional conduct, respectful communication, punctuality, and engagement with weekly long-term care discussions and case work."
+        }
+      ]
+    }
+  ],
+  "assignments": [
+    {
+      "title": "[PN103 2026] Syllabus and Course Orientation Acknowledgment",
+      "pointsPossible": 0,
+      "dueDate": "2026-06-28"
+    },
+    {
+      "title": "[PN103 2026] Week 1 Discussion: Dignity, Rights, and the Long-Term Care Nurse",
+      "pointsPossible": 10,
+      "dueDate": "2026-06-28"
+    },
+    {
+      "title": "[PN103 2026] Long-Term Care Role and Resident Rights Scenario",
+      "pointsPossible": 25,
+      "dueDate": "2026-06-28"
+    },
+    {
+      "title": "[PN103 2026] Week 2 Discussion: Seeing the Whole Resident",
+      "pointsPossible": 10,
+      "dueDate": "2026-07-05"
+    },
+    {
+      "title": "[PN103 2026] Resident Profile and Communication Plan",
+      "pointsPossible": 25,
+      "dueDate": "2026-07-05"
+    },
+    {
+      "title": "[PN103 2026] Week 3 Discussion: Preventing Harm Before It Happens",
+      "pointsPossible": 10,
+      "dueDate": "2026-07-12"
+    },
+    {
+      "title": "[PN103 2026] Safety and Infection Prevention Room Audit",
+      "pointsPossible": 25,
+      "dueDate": "2026-07-12"
+    },
+    {
+      "title": "[PN103 2026] Week 4 Discussion: Basic Care Is Skilled Care",
+      "pointsPossible": 10,
+      "dueDate": "2026-07-19"
+    },
+    {
+      "title": "[PN103 2026] ADL, Nutrition, and Hydration Care Plan",
+      "pointsPossible": 25,
+      "dueDate": "2026-07-19"
+    },
+    {
+      "title": "[PN103 2026] Week 5 Discussion: Noticing Changes in Condition",
+      "pointsPossible": 10,
+      "dueDate": "2026-07-26"
+    },
+    {
+      "title": "[PN103 2026] Elimination, Oxygen, and Vital Signs Case Worksheet",
+      "pointsPossible": 25,
+      "dueDate": "2026-07-26"
+    },
+    {
+      "title": "[PN103 2026] Week 6 Discussion: Smooth Transitions of Care",
+      "pointsPossible": 10,
+      "dueDate": "2026-08-02"
+    },
+    {
+      "title": "[PN103 2026] Midterm Exam - Long-Term Care Foundations and Daily Care",
+      "pointsPossible": 150,
+      "dueDate": "2026-08-02"
+    },
+    {
+      "title": "[PN103 2026] Week 7 Discussion: Skin Integrity and Quality of Life",
+      "pointsPossible": 10,
+      "dueDate": "2026-08-09"
+    },
+    {
+      "title": "[PN103 2026] Skin Integrity and Pressure Injury Prevention Map",
+      "pointsPossible": 25,
+      "dueDate": "2026-08-09"
+    },
+    {
+      "title": "[PN103 2026] Week 8 Discussion: Chronic Conditions and Daily Nursing Priorities",
+      "pointsPossible": 10,
+      "dueDate": "2026-08-16"
+    },
+    {
+      "title": "[PN103 2026] Chronic Disorder Nursing Priorities Case",
+      "pointsPossible": 25,
+      "dueDate": "2026-08-16"
+    },
+    {
+      "title": "[PN103 2026] Week 9 Discussion: Dementia Care With Dignity",
+      "pointsPossible": 10,
+      "dueDate": "2026-08-23"
+    },
+    {
+      "title": "[PN103 2026] Dementia and Mental Health Communication Plan",
+      "pointsPossible": 25,
+      "dueDate": "2026-08-23"
+    },
+    {
+      "title": "[PN103 2026] Week 10 Discussion: Restorative Care and Emergency Readiness",
+      "pointsPossible": 10,
+      "dueDate": "2026-08-30"
+    },
+    {
+      "title": "[PN103 2026] Restorative Nursing and Emergency Response Worksheet",
+      "pointsPossible": 25,
+      "dueDate": "2026-08-30"
+    },
+    {
+      "title": "[PN103 2026] Week 11 Discussion: Comfort, Family, and Dignity at End of Life",
+      "pointsPossible": 10,
+      "dueDate": "2026-09-06"
+    },
+    {
+      "title": "[PN103 2026] End-of-Life Comfort and Family Support Reflection",
+      "pointsPossible": 25,
+      "dueDate": "2026-09-06"
+    },
+    {
+      "title": "[PN103 2026] Week 12 Discussion: Professional Commitment to Long-Term Care",
+      "pointsPossible": 10,
+      "dueDate": "2026-09-09"
+    },
+    {
+      "title": "[PN103 2026] Final Comprehensive Exam - Long-Term Care Nursing",
+      "pointsPossible": 200,
+      "dueDate": "2026-09-09"
+    },
+    {
+      "title": "[PN103 2026] Long-Term Care Participation and Professionalism",
+      "pointsPossible": 100,
+      "dueDate": "2026-09-09"
+    }
+  ],
+  "discussions": [
+    {
+      "title": "[PN103 2026] Week 1 Discussion: Dignity, Rights, and the Long-Term Care Nurse",
+      "prompt": "Describe one resident right that must be protected in long-term care. Explain how a practical nurse can support that right while still maintaining safety and following the care plan.",
+      "points_possible": 10,
+      "due_at": "2026-06-28T23:59:00"
+    },
+    {
+      "title": "[PN103 2026] Week 2 Discussion: Seeing the Whole Resident",
+      "prompt": "Long-term care residents have histories, preferences, beliefs, relationships, and goals. Choose one communication strategy that helps you learn what matters to a resident and explain why it supports better care.",
+      "points_possible": 10,
+      "due_at": "2026-07-05T23:59:00"
+    },
+    {
+      "title": "[PN103 2026] Week 3 Discussion: Preventing Harm Before It Happens",
+      "prompt": "Choose one preventable harm in long-term care, such as a fall, infection, unsafe transfer, or restraint-related injury. Explain what the nurse should observe, do, report, and document.",
+      "points_possible": 10,
+      "due_at": "2026-07-12T23:59:00"
+    },
+    {
+      "title": "[PN103 2026] Week 4 Discussion: Basic Care Is Skilled Care",
+      "prompt": "Basic care can prevent serious complications. Choose hygiene, nutrition, hydration, or room comfort and explain how careful nursing care supports safety, dignity, and quality of life.",
+      "points_possible": 10,
+      "due_at": "2026-07-19T23:59:00"
+    },
+    {
+      "title": "[PN103 2026] Week 5 Discussion: Noticing Changes in Condition",
+      "prompt": "Choose one change in condition related to elimination, breathing, pain, sleep, activity tolerance, or vital signs. Explain what you would notice, what questions you would ask, and what you would report.",
+      "points_possible": 10,
+      "due_at": "2026-07-26T23:59:00"
+    },
+    {
+      "title": "[PN103 2026] Week 6 Discussion: Smooth Transitions of Care",
+      "prompt": "Admissions, room transfers, and discharges can be stressful for residents. Explain one nursing action that can reduce confusion, protect safety, or improve continuity of care.",
+      "points_possible": 10,
+      "due_at": "2026-08-02T23:59:00"
+    },
+    {
+      "title": "[PN103 2026] Week 7 Discussion: Skin Integrity and Quality of Life",
+      "prompt": "Pressure injury prevention is daily nursing work. Choose one prevention strategy and explain how it protects both physical safety and resident dignity.",
+      "points_possible": 10,
+      "due_at": "2026-08-09T23:59:00"
+    },
+    {
+      "title": "[PN103 2026] Week 8 Discussion: Chronic Conditions and Daily Nursing Priorities",
+      "prompt": "Choose one chronic condition common in long-term care. Explain what daily nursing observations matter most and how those observations can prevent complications.",
+      "points_possible": 10,
+      "due_at": "2026-08-16T23:59:00"
+    },
+    {
+      "title": "[PN103 2026] Week 9 Discussion: Dementia Care With Dignity",
+      "prompt": "Describe one communication or environmental strategy that can reduce distress for a resident with dementia. Explain why the strategy is respectful and safe.",
+      "points_possible": 10,
+      "due_at": "2026-08-23T23:59:00"
+    },
+    {
+      "title": "[PN103 2026] Week 10 Discussion: Restorative Care and Emergency Readiness",
+      "prompt": "Choose restorative care or emergency readiness. Explain one practical action the nurse can take that helps the resident remain safe, functional, and respected.",
+      "points_possible": 10,
+      "due_at": "2026-08-30T23:59:00"
+    },
+    {
+      "title": "[PN103 2026] Week 11 Discussion: Comfort, Family, and Dignity at End of Life",
+      "prompt": "End-of-life care requires skill and compassion. Describe one action that supports comfort or family presence while protecting dignity, privacy, and policy requirements.",
+      "points_possible": 10,
+      "due_at": "2026-09-06T23:59:00"
+    },
+    {
+      "title": "[PN103 2026] Week 12 Discussion: Professional Commitment to Long-Term Care",
+      "prompt": "Identify one professional habit you will carry into long-term care clinical practice. Explain how it protects residents and strengthens the health care team.",
+      "points_possible": 10,
+      "due_at": "2026-09-09T23:59:00"
+    }
+  ],
+  "notes": [
+    "Replace COURSE_ID in HTML after the Canvas course is created.",
+    "Assignments include due dates so Canvas and the local LMS calendar can display deadlines.",
+    "The course intentionally uses selected important chapters from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition instead of assigning every chapter in full.",
+    "Verify all role/scope/legal references against the current student handbook, Florida practical nursing guidance, clinical site policy, and instructor expectations before instruction."
+  ]
+}

@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const { adminAccessAccounts, adminAccessDefaultPassword } = require("./adminAccess");
 const { courses } = require("./catalog");
 const { lippincottEnrollmentInstructions } = require("./fundamentalsBuildout");
+const { longTermCareNursingCourse } = require("./longTermCareNursingBuildout");
 const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 
 const rootDir = path.resolve(__dirname, "..");
@@ -1218,6 +1219,13 @@ function seed() {
         ["Fundamentals: Lippincott CoursePoint Class Code", "Students should enroll in the Fundamentals CoursePoint class using code CE931F7E and keep the confirmation for class records.", "2026-07-02 09:00:00"],
         ["Fundamentals Week 1: Welcome and Start Strong", "Begin with the CoursePoint setup, syllabus, and first skills module.", "2026-06-22 08:30:00"]
       ]
+    },
+    {
+      slug: "long-term-care-nursing-pn103",
+      rows: [
+        ["PN103 Long-Term Care Nursing: Course Open", "PN 103 is organized from Week 1 with selected high-priority long-term care chapters, weekly discussions, dated assignments, and calendar deadlines.", "2026-07-15 08:30:00"],
+        ["PN103 Reminder: Catch Up Through Week 4", "Weeks 1-4 are available now. Complete the orientation acknowledgment, weekly discussions, and case assignments according to the course calendar.", "2026-07-15 09:00:00"]
+      ]
     }
   ];
   seedAnnouncementGroups.forEach((group) => {
@@ -1278,6 +1286,14 @@ function seed() {
         ["Week 10 Discussion: Patient Teaching, Health Promotion, and Community Impact", "Write a short teaching message using plain language and explain how you would check understanding.", "2026-08-30 23:59:00"],
         ["Week 11 Discussion: Professionalism, Resilience, Leadership, and Lifelong Learning", "Identify one professional habit you will practice this term and explain how it supports patient safety and student success.", "2026-09-06 23:59:00"]
       ]
+    },
+    {
+      slug: longTermCareNursingCourse.slug,
+      rows: longTermCareNursingCourse.weeks.map((week) => [
+        week.discussionTitle,
+        week.discussionPrompt,
+        `${week.dueDate} 23:59:00`
+      ])
     }
   ];
   discussionSeedGroups.forEach((group) => {
