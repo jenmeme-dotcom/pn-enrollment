@@ -1,4 +1,5 @@
 const materialBase = "/course-materials/medical-terminology";
+const { chapterQuestionBanks } = require("./medicalTerminologyQuestionBank");
 
 function materialHref(fileName) {
   return `${materialBase}/${encodeURIComponent(fileName)}`;
@@ -28,19 +29,18 @@ const courseObjectives = [
   "Connect terminology to anatomy, physiology, pharmacology, and practical nursing practice."
 ];
 
-const chapterOneQuestions = [
-  { prompt: "Gastrectomy:", options: ["Gastric resection", "Intestinal incision", "Tumor of the stomach", "Incision of the stomach", "Resection of the intestine"], answer: 0 },
-  { prompt: "Osteitis:", options: ["Incision of a bone", "Removal of a bone", "Incision of a joint", "Inflammation of a joint", "Inflammation of a bone"], answer: 4 },
-  { prompt: "Cystoscopy:", options: ["Study of cells", "Visual examination of cells", "Removal of a sac of fluid", "Removal of the urinary bladder", "Visual examination of the urinary bladder"], answer: 4 },
-  { prompt: "Hepatoma:", options: ["Incision of the kidney", "Tumor of the liver", "Blood mass", "Inflammation of the liver", "Red blood cell"], answer: 1 },
-  { prompt: "Iatrogenic:", options: ["Pertaining to produced by treatment", "Produced by the mind", "Cancer producing", "Pertaining to producing a tumor", "Cutting into a tumor"], answer: 0 },
-  { prompt: "Electroencephalogram:", options: ["Record of electricity in the brain", "Record of electricity in the heart", "X-ray of the brain", "Record of sound waves in the brain", "X-ray of the heart and brain"], answer: 0 },
-  { prompt: "Diagnosis:", options: ["Made after the prognosis", "A guess as to the patient's condition", "A prediction of the course of treatment", "Made on the basis of complete knowledge about the patient's condition", "A treatment of the patient"], answer: 3 },
-  { prompt: "Cancerous tumor:", options: ["Hematoma", "Adenoma", "Carcinoma", "Carcinogenic", "Neurotomy"], answer: 2 },
-  { prompt: "Microscopic examination of living tissue:", options: ["Incision", "Pathology", "Biopsy", "Autopsy", "Resection"], answer: 2 },
-  { prompt: "Pertaining to the largest part of the brain:", options: ["Cerebral", "Cephalic", "Renal", "Cardiac", "Neural"], answer: 0 },
-  { prompt: "Removal of a gland:", options: ["Gastrotomy", "Gastric", "Hepatic resection", "Nephric section", "Adenectomy"], answer: 4 }
-];
+const chapterQuizQuestions = Object.fromEntries(
+  Array.from({ length: 22 }, (_, index) => [index + 1, chapterQuestionBanks[index + 1].slice(0, 10)])
+);
+const midtermOneQuestions = [1, 2, 3, 4].flatMap((chapter) => chapterQuestionBanks[chapter].slice(10, 15));
+const midtermTwoQuestions = [5, 6, 7, 8, 9, 10].flatMap((chapter) => chapterQuestionBanks[chapter].slice(10, 15));
+const finalExamQuestions = Array.from({ length: 22 }, (_, index) => index + 1).flatMap((chapter) =>
+  chapterQuestionBanks[chapter].slice(chapter <= 4 ? 15 : chapter <= 10 ? 15 : 10, chapter <= 10 ? 17 : 12)
+);
+
+function quizNote(label, questions) {
+  return `${label} Multiple-choice questions only.\n\nQUIZ_DATA_BASE64:${Buffer.from(JSON.stringify(questions)).toString("base64")}`;
+}
 
 const weeklyModules = [
   { week: 1, title: "Orientation and Word Structure", date: "Jun 24", focus: "Course orientation; Chapter 1 Basic Word Structure", assessment: "Orientation acknowledgment, Discussion 1, Quiz 1, Word Structure Worksheet" },
@@ -61,7 +61,8 @@ const chapterQuizBank = Array.from({ length: 12 }, (_, index) => {
   const chapterNumber = index + 11;
   return {
     title: `[PN101 2026] Quiz ${chapterNumber} - Chapter ${chapterNumber} Review`,
-    dueDate: "2026-09-08"
+    dueDate: "2026-09-08",
+    questions: chapterQuizQuestions[chapterNumber]
   };
 });
 
@@ -81,7 +82,7 @@ const modules = [
         note: "Students introduce themselves and connect medical terminology study to professional nursing goals."
       }),
       itemLesson("Quiz", "[PN101 2026] Quiz 1 - Chapter 1 Word Structure", {
-        note: `Chapter 1 multiple-choice assessment supplied by BMHI.\n\nQUIZ_DATA_BASE64:${Buffer.from(JSON.stringify(chapterOneQuestions)).toString("base64")}`
+        note: quizNote("Chapter 1 assessment supplied by BMHI.", chapterQuizQuestions[1])
       }),
       itemLesson("Assignment", "[PN101 2026] Word Structure Worksheet", {
         files: ["PN101_Word_Structure_Worksheet.pdf", "PN101_Word_Structure_Worksheet.docx"]
@@ -95,7 +96,7 @@ const modules = [
       itemLesson("Assignment", "[PN101 2026] Body Organization and Oncology Exercise", {
         files: ["PN101_body_organization_oncology_exercise.pdf", "PN101_body_organization_oncology_exercise.docx"]
       }),
-      itemLesson("Quiz", "[PN101 2026] Quiz 2 - Chapter 2 Body Organization and Oncology"),
+      itemLesson("Quiz", "[PN101 2026] Quiz 2 - Chapter 2 Body Organization and Oncology", { note: quizNote("Chapter 2 assessment supplied by BMHI.", chapterQuizQuestions[2]) }),
       itemLesson("Discussion", "[PN101 2026] Discussion 2: Decoding Medical Words"),
       itemLesson("Attachment", "Chapter_002.pptx", { files: ["Chapter_002.pptx"] })
     ]
@@ -106,7 +107,7 @@ const modules = [
       itemLesson("Assignment", "[PN101 2026] Suffix Flashcard Set", {
         files: ["PN101_suffix_flashcard_set.pdf", "PN101_suffix_flashcard_set.docx"]
       }),
-      itemLesson("Quiz", "[PN101 2026] Quiz 3 - Chapter 3 Suffixes"),
+      itemLesson("Quiz", "[PN101 2026] Quiz 3 - Chapter 3 Suffixes", { note: quizNote("Chapter 3 assessment supplied by BMHI.", chapterQuizQuestions[3]) }),
       itemLesson("Attachment", "Chapter_003.pptx", { files: ["Chapter_003.pptx"] })
     ]
   },
@@ -116,8 +117,8 @@ const modules = [
       itemLesson("Assignment", "[PN101 2026] Prefix Drill", {
         files: ["PN101_prefix_drill.pdf", "PN101_prefix_drill.docx"]
       }),
-      itemLesson("Quiz", "[PN101 2026] Quiz 4 - Chapter 4 Prefixes"),
-      itemLesson("Exam", "[PN101 2026] Midterm Exam 1 - Chapters 1-4"),
+      itemLesson("Quiz", "[PN101 2026] Quiz 4 - Chapter 4 Prefixes", { note: quizNote("Chapter 4 assessment supplied by BMHI.", chapterQuizQuestions[4]) }),
+      itemLesson("Exam", "[PN101 2026] Midterm Exam 1 - Chapters 1-4", { note: quizNote("Midterm 1 assessment supplied by BMHI.", midtermOneQuestions), minutes: 60 }),
       itemLesson("Attachment", "Chapter_004.pptx", { files: ["Chapter_004.pptx"] }),
       itemLesson("External URL", "MT Chapter 4", {
         externalUrl: "https://www.youtube.com/results?search_query=medical+terminology+chapter+4+prefixes",
@@ -131,7 +132,7 @@ const modules = [
       itemLesson("Assignment", "[PN101 2026] Digestive Terminology Case Study", {
         files: ["PN101_digestive_terminology_case_study.pdf", "PN101_digestive_terminology_case_study.docx"]
       }),
-      itemLesson("Quiz", "[PN101 2026] Quiz 5 - Chapter 5 Digestive System"),
+      itemLesson("Quiz", "[PN101 2026] Quiz 5 - Chapter 5 Digestive System", { note: quizNote("Chapter 5 assessment supplied by BMHI.", chapterQuizQuestions[5]) }),
       itemLesson("Attachment", "Chapter_005.pptx", { files: ["Chapter_005.pptx"] }),
       itemLesson("Attachment", "Chapter_006.pptx", { files: ["Chapter_006.pptx"] })
     ]
@@ -142,9 +143,9 @@ const modules = [
       itemLesson("Assignment", "[PN101 2026] Urinary and Reproductive Terminology Chart", {
         files: ["PN101_urinary_reproductive_terminology_chart.pdf", "PN101_urinary_reproductive_terminology_chart.docx"]
       }),
-      itemLesson("Quiz", "[PN101 2026] Quiz 6 - Chapter 6 Urinary System"),
+      itemLesson("Quiz", "[PN101 2026] Quiz 6 - Chapter 6 Urinary System", { note: quizNote("Chapter 6 assessment supplied by BMHI.", chapterQuizQuestions[6]) }),
       itemLesson("Attachment", "Chapter_007.pptx", { files: ["Chapter_007.pptx"] }),
-      itemLesson("Quiz", "[PN101 2026] Quiz 7 - Chapter 7 Female Reproductive System"),
+      itemLesson("Quiz", "[PN101 2026] Quiz 7 - Chapter 7 Female Reproductive System", { note: quizNote("Chapter 7 assessment supplied by BMHI.", chapterQuizQuestions[7]) }),
       itemLesson("Attachment", "Chapter_008.pptx", { files: ["Chapter_008.pptx"] }),
       itemLesson("Attachment", "Chapter_009.pptx", { files: ["Chapter_009.pptx"] })
     ]
@@ -156,14 +157,14 @@ const modules = [
       itemLesson("Assignment", "[PN101 2026] Nervous System Clinical Note", {
         files: ["PN101_nervous_system_clinical_note.pdf", "PN101_nervous_system_clinical_note.docx"]
       }),
-      itemLesson("Quiz", "[PN101 2026] Quiz 9 - Chapter 9 Nervous System"),
+      itemLesson("Quiz", "[PN101 2026] Quiz 9 - Chapter 9 Nervous System", { note: quizNote("Chapter 9 assessment supplied by BMHI.", chapterQuizQuestions[9]) }),
       itemLesson("Attachment", "Chapter_010.pptx", { files: ["Chapter_010.pptx"] })
     ]
   },
   {
     title: "PN101 2026 - Week 8: Cardiovascular System",
     lessons: [
-      itemLesson("Quiz", "[PN101 2026] Quiz 8 - Chapter 8 Male Reproductive System"),
+      itemLesson("Quiz", "[PN101 2026] Quiz 8 - Chapter 8 Male Reproductive System", { note: quizNote("Chapter 8 assessment supplied by BMHI.", chapterQuizQuestions[8]) }),
       itemLesson("Attachment", "Chapter_011.pptx", { files: ["Chapter_011.pptx"] }),
       itemLesson("Attachment", "Chapter_012.pptx", { files: ["Chapter_012.pptx"] })
     ]
@@ -171,7 +172,7 @@ const modules = [
   {
     title: "PN101 2026 - Week 9: Midterm 2",
     lessons: [
-      itemLesson("Exam", "[PN101 2026] Midterm Exam 2 - Chapters 5-10")
+      itemLesson("Exam", "[PN101 2026] Midterm Exam 2 - Chapters 5-10", { note: quizNote("Midterm 2 assessment supplied by BMHI.", midtermTwoQuestions), minutes: 75 })
     ]
   },
   {
@@ -192,20 +193,20 @@ const modules = [
       itemLesson("Assignment", "[PN101 2026] Medical Term Flashcard Portfolio", {
         files: ["PN101_medical_term_flashcard_portfolio.pdf", "PN101_medical_term_flashcard_portfolio.docx"]
       }),
-      itemLesson("Quiz", "[PN101 2026] Quiz 10 - Chapter 10 Cardiovascular System")
+      itemLesson("Quiz", "[PN101 2026] Quiz 10 - Chapter 10 Cardiovascular System", { note: quizNote("Chapter 10 assessment supplied by BMHI.", chapterQuizQuestions[10]) })
     ]
   },
   {
     title: "PN101 2026 - Chapter Quiz Bank: Chapters 11-22",
     lessons: chapterQuizBank.map((quiz) => itemLesson("Quiz", quiz.title, {
-      note: "Chapter review quiz for Medical Terminology. Students should complete the related chapter slides before attempting the quiz.",
+      note: quizNote("Chapter review quiz for Medical Terminology. Students should complete the related chapter slides before attempting the quiz.", quiz.questions),
       minutes: 30
     }))
   },
   {
     title: "PN101 2026 - Week 12: Final Exam",
     lessons: [
-      itemLesson("Exam", "[PN101 2026] Final Comprehensive Exam - Chapters 1-22")
+      itemLesson("Exam", "[PN101 2026] Final Comprehensive Exam - Chapters 1-22", { note: quizNote("Comprehensive final assessment supplied by BMHI.", finalExamQuestions), minutes: 120 })
     ]
   }
 ];
@@ -221,7 +222,7 @@ const gradeItems = [
   { title: "[PN101 2026] Quiz 3 - Chapter 3 Suffixes", pointsPossible: 10, dueDate: "2026-07-15" },
   { title: "[PN101 2026] Prefix Drill", pointsPossible: 15, dueDate: "2026-07-21" },
   { title: "[PN101 2026] Quiz 4 - Chapter 4 Prefixes", pointsPossible: 10, dueDate: "2026-07-21" },
-  { title: "[PN101 2026] Midterm Exam 1 - Chapters 1-4", pointsPossible: 50, dueDate: "2026-07-22" },
+  { title: "[PN101 2026] Midterm Exam 1 - Chapters 1-4", pointsPossible: 20, dueDate: "2026-07-22" },
   { title: "[PN101 2026] Discussion 2: Decoding Medical Words", pointsPossible: 10, dueDate: "2026-07-29" },
   { title: "[PN101 2026] Digestive Terminology Case Study", pointsPossible: 15, dueDate: "2026-08-04" },
   { title: "[PN101 2026] Quiz 5 - Chapter 5 Digestive System", pointsPossible: 10, dueDate: "2026-08-04" },
@@ -230,7 +231,7 @@ const gradeItems = [
   { title: "[PN101 2026] Discussion 3: Clinical Documentation", pointsPossible: 10, dueDate: "2026-08-18" },
   { title: "[PN101 2026] Nervous System Clinical Note", pointsPossible: 15, dueDate: "2026-08-18" },
   { title: "[PN101 2026] Quiz 7 - Chapter 7 Female Reproductive System", pointsPossible: 10, dueDate: "2026-08-18" },
-  { title: "[PN101 2026] Midterm Exam 2 - Chapters 5-10", pointsPossible: 15, dueDate: "2026-08-19" },
+  { title: "[PN101 2026] Midterm Exam 2 - Chapters 5-10", pointsPossible: 30, dueDate: "2026-08-19" },
   { title: "[PN101 2026] Quiz 8 - Chapter 8 Male Reproductive System", pointsPossible: 10, dueDate: "2026-08-25" },
   { title: "[PN101 2026] Discussion 4: Patient Education", pointsPossible: 10, dueDate: "2026-09-01" },
   { title: "[PN101 2026] Cardiopulmonary and Hematology Case", pointsPossible: 15, dueDate: "2026-09-01" },
@@ -238,7 +239,7 @@ const gradeItems = [
   { title: "[PN101 2026] Medical Term Flashcard Portfolio", pointsPossible: 50, dueDate: "2026-09-06" },
   { title: "[PN101 2026] Quiz 10 - Chapter 10 Cardiovascular System", pointsPossible: 10, dueDate: "2026-09-08" },
   ...chapterQuizBank.map((quiz) => ({ title: quiz.title, pointsPossible: 10, dueDate: quiz.dueDate })),
-  { title: "[PN101 2026] Final Comprehensive Exam - Chapters 1-22", pointsPossible: 75, dueDate: "2026-09-09" }
+  { title: "[PN101 2026] Final Comprehensive Exam - Chapters 1-22", pointsPossible: 44, dueDate: "2026-09-09" }
 ];
 
 const medicalTerminologyCourse = {

@@ -801,14 +801,13 @@ function seed() {
     }
   }
 
-  // Update the live PN101 Quiz 1 record in place. This preserves lesson IDs,
-  // enrollments, completion links, and any existing gradebook history.
+  // Update every live PN101 assessment in place. This preserves lesson IDs,
+  // enrollments, completion links, submissions, and existing gradebook history.
   const pn101CourseDefinition = courses.find((course) => course.slug === "medical-terminology");
-  const pn101QuizOneDefinition = pn101CourseDefinition?.modules
+  const pn101AssessmentDefinitions = pn101CourseDefinition?.modules
     ?.flatMap((module) => module.lessons || [])
-    .find((lesson) => lesson.title === "[PN101 2026] Quiz 1 - Chapter 1 Word Structure");
-  if (pn101QuizOneDefinition) {
-    db.prepare(`
+    .filter((lesson) => String(lesson.content || "").includes("QUIZ_DATA_BASE64:")) || [];
+  const updatePn101Assessment = db.prepare(`
       UPDATE lessons
       SET content = ?, duration_minutes = ?
       WHERE title = ?
@@ -817,8 +816,19 @@ function seed() {
           JOIN courses c ON c.id = m.course_id
           WHERE c.slug = 'medical-terminology'
         )
-    `).run(pn101QuizOneDefinition.content, pn101QuizOneDefinition.durationMinutes || 30, pn101QuizOneDefinition.title);
-  }
+    `);
+  pn101AssessmentDefinitions.forEach((assessment) => {
+    updatePn101Assessment.run(assessment.content, assessment.durationMinutes || 30, assessment.title);
+  });
+  const updatePn101GradeItem = db.prepare(`
+    UPDATE grade_items
+    SET points_possible = ?, due_date = ?
+    WHERE course_id = (SELECT id FROM courses WHERE slug = 'medical-terminology')
+      AND title = ?
+  `);
+  (pn101CourseDefinition?.gradeItems || []).forEach((item) => {
+    updatePn101GradeItem.run(item.pointsPossible, item.dueDate || null, item.title);
+  });
 
   const fundamentals = db.prepare("SELECT id FROM courses WHERE slug = ?").get("fundamental-nursing-skills-and-concepts-new-cohort");
   if (fundamentals) {
