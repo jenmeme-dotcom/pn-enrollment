@@ -1063,6 +1063,7 @@ function courseNavHref(baseHref, item, firstLessonId) {
   if (item === "Discussions") return `${baseHref}?view=discussions`;
   if (item === "People") return `${baseHref}?view=people`;
   if (item === "Groups") return `${baseHref}?view=people#groups`;
+  if (item === "Course Details") return `${baseHref}?view=details`;
   if (item === "Settings") return `${baseHref}?view=settings`;
   if (item === "Announcements") return `${baseHref}?view=announcements`;
   if (item === "Calendar") return `${baseHref}?view=calendar`;
@@ -2050,9 +2051,11 @@ function renderInstructorPeoplePage({ course, courseCode, baseHref, enrollments 
   `;
 }
 
-function renderInstructorSettingsPage({ course, courseCode, baseHref, enrollments = [], instructor }) {
+function renderInstructorSettingsPage({ course, courseCode, baseHref, enrollments = [], instructor, modules = [], lessons = [], gradeItems = [], activeView = "settings" }) {
   const hiddenSections = parseHiddenSections(course);
   const studentCount = enrollments.length;
+  const activeStudents = enrollments.filter((enrollment) => enrollment.status === "active").length;
+  const detailsView = activeView === "details" ? "details" : "settings";
   const rightActions = [
     ["Share to Commons", `${baseHref}?view=settings#apps`],
     ["Course Statistics", `${baseHref}?view=grades`],
@@ -2069,7 +2072,7 @@ function renderInstructorSettingsPage({ course, courseCode, baseHref, enrollment
     <main class="canvas-settings-main">
       <section class="course-settings-content">
         <nav class="settings-tabs" aria-label="Course settings">
-          <a class="active" href="${escapeHtml(baseHref)}?view=settings">Course Details</a>
+          <a class="active" href="${escapeHtml(baseHref)}?view=details">Course Details</a>
           <a href="${escapeHtml(baseHref)}?view=settings#sections">Sections</a>
           <a href="${escapeHtml(baseHref)}?view=settings#navigation">Navigation</a>
           <a href="/admin/courses/${course.id}/tools#course-import-tool">Apps</a>
@@ -2078,7 +2081,7 @@ function renderInstructorSettingsPage({ course, courseCode, baseHref, enrollment
         </nav>
 
         <form class="settings-details-form" method="post" action="/admin/courses/${course.id}/details">
-          <input type="hidden" name="redirectTo" value="${escapeHtml(baseHref)}?view=settings">
+          <input type="hidden" name="redirectTo" value="${escapeHtml(baseHref)}?view=${detailsView}">
           <div class="settings-title-row">
             <h1>Course Details</h1>
             <span class="published-status">Course is ${course.published ? "Published" : "Unpublished"} ●</span>
@@ -2090,6 +2093,14 @@ function renderInstructorSettingsPage({ course, courseCode, baseHref, enrollment
               <img src="/assets/bmhi-favicon.png" alt="Course image">
               <button type="button" aria-label="Edit course image">⋮</button>
             </div>
+          </div>
+
+          <div class="settings-field">
+            <label for="settings-published">Course Status:</label>
+            <select id="settings-published" name="published">
+              <option value="1" ${course.published ? "selected" : ""}>Published</option>
+              <option value="0" ${course.published ? "" : "selected"}>Unpublished</option>
+            </select>
           </div>
 
           <div class="settings-field">
@@ -2255,6 +2266,13 @@ function renderInstructorSettingsPage({ course, courseCode, baseHref, enrollment
           <p><strong>TAs:</strong><span>None</span></p>
           <p><strong>Designers:</strong><span>None</span></p>
           <p><strong>Observers:</strong><span>None</span></p>
+        </section>
+        <section>
+          <h2>Course Statistics</h2>
+          <p><strong>Modules:</strong><span>${escapeHtml(modules.length)}</span></p>
+          <p><strong>Learning items:</strong><span>${escapeHtml(lessons.length)}</span></p>
+          <p><strong>Graded items:</strong><span>${escapeHtml(gradeItems.length)}</span></p>
+          <p><strong>Active students:</strong><span>${escapeHtml(activeStudents)}</span></p>
         </section>
       </aside>
     </main>
@@ -7974,7 +7992,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   }, []);
 
   const firstLesson = lessons[0];
-  const navItems = courseNavItems;
+  const navItems = [...courseNavItems.slice(0, -1), "Course Details", "Settings"];
   const adminCourseBaseHref = `/admin/courses/${course.id}/student-view`;
   const courseCode = canvasCourseCode(course);
   const startTiles = [
@@ -8248,7 +8266,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         instructor: req.user
       })}
     </section>
-  ` : activeView === "settings" ? `
+  ` : activeView === "settings" || activeView === "details" ? `
     <section class="canvas-course-shell instructor-preview">
       <aside class="canvas-global-rail">
         <img src="/assets/bmhi-favicon.png" alt="BMHI">
@@ -8258,11 +8276,11 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
         { label: courseCode, href: adminCourseBaseHref },
-        { label: "Settings" }
+        { label: activeView === "details" ? "Course Details" : "Settings" }
       ])}
 
       <aside class="canvas-course-nav" id="canvas-course-navigation">
-        ${renderCourseNav(navItems, adminCourseBaseHref, "Settings", firstLesson?.id)}
+        ${renderCourseNav(navItems, adminCourseBaseHref, activeView === "details" ? "Course Details" : "Settings", firstLesson?.id)}
       </aside>
       <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
 
@@ -8271,7 +8289,11 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         courseCode,
         baseHref: adminCourseBaseHref,
         enrollments,
-        instructor: req.user
+        instructor: req.user,
+        modules: moduleGroups,
+        lessons,
+        gradeItems,
+        activeView
       })}
     </section>
   ` : activeView === "syllabus" ? `
@@ -8491,12 +8513,12 @@ app.post("/admin/courses/:id/calendar-events", requireAuth, requireRole("admin",
 });
 
 app.post("/admin/courses/:id/details", requireAuth, requireRole("admin", "instructor"), (req, res) => {
-  const course = db.prepare("SELECT id FROM courses WHERE id = ?").get(Number(req.params.id));
+  const course = db.prepare("SELECT id, published FROM courses WHERE id = ?").get(Number(req.params.id));
   if (!course) return res.status(404).send("Course not found");
   db.prepare(`
     UPDATE courses
     SET title = ?, category = ?, description = ?, hours = ?, credential_type = ?, delivery_mode = ?,
-      tuition_cents = ?, books_supplies_cents = ?, registration_fee_cents = ?
+      tuition_cents = ?, books_supplies_cents = ?, registration_fee_cents = ?, published = ?
     WHERE id = ?
   `).run(
     String(req.body.title || "").trim(),
@@ -8508,6 +8530,7 @@ app.post("/admin/courses/:id/details", requireAuth, requireRole("admin", "instru
     dollarsToCents(req.body.tuition),
     dollarsToCents(req.body.booksSupplies),
     dollarsToCents(req.body.registrationFee),
+    req.body.published === undefined ? course.published : (String(req.body.published) === "1" ? 1 : 0),
     course.id
   );
   flash(req, "Course details updated.");
