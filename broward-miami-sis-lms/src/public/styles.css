@@ -554,6 +554,14 @@ nav a {
   width: 124px;
 }
 
+.student-photo.has-photo,
+.profile-photo.has-photo {
+  background: #eef3f4;
+  color: inherit;
+  object-fit: cover;
+  object-position: center;
+}
+
 .student-welcome h1 {
   font-size: 20px;
   font-weight: 500;
@@ -815,6 +823,133 @@ nav a {
   font-size: 12px;
   font-weight: 800;
   padding: 5px 9px;
+}
+
+.required-photo-page {
+  align-items: center;
+  background: linear-gradient(145deg, #edf7f8 0%, #ffffff 48%, #f8f4ec 100%);
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 32px 18px;
+}
+
+.required-photo-card {
+  background: white;
+  border: 1px solid #d8e3e5;
+  border-radius: 14px;
+  box-shadow: 0 22px 55px rgba(17, 52, 59, 0.14);
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(360px, 1.2fr);
+  max-width: 920px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.required-photo-preview {
+  align-items: center;
+  background: linear-gradient(155deg, #083d46, #0f6a77);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  justify-content: center;
+  padding: 46px 34px;
+  text-align: center;
+}
+
+.required-photo-preview img {
+  background: white;
+  border: 5px solid rgba(255, 255, 255, 0.72);
+  border-radius: 14px;
+  height: 190px;
+  object-fit: cover;
+  width: 190px;
+}
+
+.required-photo-preview span {
+  font-size: 17px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.required-photo-content {
+  padding: 42px;
+}
+
+.required-photo-content h1 {
+  font-size: clamp(30px, 4vw, 42px);
+  margin: 4px 0 12px;
+}
+
+.required-photo-lead {
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.55;
+  margin: 0 0 22px;
+}
+
+.required-photo-guidance {
+  background: #f3f8f9;
+  border-left: 4px solid var(--brand);
+  border-radius: 6px;
+  padding: 16px 18px;
+}
+
+.required-photo-guidance ul {
+  line-height: 1.55;
+  margin: 9px 0 0;
+  padding-left: 20px;
+}
+
+.required-photo-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.required-photo-form > label:first-child {
+  display: grid;
+  font-weight: 750;
+  gap: 8px;
+}
+
+.required-photo-form input[type="file"] {
+  background: white;
+  border: 1px solid #cbd7da;
+  border-radius: 6px;
+  padding: 12px;
+  width: 100%;
+}
+
+.required-photo-confirmation {
+  align-items: flex-start;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto 1fr;
+  line-height: 1.45;
+}
+
+.required-photo-confirmation input {
+  height: 20px;
+  margin-top: 1px;
+  width: 20px;
+}
+
+.required-photo-form .button {
+  font-size: 16px;
+  min-height: 48px;
+}
+
+.required-photo-signout {
+  margin-top: 10px;
+}
+
+.required-photo-note {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 18px 0 0;
 }
 
 .profile-tabs {
@@ -8470,6 +8605,23 @@ button.small {
 }
 
 @media (max-width: 820px) {
+  .required-photo-card {
+    grid-template-columns: 1fr;
+  }
+
+  .required-photo-preview {
+    padding: 28px 20px;
+  }
+
+  .required-photo-preview img {
+    height: 130px;
+    width: 130px;
+  }
+
+  .required-photo-content {
+    padding: 28px 22px;
+  }
+
   .registration-documents-head,
   .registration-document-upload {
     align-items: flex-start;

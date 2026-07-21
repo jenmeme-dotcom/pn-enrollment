@@ -382,7 +382,13 @@ app.use(
 
 function currentUser(req) {
   if (!req.session.userId) return null;
-  return db.prepare("SELECT id, role, first_name, last_name, email, status, organization_status, class_lock_reason FROM users WHERE id = ?").get(req.session.userId);
+  return db.prepare("SELECT id, role, first_name, last_name, email, status, organization_status, class_lock_reason, photo_storage_name, photo_original_name FROM users WHERE id = ?").get(req.session.userId);
+}
+
+function studentHasUsablePhoto(user) {
+  if (!user?.photo_storage_name) return false;
+  const photoPath = path.join(uploadDir, user.photo_storage_name);
+  return isPathInside(uploadDir, photoPath) && fs.existsSync(photoPath);
 }
 
 function flash(req, message) {
@@ -407,6 +413,10 @@ function requireAuth(req, res, next) {
     return;
   }
   req.user = user;
+  const photoRequirementRoutes = new Set(["/student/photo-required", "/logout"]);
+  if (user.role === "student" && !studentHasUsablePhoto(user) && !photoRequirementRoutes.has(req.path)) {
+    return res.redirect("/student/photo-required");
+  }
   next();
 }
 
@@ -4582,11 +4592,90 @@ app.post("/login", (req, res) => {
     return res.redirect("/login");
   }
   req.session.userId = user.id;
-  res.redirect(user.role === "student" ? "/student" : "/admin");
+  res.redirect(user.role === "student" ? (studentHasUsablePhoto(user) ? "/student" : "/student/photo-required") : "/admin");
 });
 
 app.post("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/login"));
+});
+
+app.get("/student/photo-required", requireAuth, requireRole("student"), (req, res) => {
+  if (studentHasUsablePhoto(req.user)) return res.redirect("/student");
+  const body = `
+    <section class="required-photo-page">
+      <article class="required-photo-card">
+        <div class="required-photo-preview" aria-hidden="true">
+          <img src="/assets/bmhi-favicon.png" alt="">
+          <span>Replace this school logo with your photo</span>
+        </div>
+        <div class="required-photo-content">
+          <p class="eyebrow">Required account setup</p>
+          <h1>Welcome, ${escapeHtml(req.user.first_name || "Student")}</h1>
+          <p class="required-photo-lead">Upload a clear, recent photo of yourself to finish setting up your student portal.</p>
+          <div class="required-photo-guidance">
+            <strong>Photo requirements</strong>
+            <ul>
+              <li>Your face must be clearly visible.</li>
+              <li>Use a recent individual photo, not the school logo or a group picture.</li>
+              <li>Accepted formats: JPG, PNG, or WebP.</li>
+              <li>Maximum file size: 25 MB.</li>
+            </ul>
+          </div>
+          <form method="post" action="/student/photo-required" enctype="multipart/form-data" class="required-photo-form">
+            <label>
+              <span>Choose your profile photo</span>
+              <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required>
+            </label>
+            <label class="required-photo-confirmation">
+              <input type="checkbox" name="photoConfirmation" value="yes" required>
+              <span>I confirm this is a current photo of me and may be used as my student portal profile photo.</span>
+            </label>
+            <button class="button" type="submit">Upload Photo and Enter Portal</button>
+          </form>
+          <form method="post" action="/logout" class="required-photo-signout">
+            <button class="button ghost" type="submit">Sign Out</button>
+          </form>
+          <p class="required-photo-note">A profile photo is required to continue using the student portal. Contact the school office if you need assistance.</p>
+        </div>
+      </article>
+    </section>
+  `;
+  render(req, res, "Profile Photo Required", body, { full: true });
+});
+
+app.post("/student/photo-required", requireAuth, requireRole("student"), (req, res) => {
+  if (studentHasUsablePhoto(req.user)) return res.redirect("/student");
+  upload.single("photo")(req, res, (error) => {
+    const removeRejectedUpload = () => {
+      if (!req.file?.filename) return;
+      const rejectedPath = path.join(uploadDir, req.file.filename);
+      if (isPathInside(uploadDir, rejectedPath) && fs.existsSync(rejectedPath)) fs.unlinkSync(rejectedPath);
+    };
+    if (error) {
+      flash(req, error.code === "LIMIT_FILE_SIZE" ? "Photo is too large. The maximum file size is 25 MB." : error.message || "Photo upload failed.");
+      return res.redirect("/student/photo-required");
+    }
+    if (!req.file) {
+      flash(req, "Choose a profile photo to continue.");
+      return res.redirect("/student/photo-required");
+    }
+    const extension = path.extname(req.file.originalname || "").toLowerCase();
+    const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+    if (!String(req.file.mimetype || "").startsWith("image/") || !imageExtensions.has(extension)) {
+      removeRejectedUpload();
+      flash(req, "Profile photo must be a JPG, PNG, or WebP image.");
+      return res.redirect("/student/photo-required");
+    }
+    if (req.body.photoConfirmation !== "yes") {
+      removeRejectedUpload();
+      flash(req, "Confirm that the uploaded image is a current photo of you.");
+      return res.redirect("/student/photo-required");
+    }
+    db.prepare("UPDATE users SET photo_storage_name = ?, photo_original_name = ? WHERE id = ? AND role = 'student'")
+      .run(req.file.filename, req.file.originalname, req.user.id);
+    flash(req, "Profile photo uploaded. Welcome to your student portal.");
+    res.redirect("/student");
+  });
 });
 
 app.get("/students/:id/photo", requireAuth, (req, res) => {
@@ -9209,7 +9298,7 @@ app.get("/student", requireAuth, (req, res) => {
     <section class="student-dashboard">
       ${lockNotice}
       <article class="student-welcome">
-        <div class="student-photo">${escapeHtml(initialsFor(req.user))}</div>
+        <img class="student-photo has-photo" src="/students/${req.user.id}/photo" alt="${escapeHtml(studentName || "Student")} profile photo">
         <div>
           <h1>Welcome, ${escapeHtml(studentName || "Student")}</h1>
           <p>Use your student dashboard to continue courses, check notices, review homework, and track class progress.</p>
@@ -10248,7 +10337,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
   const body = `
     <section class="student-profile">
       <article class="profile-hero">
-        <div class="profile-photo">${escapeHtml(initialsFor(req.user))}</div>
+        <img class="profile-photo has-photo" src="/students/${req.user.id}/photo" alt="${escapeHtml(name || "Student")} profile photo">
         <div>
           <h1>${escapeHtml(name || "Student")}</h1>
           <p>${escapeHtml(activeEnrollment?.title || "Broward-Miami Health Institute student")}</p>
