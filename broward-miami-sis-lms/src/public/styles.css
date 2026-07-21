@@ -5173,7 +5173,29 @@ button.small {
 }
 
 .module-caret {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  height: 32px;
+  justify-content: center;
+  margin: -4px;
+  padding: 0;
   transition: transform 160ms ease;
+  width: 32px;
+}
+
+.module-caret:hover,
+.module-caret:focus-visible {
+  background: rgba(45, 59, 72, 0.1);
+  outline: none;
+}
+
+.module-caret:focus-visible {
+  box-shadow: 0 0 0 3px rgba(14, 114, 124, 0.3);
 }
 
 .canvas-module-row {

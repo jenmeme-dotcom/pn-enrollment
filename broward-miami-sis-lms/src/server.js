@@ -1404,7 +1404,7 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
             <header class="canvas-module-header">
               <div>
                 <span class="module-drag">⁝</span>
-                <span class="module-caret">▾</span>
+                <button class="module-caret" type="button" data-module-toggle aria-expanded="true" aria-controls="module-items-${module.id}" aria-label="Collapse ${escapeHtml(module.title)}">▾</button>
                 <strong>${escapeHtml(module.title)}</strong>
               </div>
               <div>
@@ -1413,7 +1413,7 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
                 ${instructor ? `<span>＋</span><span>⋮</span>` : ""}
               </div>
             </header>
-            <div class="canvas-module-items">
+            <div class="canvas-module-items" id="module-items-${module.id}">
               ${module.lessons.map((lesson) => {
                 const kind = moduleItemKind(lesson.title);
                 const isPublished = Number(lesson.published ?? 1) !== 0 && Number(lesson.instructor_only || 0) !== 1;
@@ -1453,11 +1453,34 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
           const modules = [...page.querySelectorAll('.canvas-module-block')];
           if (!collapseButton || !modules.length) return;
 
-          const setCollapsed = (collapsed) => {
-            modules.forEach((module) => module.classList.toggle('is-collapsed', collapsed));
-            collapseButton.textContent = collapsed ? 'Expand All' : 'Collapse All';
-            collapseButton.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+          const updateModuleState = (module, collapsed) => {
+            module.classList.toggle('is-collapsed', collapsed);
+            const toggle = module.querySelector('[data-module-toggle]');
+            if (!toggle) return;
+            toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            const title = module.querySelector('.canvas-module-header strong')?.textContent?.trim() || 'module';
+            toggle.setAttribute('aria-label', (collapsed ? 'Expand ' : 'Collapse ') + title);
           };
+
+          const updateCollapseAllState = () => {
+            const allCollapsed = modules.every((module) => module.classList.contains('is-collapsed'));
+            collapseButton.textContent = allCollapsed ? 'Expand All' : 'Collapse All';
+            collapseButton.setAttribute('aria-expanded', allCollapsed ? 'false' : 'true');
+          };
+
+          const setCollapsed = (collapsed) => {
+            modules.forEach((module) => updateModuleState(module, collapsed));
+            updateCollapseAllState();
+          };
+
+          modules.forEach((module) => {
+            const toggle = module.querySelector('[data-module-toggle]');
+            if (!toggle) return;
+            toggle.addEventListener('click', () => {
+              updateModuleState(module, !module.classList.contains('is-collapsed'));
+              updateCollapseAllState();
+            });
+          });
 
           collapseButton.addEventListener('click', () => {
             setCollapsed(collapseButton.getAttribute('aria-expanded') === 'true');
