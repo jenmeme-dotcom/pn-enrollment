@@ -4454,19 +4454,42 @@ button.small {
 .quiz-preview-form fieldset {
   border: 1px solid #d9e1e7;
   margin: 0;
-  padding: 16px;
+  padding: 22px 24px 24px;
 }
 
 .quiz-preview-form legend {
   color: #2d3b48;
+  font-size: 24px;
   font-weight: 800;
+  line-height: 1.35;
   padding: 0 6px;
 }
 
 .quiz-preview-form label {
+  align-items: center;
   color: #2d3b48;
-  display: block;
-  margin-top: 12px;
+  cursor: pointer;
+  display: flex;
+  font-size: 20px;
+  gap: 14px;
+  line-height: 1.4;
+  margin: 14px 0 0;
+  padding: 8px 10px;
+}
+
+.quiz-preview-form label:hover {
+  background: #f3f8fa;
+  border-radius: 8px;
+}
+
+.quiz-preview-form input[type="radio"] {
+  accent-color: #087480;
+  flex: 0 0 24px;
+  height: 24px;
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+  width: 24px;
 }
 
 .quiz-preview-form textarea {
