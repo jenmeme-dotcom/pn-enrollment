@@ -1536,7 +1536,7 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
           ${renderCanvasLessonContent(selectedLesson.content, selectedLesson.title)}
         </div>
         ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId })}
-        ${!instructor && enrollmentId ? `
+        ${!instructor && enrollmentId && moduleItemKind(selectedLesson.title) !== "quiz" ? `
           <form method="post" action="/student/enrollments/${enrollmentId}/lesson-complete" class="canvas-complete-action">
             <input type="hidden" name="lessonId" value="${selectedLesson.id}">
             <button class="button ghost" type="submit" ${lessonIsComplete ? "disabled" : ""}>${lessonIsComplete ? "Completed" : "Mark As Complete"}</button>
