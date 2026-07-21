@@ -1338,7 +1338,7 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
           <div><dt>Points</dt><dd>${escapeHtml(quizMeta.points)}</dd></div>
         </dl>
       </div>
-      <p class="quiz-instructions">Read each question and select the best answer. This quiz page stays with the module item so students do not get redirected to grades.</p>
+      <p class="quiz-instructions">Read each question and select the best answer.${instructor ? " This quiz page stays with the module item so students do not get redirected to grades." : ""}</p>
       <form class="quiz-preview-form" method="post" action="${enrollmentId ? `/student/enrollments/${enrollmentId}/quiz-submit` : "#"}">
         ${enrollmentId ? `<input type="hidden" name="lessonId" value="${escapeHtml(lesson.id)}">` : ""}
         ${questions.length ? `<div class="quiz-page-status" aria-live="polite"><strong>Question <span data-quiz-current>1</span> of ${questions.length}</strong><span data-quiz-progress style="--quiz-progress:${100 / questions.length}%"></span></div>` : ""}
