@@ -324,6 +324,35 @@ const upload = multer({
     callback(new Error("Upload must be a PDF, image, Office document, text file, CSV, ZIP, or IMSCC package."));
   }
 });
+const allowedVideoTypes = new Set(["video/mp4", "video/webm", "video/quicktime", "video/x-m4v"]);
+const allowedVideoExtensions = new Set([".mp4", ".webm", ".mov", ".m4v"]);
+const videoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => callback(null, uploadDir),
+    filename: (_req, file, callback) => {
+      const extension = path.extname(file.originalname || "").toLowerCase().slice(0, 12) || ".webm";
+      callback(null, `${crypto.randomUUID()}${extension}`);
+    }
+  }),
+  limits: { fileSize: 100 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    const extension = path.extname(file.originalname || "").toLowerCase();
+    const mimeType = String(file.mimetype || "").split(";")[0].toLowerCase();
+    if (allowedVideoTypes.has(mimeType) && allowedVideoExtensions.has(extension)) return callback(null, true);
+    callback(new Error("Video must be an MP4, WebM, MOV, or M4V file."));
+  }
+});
+
+function receiveVideo(req, res, next) {
+  videoUpload.single("video")(req, res, (error) => {
+    if (!error) return next();
+    flash(req, error.code === "LIMIT_FILE_SIZE" ? "Video is too large. The maximum file size is 100 MB." : error.message);
+    const enrollmentId = Number(req.params.id || 0);
+    const courseId = Number(req.params.courseId || 0);
+    if (enrollmentId) return res.redirect(`/student/enrollments/${enrollmentId}`);
+    return res.redirect(courseId ? `/admin/courses/${courseId}` : "/admin/courses");
+  });
+}
 
 app.set("trust proxy", 1);
 app.use(express.urlencoded({ extended: false }));
@@ -1429,6 +1458,152 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
   `;
 }
 
+function renderVideoAssignmentPanel({ lesson, enrollmentId = null, instructor = false, courseId = null }) {
+  const assignment = db.prepare("SELECT * FROM video_assignments WHERE lesson_id = ?").get(lesson.id);
+  if (!assignment) return "";
+  const maxMinutes = Math.max(1, Math.round(Number(assignment.max_duration_seconds || 300) / 60));
+  if (instructor) {
+    const submissions = db.prepare(`
+      SELECT vs.*, u.first_name, u.last_name, u.email
+      FROM video_submissions vs
+      JOIN enrollments e ON e.id = vs.enrollment_id
+      JOIN users u ON u.id = e.user_id
+      WHERE vs.video_assignment_id = ?
+      ORDER BY vs.submitted_at DESC
+    `).all(assignment.id);
+    return `
+      <div class="lesson-action-card video-assignment-card">
+        <div class="video-assignment-heading">
+          <div><span class="video-kicker">Video assignment</span><h2>Instructor settings and submissions</h2></div>
+          <strong>${submissions.length} submission${submissions.length === 1 ? "" : "s"}</strong>
+        </div>
+        <form method="post" action="/admin/courses/${courseId}/video-assignments/${assignment.id}" class="video-settings-form">
+          <label class="span-2">Student instructions<textarea name="instructions" required>${escapeHtml(assignment.instructions)}</textarea></label>
+          <label>Maximum recording length (minutes)<input type="number" name="maxDurationMinutes" min="1" max="30" value="${maxMinutes}" required></label>
+          <label>Maximum file size (MB)<input type="number" value="${escapeHtml(assignment.max_file_size_mb)}" disabled></label>
+          <label><input type="checkbox" name="allowUpload" value="1" ${assignment.allow_upload ? "checked" : ""}> Allow existing video upload</label>
+          <label><input type="checkbox" name="allowRecording" value="1" ${assignment.allow_recording ? "checked" : ""}> Allow browser recording</label>
+          <button class="button" type="submit">Save Video Settings</button>
+        </form>
+        <div class="video-review-list">
+          ${submissions.map((submission) => `
+            <article class="video-review-item">
+              <div class="video-review-person"><strong>${escapeHtml(submission.first_name)} ${escapeHtml(submission.last_name)}</strong><small>${escapeHtml(submission.email)} · Submitted ${escapeHtml(date(submission.submitted_at))} · ${escapeHtml(formatBytes(submission.file_size))}</small></div>
+              <video controls preload="metadata" src="/video-submissions/${submission.id}/media">Your browser does not support video playback.</video>
+              ${submission.student_note ? `<p><strong>Student note:</strong> ${escapeHtml(submission.student_note)}</p>` : ""}
+              <form method="post" action="/admin/courses/${courseId}/video-submissions/${submission.id}/review" class="video-review-form">
+                <label>Score<input type="number" name="score" min="0" step="0.01" value="${submission.score ?? ""}" placeholder="Enter score"></label>
+                <label>Instructor feedback<textarea name="feedback" placeholder="Feedback for the student">${escapeHtml(submission.instructor_feedback || "")}</textarea></label>
+                <button class="button" type="submit">Save Grade and Feedback</button>
+              </form>
+            </article>
+          `).join("") || `<p class="empty compact">No students have submitted a video yet.</p>`}
+        </div>
+      </div>
+    `;
+  }
+
+  const submission = enrollmentId ? db.prepare(`
+    SELECT * FROM video_submissions WHERE video_assignment_id = ? AND enrollment_id = ?
+  `).get(assignment.id, enrollmentId) : null;
+  return `
+    <div class="lesson-action-card video-assignment-card" data-video-assignment>
+      <div class="video-assignment-heading">
+        <div><span class="video-kicker">Video assignment</span><h2>${submission ? "Your video was submitted" : "Submit your video"}</h2></div>
+        ${submission ? `<span class="video-submitted-badge">Submitted</span>` : ""}
+      </div>
+      <p>${escapeHtml(assignment.instructions)}</p>
+      <p class="video-requirements">Accepted formats: MP4, WebM, MOV, or M4V · Maximum 100 MB · Recording limit ${maxMinutes} minute${maxMinutes === 1 ? "" : "s"}</p>
+      ${submission ? `
+        <section class="video-submission-receipt">
+          <video controls preload="metadata" src="/video-submissions/${submission.id}/media">Your browser does not support video playback.</video>
+          <p><strong>Submitted ${escapeHtml(date(submission.submitted_at))}</strong> · ${escapeHtml(formatBytes(submission.file_size))} · ${submission.submission_method === "recording" ? "Recorded in portal" : "Uploaded file"}</p>
+          ${submission.score === null ? `<p>Awaiting instructor grade.</p>` : `<p class="video-grade"><strong>Grade: ${escapeHtml(submission.score)}</strong>${submission.instructor_feedback ? ` · ${escapeHtml(submission.instructor_feedback)}` : ""}</p>`}
+        </section>
+      ` : ""}
+      ${enrollmentId ? `
+        <div class="video-submission-options">
+          ${assignment.allow_upload ? `
+            <section>
+              <h3>${submission ? "Replace with a file" : "Upload an existing video"}</h3>
+              <form method="post" enctype="multipart/form-data" action="/student/enrollments/${enrollmentId}/video-assignments/${assignment.id}/submit">
+                <input type="hidden" name="submissionMethod" value="upload">
+                <label>Choose video<input type="file" name="video" accept="video/mp4,video/webm,video/quicktime,video/x-m4v,.mp4,.webm,.mov,.m4v" required></label>
+                <label>Optional note<textarea name="studentNote" placeholder="Add a note for your instructor"></textarea></label>
+                <button class="button" type="submit">Upload and Submit Video</button>
+              </form>
+            </section>
+          ` : ""}
+          ${assignment.allow_recording ? `
+            <section class="video-recorder">
+              <h3>Record with camera and microphone</h3>
+              <p data-recorder-status>Choose Start Recording and allow camera and microphone access.</p>
+              <video data-recorder-preview playsinline muted></video>
+              <div class="video-recorder-actions">
+                <button class="button" type="button" data-record-start>Start Recording</button>
+                <button class="button ghost" type="button" data-record-stop disabled>Stop Recording</button>
+                <button class="button" type="button" data-record-submit disabled>Submit Recording</button>
+              </div>
+            </section>
+          ` : ""}
+        </div>
+        ${assignment.allow_recording ? `
+          <script>
+            (() => {
+              const card = document.currentScript.closest('[data-video-assignment]');
+              const preview = card.querySelector('[data-recorder-preview]');
+              const status = card.querySelector('[data-recorder-status]');
+              const start = card.querySelector('[data-record-start]');
+              const stop = card.querySelector('[data-record-stop]');
+              const submit = card.querySelector('[data-record-submit]');
+              let recorder, stream, chunks = [], recordingBlob, timer;
+              if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+                status.textContent = 'Browser recording is not supported on this device. Upload an existing video instead.';
+                start.disabled = true;
+                return;
+              }
+              const cleanStream = () => { if (stream) stream.getTracks().forEach((track) => track.stop()); stream = null; };
+              start.addEventListener('click', async () => {
+                try {
+                  stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                  preview.srcObject = stream; preview.controls = false; await preview.play();
+                  chunks = []; recordingBlob = null;
+                  recorder = new MediaRecorder(stream);
+                  recorder.addEventListener('dataavailable', (event) => { if (event.data.size) chunks.push(event.data); });
+                  recorder.addEventListener('stop', () => {
+                    recordingBlob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
+                    preview.srcObject = null; preview.src = URL.createObjectURL(recordingBlob); preview.controls = true; preview.muted = false;
+                    submit.disabled = false; start.disabled = false; stop.disabled = true;
+                    status.textContent = 'Recording ready. Review it, then choose Submit Recording.';
+                    cleanStream(); clearTimeout(timer);
+                  });
+                  recorder.start(1000); start.disabled = true; stop.disabled = false; submit.disabled = true;
+                  status.textContent = 'Recording in progress…';
+                  timer = setTimeout(() => { if (recorder?.state === 'recording') recorder.stop(); }, ${Number(assignment.max_duration_seconds || 300) * 1000});
+                } catch (error) { status.textContent = 'Camera or microphone access was not available. Check browser permissions or upload a video file.'; cleanStream(); }
+              });
+              stop.addEventListener('click', () => { if (recorder?.state === 'recording') recorder.stop(); });
+              submit.addEventListener('click', async () => {
+                if (!recordingBlob) return;
+                submit.disabled = true; start.disabled = true; status.textContent = 'Uploading recording…';
+                const form = new FormData();
+                form.append('video', recordingBlob, 'recording-' + Date.now() + '.webm');
+                form.append('submissionMethod', 'recording');
+                try {
+                  const response = await fetch('/student/enrollments/${enrollmentId}/video-assignments/${assignment.id}/submit', { method: 'POST', body: form });
+                  if (!response.ok) throw new Error('Upload failed');
+                  window.location.assign(response.url);
+                } catch (error) { status.textContent = 'The recording could not be submitted. Please try again or upload a file.'; submit.disabled = false; start.disabled = false; }
+              });
+              window.addEventListener('beforeunload', cleanStream);
+            })();
+          </script>
+        ` : ""}
+      ` : `<p>Student upload and recording controls appear here in student view.</p>`}
+    </div>
+  `;
+}
+
 function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false, gradeItems = [], quizGrade = null, courseId = null }) {
   const title = String(lesson.title || "");
   const lower = title.toLowerCase();
@@ -1445,6 +1620,9 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
       </div>
     </div>
   ` : "";
+
+  const videoAssignmentPanel = renderVideoAssignmentPanel({ lesson, enrollmentId, instructor, courseId });
+  if (videoAssignmentPanel) return videoAssignmentPanel;
 
   if (lower.includes("acknowledgment") || lower.includes("acknowledgement")) {
     return `
@@ -1537,7 +1715,7 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
           ${renderCanvasLessonContent(selectedLesson.content, selectedLesson.title)}
         </div>
         ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId })}
-        ${!instructor && enrollmentId && moduleItemKind(selectedLesson.title) !== "quiz" ? `
+        ${!instructor && enrollmentId && moduleItemKind(selectedLesson.title) !== "quiz" && !db.prepare("SELECT id FROM video_assignments WHERE lesson_id = ?").get(selectedLesson.id) ? `
           <form method="post" action="/student/enrollments/${enrollmentId}/lesson-complete" class="canvas-complete-action">
             <input type="hidden" name="lessonId" value="${selectedLesson.id}">
             <button class="button ghost" type="submit" ${lessonIsComplete ? "disabled" : ""}>${lessonIsComplete ? "Completed" : "Mark As Complete"}</button>
@@ -7839,6 +8017,24 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
         `).join("")}
       </div>
     </section>
+    <section class="card video-assignment-builder" style="margin-top:18px">
+      <h2>Create video assignment</h2>
+      <p class="muted">Students can upload an existing video or record with their camera and microphone inside the portal. Submissions remain private to the student and instructors.</p>
+      <form method="post" action="/admin/courses/${course.id}/video-assignments">
+        <div class="form-grid">
+          <div><label>Module</label><select name="moduleId" required>${modules.map((module) => `<option value="${module.id}">${escapeHtml(module.title)}</option>`).join("")}</select></div>
+          <div><label>Points possible</label><input type="number" name="points" min="0" step="0.01" value="100" required></div>
+          <div class="span-2"><label>Assignment title</label><input name="title" placeholder="Video Assignment: Patient Education Demonstration" required></div>
+          <div><label>Due date</label><input type="date" name="dueDate"></div>
+          <div><label>Maximum recording length (minutes)</label><input type="number" name="maxDurationMinutes" min="1" max="30" value="5" required></div>
+          <div class="span-2"><label>Student instructions</label><textarea name="instructions" placeholder="Explain what the student must demonstrate in the video." required></textarea></div>
+          <label><input type="checkbox" name="allowUpload" value="1" checked> Allow existing video upload</label>
+          <label><input type="checkbox" name="allowRecording" value="1" checked> Allow browser recording</label>
+          <label><input type="checkbox" name="published" value="1" checked> Publish to students now</label>
+        </div>
+        <button type="submit">Create Video Assignment</button>
+      </form>
+    </section>
     <section class="card" style="margin-top:18px">
       <h2>Enroll a student</h2>
       <form method="post" action="/admin/enrollments" class="actions">
@@ -8709,6 +8905,89 @@ app.get("/admin/course-imports/:id/download", requireAuth, requireRole("admin", 
   const filePath = path.join(uploadDir, item.file_storage_name);
   if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Course import file not found");
   res.download(filePath, item.file_original_name || item.file_storage_name);
+});
+
+app.post("/admin/courses/:id/video-assignments", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const courseId = Number(req.params.id);
+  const moduleId = Number(req.body.moduleId);
+  const module = db.prepare("SELECT id FROM modules WHERE id = ? AND course_id = ?").get(moduleId, courseId);
+  const title = String(req.body.title || "").trim();
+  const instructions = String(req.body.instructions || "").trim();
+  const allowUpload = req.body.allowUpload ? 1 : 0;
+  const allowRecording = req.body.allowRecording ? 1 : 0;
+  if (!module || !title || !instructions || (!allowUpload && !allowRecording)) {
+    flash(req, "Choose a valid module, enter instructions, and enable upload or recording.");
+    return res.redirect(`/admin/courses/${courseId}`);
+  }
+  const maxMinutes = Math.max(1, Math.min(30, Number(req.body.maxDurationMinutes || 5)));
+  const points = Math.max(0, Number(req.body.points || 100));
+  const nextPosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(moduleId).next;
+  const lessonResult = db.prepare(`
+    INSERT INTO lessons (module_id, title, content, duration_minutes, position, published, instructor_only)
+    VALUES (?, ?, ?, ?, ?, ?, 0)
+  `).run(moduleId, title, instructions, maxMinutes, nextPosition, req.body.published ? 1 : 0);
+  const lessonId = Number(lessonResult.lastInsertRowid);
+  db.prepare(`
+    INSERT INTO video_assignments (lesson_id, course_id, instructions, allow_upload, allow_recording, max_duration_seconds, max_file_size_mb)
+    VALUES (?, ?, ?, ?, ?, ?, 100)
+  `).run(lessonId, courseId, instructions, allowUpload, allowRecording, maxMinutes * 60);
+  db.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, ?, ?)").run(
+    courseId, title, points, String(req.body.dueDate || "").trim() || null
+  );
+  flash(req, "Video assignment created. Students can now upload or record their submission.");
+  res.redirect(`/admin/courses/${courseId}/student-view?lesson=${lessonId}`);
+});
+
+app.post("/admin/courses/:courseId/video-assignments/:assignmentId", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const courseId = Number(req.params.courseId);
+  const assignmentId = Number(req.params.assignmentId);
+  const assignment = db.prepare("SELECT id, lesson_id FROM video_assignments WHERE id = ? AND course_id = ?").get(assignmentId, courseId);
+  const instructions = String(req.body.instructions || "").trim();
+  const allowUpload = req.body.allowUpload ? 1 : 0;
+  const allowRecording = req.body.allowRecording ? 1 : 0;
+  if (!assignment) return res.status(404).send("Video assignment not found");
+  if (!instructions || (!allowUpload && !allowRecording)) {
+    flash(req, "Instructions are required, and upload or recording must remain enabled.");
+    return res.redirect(`/admin/courses/${courseId}/student-view?lesson=${assignment.lesson_id}`);
+  }
+  const maxMinutes = Math.max(1, Math.min(30, Number(req.body.maxDurationMinutes || 5)));
+  db.prepare(`
+    UPDATE video_assignments SET instructions = ?, allow_upload = ?, allow_recording = ?, max_duration_seconds = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(instructions, allowUpload, allowRecording, maxMinutes * 60, assignment.id);
+  db.prepare("UPDATE lessons SET content = ?, duration_minutes = ? WHERE id = ?").run(instructions, maxMinutes, assignment.lesson_id);
+  flash(req, "Video assignment settings updated.");
+  res.redirect(`/admin/courses/${courseId}/student-view?lesson=${assignment.lesson_id}`);
+});
+
+app.post("/admin/courses/:courseId/video-submissions/:submissionId/review", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const courseId = Number(req.params.courseId);
+  const submission = db.prepare(`
+    SELECT vs.id, vs.enrollment_id, va.lesson_id, l.title, gi.id AS grade_item_id, gi.points_possible
+    FROM video_submissions vs
+    JOIN video_assignments va ON va.id = vs.video_assignment_id
+    JOIN lessons l ON l.id = va.lesson_id
+    LEFT JOIN grade_items gi ON gi.course_id = va.course_id AND gi.title = l.title
+    WHERE vs.id = ? AND va.course_id = ?
+  `).get(Number(req.params.submissionId), courseId);
+  if (!submission) return res.status(404).send("Video submission not found");
+  const scoreText = String(req.body.score ?? "").trim();
+  const score = scoreText === "" ? null : Number(scoreText);
+  if (score !== null && (!Number.isFinite(score) || score < 0 || (submission.points_possible !== null && score > Number(submission.points_possible)))) {
+    flash(req, `Enter a score between 0 and ${submission.points_possible ?? 100}.`);
+    return res.redirect(`/admin/courses/${courseId}/student-view?lesson=${submission.lesson_id}`);
+  }
+  const feedback = String(req.body.feedback || "").trim();
+  db.prepare("UPDATE video_submissions SET score = ?, instructor_feedback = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(score, feedback, submission.id);
+  if (score !== null && submission.grade_item_id) {
+    db.prepare(`
+      INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET score = excluded.score, note = excluded.note, updated_at = CURRENT_TIMESTAMP
+    `).run(submission.enrollment_id, submission.grade_item_id, score, feedback || "Video assignment graded by instructor.");
+  }
+  flash(req, score === null ? "Instructor feedback saved." : "Video grade and feedback saved to the gradebook.");
+  res.redirect(`/admin/courses/${courseId}/student-view?lesson=${submission.lesson_id}`);
 });
 
 app.post("/admin/courses/:id/lessons", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -10770,6 +11049,91 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     </section>
   `;
   render(req, res, enrollment.title, body, { courseCanvas: true });
+});
+
+app.get("/video-submissions/:id/media", requireAuth, (req, res) => {
+  const submission = db.prepare(`
+    SELECT vs.*, e.user_id
+    FROM video_submissions vs
+    JOIN enrollments e ON e.id = vs.enrollment_id
+    WHERE vs.id = ?
+  `).get(Number(req.params.id));
+  if (!submission) return res.status(404).send("Video not found");
+  const authorized = req.user.role === "admin" || req.user.role === "instructor" || Number(submission.user_id) === Number(req.user.id);
+  if (!authorized) return res.status(403).send("Forbidden");
+  const filePath = path.join(uploadDir, submission.file_storage_name);
+  if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Video file not found");
+  res.set({
+    "Content-Type": submission.mime_type,
+    "Content-Disposition": `inline; filename="${path.basename(submission.file_original_name).replace(/["\r\n]/g, "")}"`,
+    "Cache-Control": "private, no-store"
+  });
+  res.sendFile(filePath);
+});
+
+app.post("/student/enrollments/:id/video-assignments/:assignmentId/submit", requireAuth, requireRole("student"), receiveVideo, (req, res) => {
+  const enrollmentId = Number(req.params.id);
+  if (isClassLocked(req.user)) {
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    flash(req, "Class access is locked until the office marks your student file as organized.");
+    return res.redirect("/student");
+  }
+  const enrollment = db.prepare(`
+    SELECT id, course_id FROM enrollments WHERE id = ? AND user_id = ? AND status IN ('active', 'completed')
+  `).get(enrollmentId, req.user.id);
+  const assignment = enrollment ? db.prepare(`
+    SELECT va.*, l.id AS lesson_id
+    FROM video_assignments va
+    JOIN lessons l ON l.id = va.lesson_id
+    WHERE va.id = ? AND va.course_id = ? AND COALESCE(l.published, 1) = 1 AND COALESCE(l.instructor_only, 0) = 0
+  `).get(Number(req.params.assignmentId), enrollment.course_id) : null;
+  const method = req.body.submissionMethod === "recording" ? "recording" : "upload";
+  if (!enrollment || !assignment || !req.file || (method === "recording" && !assignment.allow_recording) || (method === "upload" && !assignment.allow_upload)) {
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    if (!enrollment) return res.status(404).send("Enrollment not found");
+    flash(req, req.file ? "This submission method is not enabled for the assignment." : "Choose or record a video before submitting.");
+    return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${assignment?.lesson_id || ""}`);
+  }
+  const previous = db.prepare("SELECT file_storage_name FROM video_submissions WHERE video_assignment_id = ? AND enrollment_id = ?").get(assignment.id, enrollmentId);
+  try {
+    db.prepare(`
+      INSERT INTO video_submissions (
+        video_assignment_id, enrollment_id, file_storage_name, file_original_name, mime_type, file_size,
+        submission_method, student_note, score, instructor_feedback, submitted_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(video_assignment_id, enrollment_id) DO UPDATE SET
+        file_storage_name = excluded.file_storage_name,
+        file_original_name = excluded.file_original_name,
+        mime_type = excluded.mime_type,
+        file_size = excluded.file_size,
+        submission_method = excluded.submission_method,
+        student_note = excluded.student_note,
+        score = NULL,
+        instructor_feedback = NULL,
+        submitted_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(
+      assignment.id, enrollmentId, req.file.filename, req.file.originalname, req.file.mimetype, req.file.size,
+      method, String(req.body.studentNote || "").trim()
+    );
+  } catch (error) {
+    fs.unlink(req.file.path, () => {});
+    throw error;
+  }
+  if (previous?.file_storage_name && previous.file_storage_name !== req.file.filename) {
+    const previousPath = path.join(uploadDir, previous.file_storage_name);
+    if (isPathInside(uploadDir, previousPath)) fs.unlink(previousPath, () => {});
+  }
+  db.prepare("INSERT OR IGNORE INTO lesson_completions (enrollment_id, lesson_id) VALUES (?, ?)").run(enrollmentId, assignment.lesson_id);
+  const counts = db.prepare(`
+    SELECT COUNT(DISTINCT l.id) AS total, COUNT(DISTINCT lc.lesson_id) AS completed
+    FROM lessons l JOIN modules m ON m.id = l.module_id
+    LEFT JOIN lesson_completions lc ON lc.lesson_id = l.id AND lc.enrollment_id = ?
+    WHERE m.course_id = ? AND COALESCE(l.published, 1) = 1 AND COALESCE(l.instructor_only, 0) = 0
+  `).get(enrollmentId, enrollment.course_id);
+  db.prepare("UPDATE enrollments SET progress = ? WHERE id = ?").run(counts.total ? Math.round(counts.completed / counts.total * 100) : 0, enrollmentId);
+  flash(req, "Video submitted successfully. Your instructor can now review and grade it.");
+  res.redirect(`/student/enrollments/${enrollmentId}?lesson=${assignment.lesson_id}`);
 });
 
 app.post("/student/enrollments/:id/progress", requireAuth, requireRole("student"), (req, res) => {

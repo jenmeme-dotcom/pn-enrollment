@@ -1725,6 +1725,123 @@ button.danger {
   }
 }
 
+.video-assignment-card {
+  display: grid;
+  gap: 20px;
+}
+
+.video-assignment-heading,
+.video-review-person {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.video-assignment-heading h2,
+.video-submission-options h3,
+.video-recorder h3 {
+  margin: 4px 0 8px;
+}
+
+.video-kicker {
+  color: #087c86;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.video-submitted-badge {
+  background: #e4f5ed;
+  border: 1px solid #98d2b6;
+  border-radius: 999px;
+  color: #17663f;
+  font-weight: 800;
+  padding: 7px 12px;
+}
+
+.video-requirements {
+  background: #f3f7f9;
+  border-left: 4px solid #087c86;
+  color: #405362;
+  padding: 12px 14px;
+}
+
+.video-submission-options,
+.video-settings-form {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.video-submission-options > section,
+.video-review-item,
+.video-submission-receipt {
+  background: #fff;
+  border: 1px solid #d7e0e5;
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.video-assignment-card video {
+  background: #111;
+  border-radius: 7px;
+  display: block;
+  max-height: 520px;
+  width: 100%;
+}
+
+.video-recorder [data-recorder-preview]:not([src]) {
+  min-height: 260px;
+}
+
+.video-recorder-actions,
+.video-review-form {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.video-review-list {
+  display: grid;
+  gap: 18px;
+}
+
+.video-review-person {
+  margin-bottom: 12px;
+}
+
+.video-review-person small {
+  color: #5e6d77;
+  display: block;
+}
+
+.video-review-form label {
+  flex: 1 1 220px;
+}
+
+.video-grade {
+  background: #e8f5f5;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+@media (max-width: 760px) {
+  .video-submission-options,
+  .video-settings-form {
+    grid-template-columns: 1fr;
+  }
+
+  .video-assignment-heading,
+  .video-review-person {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 @media print {
   body.sis-mode {
     background: #fff;

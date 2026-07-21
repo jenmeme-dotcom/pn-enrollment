@@ -121,6 +121,36 @@ function migrate() {
       UNIQUE(enrollment_id, lesson_id)
     );
 
+    CREATE TABLE IF NOT EXISTS video_assignments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lesson_id INTEGER NOT NULL UNIQUE REFERENCES lessons(id) ON DELETE CASCADE,
+      course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      instructions TEXT NOT NULL DEFAULT '',
+      allow_upload INTEGER NOT NULL DEFAULT 1,
+      allow_recording INTEGER NOT NULL DEFAULT 1,
+      max_duration_seconds INTEGER NOT NULL DEFAULT 300,
+      max_file_size_mb INTEGER NOT NULL DEFAULT 100,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS video_submissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      video_assignment_id INTEGER NOT NULL REFERENCES video_assignments(id) ON DELETE CASCADE,
+      enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+      file_storage_name TEXT NOT NULL,
+      file_original_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL DEFAULT 0,
+      submission_method TEXT NOT NULL DEFAULT 'upload' CHECK(submission_method IN ('upload','recording')),
+      student_note TEXT,
+      instructor_feedback TEXT,
+      score REAL,
+      submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(video_assignment_id, enrollment_id)
+    );
+
     CREATE TABLE IF NOT EXISTS attendance (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
