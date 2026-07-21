@@ -1503,12 +1503,18 @@ button.danger {
   box-shadow: 0 0 0 2px rgb(180 35 24 / 14%);
 }
 
-.quiz-question-needs-answer::after {
+.quiz-answer-warning {
+  background: #fff1f0;
+  border-left: 4px solid #b42318;
+  border-radius: 0.35rem;
   color: #b42318;
-  content: "Select an answer before continuing.";
-  display: block;
   font-weight: 700;
   margin-top: 0.75rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.quiz-answer-warning[hidden] {
+  display: none;
 }
 
 .quiz-page-actions {

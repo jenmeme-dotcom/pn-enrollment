@@ -1308,6 +1308,7 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
       ${question.options.map((option, optionIndex) => `
         <label><input type="radio" name="q${questionIndex + 1}" value="${optionIndex}" required ${instructor ? "disabled" : ""}> ${escapeHtml(option)}</label>
       `).join("")}
+      <p class="quiz-answer-warning" role="alert" tabindex="-1" hidden>Please select an answer before continuing to the next question.</p>
     </fieldset>
   `).join("") : `
     <fieldset><legend>Quiz questions are being prepared.</legend><p>Your instructor has not published a question set for this quiz yet.</p></fieldset>
@@ -1365,10 +1366,20 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
               pages[page].scrollIntoView({ behavior: 'smooth', block: 'start' });
             };
             previous.addEventListener('click', () => showPage(Math.max(0, page - 1)));
+            pages.forEach((item) => item.addEventListener('change', () => {
+              item.classList.remove('quiz-question-needs-answer');
+              const warning = item.querySelector('.quiz-answer-warning');
+              if (warning) warning.hidden = true;
+            }));
             next.addEventListener('click', () => {
               const answer = pages[page].querySelector('input:checked');
               if (!answer && !${instructor ? "true" : "false"}) {
                 pages[page].classList.add('quiz-question-needs-answer');
+                const warning = pages[page].querySelector('.quiz-answer-warning');
+                if (warning) {
+                  warning.hidden = false;
+                  warning.focus();
+                }
                 return;
               }
               pages[page].classList.remove('quiz-question-needs-answer');
