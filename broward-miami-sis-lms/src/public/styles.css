@@ -1528,6 +1528,10 @@ button.danger {
   margin-left: auto;
 }
 
+.quiz-page-actions [hidden] {
+  display: none !important;
+}
+
 @media print {
   body.sis-mode {
     background: #fff;

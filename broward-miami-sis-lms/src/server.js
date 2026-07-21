@@ -3373,7 +3373,7 @@ function renderLineRun(lines = []) {
 }
 
 function renderCanvasLessonContent(value = "", lessonTitle = "") {
-  const raw = stripCanvasSource(value);
+  const raw = stripCanvasSource(value).replace(/\n*QUIZ_DATA_BASE64:[A-Za-z0-9+/=]+\s*/g, "\n").trim();
   if (!raw) return `<p class="empty">No page content has been added yet.</p>`;
   if (looksLikeHtml(raw)) {
     return `<div class="canvas-source-html">${sanitizeCanvasHtml(raw)}</div>`;
