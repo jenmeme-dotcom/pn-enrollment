@@ -1464,7 +1464,7 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
   `;
 }
 
-function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false, gradeItems = [] }) {
+function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false, gradeItems = [], completedLessonIds = new Set() }) {
   const firstLesson = lessons[0];
   const selectedLesson = lessons.find((lesson) => lesson.id === Number(lessonId)) || firstLesson;
   if (!selectedLesson) return `<main class="canvas-course-main canvas-page-main"><p class="empty">No lesson was found.</p></main>`;
@@ -1472,6 +1472,7 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
   const previousLesson = selectedIndex > 0 ? lessons[selectedIndex - 1] : null;
   const nextLesson = selectedIndex >= 0 && selectedIndex < lessons.length - 1 ? lessons[selectedIndex + 1] : null;
   const selectedModule = moduleGroups.find((module) => module.id === selectedLesson.module_id) || moduleGroups[0];
+  const lessonIsComplete = completedLessonIds.has(selectedLesson.id);
   return `
     <main class="canvas-course-main canvas-page-main">
       <div class="canvas-mini-head">
@@ -1498,9 +1499,9 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
         </div>
         ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems })}
         ${!instructor && enrollmentId ? `
-          <form method="post" action="/student/enrollments/${enrollmentId}/progress" class="canvas-complete-action">
-            <input type="hidden" name="progress" value="100">
-            <button class="button ghost" type="submit">Mark As Complete</button>
+          <form method="post" action="/student/enrollments/${enrollmentId}/lesson-complete" class="canvas-complete-action">
+            <input type="hidden" name="lessonId" value="${selectedLesson.id}">
+            <button class="button ghost" type="submit" ${lessonIsComplete ? "disabled" : ""}>${lessonIsComplete ? "Completed" : "Mark As Complete"}</button>
           </form>
         ` : ""}
         <nav class="canvas-page-actions" aria-label="Lesson navigation">
@@ -10232,6 +10233,13 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     JOIN grade_items gi ON gi.id = g.grade_item_id
     WHERE g.enrollment_id = ? AND gi.course_id = ?
   `).all(enrollment.id, enrollment.course_id);
+  const completedLessonIds = new Set(db.prepare(`
+    SELECT lc.lesson_id
+    FROM lesson_completions lc
+    JOIN lessons l ON l.id = lc.lesson_id
+    JOIN modules m ON m.id = l.module_id
+    WHERE lc.enrollment_id = ? AND m.course_id = ?
+  `).all(enrollment.id, enrollment.course_id).map((row) => row.lesson_id));
   const announcements = courseAnnouncements(enrollment.course_id);
   const discussionTopics = courseDiscussionTopics(enrollment.course_id);
   const selectedDiscussionTopicId = Number(req.query.topicId || 0) || discussionTopics[0]?.id || null;
@@ -10570,6 +10578,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         lessonId: req.query.lesson,
         enrollmentId: enrollment.id,
         gradeItems,
+        completedLessonIds,
         instructor: false
       })}
     </section>
@@ -10626,6 +10635,40 @@ app.post("/student/enrollments/:id/progress", requireAuth, requireRole("student"
   db.prepare("UPDATE enrollments SET progress = ? WHERE id = ? AND user_id = ?").run(progress, Number(req.params.id), req.user.id);
   flash(req, "Progress updated.");
   res.redirect(`/student/enrollments/${Number(req.params.id)}`);
+});
+
+app.post("/student/enrollments/:id/lesson-complete", requireAuth, requireRole("student"), (req, res) => {
+  if (isClassLocked(req.user)) {
+    flash(req, "Class access is locked until the office marks your student file as organized.");
+    return res.redirect("/student");
+  }
+  const enrollmentId = Number(req.params.id);
+  const lessonId = Number(req.body.lessonId);
+  const enrollment = db.prepare(`
+    SELECT id, course_id FROM enrollments
+    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed')
+  `).get(enrollmentId, req.user.id);
+  if (!enrollment) return res.status(404).send("Enrollment not found");
+  const lesson = db.prepare(`
+    SELECT l.id FROM lessons l
+    JOIN modules m ON m.id = l.module_id
+    WHERE l.id = ? AND m.course_id = ? AND COALESCE(l.published, 1) = 1
+  `).get(lessonId, enrollment.course_id);
+  if (!lesson) return res.status(404).send("Lesson not found");
+  db.prepare("INSERT OR IGNORE INTO lesson_completions (enrollment_id, lesson_id) VALUES (?, ?)").run(enrollmentId, lessonId);
+  const counts = db.prepare(`
+    SELECT
+      COUNT(DISTINCT l.id) AS total,
+      COUNT(DISTINCT lc.lesson_id) AS completed
+    FROM lessons l
+    JOIN modules m ON m.id = l.module_id
+    LEFT JOIN lesson_completions lc ON lc.lesson_id = l.id AND lc.enrollment_id = ?
+    WHERE m.course_id = ? AND COALESCE(l.published, 1) = 1 AND COALESCE(l.instructor_only, 0) = 0
+  `).get(enrollmentId, enrollment.course_id);
+  const progress = counts.total ? Math.round((counts.completed / counts.total) * 100) : 0;
+  db.prepare("UPDATE enrollments SET progress = ? WHERE id = ?").run(progress, enrollmentId);
+  flash(req, "Lesson marked complete.");
+  res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
 });
 
 app.post("/student/enrollments/:id/quiz-submit", requireAuth, requireRole("student"), (req, res) => {

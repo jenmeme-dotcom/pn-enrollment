@@ -113,6 +113,14 @@ function migrate() {
       UNIQUE(user_id, course_id, external_order_id)
     );
 
+    CREATE TABLE IF NOT EXISTS lesson_completions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+      lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+      completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(enrollment_id, lesson_id)
+    );
+
     CREATE TABLE IF NOT EXISTS attendance (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
