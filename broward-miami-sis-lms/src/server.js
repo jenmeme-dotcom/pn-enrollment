@@ -1303,7 +1303,7 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
   const topic = quizChapterLabel(lesson.title);
   const questions = lessonQuizQuestions(lesson);
   const questionFields = questions.length ? questions.map((question, questionIndex) => `
-    <fieldset class="graded-quiz-question">
+    <fieldset class="graded-quiz-question" data-quiz-question="${questionIndex}" ${questionIndex === 0 ? "" : "hidden"}>
       <legend>${questionIndex + 1}. ${escapeHtml(question.prompt)}</legend>
       ${question.options.map((option, optionIndex) => `
         <label><input type="radio" name="q${questionIndex + 1}" value="${optionIndex}" required ${instructor ? "disabled" : ""}> ${escapeHtml(option)}</label>
@@ -1327,17 +1327,56 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
       <p class="quiz-instructions">Read each question and select the best answer. This quiz page stays with the module item so students do not get redirected to grades.</p>
       <form class="quiz-preview-form" method="post" action="${enrollmentId ? `/student/enrollments/${enrollmentId}/quiz-submit` : "#"}">
         ${enrollmentId ? `<input type="hidden" name="lessonId" value="${escapeHtml(lesson.id)}">` : ""}
+        ${questions.length ? `<div class="quiz-page-status" aria-live="polite"><strong>Question <span data-quiz-current>1</span> of ${questions.length}</strong><span data-quiz-progress style="--quiz-progress:${100 / questions.length}%"></span></div>` : ""}
         ${questionFields}
-        <div class="quiz-submit-row">
+        <div class="quiz-submit-row quiz-page-actions">
           ${instructor ? `
-            <button class="button" type="button" disabled>Student submit button preview</button>
+            <button class="button ghost" type="button" data-quiz-previous hidden>Previous</button>
+            <button class="button" type="button" data-quiz-next>Next</button>
+            <button class="button" type="button" data-quiz-submit hidden disabled>Student submit button preview</button>
           ` : questions.length ? `
-            <button class="button" type="submit">Submit Quiz</button>
+            <button class="button ghost" type="button" data-quiz-previous hidden>Previous</button>
+            <button class="button" type="button" data-quiz-next>Next</button>
+            <button class="button" type="submit" data-quiz-submit hidden>Submit Quiz</button>
           ` : `
             <button class="button" type="button" disabled>Quiz unavailable</button>
           `}
         </div>
       </form>
+      ${questions.length ? `
+        <script>
+          (() => {
+            const card = document.currentScript.closest('.quiz-action-card');
+            const pages = [...card.querySelectorAll('[data-quiz-question]')];
+            const previous = card.querySelector('[data-quiz-previous]');
+            const next = card.querySelector('[data-quiz-next]');
+            const submit = card.querySelector('[data-quiz-submit]');
+            const current = card.querySelector('[data-quiz-current]');
+            const progress = card.querySelector('[data-quiz-progress]');
+            let page = 0;
+            const showPage = (newPage) => {
+              page = newPage;
+              pages.forEach((item, index) => { item.hidden = index !== page; });
+              previous.hidden = page === 0;
+              next.hidden = page === pages.length - 1;
+              submit.hidden = page !== pages.length - 1;
+              current.textContent = String(page + 1);
+              progress.style.setProperty('--quiz-progress', ((page + 1) / pages.length * 100) + '%');
+              pages[page].scrollIntoView({ behavior: 'smooth', block: 'start' });
+            };
+            previous.addEventListener('click', () => showPage(Math.max(0, page - 1)));
+            next.addEventListener('click', () => {
+              const answer = pages[page].querySelector('input:checked');
+              if (!answer && !${instructor ? "true" : "false"}) {
+                pages[page].classList.add('quiz-question-needs-answer');
+                return;
+              }
+              pages[page].classList.remove('quiz-question-needs-answer');
+              showPage(Math.min(pages.length - 1, page + 1));
+            });
+          })();
+        </script>
+      ` : ""}
     </div>
   `;
 }
