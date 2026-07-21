@@ -786,6 +786,14 @@ app.get("/course-materials/:courseSlug/:fileName", requireAuth, (req, res) => {
   const materialDir = path.join(courseMaterialsDir, course.slug);
   const filePath = path.join(materialDir, fileName);
   if (!isPathInside(materialDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Course material not found");
+  if (req.query.inline === "1" && path.extname(fileName).toLowerCase() === ".pdf") {
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="${fileName.replace(/["\r\n]/g, "")}"`,
+      "Cache-Control": "private, max-age=3600"
+    });
+    return res.sendFile(filePath);
+  }
   res.download(filePath, fileName);
 });
 
@@ -1504,6 +1512,22 @@ function lessonMaterialLinks(lesson = {}) {
   return [...links.entries()].map(([href, label]) => ({ href, label }));
 }
 
+function inlinePdfForMaterial(file = {}) {
+  const href = String(file.href || "").split("?")[0];
+  const match = href.match(/^\/course-materials\/([^/]+)\/(.+)$/);
+  if (!match) return null;
+  const courseSlug = decodeURIComponent(match[1]);
+  const originalName = decodeURIComponent(match[2]);
+  const extension = path.extname(originalName).toLowerCase();
+  const pdfName = extension === ".pdf" ? originalName : extension === ".pptx" ? originalName.replace(/\.pptx$/i, ".pdf") : "";
+  if (!pdfName) return null;
+  const materialDir = path.join(courseMaterialsDir, courseSlug);
+  const pdfPath = path.join(materialDir, pdfName);
+  if (!isPathInside(materialDir, pdfPath) || !fs.existsSync(pdfPath)) return null;
+  const viewerHref = `/course-materials/${encodeURIComponent(courseSlug)}/${encodeURIComponent(pdfName)}?inline=1`;
+  return { viewerHref, pdfName, originalLabel: file.label || originalName };
+}
+
 function quizChapterLabel(title = "") {
   const cleanTitle = String(title || "").replace(/^\[[^\]]+\]\s*/, "");
   const chapterMatch = cleanTitle.match(/Chapter\s+(\d+)\s*[-:]?\s*(.*)$/i);
@@ -1823,15 +1847,28 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
   const lower = title.toLowerCase();
   const kind = moduleItemKind(title);
   const materialLinks = lessonMaterialLinks(lesson);
+  const inlinePdfs = materialLinks.map(inlinePdfForMaterial).filter(Boolean).filter((file, index, files) => files.findIndex((candidate) => candidate.viewerHref === file.viewerHref) === index);
   const fileButtons = materialLinks.length ? `
     <div class="lesson-action-card">
       <h2>Course Files</h2>
-      <p>Open or download the file attached to this module item.</p>
+      <p>View the document on this page or download the original file when needed.</p>
       <div class="lesson-file-actions">
         ${materialLinks.map((file) => `
-          <a class="button ghost" href="${escapeHtml(file.href)}">${escapeHtml(file.label)}</a>
+          <a class="button ghost" href="${escapeHtml(file.href)}" download>${escapeHtml(file.label)} <span>Download</span></a>
         `).join("")}
       </div>
+      ${inlinePdfs.map((file) => `
+        <section class="inline-document-viewer">
+          <div class="inline-document-head">
+            <div><strong>View ${escapeHtml(file.originalLabel)} in this page</strong><small>Use the PDF controls to zoom, move between pages, or open full screen.</small></div>
+            <a class="button small ghost" href="${escapeHtml(file.viewerHref)}" target="_blank" rel="noopener">Open Full Screen</a>
+          </div>
+          <object data="${escapeHtml(file.viewerHref)}" type="application/pdf" aria-label="${escapeHtml(file.originalLabel)} PDF viewer">
+            <iframe src="${escapeHtml(file.viewerHref)}" title="${escapeHtml(file.originalLabel)} PDF viewer" loading="lazy"></iframe>
+            <p>Your browser could not display the PDF viewer. <a href="${escapeHtml(file.viewerHref)}" target="_blank" rel="noopener">Open the PDF in a new tab</a>.</p>
+          </object>
+        </section>
+      `).join("")}
     </div>
   ` : "";
 
