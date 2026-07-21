@@ -4273,12 +4273,12 @@ button.small {
 }
 
 .canvas-global-rail img {
-  background: white;
-  border-radius: 2px;
+  background: transparent;
+  border-radius: 50%;
   display: block;
   height: 42px;
   object-fit: contain;
-  padding: 2px;
+  padding: 0;
   width: 42px;
 }
 
