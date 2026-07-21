@@ -1284,9 +1284,34 @@ function quizDueAndPoints(lesson = {}, gradeItems = []) {
   };
 }
 
+function lessonQuizQuestions(lesson = {}) {
+  const match = String(lesson.content || "").match(/QUIZ_DATA_BASE64:([A-Za-z0-9+/=]+)/);
+  if (!match) return [];
+  try {
+    const questions = JSON.parse(Buffer.from(match[1], "base64").toString("utf8"));
+    return Array.isArray(questions) ? questions.filter((question) =>
+      question && typeof question.prompt === "string" && Array.isArray(question.options) &&
+      Number.isInteger(question.answer) && question.answer >= 0 && question.answer < question.options.length
+    ) : [];
+  } catch {
+    return [];
+  }
+}
+
 function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, instructor = false }) {
   const quizMeta = quizDueAndPoints(lesson, gradeItems);
   const topic = quizChapterLabel(lesson.title);
+  const questions = lessonQuizQuestions(lesson);
+  const questionFields = questions.length ? questions.map((question, questionIndex) => `
+    <fieldset class="graded-quiz-question">
+      <legend>${questionIndex + 1}. ${escapeHtml(question.prompt)}</legend>
+      ${question.options.map((option, optionIndex) => `
+        <label><input type="radio" name="q${questionIndex + 1}" value="${optionIndex}" required ${instructor ? "disabled" : ""}> ${escapeHtml(option)}</label>
+      `).join("")}
+    </fieldset>
+  `).join("") : `
+    <fieldset><legend>Quiz questions are being prepared.</legend><p>Your instructor has not published a question set for this quiz yet.</p></fieldset>
+  `;
   return `
     <div class="lesson-action-card quiz-action-card">
       <div class="quiz-action-head">
@@ -1300,24 +1325,16 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
         </dl>
       </div>
       <p class="quiz-instructions">Read each question and select the best answer. This quiz page stays with the module item so students do not get redirected to grades.</p>
-      <form class="quiz-preview-form" method="post" action="${enrollmentId ? `/student/enrollments/${enrollmentId}/progress` : "#"}">
-        ${enrollmentId ? `<input type="hidden" name="progress" value="100">` : ""}
-        <fieldset>
-          <legend>1. Select the best description for this topic.</legend>
-          <label><input type="radio" name="q1" ${instructor ? "disabled" : ""}> Apply the correct medical terms for ${escapeHtml(topic.toLowerCase())}.</label>
-          <label><input type="radio" name="q1" ${instructor ? "disabled" : ""}> Skip the chapter materials and submit without review.</label>
-          <label><input type="radio" name="q1" ${instructor ? "disabled" : ""}> Use unrelated abbreviations in clinical documentation.</label>
-        </fieldset>
-        <fieldset>
-          <legend>2. Short answer</legend>
-          <label for="quiz-short-answer-${escapeHtml(lesson.id)}">Write one key term or concept from this module.</label>
-          <textarea id="quiz-short-answer-${escapeHtml(lesson.id)}" name="q2" rows="4" placeholder="Enter your response here." ${instructor ? "disabled" : ""}></textarea>
-        </fieldset>
+      <form class="quiz-preview-form" method="post" action="${enrollmentId ? `/student/enrollments/${enrollmentId}/quiz-submit` : "#"}">
+        ${enrollmentId ? `<input type="hidden" name="lessonId" value="${escapeHtml(lesson.id)}">` : ""}
+        ${questionFields}
         <div class="quiz-submit-row">
           ${instructor ? `
             <button class="button" type="button" disabled>Student submit button preview</button>
-          ` : `
+          ` : questions.length ? `
             <button class="button" type="submit">Submit Quiz</button>
+          ` : `
+            <button class="button" type="button" disabled>Quiz unavailable</button>
           `}
         </div>
       </form>
@@ -10559,6 +10576,51 @@ app.post("/student/enrollments/:id/progress", requireAuth, requireRole("student"
   db.prepare("UPDATE enrollments SET progress = ? WHERE id = ? AND user_id = ?").run(progress, Number(req.params.id), req.user.id);
   flash(req, "Progress updated.");
   res.redirect(`/student/enrollments/${Number(req.params.id)}`);
+});
+
+app.post("/student/enrollments/:id/quiz-submit", requireAuth, requireRole("student"), (req, res) => {
+  if (isClassLocked(req.user)) {
+    flash(req, "Class access is locked until the office marks your student file as organized.");
+    return res.redirect("/student");
+  }
+  const enrollmentId = Number(req.params.id);
+  const lessonId = Number(req.body.lessonId);
+  const enrollment = db.prepare(`
+    SELECT id, course_id FROM enrollments
+    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed')
+  `).get(enrollmentId, req.user.id);
+  if (!enrollment) return res.status(404).send("Enrollment not found");
+  const lesson = db.prepare(`
+    SELECT l.id, l.title, l.content FROM lessons l
+    JOIN modules m ON m.id = l.module_id
+    WHERE l.id = ? AND m.course_id = ? AND COALESCE(l.published, 1) = 1
+  `).get(lessonId, enrollment.course_id);
+  if (!lesson) return res.status(404).send("Quiz not found");
+  const questions = lessonQuizQuestions(lesson);
+  if (!questions.length) {
+    flash(req, "This quiz does not have a published question set.");
+    return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
+  }
+  if (!questions.every((question, index) => req.body[`q${index + 1}`] !== undefined)) {
+    flash(req, "Answer every question before submitting the quiz.");
+    return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
+  }
+  const correct = questions.reduce((total, question, index) =>
+    total + (Number(req.body[`q${index + 1}`]) === question.answer ? 1 : 0), 0);
+  const gradeItem = db.prepare("SELECT id, points_possible FROM grade_items WHERE course_id = ? AND title = ?").get(enrollment.course_id, lesson.title);
+  if (!gradeItem) {
+    flash(req, `Quiz submitted: ${correct} of ${questions.length} correct. Instructor gradebook item was not found.`);
+    return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
+  }
+  const score = Number(((correct / questions.length) * Number(gradeItem.points_possible || questions.length)).toFixed(2));
+  db.prepare(`
+    INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
+    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET
+      score = excluded.score, note = excluded.note, updated_at = CURRENT_TIMESTAMP
+  `).run(enrollmentId, gradeItem.id, score, `Auto-graded: ${correct} of ${questions.length} correct.`);
+  flash(req, `Quiz submitted. Score: ${correct} of ${questions.length} (${Math.round(correct / questions.length * 100)}%).`);
+  res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
 });
 
 app.post("/student/enrollments/:id/discussions/:topicId/replies", requireAuth, requireRole("student"), (req, res) => {

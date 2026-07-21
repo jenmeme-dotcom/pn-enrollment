@@ -763,6 +763,25 @@ function seed() {
     }
   }
 
+  // Update the live PN101 Quiz 1 record in place. This preserves lesson IDs,
+  // enrollments, completion links, and any existing gradebook history.
+  const pn101CourseDefinition = courses.find((course) => course.slug === "medical-terminology");
+  const pn101QuizOneDefinition = pn101CourseDefinition?.modules
+    ?.flatMap((module) => module.lessons || [])
+    .find((lesson) => lesson.title === "[PN101 2026] Quiz 1 - Chapter 1 Word Structure");
+  if (pn101QuizOneDefinition) {
+    db.prepare(`
+      UPDATE lessons
+      SET content = ?, duration_minutes = ?
+      WHERE title = ?
+        AND module_id IN (
+          SELECT m.id FROM modules m
+          JOIN courses c ON c.id = m.course_id
+          WHERE c.slug = 'medical-terminology'
+        )
+    `).run(pn101QuizOneDefinition.content, pn101QuizOneDefinition.durationMinutes || 30, pn101QuizOneDefinition.title);
+  }
+
   const fundamentals = db.prepare("SELECT id FROM courses WHERE slug = ?").get("fundamental-nursing-skills-and-concepts-new-cohort");
   if (fundamentals) {
     const lippincottLessonTitle = "Lippincott CoursePoint Class Code - Fundamentals";

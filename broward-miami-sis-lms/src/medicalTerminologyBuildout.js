@@ -28,6 +28,20 @@ const courseObjectives = [
   "Connect terminology to anatomy, physiology, pharmacology, and practical nursing practice."
 ];
 
+const chapterOneQuestions = [
+  { prompt: "Gastrectomy:", options: ["Gastric resection", "Intestinal incision", "Tumor of the stomach", "Incision of the stomach", "Resection of the intestine"], answer: 0 },
+  { prompt: "Osteitis:", options: ["Incision of a bone", "Removal of a bone", "Incision of a joint", "Inflammation of a joint", "Inflammation of a bone"], answer: 4 },
+  { prompt: "Cystoscopy:", options: ["Study of cells", "Visual examination of cells", "Removal of a sac of fluid", "Removal of the urinary bladder", "Visual examination of the urinary bladder"], answer: 4 },
+  { prompt: "Hepatoma:", options: ["Incision of the kidney", "Tumor of the liver", "Blood mass", "Inflammation of the liver", "Red blood cell"], answer: 1 },
+  { prompt: "Iatrogenic:", options: ["Pertaining to produced by treatment", "Produced by the mind", "Cancer producing", "Pertaining to producing a tumor", "Cutting into a tumor"], answer: 0 },
+  { prompt: "Electroencephalogram:", options: ["Record of electricity in the brain", "Record of electricity in the heart", "X-ray of the brain", "Record of sound waves in the brain", "X-ray of the heart and brain"], answer: 0 },
+  { prompt: "Diagnosis:", options: ["Made after the prognosis", "A guess as to the patient's condition", "A prediction of the course of treatment", "Made on the basis of complete knowledge about the patient's condition", "A treatment of the patient"], answer: 3 },
+  { prompt: "Cancerous tumor:", options: ["Hematoma", "Adenoma", "Carcinoma", "Carcinogenic", "Neurotomy"], answer: 2 },
+  { prompt: "Microscopic examination of living tissue:", options: ["Incision", "Pathology", "Biopsy", "Autopsy", "Resection"], answer: 2 },
+  { prompt: "Pertaining to the largest part of the brain:", options: ["Cerebral", "Cephalic", "Renal", "Cardiac", "Neural"], answer: 0 },
+  { prompt: "Removal of a gland:", options: ["Gastrotomy", "Gastric", "Hepatic resection", "Nephric section", "Adenectomy"], answer: 4 }
+];
+
 const weeklyModules = [
   { week: 1, title: "Orientation and Word Structure", date: "Jun 24", focus: "Course orientation; Chapter 1 Basic Word Structure", assessment: "Orientation acknowledgment, Discussion 1, Quiz 1, Word Structure Worksheet" },
   { week: 2, title: "Body Organization and Oncology", date: "Jul 1", focus: "Chapter 2 Body Structure, Color, and Oncology", assessment: "Body Organization Exercise, Quiz 2, Discussion 2" },
@@ -67,7 +81,7 @@ const modules = [
         note: "Students introduce themselves and connect medical terminology study to professional nursing goals."
       }),
       itemLesson("Quiz", "[PN101 2026] Quiz 1 - Chapter 1 Word Structure", {
-        note: "Canvas classic quiz imported from the PN101 package. Question-bank import is preserved in the local IMSCC export."
+        note: `Chapter 1 multiple-choice assessment supplied by BMHI.\n\nQUIZ_DATA_BASE64:${Buffer.from(JSON.stringify(chapterOneQuestions)).toString("base64")}`
       }),
       itemLesson("Assignment", "[PN101 2026] Word Structure Worksheet", {
         files: ["PN101_Word_Structure_Worksheet.pdf", "PN101_Word_Structure_Worksheet.docx"]
