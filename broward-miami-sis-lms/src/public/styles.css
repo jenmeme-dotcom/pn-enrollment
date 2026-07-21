@@ -1532,6 +1532,70 @@ button.danger {
   display: none !important;
 }
 
+.quiz-submitted-card {
+  border-top: 5px solid #087480;
+}
+
+.quiz-submitted-kicker {
+  color: #087480;
+  font-size: 15px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.quiz-submitted-score {
+  align-items: baseline;
+  display: flex;
+  font-size: 22px;
+  gap: 12px;
+}
+
+.quiz-submitted-score strong {
+  color: #087480;
+  font-size: 32px;
+}
+
+.quiz-editor-card {
+  border-top: 1px solid #d9e1e7;
+  margin-top: 24px;
+  padding-top: 18px;
+}
+
+.quiz-editor-card > summary {
+  color: #087480;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.quiz-editor-form {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.quiz-editor-form fieldset {
+  border: 1px solid #d9e1e7;
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.quiz-editor-options label {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 24px 58px minmax(0, 1fr);
+  margin-top: 10px;
+}
+
+.quiz-editor-options input[type="radio"] {
+  height: 22px;
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+  width: 22px;
+}
+
 @media print {
   body.sis-mode {
     background: #fff;

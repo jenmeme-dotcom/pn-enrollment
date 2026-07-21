@@ -1298,10 +1298,23 @@ function lessonQuizQuestions(lesson = {}) {
   }
 }
 
-function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, instructor = false }) {
+function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, instructor = false, baseHref = "#", quizGrade = null, courseId = null }) {
   const quizMeta = quizDueAndPoints(lesson, gradeItems);
   const topic = quizChapterLabel(lesson.title);
   const questions = lessonQuizQuestions(lesson);
+  if (!instructor && quizGrade) {
+    const percentage = quizMeta.points ? Math.round((Number(quizGrade.score || 0) / Number(quizMeta.points)) * 100) : 0;
+    const resultMatch = String(quizGrade.note || "").match(/(\d+) of (\d+) correct/i);
+    return `
+      <div class="lesson-action-card quiz-action-card quiz-submitted-card">
+        <span class="quiz-submitted-kicker">Quiz submitted</span>
+        <h2>Your quiz has been graded</h2>
+        <p class="quiz-submitted-score">${resultMatch ? `${escapeHtml(resultMatch[1])} of ${escapeHtml(resultMatch[2])} correct` : `${escapeHtml(quizGrade.score)} of ${escapeHtml(quizMeta.points)} points`} <strong>${escapeHtml(percentage)}%</strong></p>
+        <p>Your score was saved immediately in the course gradebook.</p>
+        <a class="button" href="${escapeHtml(baseHref)}?view=grades">View Grade</a>
+      </div>
+    `;
+  }
   const questionFields = questions.length ? questions.map((question, questionIndex) => `
     <fieldset class="graded-quiz-question" data-quiz-question="${questionIndex}" ${questionIndex === 0 ? "" : "hidden"}>
       <legend>${questionIndex + 1}. ${escapeHtml(question.prompt)}</legend>
@@ -1388,11 +1401,34 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
           })();
         </script>
       ` : ""}
+      ${instructor && questions.length && courseId ? `
+        <details class="quiz-editor-card">
+          <summary>Edit quiz questions and answer key</summary>
+          <form method="post" action="/admin/courses/${courseId}/lessons/${lesson.id}/quiz-questions" class="quiz-editor-form">
+            ${questions.map((question, questionIndex) => `
+              <fieldset>
+                <legend>Question ${questionIndex + 1}</legend>
+                <label>Question prompt<input name="prompt_${questionIndex}" value="${escapeHtml(question.prompt)}" required></label>
+                <div class="quiz-editor-options">
+                  ${question.options.map((option, optionIndex) => `
+                    <label>
+                      <input type="radio" name="answer_${questionIndex}" value="${optionIndex}" ${question.answer === optionIndex ? "checked" : ""} required>
+                      <span>Correct</span>
+                      <input name="option_${questionIndex}_${optionIndex}" value="${escapeHtml(option)}" required>
+                    </label>
+                  `).join("")}
+                </div>
+              </fieldset>
+            `).join("")}
+            <button class="button" type="submit">Save Quiz Questions</button>
+          </form>
+        </details>
+      ` : ""}
     </div>
   `;
 }
 
-function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false, gradeItems = [] }) {
+function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false, gradeItems = [], quizGrade = null, courseId = null }) {
   const title = String(lesson.title || "");
   const lower = title.toLowerCase();
   const kind = moduleItemKind(title);
@@ -1432,7 +1468,7 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
   }
 
   if (kind === "quiz") {
-    return renderQuizActionPanel({ lesson, gradeItems, enrollmentId, instructor });
+    return renderQuizActionPanel({ lesson, gradeItems, enrollmentId, instructor, baseHref, quizGrade, courseId });
   }
 
   if (kind === "discussion") {
@@ -1464,7 +1500,7 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
   `;
 }
 
-function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false, gradeItems = [], completedLessonIds = new Set() }) {
+function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false, gradeItems = [], grades = [], completedLessonIds = new Set(), courseId = null }) {
   const firstLesson = lessons[0];
   const selectedLesson = lessons.find((lesson) => lesson.id === Number(lessonId)) || firstLesson;
   if (!selectedLesson) return `<main class="canvas-course-main canvas-page-main"><p class="empty">No lesson was found.</p></main>`;
@@ -1472,7 +1508,9 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
   const previousLesson = selectedIndex > 0 ? lessons[selectedIndex - 1] : null;
   const nextLesson = selectedIndex >= 0 && selectedIndex < lessons.length - 1 ? lessons[selectedIndex + 1] : null;
   const selectedModule = moduleGroups.find((module) => module.id === selectedLesson.module_id) || moduleGroups[0];
-  const lessonIsComplete = completedLessonIds.has(selectedLesson.id);
+  const selectedGradeItem = gradeItems.find((item) => normalizedTitle(item.title) === normalizedTitle(selectedLesson.title));
+  const quizGrade = selectedGradeItem ? grades.find((grade) => grade.grade_item_id === selectedGradeItem.id) : null;
+  const lessonIsComplete = completedLessonIds.has(selectedLesson.id) || Boolean(quizGrade);
   return `
     <main class="canvas-course-main canvas-page-main">
       <div class="canvas-mini-head">
@@ -1497,7 +1535,7 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
           ` : ""}
           ${renderCanvasLessonContent(selectedLesson.content, selectedLesson.title)}
         </div>
-        ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems })}
+        ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId })}
         ${!instructor && enrollmentId ? `
           <form method="post" action="/student/enrollments/${enrollmentId}/lesson-complete" class="canvas-complete-action">
             <input type="hidden" name="lessonId" value="${selectedLesson.id}">
@@ -8291,6 +8329,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
       ${renderCourseLessonPage({
         courseCode,
         baseHref: adminCourseBaseHref,
+        courseId: course.id,
         lessons,
         moduleGroups,
         lessonId: req.query.lesson,
@@ -8637,6 +8676,38 @@ app.post("/admin/courses/:id/lessons/:lessonId", requireAuth, requireRole("admin
   );
   flash(req, "Lesson updated.");
   res.redirect(`/admin/courses/${Number(req.params.id)}`);
+});
+
+app.post("/admin/courses/:id/lessons/:lessonId/quiz-questions", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const courseId = Number(req.params.id);
+  const lessonId = Number(req.params.lessonId);
+  const lesson = db.prepare(`
+    SELECT l.id, l.content
+    FROM lessons l
+    JOIN modules m ON m.id = l.module_id
+    WHERE l.id = ? AND m.course_id = ?
+  `).get(lessonId, courseId);
+  if (!lesson) return res.status(404).send("Quiz lesson not found");
+  const existingQuestions = lessonQuizQuestions(lesson);
+  if (!existingQuestions.length) return res.status(422).send("This lesson does not contain editable quiz questions");
+  const updatedQuestions = existingQuestions.map((question, questionIndex) => {
+    const prompt = String(req.body[`prompt_${questionIndex}`] || "").trim();
+    const options = question.options.map((option, optionIndex) => String(req.body[`option_${questionIndex}_${optionIndex}`] || "").trim());
+    const answer = Number(req.body[`answer_${questionIndex}`]);
+    if (!prompt || options.some((option) => !option) || !Number.isInteger(answer) || answer < 0 || answer >= options.length) {
+      return null;
+    }
+    return { prompt, options, answer };
+  });
+  if (updatedQuestions.some((question) => !question)) {
+    flash(req, "Every question, answer choice, and correct-answer selection is required.");
+    return res.redirect(`/admin/courses/${courseId}/student-view?lesson=${lessonId}`);
+  }
+  const encodedQuestions = Buffer.from(JSON.stringify(updatedQuestions)).toString("base64");
+  const updatedContent = String(lesson.content).replace(/QUIZ_DATA_BASE64:[A-Za-z0-9+/=]+/, `QUIZ_DATA_BASE64:${encodedQuestions}`);
+  db.prepare("UPDATE lessons SET content = ? WHERE id = ?").run(updatedContent, lessonId);
+  flash(req, "Quiz questions and answer key updated.");
+  res.redirect(`/admin/courses/${courseId}/student-view?lesson=${lessonId}`);
 });
 
 app.post("/admin/enrollments", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -10578,6 +10649,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         lessonId: req.query.lesson,
         enrollmentId: enrollment.id,
         gradeItems,
+        grades,
         completedLessonIds,
         instructor: false
       })}
@@ -10712,6 +10784,16 @@ app.post("/student/enrollments/:id/quiz-submit", requireAuth, requireRole("stude
     ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET
       score = excluded.score, note = excluded.note, updated_at = CURRENT_TIMESTAMP
   `).run(enrollmentId, gradeItem.id, score, `Auto-graded: ${correct} of ${questions.length} correct.`);
+  db.prepare("INSERT OR IGNORE INTO lesson_completions (enrollment_id, lesson_id) VALUES (?, ?)").run(enrollmentId, lessonId);
+  const completionCounts = db.prepare(`
+    SELECT COUNT(DISTINCT l.id) AS total, COUNT(DISTINCT lc.lesson_id) AS completed
+    FROM lessons l
+    JOIN modules m ON m.id = l.module_id
+    LEFT JOIN lesson_completions lc ON lc.lesson_id = l.id AND lc.enrollment_id = ?
+    WHERE m.course_id = ? AND COALESCE(l.published, 1) = 1 AND COALESCE(l.instructor_only, 0) = 0
+  `).get(enrollmentId, enrollment.course_id);
+  const courseProgress = completionCounts.total ? Math.round((completionCounts.completed / completionCounts.total) * 100) : 0;
+  db.prepare("UPDATE enrollments SET progress = ? WHERE id = ?").run(courseProgress, enrollmentId);
   flash(req, `Quiz submitted. Score: ${correct} of ${questions.length} (${Math.round(correct / questions.length * 100)}%).`);
   res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
 });
