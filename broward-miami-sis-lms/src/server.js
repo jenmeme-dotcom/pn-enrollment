@@ -10721,6 +10721,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   }
 
   const firstLesson = lessons[0];
+  const continueLesson = lessons.find((lesson) => !completedLessonIds.has(lesson.id)) || firstLesson;
   const upcomingLessons = lessons.slice(0, 3);
   const navItems = visibleCourseNavItems(enrollment);
   const courseBaseHref = `/student/enrollments/${enrollment.id}`;
@@ -11019,16 +11020,38 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       ${courseOutlinePanel}
 
       <main class="canvas-course-main">
-        <h1>${escapeHtml(enrollment.title)}</h1>
-        <div class="canvas-rule"></div>
-        <section class="canvas-home-card">
-          <h2>${escapeHtml(courseHomeTitle)}</h2>
-          <p>${escapeHtml(enrollment.description)}</p>
-          <p><strong>Course objectives:</strong> ${escapeHtml(courseFocus)}</p>
+        <section class="course-welcome-banner" aria-labelledby="course-welcome-title">
+          <img src="/assets/healthcare-students-login.png" alt="Healthcare students learning together in a classroom">
+          <div class="course-welcome-overlay"></div>
+          <div class="course-welcome-content">
+            <span>Welcome to your course</span>
+            <h1 id="course-welcome-title">Welcome, ${escapeHtml(req.user.first_name || "Student")}!</h1>
+            <p>${escapeHtml(enrollment.title)}</p>
+            <a class="button course-start-button" href="${courseBaseHref}?lesson=${continueLesson.id}">${completedLessonIds.size ? "Continue Learning" : "Start Here"}</a>
+          </div>
+          <div class="course-banner-progress" aria-label="${escapeHtml(enrollment.progress)} percent course progress">
+            <strong>${escapeHtml(enrollment.progress)}%</strong>
+            <span>Course progress</span>
+          </div>
+        </section>
+
+        <section class="canvas-home-card welcoming-course-intro">
+          <div>
+            <span class="course-home-kicker">Your learning journey</span>
+            <h2>${escapeHtml(courseHomeTitle)}</h2>
+            <p>${escapeHtml(enrollment.description)}</p>
+          </div>
+          <aside>
+            <strong>What you will learn</strong>
+            <p>${escapeHtml(courseFocus)}</p>
+          </aside>
         </section>
 
         <section class="canvas-start">
-          <h2>Start Here</h2>
+          <div class="course-section-heading">
+            <div><span>Quick access</span><h2>Start Here</h2></div>
+            <a href="${courseBaseHref}?view=modules">View all modules →</a>
+          </div>
           <div class="canvas-rule thin"></div>
           ${renderStartTiles(startTiles)}
         </section>
