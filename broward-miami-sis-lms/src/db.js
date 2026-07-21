@@ -180,6 +180,13 @@ function migrate() {
       UNIQUE(enrollment_id, grade_item_id)
     );
 
+    CREATE TABLE IF NOT EXISTS assignment_rubrics (
+      grade_item_id INTEGER PRIMARY KEY REFERENCES grade_items(id) ON DELETE CASCADE,
+      rubric_json TEXT NOT NULL,
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS hesi_scores (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

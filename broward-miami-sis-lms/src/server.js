@@ -1110,6 +1110,7 @@ function courseNavHref(baseHref, item, firstLessonId) {
   if (item === "Conferences") return `${baseHref}?view=conferences`;
   if (item === "Assignments") return `${baseHref}?view=assignments`;
   if (item === "Quizzes") return `${baseHref}?view=quizzes`;
+  if (item === "Rubrics") return `${baseHref}?view=rubrics`;
   return baseHref;
 }
 
@@ -3188,7 +3189,148 @@ function gradeItemInstructions(item = {}) {
   return "Review the instructions for this assignment and complete the required course activity. Submission status and scoring are tracked in the gradebook.";
 }
 
-function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons = [], instructor = false, studentScore = null }) {
+function rubricEligible(item = {}) {
+  const type = assignmentTypeLabel(item);
+  return !["Quiz", "Exam", "Acknowledgment"].includes(type) && Number(item.points_possible || 0) > 0;
+}
+
+function defaultAssignmentRubric(item = {}) {
+  const total = Number(item.points_possible || 100);
+  const base = Math.floor((total / 4) * 100) / 100;
+  const points = [base, base, base, Math.round((total - base * 3) * 100) / 100];
+  const type = assignmentTypeLabel(item);
+  return {
+    title: `${item.title || "Assignment"} Rubric`,
+    criteria: [
+      {
+        title: "Content accuracy",
+        description: "Uses accurate course terminology, facts, and concepts.",
+        maxPoints: points[0],
+        excellent: "Accurate, complete, and demonstrates strong command of course content.",
+        proficient: "Mostly accurate with only minor omissions or errors.",
+        developing: "Partial understanding with several errors or missing concepts.",
+        incomplete: "Inaccurate, substantially incomplete, or not submitted."
+      },
+      {
+        title: type === "Discussion" ? "Analysis and engagement" : "Application and reasoning",
+        description: type === "Discussion" ? "Develops ideas and participates meaningfully in the assigned discussion." : "Applies course knowledge and explains decisions or conclusions.",
+        maxPoints: points[1],
+        excellent: "Clear, thoughtful application supported by relevant details or examples.",
+        proficient: "Appropriate application with adequate explanation and support.",
+        developing: "Limited application, explanation, or supporting detail.",
+        incomplete: "Little or no relevant reasoning, engagement, or application."
+      },
+      {
+        title: "Completeness and organization",
+        description: "Addresses every required component in a clear, logical structure.",
+        maxPoints: points[2],
+        excellent: "All requirements are complete, focused, and logically organized.",
+        proficient: "Most requirements are complete and organization is generally clear.",
+        developing: "Some requirements are missing or organization is difficult to follow.",
+        incomplete: "Major requirements are missing or the work is not organized."
+      },
+      {
+        title: "Professional communication",
+        description: "Communicates clearly using appropriate spelling, grammar, tone, and healthcare language.",
+        maxPoints: points[3],
+        excellent: "Clear, polished, professional, and uses terminology appropriately.",
+        proficient: "Generally clear and professional with minor communication errors.",
+        developing: "Frequent errors or inconsistent professional language reduce clarity.",
+        incomplete: "Communication is unclear, inappropriate, or prevents evaluation."
+      }
+    ]
+  };
+}
+
+function assignmentRubric(item = {}) {
+  if (!rubricEligible(item)) return null;
+  const saved = item.id ? db.prepare("SELECT rubric_json FROM assignment_rubrics WHERE grade_item_id = ?").get(item.id) : null;
+  if (saved?.rubric_json) {
+    try {
+      const rubric = JSON.parse(saved.rubric_json);
+      if (Array.isArray(rubric.criteria) && rubric.criteria.length) return rubric;
+    } catch {}
+  }
+  return defaultAssignmentRubric(item);
+}
+
+function rubricPoints(value) {
+  const number = Number(value || 0);
+  return Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function renderAssignmentRubric({ item, instructor = false, courseId = null, compact = false }) {
+  const rubric = assignmentRubric(item);
+  if (!rubric) return "";
+  const totalPoints = rubric.criteria.reduce((sum, criterion) => sum + Number(criterion.maxPoints || 0), 0);
+  return `
+    <section class="lesson-action-card assignment-rubric-card">
+      <div class="rubric-title-row">
+        <div><p class="eyebrow">Grading expectations</p><h2>${escapeHtml(rubric.title || `${item.title} Rubric`)}</h2></div>
+        <strong>${escapeHtml(rubricPoints(totalPoints))} points</strong>
+      </div>
+      <div class="rubric-table-wrap">
+        <table class="assignment-rubric-table">
+          <thead><tr><th>Criterion</th><th>Exceeds expectations</th><th>Meets expectations</th><th>Developing</th><th>Incomplete</th><th>Points</th></tr></thead>
+          <tbody>
+            ${rubric.criteria.map((criterion) => `
+              <tr>
+                <th><strong>${escapeHtml(criterion.title)}</strong><small>${escapeHtml(criterion.description)}</small></th>
+                <td>${escapeHtml(criterion.excellent)}</td>
+                <td>${escapeHtml(criterion.proficient)}</td>
+                <td>${escapeHtml(criterion.developing)}</td>
+                <td>${escapeHtml(criterion.incomplete)}</td>
+                <td><strong>${escapeHtml(rubricPoints(criterion.maxPoints))}</strong></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+      ${instructor && courseId && !compact ? `
+        <details class="rubric-editor">
+          <summary>Edit rubric and point values</summary>
+          <form method="post" action="/admin/courses/${courseId}/rubrics/${item.id}">
+            <label>Rubric title<input name="rubricTitle" value="${escapeHtml(rubric.title || "Assignment Rubric")}" required></label>
+            ${rubric.criteria.map((criterion, index) => `
+              <fieldset>
+                <legend>Criterion ${index + 1}</legend>
+                <div class="rubric-editor-grid">
+                  <label>Criterion<input name="title_${index}" value="${escapeHtml(criterion.title)}" required></label>
+                  <label>Maximum points<input name="points_${index}" type="number" min="0" step="0.01" value="${escapeHtml(criterion.maxPoints)}" required></label>
+                  <label class="span-2">Description<textarea name="description_${index}" required>${escapeHtml(criterion.description)}</textarea></label>
+                  <label>Exceeds expectations<textarea name="excellent_${index}" required>${escapeHtml(criterion.excellent)}</textarea></label>
+                  <label>Meets expectations<textarea name="proficient_${index}" required>${escapeHtml(criterion.proficient)}</textarea></label>
+                  <label>Developing<textarea name="developing_${index}" required>${escapeHtml(criterion.developing)}</textarea></label>
+                  <label>Incomplete<textarea name="incomplete_${index}" required>${escapeHtml(criterion.incomplete)}</textarea></label>
+                </div>
+              </fieldset>
+            `).join("")}
+            <p class="muted">Criterion points must total ${escapeHtml(rubricPoints(item.points_possible))} points.</p>
+            <button class="button" type="submit">Save Rubric</button>
+          </form>
+        </details>
+      ` : instructor && courseId ? `<a class="button ghost small" href="${escapeHtml(`/admin/courses/${courseId}/student-view?assignment=${item.id}`)}">Edit Rubric</a>` : ""}
+    </section>
+  `;
+}
+
+function renderCourseRubricsPage({ courseCode, baseHref, gradeItems = [], instructor = false, courseId = null }) {
+  const items = gradeItems.filter(rubricEligible);
+  return `
+    <main class="canvas-course-main canvas-page-main">
+      <div class="canvas-mini-head"><span></span><strong>${escapeHtml(courseCode)} &gt; Rubrics</strong></div>
+      <article class="canvas-page-content rubrics-page">
+        <p class="eyebrow">Clear expectations</p>
+        <h1>Course Rubrics</h1>
+        <p>Review the criteria and performance levels that instructors use to evaluate assignments and discussions.</p>
+        ${items.map((item) => renderAssignmentRubric({ item, instructor, courseId, compact: true })).join("") || `<section class="lesson-action-card"><p>No rubric-based assignments are available yet.</p></section>`}
+        <nav class="canvas-page-actions"><a class="button ghost" href="${escapeHtml(baseHref)}">Course Home</a><a class="button ghost" href="${escapeHtml(baseHref)}?view=assignments">Assignments</a></nav>
+      </article>
+    </main>
+  `;
+}
+
+function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons = [], instructor = false, studentScore = null, courseId = null }) {
   const type = assignmentTypeLabel(item);
   const relatedLessonHref = assignmentItemHref({ ...item, id: null }, lessons, baseHref);
   const hasRelatedLesson = relatedLessonHref.includes("?lesson=");
@@ -3229,6 +3371,7 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
             <a class="button ghost" href="${escapeHtml(baseHref)}?view=modules">View Modules</a>
           </div>
         </section>
+        ${renderAssignmentRubric({ item, instructor, courseId })}
         ${type === "Quiz" || type === "Exam" ? `
           <section class="lesson-action-card">
             <h2>${escapeHtml(type)}</h2>
@@ -8388,7 +8531,8 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         baseHref: adminCourseBaseHref,
         item: selectedAssignment,
         lessons,
-        instructor: true
+        instructor: true,
+        courseId: course.id
       })}
     </section>
   ` : activeView === "modules" ? `
@@ -8444,6 +8588,14 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         quizzesOnly: activeView === "quizzes",
         instructor: true
       })}
+    </section>
+  ` : activeView === "rubrics" ? `
+    <section class="canvas-course-shell instructor-preview">
+      <aside class="canvas-global-rail"><img src="/assets/bmhi-favicon.png" alt="BMHI"><span>${escapeHtml(initialsFor(req.user))}</span><i></i><i></i><i></i><i></i><i></i></aside>
+      ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [{ label: courseCode, href: adminCourseBaseHref }, { label: "Rubrics" }])}
+      <aside class="canvas-course-nav" id="canvas-course-navigation">${renderCourseNav(navItems, adminCourseBaseHref, "Rubrics", firstLesson?.id)}</aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+      ${renderCourseRubricsPage({ courseCode, baseHref: adminCourseBaseHref, gradeItems, instructor: true, courseId: course.id })}
     </section>
   ` : activeView === "announcements" ? `
     <section class="canvas-course-shell instructor-preview">
@@ -9171,6 +9323,37 @@ app.post("/admin/courses/:id/lessons/:lessonId/quiz-questions", requireAuth, req
   db.prepare("UPDATE lessons SET content = ? WHERE id = ?").run(updatedContent, lessonId);
   flash(req, "Quiz questions and answer key updated.");
   res.redirect(`/admin/courses/${courseId}/student-view?lesson=${lessonId}`);
+});
+
+app.post("/admin/courses/:id/rubrics/:gradeItemId", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const courseId = Number(req.params.id);
+  const gradeItemId = Number(req.params.gradeItemId);
+  const item = db.prepare("SELECT * FROM grade_items WHERE id = ? AND course_id = ?").get(gradeItemId, courseId);
+  if (!item || !rubricEligible(item)) return res.status(404).send("Rubric assignment not found");
+  const currentRubric = assignmentRubric(item) || defaultAssignmentRubric(item);
+  const criteria = currentRubric.criteria.map((_criterion, index) => ({
+    title: String(req.body[`title_${index}`] || "").trim(),
+    description: String(req.body[`description_${index}`] || "").trim(),
+    maxPoints: Number(req.body[`points_${index}`]),
+    excellent: String(req.body[`excellent_${index}`] || "").trim(),
+    proficient: String(req.body[`proficient_${index}`] || "").trim(),
+    developing: String(req.body[`developing_${index}`] || "").trim(),
+    incomplete: String(req.body[`incomplete_${index}`] || "").trim()
+  }));
+  const invalid = criteria.some((criterion) => !criterion.title || !criterion.description || !Number.isFinite(criterion.maxPoints) || criterion.maxPoints < 0 || !criterion.excellent || !criterion.proficient || !criterion.developing || !criterion.incomplete);
+  const total = criteria.reduce((sum, criterion) => sum + criterion.maxPoints, 0);
+  if (invalid || Math.abs(total - Number(item.points_possible || 0)) > 0.01) {
+    flash(req, `Complete every rubric field and make criterion points total ${rubricPoints(item.points_possible)}.`);
+    return res.redirect(`/admin/courses/${courseId}/student-view?assignment=${gradeItemId}`);
+  }
+  const rubric = { title: String(req.body.rubricTitle || `${item.title} Rubric`).trim(), criteria };
+  db.prepare(`
+    INSERT INTO assignment_rubrics (grade_item_id, rubric_json, updated_by, updated_at)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(grade_item_id) DO UPDATE SET rubric_json = excluded.rubric_json, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP
+  `).run(gradeItemId, JSON.stringify(rubric), req.user.id);
+  flash(req, "Rubric saved and published to students.");
+  res.redirect(`/admin/courses/${courseId}/student-view?assignment=${gradeItemId}`);
 });
 
 app.post("/admin/enrollments", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -10853,7 +11036,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   const navItems = visibleCourseNavItems(enrollment);
   const courseBaseHref = `/student/enrollments/${enrollment.id}`;
   const activeView = String(req.query.view || "");
-  const studentCourseNavItems = navItems.filter((item) => ["Home", "Announcements", "Modules", "Assignments", "Discussions", "Files", "Grades", "Syllabus", "Quizzes", "Calendar", "Conferences"].includes(item));
+  const studentCourseNavItems = navItems.filter((item) => ["Home", "Announcements", "Modules", "Assignments", "Discussions", "Files", "Grades", "Syllabus", "Rubrics", "Quizzes", "Calendar", "Conferences"].includes(item));
   const startTiles = [
     { icon: "book", label: "Course Syllabus", href: `${courseBaseHref}?view=syllabus`, image: "/assets/start-tile-syllabus.svg" },
     { icon: "brain", label: "Learning Modules", href: `${courseBaseHref}?view=modules`, image: "/assets/start-tile-modules.svg" },
@@ -10958,6 +11141,15 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         quizzesOnly: activeView === "quizzes",
         instructor: false
       })}
+    </section>
+  ` : activeView === "rubrics" ? `
+    <section class="canvas-course-shell student-course-shell">
+      ${renderStudentCanvasRail("courses")}
+      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [{ label: courseCode, href: courseBaseHref }, { label: "Rubrics" }])}
+      <aside class="canvas-course-nav" id="canvas-course-navigation">${renderCourseNav(studentCourseNavItems, courseBaseHref, "Rubrics", firstLesson.id)}</aside>
+      <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
+      ${courseOutlinePanel}
+      ${renderCourseRubricsPage({ courseCode, baseHref: courseBaseHref, gradeItems, instructor: false })}
     </section>
   ` : activeView === "announcements" ? `
     <section class="canvas-course-shell student-course-shell">

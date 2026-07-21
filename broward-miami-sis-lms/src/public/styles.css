@@ -2210,6 +2210,137 @@ button.danger {
   }
 }
 
+.assignment-rubric-card {
+  margin-top: 24px;
+}
+
+.rubric-title-row {
+  align-items: flex-start;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.rubric-title-row h2,
+.rubric-title-row p {
+  margin-bottom: 0;
+}
+
+.rubric-title-row > strong {
+  background: #e8f5f7;
+  border-radius: 999px;
+  color: #0b6670;
+  flex: 0 0 auto;
+  padding: 8px 14px;
+}
+
+.rubric-table-wrap {
+  overflow-x: auto;
+}
+
+.assignment-rubric-table {
+  border-collapse: collapse;
+  min-width: 980px;
+  width: 100%;
+}
+
+.assignment-rubric-table th,
+.assignment-rubric-table td {
+  border: 1px solid #cbd6dc;
+  padding: 14px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.assignment-rubric-table thead th {
+  background: #eef4f6;
+  color: #223442;
+  font-size: 0.86rem;
+}
+
+.assignment-rubric-table tbody th {
+  background: #f8fafb;
+  min-width: 190px;
+}
+
+.assignment-rubric-table small {
+  color: #5f7080;
+  display: block;
+  font-weight: 400;
+  line-height: 1.45;
+  margin-top: 6px;
+}
+
+.rubric-editor {
+  border-top: 1px solid #d8e1e6;
+  margin-top: 22px;
+  padding-top: 18px;
+}
+
+.rubric-editor summary {
+  color: #086c76;
+  cursor: pointer;
+  font-weight: 800;
+  margin-bottom: 18px;
+}
+
+.rubric-editor form > label {
+  display: block;
+  margin-bottom: 18px;
+}
+
+.rubric-editor fieldset {
+  border: 1px solid #cbd6dc;
+  border-radius: 8px;
+  margin: 0 0 18px;
+  padding: 18px;
+}
+
+.rubric-editor legend {
+  font-weight: 800;
+  padding: 0 8px;
+}
+
+.rubric-editor-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rubric-editor-grid label {
+  display: grid;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.rubric-editor-grid input,
+.rubric-editor-grid textarea,
+.rubric-editor form > label input {
+  font: inherit;
+  width: 100%;
+}
+
+.rubric-editor-grid textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+@media (max-width: 760px) {
+  .rubric-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .rubric-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rubric-editor-grid .span-2 {
+    grid-column: auto;
+  }
+}
+
 @media print {
   body.sis-mode {
     background: #fff;
