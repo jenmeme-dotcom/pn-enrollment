@@ -1225,6 +1225,32 @@ function moduleItemMeta(lesson) {
   return pieces.join(" | ");
 }
 
+function renderWeeklyLearningPattern({ compact = false } = {}) {
+  const steps = [
+    { number: "1", title: "Preview", description: "Read the weekly overview, objectives, and due dates." },
+    { number: "2", title: "Learn", description: "Complete the readings, slides, videos, and lesson materials." },
+    { number: "3", title: "Practice", description: "Apply the terminology and concepts in the weekly activity." },
+    { number: "4", title: "Participate", description: "Complete the assigned discussion or collaborative work." },
+    { number: "5", title: "Assess", description: "Submit the assignment or quiz and check your progress." }
+  ];
+  return `
+    <section class="weekly-pattern ${compact ? "is-compact" : ""}" aria-labelledby="weekly-pattern-title">
+      <div class="weekly-pattern-heading">
+        <div><span class="course-home-kicker">A predictable course rhythm</span><h2 id="weekly-pattern-title">Your Weekly Learning Pattern</h2></div>
+        <p>Follow these steps in order each week so you can plan your workload and avoid missing required work.</p>
+      </div>
+      <ol class="weekly-pattern-steps">
+        ${steps.map((step) => `
+          <li>
+            <span class="weekly-pattern-number">${step.number}</span>
+            <div><strong>${step.title}</strong><p>${step.description}</p></div>
+          </li>
+        `).join("")}
+      </ol>
+    </section>
+  `;
+}
+
 function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups = [], instructor = false }) {
   return `
     <main class="canvas-course-main canvas-modules-main">
@@ -1237,6 +1263,7 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
         ${instructor && courseId ? `<a class="canvas-module-add" href="/admin/courses/${courseId}/tools">+ Module</a>` : ""}
         <button type="button" aria-label="More options">⋮</button>
       </div>
+      ${renderWeeklyLearningPattern({ compact: true })}
       <div class="canvas-module-list">
         ${moduleGroups.map((module) => `
           <section class="canvas-module-block" id="module-${module.id}">
@@ -11374,6 +11401,8 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
           <div class="canvas-rule thin"></div>
           ${renderStartTiles(startTiles)}
         </section>
+
+        ${renderWeeklyLearningPattern()}
 
         <footer class="canvas-footer">
           <strong>${escapeHtml(courseCode)}</strong> | 12 Weeks | 3 Credits | ${escapeHtml(enrollment.hours)} Contact Hours | ${escapeHtml(enrollment.category)}

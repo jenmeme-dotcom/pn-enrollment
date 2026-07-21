@@ -2210,6 +2210,111 @@ button.danger {
   }
 }
 
+.weekly-pattern {
+  background: #fff;
+  border: 1px solid #d7e1e6;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(21, 44, 57, 0.07);
+  margin: 28px 0;
+  padding: 28px;
+}
+
+.weekly-pattern-heading {
+  align-items: end;
+  display: grid;
+  gap: 28px;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(320px, 1.2fr);
+  margin-bottom: 24px;
+}
+
+.weekly-pattern-heading h2 {
+  color: #172631;
+  font-size: clamp(1.65rem, 3vw, 2.35rem);
+  line-height: 1.1;
+  margin: 5px 0 0;
+}
+
+.weekly-pattern-heading p {
+  color: #566875;
+  font-size: 1.02rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.weekly-pattern-steps {
+  counter-reset: none;
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.weekly-pattern-steps li {
+  background: #f7fafb;
+  border-bottom: 4px solid #0e727c;
+  border-right: 1px solid #d7e1e6;
+  min-height: 170px;
+  padding: 20px 16px;
+  position: relative;
+}
+
+.weekly-pattern-steps li:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.weekly-pattern-steps li:last-child {
+  border-radius: 0 8px 8px 0;
+  border-right: 0;
+}
+
+.weekly-pattern-number {
+  align-items: center;
+  background: #0e727c;
+  border-radius: 50%;
+  color: #fff;
+  display: inline-flex;
+  font-size: 0.9rem;
+  font-weight: 800;
+  height: 32px;
+  justify-content: center;
+  margin-bottom: 13px;
+  width: 32px;
+}
+
+.weekly-pattern-steps strong {
+  color: #1d303d;
+  display: block;
+  font-size: 1.08rem;
+  margin-bottom: 7px;
+}
+
+.weekly-pattern-steps p {
+  color: #5b6c78;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.weekly-pattern.is-compact {
+  margin: 0 0 24px;
+  padding: 22px;
+}
+
+.weekly-pattern.is-compact .weekly-pattern-heading {
+  margin-bottom: 18px;
+}
+
+.weekly-pattern.is-compact .weekly-pattern-heading h2 {
+  font-size: 1.7rem;
+}
+
+.weekly-pattern.is-compact .weekly-pattern-steps li {
+  min-height: 150px;
+  padding: 16px 13px;
+}
+
 .assignment-rubric-card {
   margin-top: 24px;
 }
@@ -2327,6 +2432,41 @@ button.danger {
 }
 
 @media (max-width: 760px) {
+  .weekly-pattern {
+    padding: 20px 16px;
+  }
+
+  .weekly-pattern-heading,
+  .weekly-pattern-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .weekly-pattern-heading {
+    align-items: start;
+    gap: 12px;
+  }
+
+  .weekly-pattern-steps {
+    gap: 8px;
+  }
+
+  .weekly-pattern-steps li,
+  .weekly-pattern.is-compact .weekly-pattern-steps li {
+    align-items: flex-start;
+    border: 0;
+    border-left: 4px solid #0e727c;
+    border-radius: 6px;
+    display: grid;
+    gap: 13px;
+    grid-template-columns: 32px 1fr;
+    min-height: 0;
+    padding: 14px;
+  }
+
+  .weekly-pattern-number {
+    margin: 0;
+  }
+
   .rubric-title-row {
     align-items: flex-start;
     flex-direction: column;
