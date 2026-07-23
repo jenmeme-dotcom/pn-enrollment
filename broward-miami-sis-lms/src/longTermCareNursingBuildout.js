@@ -361,7 +361,6 @@ const longTermCareNursingCourse = {
   description: courseDescription,
   ghlProductKeys: ["Long-Term Care Nursing", "Long Term Care Nursing", "PN 103", "PN103", "long-term-care-nursing-pn103"],
   courseNumber: "PN 103",
-  credits: 4,
   seedVersion: "pn103-long-term-care-nursing-2026-07-15",
   requiredTitles: [
     "Kostelnick, C. (2019). Mosby's Textbook for Long-Term Care Nursing Assistants (8th ed.). Elsevier.",

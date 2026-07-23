@@ -169,7 +169,6 @@ const medicalTerminologyCourse = {
   description: courseDescription,
   ghlProductKeys: ["Medical Terminology", "PN 101", "PN101", "PN Medical Terminology", "medical-terminology", "Med Term"],
   courseNumber: "PN 101",
-  credits: 3,
   seedVersion: "canvas-pn101-medical-terminology-quizzes-2026-07-14",
   objectives: courseObjectives,
   weeks: weeklyModules,

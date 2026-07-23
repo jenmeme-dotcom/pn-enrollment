@@ -351,7 +351,6 @@ const medicalAssistantCourse = {
   description: courseDescription,
   ghlProductKeys: ["Medical Assistant", "MA", "CCMA", "medical-assistant"],
   courseNumber: "MA 1300",
-  credits: 0,
   seedVersion: "catalog-medical-assistant-2025-2026-v1",
   objectives: courseObjectives,
   catalogCourses,

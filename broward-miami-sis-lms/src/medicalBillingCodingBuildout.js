@@ -309,7 +309,6 @@ const medicalBillingCodingCourse = {
     "medical-coding-and-billing"
   ],
   courseNumber: "MBC",
-  credits: 0,
   seedVersion: "catalog-medical-billing-coding-2026-07-10",
   objectives: courseObjectives,
   catalogCourses,

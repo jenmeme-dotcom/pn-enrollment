@@ -603,7 +603,6 @@ const introNursingCourse = {
     "introduction-to-nursing-practical-nursing"
   ],
   courseNumber: "PN-INTRO",
-  credits: 3,
   requiredTitles: [
     "Adopted practical nursing fundamentals textbook or instructor-provided readings",
     "Current student handbook and program policies",

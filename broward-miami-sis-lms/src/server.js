@@ -11782,7 +11782,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         ${renderWeeklyLearningPattern()}
 
         <footer class="canvas-footer">
-          <strong>${escapeHtml(courseCode)}</strong> | 12 Weeks | 3 Credits | ${escapeHtml(enrollment.hours)} Contact Hours | ${escapeHtml(enrollment.category)}
+          <strong>${escapeHtml(courseCode)}</strong> | ${escapeHtml(enrollment.hours)} Clock Hours | ${escapeHtml(enrollment.category)}
         </footer>
       </main>
 

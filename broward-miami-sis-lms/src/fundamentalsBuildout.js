@@ -174,7 +174,6 @@ const fundamentalsCourse = {
     "vSim"
   ],
   courseNumber: "PN-FUND",
-  credits: 6,
   requiredTitles: [
     "CoursePoint for Donnelly-Moreno, L. (2025). Timby's Fundamental Nursing Skills and Concepts (13th ed.). Wolters Kluwer Health.",
     "vSim for LPN/LVN. Wolters Kluwer Health.",

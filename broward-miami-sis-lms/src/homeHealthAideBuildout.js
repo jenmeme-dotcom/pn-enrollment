@@ -17,7 +17,6 @@ const homeHealthAideEnglishCourse = {
     "home-health-aide"
   ],
   "courseNumber": "HHA 75",
-  "credits": 0,
   "seedVersion": "canvas-hha-home-health-aide-2026-07-07",
   "language": "English",
   "objectives": [
@@ -1483,7 +1482,6 @@ const homeHealthAideCreoleCourse = {
     "home-health-aide-creole"
   ],
   "courseNumber": "HHA 75 Kreyòl",
-  "credits": 0,
   "seedVersion": "canvas-hha-home-health-aide-creole-2026-07-07",
   "language": "Haitian Creole",
   "objectives": [

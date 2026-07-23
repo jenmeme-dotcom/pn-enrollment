@@ -243,7 +243,6 @@ const patientCareTechnicianCourse = {
     "Patient Care Technician diploma program with anatomy and physiology, medical terminology, nursing assistant, HIV/AIDS, OSHA, CPR/First Aid, phlebotomy, EKG, patient care skills lab, clinical practice, and career preparation aligned to the 600-hour catalog outline.",
   ghlProductKeys: ["Patient Care Technician", "PCT", "patient-care-technician"],
   courseNumber: "PCT",
-  credits: 0,
   seedVersion: "catalog-pct-600-hour-buildout-2026-07-10",
   objectives: programObjectives,
   catalogCourses,

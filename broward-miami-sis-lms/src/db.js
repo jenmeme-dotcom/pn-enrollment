@@ -1511,6 +1511,25 @@ function seed() {
       const upgradedContent = ensureIntroNursingQuizQuestionMinimum(lesson.content, lesson.title);
       if (upgradedContent !== lesson.content) updateQuiz.run(upgradedContent, lesson.id);
     });
+
+    // Older PN 102 content used college-credit language and an incorrect
+    // 100-hour value. BMHI's catalog is clock-hour based and lists PN 102 as
+    // 48 hours, so normalize persisted lesson content on every deployment.
+    const storedLessons = db.prepare(`
+      SELECT lessons.id, lessons.content
+      FROM lessons
+      JOIN modules ON modules.id = lessons.module_id
+      WHERE modules.course_id = ?
+        AND (lower(lessons.content) LIKE '%credit%' OR lower(lessons.content) LIKE '%contact hours: 100%')
+    `).all(introductionCourse.id);
+    const updateLessonContent = db.prepare("UPDATE lessons SET content = ? WHERE id = ?");
+    storedLessons.forEach((lesson) => {
+      const catalogAlignedContent = String(lesson.content || "")
+        .replace(/<li>\s*(?:academic\s+)?credits?\s*:\s*[^<]*<\/li>/gi, "")
+        .replace(/^\s*(?:[-*•]\s*)?(?:academic\s+)?credits?\s*:\s*[^\r\n]*(?:\r?\n|$)/gim, "")
+        .replace(/contact hours\s*:\s*100/gi, "Clock hours: 48");
+      if (catalogAlignedContent !== lesson.content) updateLessonContent.run(catalogAlignedContent, lesson.id);
+    });
   }
 }
 
