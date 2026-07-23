@@ -1,4 +1,5 @@
 const { aclsCourse } = require("./aclsBuildout");
+const { certifiedMedicationAideCourse } = require("./certifiedMedicationAideBuildout");
 const { fundamentalsCourse } = require("./fundamentalsBuildout");
 const { homeHealthAideEnglishCourse, homeHealthAideCreoleCourse } = require("./homeHealthAideBuildout");
 const { introNursingCourse } = require("./introNursingBuildout");
@@ -18,12 +19,13 @@ const courses = [
     booksSuppliesCents: 100000,
     registrationFeeCents: 15000,
     credentialType: "Diploma",
-    deliveryMode: "Campus / blended",
+    deliveryMode: "Online / Zoom",
     description: "Practical Nursing diploma program with theory, skills lab, and clinical experience in medical, surgical, obstetric, pediatric, geriatric, long-term care, community, pharmacology, mental health, and transition-to-practice nursing.",
     ghlProductKeys: ["Practical Nursing", "PN", "practical-nursing"]
   },
   homeHealthAideEnglishCourse,
   homeHealthAideCreoleCourse,
+  certifiedMedicationAideCourse,
   medicalAssistantCourse,
   patientCareTechnicianCourse,
   medicalBillingCodingCourse,
