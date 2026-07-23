@@ -10309,8 +10309,13 @@ app.get("/student/calendar", requireAuth, requireRole("student"), (req, res) => 
 });
 
 app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
+  const studentProfile = db.prepare(`
+    SELECT cohort_name, cohort_start_date, cohort_end_date
+    FROM users
+    WHERE id = ? AND role = 'student'
+  `).get(req.user.id) || {};
   const enrollments = db.prepare(`
-    SELECT e.*, c.title, c.slug, c.category, c.description, c.hours, c.credential_type, c.delivery_mode, cr.id AS credential_id
+    SELECT e.*, c.title, c.slug, c.category, c.description, c.hours, c.credential_type, c.delivery_mode, c.published, cr.id AS credential_id
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     LEFT JOIN credentials cr ON cr.enrollment_id = e.id
@@ -10321,71 +10326,79 @@ app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
       e.created_at DESC
   `).all(req.user.id);
 
-  const activeCount = enrollments.filter((row) => row.status === "active").length;
-  const completedCount = enrollments.filter((row) => row.status === "completed").length;
-  const totalHours = enrollments.reduce((total, row) => total + Number(row.hours || 0), 0);
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const currentEnrollments = enrollments.filter((row) => row.status === "active" && (!row.start_date || row.start_date <= todayIso));
+  const pastEnrollments = enrollments.filter((row) => row.status === "completed" || row.status === "dropped");
+  const futureEnrollments = enrollments.filter((row) => row.status === "active" && row.start_date && row.start_date > todayIso);
+  const termLabel = studentProfile.cohort_name || "2026-27 Practical Nursing Term";
+  const courseNickname = (row) => ({
+    "medical-terminology": "PN 101",
+    "introduction-to-nursing-practical-nursing": "PN 102",
+    "long-term-care-nursing-pn103": "PN 103",
+    "fundamental-nursing-skills-and-concepts-new-cohort": "PN 103",
+    "anatomy-and-physiology": "PN 104",
+    "home-health-aide": "HHA 75",
+    "home-health-aide-creole": "HHA 75 Kreyol"
+  }[row.slug] || `BMHI-${String(row.course_id).padStart(3, "0")}`);
+  const courseColor = (row) => ({
+    "medical-terminology": "#2f855a",
+    "introduction-to-nursing-practical-nursing": "#2b6cb0",
+    "long-term-care-nursing-pn103": "#b7791f",
+    "fundamental-nursing-skills-and-concepts-new-cohort": "#b7791f",
+    "anatomy-and-physiology": "#6b46c1",
+    "home-health-aide": "#0f766e",
+    "home-health-aide-creole": "#0f766e"
+  }[row.slug] || "#52616f");
+  const courseRows = (rows, emptyMessage) => `
+    <div class="canvas-all-courses-table-wrap">
+      <table class="canvas-all-courses-table">
+        <thead><tr><th>Favorite</th><th>Course</th><th>Nickname</th><th>Term</th><th>Enrolled as</th><th>Published</th></tr></thead>
+        <tbody>
+          ${rows.map((row, index) => `
+            <tr>
+              <td><span class="favorite-star ${index === 0 ? "active" : ""}" aria-label="${index === 0 ? "Favorite course" : "Not a favorite"}">★</span></td>
+              <td><span class="course-color-chip" style="--course-chip:${escapeHtml(courseColor(row))}"></span>${isClassLocked(req.user) ? escapeHtml(row.title) : `<a href="/student/enrollments/${row.id}">${escapeHtml(row.title)}</a>`}</td>
+              <td>${escapeHtml(courseNickname(row))}</td>
+              <td>${escapeHtml(termLabel)}</td>
+              <td>Student</td>
+              <td>${Number(row.published ?? 1) === 1 ? "Yes" : "No"}</td>
+            </tr>
+          `).join("") || `<tr><td class="empty" colspan="6">${escapeHtml(emptyMessage)}</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+  const groupRows = currentEnrollments.length && studentProfile.cohort_name ? `
+    <div class="canvas-all-courses-table-wrap">
+      <table class="canvas-all-courses-table canvas-groups-table">
+        <thead><tr><th>Group</th><th>Course</th><th>Term</th></tr></thead>
+        <tbody>${currentEnrollments.map((row) => `<tr><td><a href="/student/enrollments/${row.id}?view=people#groups">${escapeHtml(studentProfile.cohort_name)} Study Group</a></td><td>${escapeHtml(row.title)}</td><td>${escapeHtml(termLabel)}</td></tr>`).join("")}</tbody>
+      </table>
+    </div>
+  ` : `<p class="empty">No student groups have been assigned yet.</p>`;
   const lockNotice = isClassLocked(req.user)
     ? `<article class="student-panel lock-panel" style="margin-bottom:12px"><h2>Class access locked</h2><p>${escapeHtml(classLockMessage(req.user))}</p></article>`
     : "";
 
   const body = `
-    <section class="student-registration">
+    <section class="student-registration canvas-all-courses-page">
       ${lockNotice}
-      <div class="financial-head">
+      <div class="financial-head canvas-all-courses-head">
         <div>
           <p class="eyebrow">Courses</p>
-          <h1>Enrolled Courses</h1>
-          <p>Access your current course shells, review progress, and open completed credentials when available.</p>
+          <h1>All Courses</h1>
+          <p>View current, past, and future course enrollments. Course names open the matching LMS course shell.</p>
         </div>
         <div class="financial-actions">
           <a class="button ghost" href="/student">Dashboard</a>
-          <a class="button" href="/student/registration">Register for courses</a>
+          <a class="button" href="/student/registration">Browse More Courses</a>
         </div>
       </div>
 
-      <section class="grid cols-4 registration-stats">
-        ${stat("Active courses", String(activeCount))}
-        ${stat("Completed", String(completedCount))}
-        ${stat("Total clock hours", String(totalHours))}
-      </section>
-
-      <section class="student-courses-card-section">
-        <div class="student-courses-card-heading">
-          <div>
-            <p class="eyebrow">Your learning</p>
-            <h2>My Enrolled Courses</h2>
-          </div>
-          <span>${escapeHtml(enrollments.length)} course${enrollments.length === 1 ? "" : "s"}</span>
-        </div>
-        <div class="student-course-card-grid">
-          ${enrollments.map((row, index) => `
-            <article class="student-course-card tone-${(index % 6) + 1}">
-              <div class="student-course-card-banner">
-                <img src="/assets/healthcare-students-login.png" alt="">
-                <span class="student-course-card-status ${escapeHtml(row.status)}">${escapeHtml(row.status)}</span>
-                <strong>${escapeHtml(row.category)}</strong>
-              </div>
-              <div class="student-course-card-body">
-                <h3>${escapeHtml(row.title)}</h3>
-                <p>${escapeHtml(row.description || "Open the course to review lessons, assignments, and learning resources.")}</p>
-                <dl class="student-course-card-meta">
-                  <div><dt>Hours</dt><dd>${escapeHtml(row.hours)} clock hours</dd></div>
-                  <div><dt>Format</dt><dd>${escapeHtml(row.delivery_mode)}</dd></div>
-                  <div><dt>Credential</dt><dd>${escapeHtml(row.credential_type)}</dd></div>
-                </dl>
-                <div class="student-course-card-progress">
-                  <div><strong>Course progress</strong><span>${escapeHtml(row.progress)}%</span></div>
-                  ${progressBar(row.progress)}
-                </div>
-                <div class="student-course-card-actions">
-                  ${isClassLocked(req.user) ? lockedButton("Course Locked") : `<a class="button" href="/student/enrollments/${row.id}">Open Course</a>`}
-                  ${row.credential_id ? `<a class="button ghost" href="/credentials/${row.credential_id}/print">View Credential</a>` : ""}
-                </div>
-              </div>
-            </article>
-          `).join("") || `<article class="student-panel"><p class="empty">No course enrollments yet. Use registration to add an available course.</p></article>`}
-        </div>
-      </section>
+      <article class="student-panel canvas-all-courses-section"><h2>All Courses</h2>${courseRows(currentEnrollments, "No current courses are listed yet.")}</article>
+      <article class="student-panel canvas-all-courses-section"><h2>Past Enrollments</h2>${courseRows(pastEnrollments, "No past enrollments are listed yet.")}</article>
+      <article class="student-panel canvas-all-courses-section"><h2>Future Enrollments</h2>${courseRows(futureEnrollments, "No future enrollments are listed yet.")}</article>
+      <article class="student-panel canvas-all-courses-section"><h2>My Groups</h2>${groupRows}</article>
     </section>
   `;
   render(req, res, "Enrolled Courses", body, { studentPortal: true, activeStudentNav: "courses" });
