@@ -2058,6 +2058,10 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
     ? db.prepare("SELECT * FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollmentId, selectedLesson.id)
     : null;
   const lessonIsComplete = completedLessonIds.has(selectedLesson.id) || Boolean(quizGrade);
+  const selectedLessonIsQuiz = moduleItemKind(selectedLesson.title) === "quiz";
+  // The encoded quiz bank belongs to the interactive quiz engine. Showing the
+  // source content on a student page exposes every question before Start Now.
+  const showLessonSourceContent = instructor || !selectedLessonIsQuiz;
   return `
     <main class="canvas-course-main canvas-page-main">
       <div class="canvas-mini-head">
@@ -2080,7 +2084,7 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
               <a class="button" href="${escapeHtml(selectedLesson.external_url)}">Open ${escapeHtml(selectedLesson.title)}</a>
             </div>
           ` : ""}
-          ${renderCanvasLessonContent(selectedLesson.content, selectedLesson.title)}
+          ${showLessonSourceContent ? renderCanvasLessonContent(selectedLesson.content, selectedLesson.title) : ""}
         </div>
         ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId, examAttempt })}
         ${!instructor && enrollmentId && moduleItemKind(selectedLesson.title) !== "quiz" && !db.prepare("SELECT id FROM video_assignments WHERE lesson_id = ?").get(selectedLesson.id) ? `

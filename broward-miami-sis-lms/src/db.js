@@ -7,6 +7,7 @@ const { courses } = require("./catalog");
 const { lippincottEnrollmentInstructions } = require("./fundamentalsBuildout");
 const { longTermCareNursingCourse } = require("./longTermCareNursingBuildout");
 const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
+const { ensureIntroNursingQuizQuestionMinimum } = require("./introNursingQuizQuestions");
 
 const rootDir = path.resolve(__dirname, "..");
 const databaseFile = path.resolve(rootDir, process.env.DATABASE_FILE || "./data/bmhi.sqlite");
@@ -1491,6 +1492,25 @@ function seed() {
       "Welcome to your BMHI student email",
       "This inbox is for school messages, course questions, financial reminders, and registrar updates. You can reply to staff from the Student Email page."
     );
+  }
+
+  // Keep live instructor-authored quiz records intact while ensuring every
+  // Introduction to Nursing quiz has a full 15-question student assessment.
+  const introductionCourse = db.prepare("SELECT id FROM courses WHERE slug = ?").get("introduction-to-nursing-practical-nursing");
+  if (introductionCourse) {
+    const quizLessons = db.prepare(`
+      SELECT lessons.id, lessons.title, lessons.content
+      FROM lessons
+      JOIN modules ON modules.id = lessons.module_id
+      WHERE modules.course_id = ?
+        AND lower(lessons.title) LIKE '%quiz%'
+        AND lessons.content LIKE '%QUIZ_DATA_BASE64:%'
+    `).all(introductionCourse.id);
+    const updateQuiz = db.prepare("UPDATE lessons SET content = ? WHERE id = ?");
+    quizLessons.forEach((lesson) => {
+      const upgradedContent = ensureIntroNursingQuizQuestionMinimum(lesson.content, lesson.title);
+      if (upgradedContent !== lesson.content) updateQuiz.run(upgradedContent, lesson.id);
+    });
   }
 }
 
