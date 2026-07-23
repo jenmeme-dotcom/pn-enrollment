@@ -2041,6 +2041,79 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
   return fileButtons;
 }
 
+const introNursingNclexHints = [
+  {
+    question: "A practical nursing student notices that a patient's breathing is suddenly more difficult. Which action should the student take first?",
+    options: ["Document the finding at the end of the shift.", "Immediately report the change to the supervising nurse.", "Ask the patient's visitor what usually helps.", "Wait 30 minutes and reassess without telling anyone."],
+    answer: 1,
+    rationale: "A sudden change in breathing can indicate deterioration. A student or practical nurse should protect the patient, stay within scope, and promptly report the change through the appropriate chain of command."
+  },
+  {
+    question: "Which chart entry best demonstrates objective nursing documentation?",
+    options: ["Patient seems angry and difficult.", "Patient probably did not sleep last night.", "Patient states, “My pain is 7 out of 10.”", "Patient had a bad morning."],
+    answer: 2,
+    rationale: "Objective documentation includes observable findings and the patient's exact statements. It avoids judgment, assumptions, and vague language."
+  },
+  {
+    question: "A patient says, “I am afraid of what will happen after surgery.” Which response is most therapeutic?",
+    options: ["There is nothing to worry about.", "Why are you afraid?", "Tell me more about what concerns you.", "Other patients do well after this surgery."],
+    answer: 2,
+    rationale: "An open-ended invitation encourages the patient to express concerns and gives the nurse information needed to provide support. False reassurance and comparison can block communication."
+  },
+  {
+    question: "Which action by a practical nurse best demonstrates patient advocacy?",
+    options: ["Making treatment decisions for the patient.", "Speaking up when the patient's stated concern has not been addressed.", "Sharing the patient's information with a friend who is a nurse.", "Avoiding questions that may delay discharge."],
+    answer: 1,
+    rationale: "Advocacy means protecting the patient's rights, preferences, safety, and access to understandable information while working within the nurse's role."
+  },
+  {
+    question: "Which action is most important before delegating a patient-care task?",
+    options: ["Choose the task that will save the most time.", "Confirm the task is appropriate and the team member is competent to perform it.", "Delegate all routine communication to another person.", "Avoid giving specific directions so the team member can work independently."],
+    answer: 1,
+    rationale: "Safe delegation requires the right task, circumstance, person, directions, and supervision. The nurse remains accountable for appropriate delegation and follow-up."
+  },
+  {
+    question: "Which action best protects patient confidentiality?",
+    options: ["Discussing the patient's condition quietly in an elevator.", "Accessing only the records needed for assigned patient care.", "Sharing a login with a classmate during a busy clinical day.", "Posting a clinical story online without using the patient's name."],
+    answer: 1,
+    rationale: "Patient information should be accessed only for a legitimate care or learning need and discussed only in approved private settings. Passwords and clinical stories must never be shared."
+  },
+  {
+    question: "Which nursing action is the best example of culturally respectful care?",
+    options: ["Assume patients from the same culture have the same preferences.", "Ask the patient which beliefs or practices should be considered in the plan of care.", "Avoid discussing culture because it may be uncomfortable.", "Ask a family member to interpret all health information."],
+    answer: 1,
+    rationale: "Cultural humility requires respectful questions, self-awareness, and an individualized plan. Nurses should avoid assumptions and use qualified interpreters when language assistance is needed."
+  },
+  {
+    question: "After providing patient teaching, which action best evaluates understanding?",
+    options: ["Ask, “Do you understand?”", "Give the patient a longer handout.", "Use teach-back and ask the patient to explain the instructions in their own words.", "Document that teaching was completed without asking questions."],
+    answer: 2,
+    rationale: "Teach-back evaluates whether communication was clear and identifies information that needs to be explained again. A yes-or-no question does not reliably confirm understanding."
+  }
+];
+
+function renderIntroNursingNclexHint(lesson = {}) {
+  const title = String(lesson.title || "Introduction to Nursing");
+  const hintIndex = [...title].reduce((total, character) => total + character.charCodeAt(0), 0) % introNursingNclexHints.length;
+  const hint = introNursingNclexHints[hintIndex];
+  const letters = ["A", "B", "C", "D"];
+  return `
+    <section class="lesson-action-card nclex-prep-card" aria-labelledby="nclex-prep-${escapeHtml(lesson.id || hintIndex)}">
+      <span class="nclex-prep-kicker">NCLEX-PN preparation · Not graded</span>
+      <h2 id="nclex-prep-${escapeHtml(lesson.id || hintIndex)}">Think Like a Practical Nurse</h2>
+      <p class="nclex-prep-question"><strong>Practice question:</strong> ${escapeHtml(hint.question)}</p>
+      <ol class="nclex-prep-options" type="A">
+        ${hint.options.map((option) => `<li>${escapeHtml(option)}</li>`).join("")}
+      </ol>
+      <details class="nclex-prep-answer">
+        <summary>Show answer and rationale</summary>
+        <p><strong>Correct answer: ${letters[hint.answer]}. ${escapeHtml(hint.options[hint.answer])}</strong></p>
+        <p><strong>Rationale:</strong> ${escapeHtml(hint.rationale)}</p>
+      </details>
+    </section>
+  `;
+}
+
 function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false, gradeItems = [], grades = [], completedLessonIds = new Set(), courseId = null }) {
   const firstLesson = lessons[0];
   const selectedLesson = lessons.find((lesson) => lesson.id === Number(lessonId)) || firstLesson;
@@ -2056,6 +2129,8 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
     : null;
   const lessonIsComplete = completedLessonIds.has(selectedLesson.id) || Boolean(quizGrade);
   const selectedLessonIsQuiz = moduleItemKind(selectedLesson.title) === "quiz";
+  const selectedCourseSlug = courseId ? db.prepare("SELECT slug FROM courses WHERE id = ?").get(Number(courseId))?.slug : null;
+  const showIntroNursingNclexHint = selectedCourseSlug === "introduction-to-nursing-practical-nursing" && !selectedLessonIsQuiz;
   // The encoded quiz bank belongs to the interactive quiz engine. Showing the
   // source content on a student page exposes every question before Start Now.
   const showLessonSourceContent = instructor || !selectedLessonIsQuiz;
@@ -2084,6 +2159,7 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
           ${showLessonSourceContent ? renderCanvasLessonContent(selectedLesson.content, selectedLesson.title) : ""}
         </div>
         ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId, examAttempt })}
+        ${showIntroNursingNclexHint ? renderIntroNursingNclexHint(selectedLesson) : ""}
         ${!instructor && enrollmentId && moduleItemKind(selectedLesson.title) !== "quiz" && !db.prepare("SELECT id FROM video_assignments WHERE lesson_id = ?").get(selectedLesson.id) ? `
           <form method="post" action="/student/enrollments/${enrollmentId}/lesson-complete" class="canvas-complete-action">
             <input type="hidden" name="lessonId" value="${selectedLesson.id}">
@@ -11718,6 +11794,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       ${renderCourseLessonPage({
         courseCode,
         baseHref: courseBaseHref,
+        courseId: enrollment.course_id,
         lessons,
         moduleGroups,
         lessonId: req.query.lesson,
