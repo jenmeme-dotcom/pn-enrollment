@@ -18,28 +18,6 @@ function csvCell(value = "") {
   return `"${String(value).replaceAll('"', '""')}"`;
 }
 
-function courseLengthLabel() {
-  return introNursingCourse.duration || `${introNursingCourse.weeks.length} weeks`;
-}
-
-function titleCaseCourseLength() {
-  return courseLengthLabel().replace(/\bweeks\b/i, "Weeks");
-}
-
-function assignmentNote(item) {
-  const weekMatch = item.title.match(/Quiz\s+(\d+)/i);
-
-  if (/Final Exam/i.test(item.title)) {
-    return "Comprehensive final exam covering Chapters 1-6.";
-  }
-
-  if (weekMatch) {
-    return `Weekly multiple-choice quiz covering Chapter ${weekMatch[1]}.`;
-  }
-
-  return "Course assignment aligned to weekly objectives.";
-}
-
 function writeFile(name, content) {
   fs.writeFileSync(path.join(outDir, name), content);
 }
@@ -52,7 +30,7 @@ const homeHtml = shell(`
   <div style="padding:28px 16px 8px; border-top:10px solid #173f52;">
     <h1 style="margin:0 0 12px; color:#173f52; font-size:30px; line-height:1.2;">${escapeHtml(introNursingCourse.title)}</h1>
     <p style="margin:0 0 10px; color:#334554; font-size:15px; line-height:1.7;">${escapeHtml(introNursingCourse.description)}</p>
-    <p style="margin:0; color:#526571; font-size:13px; line-height:1.7;"><strong>Course focus:</strong> Chapters 1-6 from the exported Canvas buildout, one chapter per week, weekly multiple-choice quizzes, chapter PowerPoint reviews, and a final exam for Introduction to Nursing.</p>
+    <p style="margin:0; color:#526571; font-size:13px; line-height:1.7;"><strong>Course focus:</strong> Nursing history, nursing leaders, purpose of nursing, practical nurse role, ethics, legal responsibilities, professionalism, and student impact.</p>
   </div>
   <div style="padding:20px 16px 4px;">
     <h2 style="margin:0 0 14px; padding-bottom:8px; border-bottom:3px solid #173f52; color:#173f52; font-size:23px;">Start Here</h2>
@@ -66,7 +44,7 @@ const homeHtml = shell(`
     </table>
   </div>
   <div style="margin:30px 16px 0; padding:15px 20px; border-top:2px solid #173f52; color:#526571; text-align:center; font-size:12px; line-height:1.6;">
-    <strong style="color:#173f52;">${escapeHtml(introNursingCourse.courseNumber)}</strong> | ${escapeHtml(titleCaseCourseLength())} | 3 Credits | 48 Contact Hours | Practical Nursing Program
+    <strong style="color:#173f52;">${escapeHtml(introNursingCourse.courseNumber)}</strong> | 12 Weeks | 3 Credits | 48 Contact Hours | Practical Nursing Program
   </div>
 `);
 
@@ -83,7 +61,7 @@ const syllabusHtml = shell(`
       <tr><th style="border-bottom:2px solid #173f52; padding:8px; text-align:left;">Grade Item</th><th style="border-bottom:2px solid #173f52; padding:8px; text-align:left;">Points</th></tr>
       ${introNursingCourse.gradeItems.map((item) => `<tr><td style="border-bottom:1px solid #d9e1e8; padding:8px;">${escapeHtml(item.title)}</td><td style="border-bottom:1px solid #d9e1e8; padding:8px;">${item.pointsPossible}</td></tr>`).join("")}
     </table>
-    <h2 style="color:#173f52; font-size:22px;">Weekly Quiz and Final Exam Schedule</h2>
+    <h2 style="color:#173f52; font-size:22px;">Quiz, Midterm, and Final Schedule</h2>
     <p style="color:#334554; line-height:1.7;">${escapeHtml(introNursingCourse.policies.quizzes)}</p>
     <h2 style="color:#173f52; font-size:22px;">Ethical and Legal Foundation</h2>
     <p style="color:#334554; line-height:1.7;">${escapeHtml(introNursingCourse.policies.ethicsLegal)}</p>
@@ -116,7 +94,19 @@ const assignmentRows = [["Assignment", "Points", "Type", "Notes"]].concat(
     item.title,
     item.pointsPossible,
     item.title.includes("Quiz") || item.title.includes("Exam") ? "Quiz" : "Assignment",
-    assignmentNote(item)
+    item.title.includes("Midterm")
+      ? "Midterm exam covering Weeks 1-6."
+      : item.title.includes("Cumulative Final")
+        ? "Cumulative final exam completed in Week 12."
+        : item.title.includes("Quiz 1")
+          ? "Biweekly quiz covering Weeks 1-2."
+          : item.title.includes("Quiz 2")
+            ? "Biweekly quiz covering Weeks 3-4."
+            : item.title.includes("Quiz 3")
+              ? "Biweekly quiz covering Weeks 7-8."
+              : item.title.includes("Quiz 4")
+                ? "Biweekly quiz covering Weeks 9-10."
+                : "Course assignment aligned to weekly objectives."
   ])
 );
 
@@ -147,16 +137,16 @@ writeFile("canvas-api-buildout.json", JSON.stringify({
 }, null, 2));
 writeFile("README.md", `# ${introNursingCourse.title}
 
-Canvas buildout for a ${courseLengthLabel()} introduction to nursing course for practical nursing students.
+Canvas buildout for a 12-week introduction to nursing course for practical nursing students.
 
 ## Course focus
 
-- Chapters 1-6 from the exported Canvas Introduction to Nursing material
-- One chapter lesson per week for six weeks
-- One PowerPoint review file for each weekly chapter
-- One multiple-choice quiz for each weekly chapter
-- A comprehensive final exam covering Chapters 1-6
-- Practical nurse role, professional identity, communication, safety, teamwork, ethics, and legal accountability
+- What nursing was historically and what nursing is today
+- Influential nursing leaders and their impact
+- The purpose and importance of nursing
+- Practical nurse role, professional identity, communication, safety, and teamwork
+- Ethical and legal foundations for beginning nursing students
+- Student impact on patients, families, teams, and communities
 
 ## Canvas setup
 

@@ -162,7 +162,7 @@ const fundamentalsCourse = {
   category: "Practical Nursing Course",
   hours: 153,
   credentialType: "Course Completion",
-  deliveryMode: "Online / Zoom",
+  deliveryMode: "Campus / blended",
   description: courseDescription,
   ghlProductKeys: [
     "Fundamentals",

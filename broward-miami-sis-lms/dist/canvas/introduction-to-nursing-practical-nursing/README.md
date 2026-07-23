@@ -1,15 +1,15 @@
 # Introduction to Nursing for Practical Nursing Students
 
-Canvas buildout for a 6 weeks introduction to nursing course for practical nursing students.
+Canvas buildout for a 12-week introduction to nursing course for practical nursing students.
 
 ## Course focus
 
-- Chapters 1-6 from the exported Canvas Introduction to Nursing material
-- One chapter lesson per week for six weeks
-- One PowerPoint review file for each weekly chapter
-- One multiple-choice quiz for each weekly chapter
-- A comprehensive final exam covering Chapters 1-6
-- Practical nurse role, professional identity, communication, safety, teamwork, ethics, and legal accountability
+- What nursing was historically and what nursing is today
+- Influential nursing leaders and their impact
+- The purpose and importance of nursing
+- Practical nurse role, professional identity, communication, safety, and teamwork
+- Ethical and legal foundations for beginning nursing students
+- Student impact on patients, families, teams, and communities
 
 ## Canvas setup
 

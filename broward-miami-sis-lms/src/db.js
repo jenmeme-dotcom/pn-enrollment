@@ -214,23 +214,6 @@ function migrate() {
       UNIQUE(user_id, exam_name, subject)
     );
 
-    CREATE TABLE IF NOT EXISTS entrance_exam_records (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      exam_type TEXT NOT NULL,
-      score TEXT,
-      exam_date TEXT,
-      status TEXT NOT NULL DEFAULT 'recorded' CHECK(status IN ('recorded','pass','review','missing')),
-      record_note TEXT,
-      file_original_name TEXT,
-      file_storage_name TEXT,
-      file_mime_type TEXT,
-      file_size INTEGER,
-      recorded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
     CREATE TABLE IF NOT EXISTS credentials (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       enrollment_id INTEGER NOT NULL UNIQUE REFERENCES enrollments(id) ON DELETE CASCADE,
@@ -758,7 +741,6 @@ function seed() {
       role = 'admin',
       first_name = excluded.first_name,
       last_name = excluded.last_name,
-      password_hash = excluded.password_hash,
       status = 'active',
       organization_status = 'organized',
       class_lock_reason = NULL
@@ -860,7 +842,7 @@ function seed() {
         { title: "Final Assessment", pointsPossible: 100 }
       ];
       gradeItems.forEach((item) => {
-        insertGradeItem.run(saved.id, item.title, item.pointsPossible ?? item.points ?? 0, item.dueDate || null);
+        insertGradeItem.run(saved.id, item.title, item.pointsPossible, item.dueDate || null);
       });
       if (seedKey) insertSeedVersion.run(saved.id, seedKey);
     }
@@ -1064,7 +1046,7 @@ function seed() {
     ["Porledens", "Cajoux", "porledens@gmail.com", "Small"],
     ["Cheryl", "Echols", "cherylechols89@gmail.com", "Small"],
     ["Ericka", "Morrison", "ericka.morrison001@outlook.com", "Large"],
-    ["Kefira", "Isaacs", "fire_delight@yahoo.com", ""],
+    ["J Laurie", "Robert", "robertjlaurie303@gmail.com", "Small"],
     ["Rekena", "Williams", "kena_wims@yahoo.com", "2XL"]
   ];
   const cohortName = "Cohort 2";
@@ -1098,7 +1080,10 @@ function seed() {
       source = 'cohort_seed'
   `);
   const cohortTwoCourses = [
-    { code: "pn101", course: medicalTerminology, startDate: "2026-06-22" }
+    { code: "pn101", course: medicalTerminology, startDate: "2026-06-17" },
+    { code: "pn102", course: introNursing, startDate: "2026-06-22" },
+    { code: "pn103", course: fundamentals, startDate: "2026-07-02" },
+    { code: "pn104", course: anatomyPhysiology, startDate: "2026-07-13" }
   ];
   cohortTwoStudents.forEach(([firstName, lastName, email, uniformSize]) => {
     upsertCohortStudent.run(
@@ -1153,26 +1138,6 @@ function seed() {
           )
         )
     `).run(cohortName, cohortName, ...cohortTwoCourseIds);
-  }
-
-  const droppedCohortTwoStudent = db.prepare(`
-    SELECT id
-    FROM users
-    WHERE lower(email) = ?
-      AND role = 'student'
-  `).get("robertjlaurie303@gmail.com");
-  if (droppedCohortTwoStudent) {
-    db.prepare(`
-      UPDATE users
-      SET status = 'inactive',
-        class_lock_reason = 'Dropped course'
-      WHERE id = ?
-    `).run(droppedCohortTwoStudent.id);
-    db.prepare(`
-      UPDATE enrollments
-      SET status = 'dropped'
-      WHERE user_id = ?
-    `).run(droppedCohortTwoStudent.id);
   }
 
   const hesiSubjects = [
@@ -1334,43 +1299,6 @@ function seed() {
       VALUES (?, '2026-27 Practical Nursing Term', 'Monthly tuition plan', 78000, 26000, '2026-08-15', 'active')
     `).run(demoStudent.id);
   }
-
-  const cohortPaymentRows = [
-    { email: "ericka.morrison001@outlook.com", registrationCents: 15000, entranceCents: 7500, depositCents: 0 },
-    { email: "samanthabrunvil2106@gmail.com", registrationCents: 15000, entranceCents: 7500, depositCents: 0 },
-    { email: "porledens@gmail.com", registrationCents: 15000, entranceCents: 7500, depositCents: 200000 },
-    { email: "cherylechols89@gmail.com", registrationCents: 0, entranceCents: 0, depositCents: 0 },
-    { email: "guerdabien80@gmail.com", registrationCents: 0, entranceCents: 0, depositCents: 200000 },
-    { email: "kena_wims@yahoo.com", registrationCents: 15000, entranceCents: 0, depositCents: 0 },
-    { email: "shaunie8210@gmail.com", registrationCents: 15000, entranceCents: 7500, depositCents: 0 },
-    { email: "fire_delight@yahoo.com", registrationCents: 15000, entranceCents: 7500, depositCents: 0 }
-  ];
-  const insertCohortPayment = db.prepare(`
-    INSERT INTO billing_payments (user_id, term, source, applied_to, amount_cents, paid_at, note)
-    VALUES (?, '2026-27 Practical Nursing Term', 'Student payment', ?, ?, '2026-07-22', 'Imported from Cohort 2 student payment sheet.')
-  `);
-  const existingCohortPayment = db.prepare(`
-    SELECT id
-    FROM billing_payments
-    WHERE user_id = ?
-      AND term = '2026-27 Practical Nursing Term'
-      AND source = 'Student payment'
-      AND applied_to = ?
-      AND amount_cents = ?
-      AND note = 'Imported from Cohort 2 student payment sheet.'
-  `);
-  cohortPaymentRows.forEach((row) => {
-    const student = db.prepare("SELECT id FROM users WHERE lower(email) = ? AND role = 'student'").get(row.email);
-    if (!student) return;
-    [
-      ["Registration Fee", row.registrationCents],
-      ["Entrance Fee", row.entranceCents],
-      ["Deposit", row.depositCents]
-    ].forEach(([appliedTo, amountCents]) => {
-      if (!amountCents || existingCohortPayment.get(student.id, appliedTo, amountCents)) return;
-      insertCohortPayment.run(student.id, appliedTo, amountCents);
-    });
-  });
 
   db.prepare(`
     INSERT OR IGNORE INTO billing_refund_policies (name, description, active)

@@ -1,7 +1,7 @@
 {
   "course": {
     "name": "Introduction to Nursing for Practical Nursing Students",
-    "course_code": "PN 102",
+    "course_code": "PN-INTRO",
     "license": "private",
     "is_public": false
   },
@@ -26,2166 +26,243 @@
   "modules": [
     {
       "title": "Orientation and Course Resources",
-      "description": "Course overview, expectations, schedule, communication standards, and the six-week chapter plan.",
       "lessons": [
         {
           "title": "Course Welcome and Expectations",
-          "type": "Page",
-          "itemType": "Page",
-          "status": "published",
-          "content": "<h2>Welcome to Introduction to Nursing</h2>\n<p>A six-week introduction to nursing course for practical nursing students. The course uses the exported chapter sequence from the LMS build and organizes Chapters 1-6 into one chapter per week. Students review weekly chapter lessons, PowerPoint summaries, multiple-choice quizzes, practical nursing activities, and a comprehensive final exam.</p>\n<h3>Course details</h3>\n<ul><li>Course code: PN 102</li><li>Length: 6 weeks</li><li>Credits: 3</li><li>Contact hours: 48</li><li>Delivery: Online / LMS</li><li>Weekly structure: chapter lesson, PowerPoint review, quiz, and learning activity</li></ul>\n<h3>Course objectives</h3>\n<ul><li>Describe the identity, purpose, responsibilities, and limits of the practical nurse role.</li><li>Explain major historical influences on nursing education, reform, and public trust.</li><li>Apply caring, comfort, safety, advocacy, and healing principles to beginning nursing scenarios.</li><li>Use basic communication, delegation, teamwork, and scope-of-practice concepts in patient care.</li><li>Recognize ethical responsibilities related to confidentiality, boundaries, patient rights, and professional conduct.</li><li>Identify legal foundations for documentation, privacy, accountability, and safe practical nursing practice.</li></ul>"
+          "content": "A 12-week introduction to nursing course for practical nursing students that explores the history and purpose of nursing, influential nursing leaders, the practical nurse role today, ethical and legal responsibilities, professional identity, and the impact students can make in patient care and the community.\n\nStudents review course expectations, grading, attendance, professional conduct, and the purpose of this introductory course in the practical nursing sequence."
         },
         {
           "title": "How This Course Builds a Practical Nurse",
-          "type": "Page",
-          "itemType": "Page",
-          "status": "published",
-          "content": "<h2>How This Course Builds a Practical Nurse</h2>\n<p>This course introduces the professional habits students will use throughout the practical nursing program: preparation, communication, safety, accountability, ethics, and respect for patient rights.</p>\n<p>Students should complete each weekly chapter in order. Each quiz checks readiness before moving to the next week.</p>"
+          "content": "This course helps students connect nursing history, nursing leaders, ethical/legal responsibilities, communication, patient safety, and personal purpose before moving deeper into skills and clinical courses."
         }
       ]
     },
     {
-      "title": "Week 1: Nursing Identity, Purpose, and the Practical Nurse Role",
-      "description": "Chapter 1 lesson, PowerPoint review, and weekly multiple-choice quiz.",
+      "title": "Week 1: Welcome to Nursing: Identity, Purpose, and the Practical Nurse Role",
       "lessons": [
         {
-          "title": "[PN102 2026] Chapter 1: Nursing Identity, Purpose, and the Practical Nurse Role",
-          "type": "Page",
-          "itemType": "Page",
-          "dueDate": "Jul 7, 2026",
-          "status": "published",
-          "content": "<h2>Chapter 1: Nursing Identity, Purpose, and the Practical Nurse Role</h2>\n<p>Students begin by defining what practical nursing is, how the practical nurse contributes to safe care, and why professional habits must begin on the first day of training.</p>\n<h3>Required reading</h3>\n<p>Read Chapter 1 before class. Pay close attention to definitions of nursing, professional identity, the practical nurse role, student responsibilities, and examples of safe beginning practice.</p>\n<h3>Learning objectives</h3>\n<ul><li>Define nursing as a profession focused on safe, compassionate, evidence-informed care.</li><li>Describe how the practical nurse role supports patients, families, registered nurses, and the health care team.</li><li>Identify student behaviors that demonstrate readiness, accountability, punctuality, and respect.</li><li>Explain why scope of practice and supervision protect both the patient and the student nurse.</li></ul>\n<h3>Key topics</h3>\n<ul><li>Purpose of nursing</li><li>Practical nurse responsibilities</li><li>Professional appearance and communication</li><li>Student conduct and readiness</li><li>Asking for help before performing unfamiliar care</li></ul>\n<h3>Learning activities</h3>\n<ul><li>Write a short professional identity statement.</li><li>Discuss how attendance, preparation, and organization affect patient safety.</li><li>Review three scenarios and identify whether the student should proceed, ask for help, or stop.</li></ul>\n<h3>Before moving on</h3>\n<p>Review your chapter notes, complete the PowerPoint review, and take the weekly quiz. Bring questions to the instructor before the next course meeting.</p>"
+          "title": "Weekly Overview",
+          "content": "Students begin forming a professional nursing identity by examining what nursing is, why it matters, and how practical nurses contribute to safe, compassionate care.\n\nNursing leaders: Florence Nightingale and Clara Barton\n\nTopics: Course orientation and expectations; What nursing meant historically and what nursing means today; The practical nurse as caregiver, communicator, advocate, team member, and lifelong learner; Florence Nightingale's work in sanitation, observation, data, and reform; Clara Barton's service, disaster response, and humanitarian leadership."
         },
         {
-          "title": "[PN102 2026] Chapter 1 PowerPoint Review",
-          "type": "File",
-          "itemType": "File",
-          "dueDate": "Jul 7, 2026",
-          "status": "published",
-          "fileName": "PN102_Ch01_Nursing_Identity_and_Practical_Nurse_Role.pptx",
-          "content": "<h2>Chapter 1 PowerPoint Review</h2>\n<p>This item represents the weekly PowerPoint that should be uploaded or attached for instructor/student use.</p>\n<p><strong>File name:</strong> PN102_Ch01_Nursing_Identity_and_Practical_Nurse_Role.pptx</p>\n<h3>Slide outline</h3>\n<ul><li>What is nursing?</li><li>The practical nurse role</li><li>Professional identity in training</li><li>Scope, supervision, and safety</li><li>Readiness checklist for class and clinical</li></ul>\n<p>Instructor note: keep the PowerPoint aligned with Chapter 1, then attach the actual slide file when available.</p>"
-        },
-        {
-          "title": "[PN102 2026] Quiz 1 - Chapter 1",
-          "type": "Quiz",
-          "itemType": "Quiz",
-          "dueDate": "Jul 7, 2026",
-          "pointsPossible": 10,
-          "status": "published",
-          "instructions": "Read each question and select the best answer. This weekly quiz contains multiple-choice questions only.",
-          "questions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "Which statement best describes the practical nurse role?",
-              "choices": [
-                {
-                  "text": "Provide safe basic nursing care under the direction required by law and policy.",
-                  "correct": true
-                },
-                {
-                  "text": "Practice independently without supervision.",
-                  "correct": false
-                },
-                {
-                  "text": "Diagnose patient conditions and prescribe treatment.",
-                  "correct": false
-                },
-                {
-                  "text": "Complete only clerical tasks and avoid patient care.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Why are attendance, preparation, and organization important in nursing school?",
-              "choices": [
-                {
-                  "text": "They are only school preferences.",
-                  "correct": false
-                },
-                {
-                  "text": "They protect patient safety and professional readiness.",
-                  "correct": true
-                },
-                {
-                  "text": "They replace the need to study.",
-                  "correct": false
-                },
-                {
-                  "text": "They only matter during graduation week.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "What is one lesson associated with Florence Nightingale's influence on nursing?",
-              "choices": [
-                {
-                  "text": "Using observation, sanitation, and data to improve care.",
-                  "correct": true
-                },
-                {
-                  "text": "Avoiding patient assessment.",
-                  "correct": false
-                },
-                {
-                  "text": "Keeping health care work informal.",
-                  "correct": false
-                },
-                {
-                  "text": "Replacing teamwork with individual decision making.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "When should a practical nursing student ask for help?",
-              "choices": [
-                {
-                  "text": "Only after an error occurs.",
-                  "correct": false
-                },
-                {
-                  "text": "When a task is outside student preparation or permission.",
-                  "correct": true
-                },
-                {
-                  "text": "Only if another student asks first.",
-                  "correct": false
-                },
-                {
-                  "text": "Never, because asking questions is unprofessional.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Professional identity begins with which behavior?",
-              "choices": [
-                {
-                  "text": "Accountability, respectful communication, and readiness to learn.",
-                  "correct": true
-                },
-                {
-                  "text": "Ignoring feedback.",
-                  "correct": false
-                },
-                {
-                  "text": "Arriving late if the assignment is online.",
-                  "correct": false
-                },
-                {
-                  "text": "Avoiding patient interaction.",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "quizQuestions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "Which statement best describes the practical nurse role?",
-              "choices": [
-                {
-                  "text": "Provide safe basic nursing care under the direction required by law and policy.",
-                  "correct": true
-                },
-                {
-                  "text": "Practice independently without supervision.",
-                  "correct": false
-                },
-                {
-                  "text": "Diagnose patient conditions and prescribe treatment.",
-                  "correct": false
-                },
-                {
-                  "text": "Complete only clerical tasks and avoid patient care.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Why are attendance, preparation, and organization important in nursing school?",
-              "choices": [
-                {
-                  "text": "They are only school preferences.",
-                  "correct": false
-                },
-                {
-                  "text": "They protect patient safety and professional readiness.",
-                  "correct": true
-                },
-                {
-                  "text": "They replace the need to study.",
-                  "correct": false
-                },
-                {
-                  "text": "They only matter during graduation week.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "What is one lesson associated with Florence Nightingale's influence on nursing?",
-              "choices": [
-                {
-                  "text": "Using observation, sanitation, and data to improve care.",
-                  "correct": true
-                },
-                {
-                  "text": "Avoiding patient assessment.",
-                  "correct": false
-                },
-                {
-                  "text": "Keeping health care work informal.",
-                  "correct": false
-                },
-                {
-                  "text": "Replacing teamwork with individual decision making.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "When should a practical nursing student ask for help?",
-              "choices": [
-                {
-                  "text": "Only after an error occurs.",
-                  "correct": false
-                },
-                {
-                  "text": "When a task is outside student preparation or permission.",
-                  "correct": true
-                },
-                {
-                  "text": "Only if another student asks first.",
-                  "correct": false
-                },
-                {
-                  "text": "Never, because asking questions is unprofessional.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Professional identity begins with which behavior?",
-              "choices": [
-                {
-                  "text": "Accountability, respectful communication, and readiness to learn.",
-                  "correct": true
-                },
-                {
-                  "text": "Ignoring feedback.",
-                  "correct": false
-                },
-                {
-                  "text": "Arriving late if the assignment is online.",
-                  "correct": false
-                },
-                {
-                  "text": "Avoiding patient interaction.",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "content": "<h2>Chapter 1 Quiz</h2>\n<p><strong>Due:</strong> Jul 7, 2026 by 11:59 PM. <strong>Points:</strong> 10.</p>\n<div class=\"quiz-instructions\">\n<h3>Instructions before you begin</h3>\n<ul><li>Review the chapter lesson and PowerPoint before opening the quiz.</li><li>This quiz contains multiple-choice questions only.</li><li>Choose the best answer for each question.</li><li>Submit the quiz before the due date listed above.</li><li>Contact your instructor before the deadline if you have a technical issue.</li></ul>\n<button type=\"button\" class=\"quiz-start-button\">Start Quiz</button>\n</div>\n<h3>Questions</h3>\n\n          <section class=\"quiz-question\">\n            <h4>1. Which statement best describes the practical nurse role?</h4>\n            <ol type=\"A\">\n              <li>Provide safe basic nursing care under the direction required by law and policy.</li><li>Practice independently without supervision.</li><li>Diagnose patient conditions and prescribe treatment.</li><li>Complete only clerical tasks and avoid patient care.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>2. Why are attendance, preparation, and organization important in nursing school?</h4>\n            <ol type=\"A\">\n              <li>They are only school preferences.</li><li>They protect patient safety and professional readiness.</li><li>They replace the need to study.</li><li>They only matter during graduation week.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>3. What is one lesson associated with Florence Nightingale's influence on nursing?</h4>\n            <ol type=\"A\">\n              <li>Using observation, sanitation, and data to improve care.</li><li>Avoiding patient assessment.</li><li>Keeping health care work informal.</li><li>Replacing teamwork with individual decision making.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>4. When should a practical nursing student ask for help?</h4>\n            <ol type=\"A\">\n              <li>Only after an error occurs.</li><li>When a task is outside student preparation or permission.</li><li>Only if another student asks first.</li><li>Never, because asking questions is unprofessional.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>5. Professional identity begins with which behavior?</h4>\n            <ol type=\"A\">\n              <li>Accountability, respectful communication, and readiness to learn.</li><li>Ignoring feedback.</li><li>Arriving late if the assignment is online.</li><li>Avoiding patient interaction.</li>\n            </ol>\n          </section>"
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Define nursing in student-friendly language and compare it with common public assumptions.\n- Describe the purpose of nursing in hospitals, long-term care, home care, clinics, and community settings.\n- Identify basic expectations of a practical nursing student, including attendance, preparation, conduct, and accountability.\n\nLearning activity: Class discussion: 'Why nursing?' Students write a one-page professional beginning reflection on the kind of nurse they hope to become.\n\nAssessment: Professional Beginning Reflection."
         }
       ]
     },
     {
-      "title": "Week 2: Nursing History, Reform, Education, and Public Trust",
-      "description": "Chapter 2 lesson, PowerPoint review, and weekly multiple-choice quiz.",
+      "title": "Week 2: Nursing Then and Now: Caregiving, Reform, Education, and Public Trust",
       "lessons": [
         {
-          "title": "[PN102 2026] Chapter 2: Nursing History, Reform, Education, and Public Trust",
-          "type": "Page",
-          "itemType": "Page",
-          "dueDate": "Jul 14, 2026",
-          "status": "published",
-          "content": "<h2>Chapter 2: Nursing History, Reform, Education, and Public Trust</h2>\n<p>Students connect nursing history to present-day expectations for education, ethics, public trust, and safe entry-level practice.</p>\n<h3>Required reading</h3>\n<p>Read Chapter 2 and identify nursing leaders, reform movements, changes in nursing education, and the reasons the public expects nurses to act with honesty and competence.</p>\n<h3>Learning objectives</h3>\n<ul><li>Identify selected nursing leaders and explain how their work influenced modern nursing.</li><li>Describe how nursing education changed from informal training to structured programs.</li><li>Explain how public trust is built through competence, ethics, and patient-centered care.</li><li>Connect past health care reform to current expectations for safe practical nursing.</li></ul>\n<h3>Key topics</h3>\n<ul><li>Nursing leaders and reformers</li><li>Growth of nursing education</li><li>Public trust in nursing</li><li>Health care reform</li><li>Professional standards over time</li></ul>\n<h3>Learning activities</h3>\n<ul><li>Create a short timeline of nursing history.</li><li>Choose one nursing leader and explain one contribution to patient care.</li><li>Discuss how public trust can be damaged and restored in health care.</li></ul>\n<h3>Before moving on</h3>\n<p>Review your chapter notes, complete the PowerPoint review, and take the weekly quiz. Bring questions to the instructor before the next course meeting.</p>"
+          "title": "Weekly Overview",
+          "content": "Students compare nursing in earlier eras with today's profession and discuss how access, race, gender, public health, and education shaped the field.\n\nNursing leaders: Mary Seacole, Mary Eliza Mahoney, and Lillian Wald\n\nTopics: Nursing before formal schools and licensing; Hospital training schools, community health, and the growth of professional standards; Mary Seacole's battlefield care and resilience; Mary Eliza Mahoney as the first professionally trained Black nurse in the United States; Lillian Wald, public health nursing, settlement work, and care for vulnerable communities."
         },
         {
-          "title": "[PN102 2026] Chapter 2 PowerPoint Review",
-          "type": "File",
-          "itemType": "File",
-          "dueDate": "Jul 14, 2026",
-          "status": "published",
-          "fileName": "PN102_Ch02_Nursing_History_Reform_and_Public_Trust.pptx",
-          "content": "<h2>Chapter 2 PowerPoint Review</h2>\n<p>This item represents the weekly PowerPoint that should be uploaded or attached for instructor/student use.</p>\n<p><strong>File name:</strong> PN102_Ch02_Nursing_History_Reform_and_Public_Trust.pptx</p>\n<h3>Slide outline</h3>\n<ul><li>Early nursing and reform</li><li>Nursing leaders</li><li>Education and standards</li><li>Public trust</li><li>Lessons for practical nursing students</li></ul>\n<p>Instructor note: keep the PowerPoint aligned with Chapter 2, then attach the actual slide file when available.</p>"
-        },
-        {
-          "title": "[PN102 2026] Quiz 2 - Chapter 2",
-          "type": "Quiz",
-          "itemType": "Quiz",
-          "dueDate": "Jul 14, 2026",
-          "pointsPossible": 10,
-          "status": "published",
-          "instructions": "Read each question and select the best answer. This weekly quiz contains multiple-choice questions only.",
-          "questions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "Public trust in nursing is most strongly supported by which behavior?",
-              "choices": [
-                {
-                  "text": "Competence, honesty, confidentiality, and respectful care.",
-                  "correct": true
-                },
-                {
-                  "text": "Sharing patient stories online.",
-                  "correct": false
-                },
-                {
-                  "text": "Avoiding documentation.",
-                  "correct": false
-                },
-                {
-                  "text": "Completing tasks without asking questions.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Mary Eliza Mahoney is recognized for which contribution?",
-              "choices": [
-                {
-                  "text": "First professionally trained Black nurse in the United States.",
-                  "correct": true
-                },
-                {
-                  "text": "Inventing the stethoscope.",
-                  "correct": false
-                },
-                {
-                  "text": "Creating the first ambulance service.",
-                  "correct": false
-                },
-                {
-                  "text": "Writing the first medication order system.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Why did nursing education become more structured over time?",
-              "choices": [
-                {
-                  "text": "To create formal standards for safe practice.",
-                  "correct": true
-                },
-                {
-                  "text": "To remove science from nursing.",
-                  "correct": false
-                },
-                {
-                  "text": "To make patient care less consistent.",
-                  "correct": false
-                },
-                {
-                  "text": "To reduce the need for supervision.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "A reform-minded nurse should do what when unsafe conditions are identified?",
-              "choices": [
-                {
-                  "text": "Ignore the issue if the shift is busy.",
-                  "correct": false
-                },
-                {
-                  "text": "Identify unsafe conditions and advocate through the proper chain of command.",
-                  "correct": true
-                },
-                {
-                  "text": "Tell only classmates.",
-                  "correct": false
-                },
-                {
-                  "text": "Post the concern publicly before reporting it.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which action best protects the public's trust in the nursing profession?",
-              "choices": [
-                {
-                  "text": "Follow policy and report concerns appropriately.",
-                  "correct": true
-                },
-                {
-                  "text": "Guess when unsure.",
-                  "correct": false
-                },
-                {
-                  "text": "Skip assigned learning activities.",
-                  "correct": false
-                },
-                {
-                  "text": "Discuss patient information with friends.",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "quizQuestions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "Public trust in nursing is most strongly supported by which behavior?",
-              "choices": [
-                {
-                  "text": "Competence, honesty, confidentiality, and respectful care.",
-                  "correct": true
-                },
-                {
-                  "text": "Sharing patient stories online.",
-                  "correct": false
-                },
-                {
-                  "text": "Avoiding documentation.",
-                  "correct": false
-                },
-                {
-                  "text": "Completing tasks without asking questions.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Mary Eliza Mahoney is recognized for which contribution?",
-              "choices": [
-                {
-                  "text": "First professionally trained Black nurse in the United States.",
-                  "correct": true
-                },
-                {
-                  "text": "Inventing the stethoscope.",
-                  "correct": false
-                },
-                {
-                  "text": "Creating the first ambulance service.",
-                  "correct": false
-                },
-                {
-                  "text": "Writing the first medication order system.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Why did nursing education become more structured over time?",
-              "choices": [
-                {
-                  "text": "To create formal standards for safe practice.",
-                  "correct": true
-                },
-                {
-                  "text": "To remove science from nursing.",
-                  "correct": false
-                },
-                {
-                  "text": "To make patient care less consistent.",
-                  "correct": false
-                },
-                {
-                  "text": "To reduce the need for supervision.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "A reform-minded nurse should do what when unsafe conditions are identified?",
-              "choices": [
-                {
-                  "text": "Ignore the issue if the shift is busy.",
-                  "correct": false
-                },
-                {
-                  "text": "Identify unsafe conditions and advocate through the proper chain of command.",
-                  "correct": true
-                },
-                {
-                  "text": "Tell only classmates.",
-                  "correct": false
-                },
-                {
-                  "text": "Post the concern publicly before reporting it.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which action best protects the public's trust in the nursing profession?",
-              "choices": [
-                {
-                  "text": "Follow policy and report concerns appropriately.",
-                  "correct": true
-                },
-                {
-                  "text": "Guess when unsure.",
-                  "correct": false
-                },
-                {
-                  "text": "Skip assigned learning activities.",
-                  "correct": false
-                },
-                {
-                  "text": "Discuss patient information with friends.",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "content": "<h2>Chapter 2 Quiz</h2>\n<p><strong>Due:</strong> Jul 14, 2026 by 11:59 PM. <strong>Points:</strong> 10.</p>\n<div class=\"quiz-instructions\">\n<h3>Instructions before you begin</h3>\n<ul><li>Review the chapter lesson and PowerPoint before opening the quiz.</li><li>This quiz contains multiple-choice questions only.</li><li>Choose the best answer for each question.</li><li>Submit the quiz before the due date listed above.</li><li>Contact your instructor before the deadline if you have a technical issue.</li></ul>\n<button type=\"button\" class=\"quiz-start-button\">Start Quiz</button>\n</div>\n<h3>Questions</h3>\n\n          <section class=\"quiz-question\">\n            <h4>1. Public trust in nursing is most strongly supported by which behavior?</h4>\n            <ol type=\"A\">\n              <li>Competence, honesty, confidentiality, and respectful care.</li><li>Sharing patient stories online.</li><li>Avoiding documentation.</li><li>Completing tasks without asking questions.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>2. Mary Eliza Mahoney is recognized for which contribution?</h4>\n            <ol type=\"A\">\n              <li>First professionally trained Black nurse in the United States.</li><li>Inventing the stethoscope.</li><li>Creating the first ambulance service.</li><li>Writing the first medication order system.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>3. Why did nursing education become more structured over time?</h4>\n            <ol type=\"A\">\n              <li>To create formal standards for safe practice.</li><li>To remove science from nursing.</li><li>To make patient care less consistent.</li><li>To reduce the need for supervision.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>4. A reform-minded nurse should do what when unsafe conditions are identified?</h4>\n            <ol type=\"A\">\n              <li>Ignore the issue if the shift is busy.</li><li>Identify unsafe conditions and advocate through the proper chain of command.</li><li>Tell only classmates.</li><li>Post the concern publicly before reporting it.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>5. Which action best protects the public's trust in the nursing profession?</h4>\n            <ol type=\"A\">\n              <li>Follow policy and report concerns appropriately.</li><li>Guess when unsure.</li><li>Skip assigned learning activities.</li><li>Discuss patient information with friends.</li>\n            </ol>\n          </section>"
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Summarize major changes in nursing education, infection control, technology, documentation, and patient rights.\n- Explain why diversity and public health leadership matter in nursing history.\n- Connect historic nursing barriers to current expectations for equity and respect.\n\nLearning activity: Small-group timeline activity comparing 'nursing back then' with 'nursing today' across education, safety, documentation, and patient voice.\n\nAssessment: Quiz 1: Weeks 1-2."
         }
       ]
     },
     {
-      "title": "Week 3: Caring, Comfort, Safety, Advocacy, and Healing",
-      "description": "Chapter 3 lesson, PowerPoint review, and weekly multiple-choice quiz.",
+      "title": "Week 3: The Purpose of Nursing: Caring, Comfort, Safety, Advocacy, and Healing",
       "lessons": [
         {
-          "title": "[PN102 2026] Chapter 3: Caring, Comfort, Safety, Advocacy, and Healing",
-          "type": "Page",
-          "itemType": "Page",
-          "dueDate": "Jul 21, 2026",
-          "status": "published",
-          "content": "<h2>Chapter 3: Caring, Comfort, Safety, Advocacy, and Healing</h2>\n<p>Students practice seeing the patient as a whole person and learn how caring behaviors support comfort, safety, healing, and trust.</p>\n<h3>Required reading</h3>\n<p>Read Chapter 3 and note examples of caring communication, comfort measures, safety awareness, advocacy, and patient-centered healing.</p>\n<h3>Learning objectives</h3>\n<ul><li>Describe caring behaviors that support dignity and trust.</li><li>Identify basic comfort measures appropriate for beginning practical nursing students.</li><li>Explain how safety and advocacy are connected in patient care.</li><li>Apply patient-centered thinking to common classroom and clinical scenarios.</li></ul>\n<h3>Key topics</h3>\n<ul><li>Caring and therapeutic presence</li><li>Comfort and dignity</li><li>Safety basics</li><li>Advocacy for patient concerns</li><li>Healing and whole-person care</li></ul>\n<h3>Learning activities</h3>\n<ul><li>Role-play a patient who is anxious before a procedure.</li><li>Identify safety risks in a patient room scenario.</li><li>Write one advocacy statement a student nurse could use when reporting a concern.</li></ul>\n<h3>Before moving on</h3>\n<p>Review your chapter notes, complete the PowerPoint review, and take the weekly quiz. Bring questions to the instructor before the next course meeting.</p>"
+          "title": "Weekly Overview",
+          "content": "Students examine nursing as both skilled work and human service, with attention to caring, basic needs, comfort, dignity, safety, and advocacy.\n\nNursing leaders: Virginia Henderson and Jean Watson\n\nTopics: Nursing as care of the whole person; Basic needs, independence, comfort, and dignity; Therapeutic presence, active listening, and respectful communication; Virginia Henderson's definition of nursing and patient independence; Jean Watson's caring theory and the human side of care."
         },
         {
-          "title": "[PN102 2026] Chapter 3 PowerPoint Review",
-          "type": "File",
-          "itemType": "File",
-          "dueDate": "Jul 21, 2026",
-          "status": "published",
-          "fileName": "PN102_Ch03_Caring_Comfort_Safety_Advocacy_and_Healing.pptx",
-          "content": "<h2>Chapter 3 PowerPoint Review</h2>\n<p>This item represents the weekly PowerPoint that should be uploaded or attached for instructor/student use.</p>\n<p><strong>File name:</strong> PN102_Ch03_Caring_Comfort_Safety_Advocacy_and_Healing.pptx</p>\n<h3>Slide outline</h3>\n<ul><li>Caring as professional action</li><li>Comfort measures</li><li>Safety and risk awareness</li><li>Patient advocacy</li><li>Healing and dignity</li></ul>\n<p>Instructor note: keep the PowerPoint aligned with Chapter 3, then attach the actual slide file when available.</p>"
-        },
-        {
-          "title": "[PN102 2026] Quiz 3 - Chapter 3",
-          "type": "Quiz",
-          "itemType": "Quiz",
-          "dueDate": "Jul 21, 2026",
-          "pointsPossible": 10,
-          "status": "published",
-          "instructions": "Read each question and select the best answer. This weekly quiz contains multiple-choice questions only.",
-          "questions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "Which action best demonstrates caring in nursing?",
-              "choices": [
-                {
-                  "text": "Respect, comfort, listening, and protecting dignity.",
-                  "correct": true
-                },
-                {
-                  "text": "Completing tasks without speaking to the patient.",
-                  "correct": false
-                },
-                {
-                  "text": "Ignoring emotional needs.",
-                  "correct": false
-                },
-                {
-                  "text": "Using medical words the patient does not understand.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "A patient is anxious and asks what will happen next. What is the best student response?",
-              "choices": [
-                {
-                  "text": "Tell the patient not to worry and leave.",
-                  "correct": false
-                },
-                {
-                  "text": "Use calm communication and explain what you are allowed to explain.",
-                  "correct": true
-                },
-                {
-                  "text": "Tell the patient to ask another student.",
-                  "correct": false
-                },
-                {
-                  "text": "Ignore the question because it is not physical care.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which example shows patient advocacy?",
-              "choices": [
-                {
-                  "text": "Reporting a patient concern promptly to the instructor or nurse.",
-                  "correct": true
-                },
-                {
-                  "text": "Keeping concerns private to avoid bothering staff.",
-                  "correct": false
-                },
-                {
-                  "text": "Changing a care plan alone.",
-                  "correct": false
-                },
-                {
-                  "text": "Promising a result the student cannot control.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which is an appropriate basic comfort measure?",
-              "choices": [
-                {
-                  "text": "Repositioning, privacy, and reporting pain concerns.",
-                  "correct": true
-                },
-                {
-                  "text": "Ignoring pain because medication is not due.",
-                  "correct": false
-                },
-                {
-                  "text": "Discussing another patient's condition.",
-                  "correct": false
-                },
-                {
-                  "text": "Removing safety equipment without permission.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Whole-person care means the nurse considers which needs?",
-              "choices": [
-                {
-                  "text": "Only the diagnosis.",
-                  "correct": false
-                },
-                {
-                  "text": "Physical, emotional, cultural, safety, and learning needs.",
-                  "correct": true
-                },
-                {
-                  "text": "Only the vital signs.",
-                  "correct": false
-                },
-                {
-                  "text": "Only the tasks assigned on the checklist.",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "quizQuestions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "Which action best demonstrates caring in nursing?",
-              "choices": [
-                {
-                  "text": "Respect, comfort, listening, and protecting dignity.",
-                  "correct": true
-                },
-                {
-                  "text": "Completing tasks without speaking to the patient.",
-                  "correct": false
-                },
-                {
-                  "text": "Ignoring emotional needs.",
-                  "correct": false
-                },
-                {
-                  "text": "Using medical words the patient does not understand.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "A patient is anxious and asks what will happen next. What is the best student response?",
-              "choices": [
-                {
-                  "text": "Tell the patient not to worry and leave.",
-                  "correct": false
-                },
-                {
-                  "text": "Use calm communication and explain what you are allowed to explain.",
-                  "correct": true
-                },
-                {
-                  "text": "Tell the patient to ask another student.",
-                  "correct": false
-                },
-                {
-                  "text": "Ignore the question because it is not physical care.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which example shows patient advocacy?",
-              "choices": [
-                {
-                  "text": "Reporting a patient concern promptly to the instructor or nurse.",
-                  "correct": true
-                },
-                {
-                  "text": "Keeping concerns private to avoid bothering staff.",
-                  "correct": false
-                },
-                {
-                  "text": "Changing a care plan alone.",
-                  "correct": false
-                },
-                {
-                  "text": "Promising a result the student cannot control.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which is an appropriate basic comfort measure?",
-              "choices": [
-                {
-                  "text": "Repositioning, privacy, and reporting pain concerns.",
-                  "correct": true
-                },
-                {
-                  "text": "Ignoring pain because medication is not due.",
-                  "correct": false
-                },
-                {
-                  "text": "Discussing another patient's condition.",
-                  "correct": false
-                },
-                {
-                  "text": "Removing safety equipment without permission.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Whole-person care means the nurse considers which needs?",
-              "choices": [
-                {
-                  "text": "Only the diagnosis.",
-                  "correct": false
-                },
-                {
-                  "text": "Physical, emotional, cultural, safety, and learning needs.",
-                  "correct": true
-                },
-                {
-                  "text": "Only the vital signs.",
-                  "correct": false
-                },
-                {
-                  "text": "Only the tasks assigned on the checklist.",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "content": "<h2>Chapter 3 Quiz</h2>\n<p><strong>Due:</strong> Jul 21, 2026 by 11:59 PM. <strong>Points:</strong> 10.</p>\n<div class=\"quiz-instructions\">\n<h3>Instructions before you begin</h3>\n<ul><li>Review the chapter lesson and PowerPoint before opening the quiz.</li><li>This quiz contains multiple-choice questions only.</li><li>Choose the best answer for each question.</li><li>Submit the quiz before the due date listed above.</li><li>Contact your instructor before the deadline if you have a technical issue.</li></ul>\n<button type=\"button\" class=\"quiz-start-button\">Start Quiz</button>\n</div>\n<h3>Questions</h3>\n\n          <section class=\"quiz-question\">\n            <h4>1. Which action best demonstrates caring in nursing?</h4>\n            <ol type=\"A\">\n              <li>Respect, comfort, listening, and protecting dignity.</li><li>Completing tasks without speaking to the patient.</li><li>Ignoring emotional needs.</li><li>Using medical words the patient does not understand.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>2. A patient is anxious and asks what will happen next. What is the best student response?</h4>\n            <ol type=\"A\">\n              <li>Tell the patient not to worry and leave.</li><li>Use calm communication and explain what you are allowed to explain.</li><li>Tell the patient to ask another student.</li><li>Ignore the question because it is not physical care.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>3. Which example shows patient advocacy?</h4>\n            <ol type=\"A\">\n              <li>Reporting a patient concern promptly to the instructor or nurse.</li><li>Keeping concerns private to avoid bothering staff.</li><li>Changing a care plan alone.</li><li>Promising a result the student cannot control.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>4. Which is an appropriate basic comfort measure?</h4>\n            <ol type=\"A\">\n              <li>Repositioning, privacy, and reporting pain concerns.</li><li>Ignoring pain because medication is not due.</li><li>Discussing another patient's condition.</li><li>Removing safety equipment without permission.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>5. Whole-person care means the nurse considers which needs?</h4>\n            <ol type=\"A\">\n              <li>Only the diagnosis.</li><li>Physical, emotional, cultural, safety, and learning needs.</li><li>Only the vital signs.</li><li>Only the tasks assigned on the checklist.</li>\n            </ol>\n          </section>"
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Describe the nurse's role in helping patients meet basic human needs.\n- Explain how caring behaviors support trust and patient cooperation.\n- Identify simple advocacy actions practical nursing students can practice during clinical learning.\n\nLearning activity: Role-play therapeutic responses to anxious, embarrassed, angry, and grieving patients. Students identify responses that protect dignity.\n\nAssessment: Therapeutic Communication Practice."
         }
       ]
     },
     {
-      "title": "Week 4: Health Care Team, Scope, Delegation, Collaboration, and Communication",
-      "description": "Chapter 4 lesson, PowerPoint review, and weekly multiple-choice quiz.",
+      "title": "Week 4: The Health Care Team: Scope, Collaboration, Delegation, and Communication",
       "lessons": [
         {
-          "title": "[PN102 2026] Chapter 4: Health Care Team, Scope, Delegation, Collaboration, and Communication",
-          "type": "Page",
-          "itemType": "Page",
-          "dueDate": "Jul 28, 2026",
-          "status": "published",
-          "content": "<h2>Chapter 4: Health Care Team, Scope, Delegation, Collaboration, and Communication</h2>\n<p>Students learn how practical nurses communicate within the health care team, recognize scope limits, and participate in safe delegation and collaboration.</p>\n<h3>Required reading</h3>\n<p>Read Chapter 4 and focus on the health care team, SBAR, delegation principles, scope of practice, supervision, and conflict prevention.</p>\n<h3>Learning objectives</h3>\n<ul><li>Identify members of the health care team and describe the practical nurse's contribution.</li><li>Use SBAR to organize basic patient information.</li><li>Explain the difference between assignment, delegation, and supervision.</li><li>Recognize when a task or decision is outside practical nursing student scope.</li></ul>\n<h3>Key topics</h3>\n<ul><li>Health care team roles</li><li>SBAR communication</li><li>Scope of practice</li><li>Delegation and supervision</li><li>Closed-loop communication</li></ul>\n<h3>Learning activities</h3>\n<ul><li>Write an SBAR report from a short patient scenario.</li><li>Sort example tasks into appropriate, ask first, or not appropriate for a student.</li><li>Practice closed-loop communication for a patient safety concern.</li></ul>\n<h3>Before moving on</h3>\n<p>Review your chapter notes, complete the PowerPoint review, and take the weekly quiz. Bring questions to the instructor before the next course meeting.</p>"
+          "title": "Weekly Overview",
+          "content": "Students learn how practical nurses fit within the health care team, including collaboration with RNs, providers, nursing assistants, and other disciplines.\n\nNursing leaders: Isabel Hampton Robb and Mildred Montag\n\nTopics: Practical nurse role and limits of student practice; Teamwork, delegation, assignment, and supervision; SBAR communication and closed-loop communication; Isabel Hampton Robb and nursing education standards; Mildred Montag and the development of associate degree nursing education."
         },
         {
-          "title": "[PN102 2026] Chapter 4 PowerPoint Review",
-          "type": "File",
-          "itemType": "File",
-          "dueDate": "Jul 28, 2026",
-          "status": "published",
-          "fileName": "PN102_Ch04_Health_Care_Team_Scope_Delegation_and_Communication.pptx",
-          "content": "<h2>Chapter 4 PowerPoint Review</h2>\n<p>This item represents the weekly PowerPoint that should be uploaded or attached for instructor/student use.</p>\n<p><strong>File name:</strong> PN102_Ch04_Health_Care_Team_Scope_Delegation_and_Communication.pptx</p>\n<h3>Slide outline</h3>\n<ul><li>The health care team</li><li>Practical nurse collaboration</li><li>SBAR report structure</li><li>Delegation safety</li><li>Scope and supervision</li></ul>\n<p>Instructor note: keep the PowerPoint aligned with Chapter 4, then attach the actual slide file when available.</p>"
-        },
-        {
-          "title": "[PN102 2026] Quiz 4 - Chapter 4",
-          "type": "Quiz",
-          "itemType": "Quiz",
-          "dueDate": "Jul 28, 2026",
-          "pointsPossible": 10,
-          "status": "published",
-          "instructions": "Read each question and select the best answer. This weekly quiz contains multiple-choice questions only.",
-          "questions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "What is the purpose of SBAR?",
-              "choices": [
-                {
-                  "text": "To organize important patient information clearly.",
-                  "correct": true
-                },
-                {
-                  "text": "To replace documentation.",
-                  "correct": false
-                },
-                {
-                  "text": "To avoid speaking with the nurse.",
-                  "correct": false
-                },
-                {
-                  "text": "To decide medication orders.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Safe delegation includes which principle?",
-              "choices": [
-                {
-                  "text": "Appropriate task, competent person, clear direction, and supervision.",
-                  "correct": true
-                },
-                {
-                  "text": "Giving any task to anyone available.",
-                  "correct": false
-                },
-                {
-                  "text": "Avoiding follow-up.",
-                  "correct": false
-                },
-                {
-                  "text": "Delegating tasks outside legal scope.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Why is scope of practice important?",
-              "choices": [
-                {
-                  "text": "It protects the patient, nurse, student, and facility.",
-                  "correct": true
-                },
-                {
-                  "text": "It allows students to do any task.",
-                  "correct": false
-                },
-                {
-                  "text": "It only applies after graduation.",
-                  "correct": false
-                },
-                {
-                  "text": "It removes the need for supervision.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Closed-loop communication means the receiver should:",
-              "choices": [
-                {
-                  "text": "Repeat back and confirm the message.",
-                  "correct": true
-                },
-                {
-                  "text": "Ignore unclear instructions.",
-                  "correct": false
-                },
-                {
-                  "text": "Assume the sender knows the task is done.",
-                  "correct": false
-                },
-                {
-                  "text": "Avoid asking questions.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "How does a practical nurse collaborate with an RN?",
-              "choices": [
-                {
-                  "text": "By reporting patient changes and completing assigned care within scope.",
-                  "correct": true
-                },
-                {
-                  "text": "By independently changing the medical plan.",
-                  "correct": false
-                },
-                {
-                  "text": "By diagnosing the patient.",
-                  "correct": false
-                },
-                {
-                  "text": "By avoiding communication during busy shifts.",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "quizQuestions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "What is the purpose of SBAR?",
-              "choices": [
-                {
-                  "text": "To organize important patient information clearly.",
-                  "correct": true
-                },
-                {
-                  "text": "To replace documentation.",
-                  "correct": false
-                },
-                {
-                  "text": "To avoid speaking with the nurse.",
-                  "correct": false
-                },
-                {
-                  "text": "To decide medication orders.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Safe delegation includes which principle?",
-              "choices": [
-                {
-                  "text": "Appropriate task, competent person, clear direction, and supervision.",
-                  "correct": true
-                },
-                {
-                  "text": "Giving any task to anyone available.",
-                  "correct": false
-                },
-                {
-                  "text": "Avoiding follow-up.",
-                  "correct": false
-                },
-                {
-                  "text": "Delegating tasks outside legal scope.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Why is scope of practice important?",
-              "choices": [
-                {
-                  "text": "It protects the patient, nurse, student, and facility.",
-                  "correct": true
-                },
-                {
-                  "text": "It allows students to do any task.",
-                  "correct": false
-                },
-                {
-                  "text": "It only applies after graduation.",
-                  "correct": false
-                },
-                {
-                  "text": "It removes the need for supervision.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Closed-loop communication means the receiver should:",
-              "choices": [
-                {
-                  "text": "Repeat back and confirm the message.",
-                  "correct": true
-                },
-                {
-                  "text": "Ignore unclear instructions.",
-                  "correct": false
-                },
-                {
-                  "text": "Assume the sender knows the task is done.",
-                  "correct": false
-                },
-                {
-                  "text": "Avoid asking questions.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "How does a practical nurse collaborate with an RN?",
-              "choices": [
-                {
-                  "text": "By reporting patient changes and completing assigned care within scope.",
-                  "correct": true
-                },
-                {
-                  "text": "By independently changing the medical plan.",
-                  "correct": false
-                },
-                {
-                  "text": "By diagnosing the patient.",
-                  "correct": false
-                },
-                {
-                  "text": "By avoiding communication during busy shifts.",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "content": "<h2>Chapter 4 Quiz</h2>\n<p><strong>Due:</strong> Jul 28, 2026 by 11:59 PM. <strong>Points:</strong> 10.</p>\n<div class=\"quiz-instructions\">\n<h3>Instructions before you begin</h3>\n<ul><li>Review the chapter lesson and PowerPoint before opening the quiz.</li><li>This quiz contains multiple-choice questions only.</li><li>Choose the best answer for each question.</li><li>Submit the quiz before the due date listed above.</li><li>Contact your instructor before the deadline if you have a technical issue.</li></ul>\n<button type=\"button\" class=\"quiz-start-button\">Start Quiz</button>\n</div>\n<h3>Questions</h3>\n\n          <section class=\"quiz-question\">\n            <h4>1. What is the purpose of SBAR?</h4>\n            <ol type=\"A\">\n              <li>To organize important patient information clearly.</li><li>To replace documentation.</li><li>To avoid speaking with the nurse.</li><li>To decide medication orders.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>2. Safe delegation includes which principle?</h4>\n            <ol type=\"A\">\n              <li>Appropriate task, competent person, clear direction, and supervision.</li><li>Giving any task to anyone available.</li><li>Avoiding follow-up.</li><li>Delegating tasks outside legal scope.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>3. Why is scope of practice important?</h4>\n            <ol type=\"A\">\n              <li>It protects the patient, nurse, student, and facility.</li><li>It allows students to do any task.</li><li>It only applies after graduation.</li><li>It removes the need for supervision.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>4. Closed-loop communication means the receiver should:</h4>\n            <ol type=\"A\">\n              <li>Repeat back and confirm the message.</li><li>Ignore unclear instructions.</li><li>Assume the sender knows the task is done.</li><li>Avoid asking questions.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>5. How does a practical nurse collaborate with an RN?</h4>\n            <ol type=\"A\">\n              <li>By reporting patient changes and completing assigned care within scope.</li><li>By independently changing the medical plan.</li><li>By diagnosing the patient.</li><li>By avoiding communication during busy shifts.</li>\n            </ol>\n          </section>"
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Differentiate beginning practical nurse responsibilities from RN, provider, and assistive personnel roles.\n- Describe why scope of practice and supervision protect patients and nurses.\n- Use SBAR-style communication for a basic patient-care concern.\n\nLearning activity: SBAR practice lab using short patient scenarios. Students identify what to report, who to report to, and what information must be documented.\n\nAssessment: Quiz 2: Weeks 3-4."
         }
       ]
     },
     {
-      "title": "Week 5: Ethics in Nursing, Boundaries, Confidentiality, and Patient Rights",
-      "description": "Chapter 5 lesson, PowerPoint review, and weekly multiple-choice quiz.",
+      "title": "Week 5: Ethics in Nursing: Values, Boundaries, Confidentiality, and Patient Rights",
       "lessons": [
         {
-          "title": "[PN102 2026] Chapter 5: Ethics in Nursing, Boundaries, Confidentiality, and Patient Rights",
-          "type": "Page",
-          "itemType": "Page",
-          "dueDate": "Aug 4, 2026",
-          "status": "published",
-          "content": "<h2>Chapter 5: Ethics in Nursing, Boundaries, Confidentiality, and Patient Rights</h2>\n<p>Students apply ethical decision-making to confidentiality, professional boundaries, patient rights, privacy, and respectful care.</p>\n<h3>Required reading</h3>\n<p>Read Chapter 5 and highlight examples of ethical conduct, confidentiality, informed consent, patient rights, boundaries, and social media risks.</p>\n<h3>Learning objectives</h3>\n<ul><li>Define confidentiality and explain why it is required in all care settings.</li><li>Identify professional boundary concerns and appropriate responses.</li><li>Describe basic patient rights related to dignity, privacy, information, and choice.</li><li>Apply ethical thinking to common beginning nursing scenarios.</li></ul>\n<h3>Key topics</h3>\n<ul><li>Ethical principles</li><li>Confidentiality and privacy</li><li>Patient rights</li><li>Professional boundaries</li><li>Social media and patient information</li></ul>\n<h3>Learning activities</h3>\n<ul><li>Review confidentiality scenarios and choose the safest response.</li><li>Identify boundary crossings in short examples.</li><li>Write an ethical response to a patient rights concern.</li></ul>\n<h3>Before moving on</h3>\n<p>Review your chapter notes, complete the PowerPoint review, and take the weekly quiz. Bring questions to the instructor before the next course meeting.</p>"
+          "title": "Weekly Overview",
+          "content": "Students apply beginning ethical principles to everyday nursing situations involving dignity, truthfulness, privacy, fairness, and professional boundaries.\n\nNursing leaders: Lavinia Dock and Mabel Keaton Staupers\n\nTopics: Autonomy, beneficence, nonmaleficence, justice, fidelity, veracity, and accountability; Confidentiality and privacy as ethical duties; Professional boundaries and social media caution; Patient rights, dignity, and respect for cultural/religious values; Lavinia Dock's advocacy and Mabel Keaton Staupers' civil rights leadership in nursing."
         },
         {
-          "title": "[PN102 2026] Chapter 5 PowerPoint Review",
-          "type": "File",
-          "itemType": "File",
-          "dueDate": "Aug 4, 2026",
-          "status": "published",
-          "fileName": "PN102_Ch05_Ethics_Boundaries_Confidentiality_and_Patient_Rights.pptx",
-          "content": "<h2>Chapter 5 PowerPoint Review</h2>\n<p>This item represents the weekly PowerPoint that should be uploaded or attached for instructor/student use.</p>\n<p><strong>File name:</strong> PN102_Ch05_Ethics_Boundaries_Confidentiality_and_Patient_Rights.pptx</p>\n<h3>Slide outline</h3>\n<ul><li>Ethics in practical nursing</li><li>Patient rights</li><li>Confidentiality</li><li>Professional boundaries</li><li>Social media safety</li></ul>\n<p>Instructor note: keep the PowerPoint aligned with Chapter 5, then attach the actual slide file when available.</p>"
-        },
-        {
-          "title": "[PN102 2026] Quiz 5 - Chapter 5",
-          "type": "Quiz",
-          "itemType": "Quiz",
-          "dueDate": "Aug 4, 2026",
-          "pointsPossible": 10,
-          "status": "published",
-          "instructions": "Read each question and select the best answer. This weekly quiz contains multiple-choice questions only.",
-          "questions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "What does confidentiality require?",
-              "choices": [
-                {
-                  "text": "Sharing only with authorized people for patient care.",
-                  "correct": true
-                },
-                {
-                  "text": "Discussing patient stories without names.",
-                  "correct": false
-                },
-                {
-                  "text": "Posting patient situations online if no photo is used.",
-                  "correct": false
-                },
-                {
-                  "text": "Telling family members anything they request.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which social media action is safest?",
-              "choices": [
-                {
-                  "text": "Never post patient information, images, or care details.",
-                  "correct": true
-                },
-                {
-                  "text": "Post only if the patient's name is removed.",
-                  "correct": false
-                },
-                {
-                  "text": "Post if the patient is interesting.",
-                  "correct": false
-                },
-                {
-                  "text": "Post if the account is private.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Patient autonomy means the patient has the right to:",
-              "choices": [
-                {
-                  "text": "Make informed choices about care when able.",
-                  "correct": true
-                },
-                {
-                  "text": "Control every staff assignment.",
-                  "correct": false
-                },
-                {
-                  "text": "Ignore all safety rules.",
-                  "correct": false
-                },
-                {
-                  "text": "Receive only the care family members choose.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which situation may be a professional boundary concern?",
-              "choices": [
-                {
-                  "text": "Accepting expensive personal gifts from a patient.",
-                  "correct": true
-                },
-                {
-                  "text": "Introducing yourself before care.",
-                  "correct": false
-                },
-                {
-                  "text": "Explaining what you are doing.",
-                  "correct": false
-                },
-                {
-                  "text": "Reporting patient pain.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "If a student sees unsafe or unethical care, the best action is to:",
-              "choices": [
-                {
-                  "text": "Stop, protect the patient if needed, report to the instructor or nurse, and follow policy.",
-                  "correct": true
-                },
-                {
-                  "text": "Ignore it to avoid conflict.",
-                  "correct": false
-                },
-                {
-                  "text": "Post online for advice.",
-                  "correct": false
-                },
-                {
-                  "text": "Confront the patient.",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "quizQuestions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "What does confidentiality require?",
-              "choices": [
-                {
-                  "text": "Sharing only with authorized people for patient care.",
-                  "correct": true
-                },
-                {
-                  "text": "Discussing patient stories without names.",
-                  "correct": false
-                },
-                {
-                  "text": "Posting patient situations online if no photo is used.",
-                  "correct": false
-                },
-                {
-                  "text": "Telling family members anything they request.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which social media action is safest?",
-              "choices": [
-                {
-                  "text": "Never post patient information, images, or care details.",
-                  "correct": true
-                },
-                {
-                  "text": "Post only if the patient's name is removed.",
-                  "correct": false
-                },
-                {
-                  "text": "Post if the patient is interesting.",
-                  "correct": false
-                },
-                {
-                  "text": "Post if the account is private.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Patient autonomy means the patient has the right to:",
-              "choices": [
-                {
-                  "text": "Make informed choices about care when able.",
-                  "correct": true
-                },
-                {
-                  "text": "Control every staff assignment.",
-                  "correct": false
-                },
-                {
-                  "text": "Ignore all safety rules.",
-                  "correct": false
-                },
-                {
-                  "text": "Receive only the care family members choose.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which situation may be a professional boundary concern?",
-              "choices": [
-                {
-                  "text": "Accepting expensive personal gifts from a patient.",
-                  "correct": true
-                },
-                {
-                  "text": "Introducing yourself before care.",
-                  "correct": false
-                },
-                {
-                  "text": "Explaining what you are doing.",
-                  "correct": false
-                },
-                {
-                  "text": "Reporting patient pain.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "If a student sees unsafe or unethical care, the best action is to:",
-              "choices": [
-                {
-                  "text": "Stop, protect the patient if needed, report to the instructor or nurse, and follow policy.",
-                  "correct": true
-                },
-                {
-                  "text": "Ignore it to avoid conflict.",
-                  "correct": false
-                },
-                {
-                  "text": "Post online for advice.",
-                  "correct": false
-                },
-                {
-                  "text": "Confront the patient.",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "content": "<h2>Chapter 5 Quiz</h2>\n<p><strong>Due:</strong> Aug 4, 2026 by 11:59 PM. <strong>Points:</strong> 10.</p>\n<div class=\"quiz-instructions\">\n<h3>Instructions before you begin</h3>\n<ul><li>Review the chapter lesson and PowerPoint before opening the quiz.</li><li>This quiz contains multiple-choice questions only.</li><li>Choose the best answer for each question.</li><li>Submit the quiz before the due date listed above.</li><li>Contact your instructor before the deadline if you have a technical issue.</li></ul>\n<button type=\"button\" class=\"quiz-start-button\">Start Quiz</button>\n</div>\n<h3>Questions</h3>\n\n          <section class=\"quiz-question\">\n            <h4>1. What does confidentiality require?</h4>\n            <ol type=\"A\">\n              <li>Sharing only with authorized people for patient care.</li><li>Discussing patient stories without names.</li><li>Posting patient situations online if no photo is used.</li><li>Telling family members anything they request.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>2. Which social media action is safest?</h4>\n            <ol type=\"A\">\n              <li>Never post patient information, images, or care details.</li><li>Post only if the patient's name is removed.</li><li>Post if the patient is interesting.</li><li>Post if the account is private.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>3. Patient autonomy means the patient has the right to:</h4>\n            <ol type=\"A\">\n              <li>Make informed choices about care when able.</li><li>Control every staff assignment.</li><li>Ignore all safety rules.</li><li>Receive only the care family members choose.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>4. Which situation may be a professional boundary concern?</h4>\n            <ol type=\"A\">\n              <li>Accepting expensive personal gifts from a patient.</li><li>Introducing yourself before care.</li><li>Explaining what you are doing.</li><li>Reporting patient pain.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>5. If a student sees unsafe or unethical care, the best action is to:</h4>\n            <ol type=\"A\">\n              <li>Stop, protect the patient if needed, report to the instructor or nurse, and follow policy.</li><li>Ignore it to avoid conflict.</li><li>Post online for advice.</li><li>Confront the patient.</li>\n            </ol>\n          </section>"
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Define common ethical principles used in nursing decisions.\n- Recognize ethical issues related to privacy, social media, honesty, bias, and boundary crossings.\n- Use a simple ethical decision-making process for an introductory case.\n\nLearning activity: Ethics case discussion: A student sees a classmate post about a patient on social media. Students identify the ethical issues and appropriate actions.\n\nAssessment: Ethics Case Response."
         }
       ]
     },
     {
-      "title": "Week 6: Legal Foundations, Scope of Practice, Documentation, Privacy, and Accountability",
-      "description": "Chapter 6 lesson, PowerPoint review, and weekly multiple-choice quiz.",
+      "title": "Week 6: Legal Foundations: Scope of Practice, Documentation, Privacy, and Accountability",
       "lessons": [
         {
-          "title": "[PN102 2026] Chapter 6: Legal Foundations, Scope of Practice, Documentation, Privacy, and Accountability",
-          "type": "Page",
-          "itemType": "Page",
-          "dueDate": "Aug 11, 2026",
-          "status": "published",
-          "content": "<h2>Chapter 6: Legal Foundations, Scope of Practice, Documentation, Privacy, and Accountability</h2>\n<p>Students connect legal foundations to daily practical nursing responsibilities, including privacy, documentation, incident reporting, and accountability.</p>\n<h3>Required reading</h3>\n<p>Read Chapter 6 and review scope of practice, nurse practice acts, documentation standards, HIPAA, negligence, incident reporting, and accountability.</p>\n<h3>Learning objectives</h3>\n<ul><li>Identify legal sources that guide practical nursing practice.</li><li>Describe accurate, timely, objective, and complete documentation.</li><li>Explain privacy requirements and basic HIPAA responsibilities.</li><li>Recognize accountability in reporting, documentation, and safe care.</li></ul>\n<h3>Key topics</h3>\n<ul><li>Nurse practice act and rules</li><li>Documentation principles</li><li>HIPAA and privacy</li><li>Negligence and accountability</li><li>Incident reporting</li></ul>\n<h3>Learning activities</h3>\n<ul><li>Convert subjective statements into objective documentation.</li><li>Identify protected health information in examples.</li><li>Practice reporting a change in patient condition using SBAR.</li></ul>\n<h3>Before moving on</h3>\n<p>Review your chapter notes, complete the PowerPoint review, and take the weekly quiz. Bring questions to the instructor before the next course meeting.</p>"
+          "title": "Weekly Overview",
+          "content": "Students learn the legal foundations that guide safe beginning practice and prepare for the midterm exam.\n\nNursing leaders: Dorothea Dix and Susie Walking Bear Yellowtail\n\nTopics: Scope of practice and student nurse limitations; HIPAA, confidentiality, and protected health information; Informed consent, refusal of care, incident reporting, and mandatory reporting; Documentation basics: timely, factual, objective, complete, and corrected appropriately; Dorothea Dix's mental health advocacy and Susie Walking Bear Yellowtail's advocacy for Native American health."
         },
         {
-          "title": "[PN102 2026] Chapter 6 PowerPoint Review",
-          "type": "File",
-          "itemType": "File",
-          "dueDate": "Aug 11, 2026",
-          "status": "published",
-          "fileName": "PN102_Ch06_Legal_Foundations_Scope_Documentation_and_Accountability.pptx",
-          "content": "<h2>Chapter 6 PowerPoint Review</h2>\n<p>This item represents the weekly PowerPoint that should be uploaded or attached for instructor/student use.</p>\n<p><strong>File name:</strong> PN102_Ch06_Legal_Foundations_Scope_Documentation_and_Accountability.pptx</p>\n<h3>Slide outline</h3>\n<ul><li>Legal foundations of practical nursing</li><li>Documentation standards</li><li>Privacy and HIPAA</li><li>Negligence prevention</li><li>Accountability and incident reporting</li></ul>\n<p>Instructor note: keep the PowerPoint aligned with Chapter 6, then attach the actual slide file when available.</p>"
-        },
-        {
-          "title": "[PN102 2026] Quiz 6 - Chapter 6",
-          "type": "Quiz",
-          "itemType": "Quiz",
-          "dueDate": "Aug 11, 2026",
-          "pointsPossible": 10,
-          "status": "published",
-          "instructions": "Read each question and select the best answer. This weekly quiz contains multiple-choice questions only.",
-          "questions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "Good nursing documentation should be:",
-              "choices": [
-                {
-                  "text": "Timely, factual, objective, and complete.",
-                  "correct": true
-                },
-                {
-                  "text": "Based on opinions and memory only.",
-                  "correct": false
-                },
-                {
-                  "text": "Entered at the end of the month.",
-                  "correct": false
-                },
-                {
-                  "text": "Written only when something goes wrong.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "HIPAA protects:",
-              "choices": [
-                {
-                  "text": "Protected health information.",
-                  "correct": true
-                },
-                {
-                  "text": "Only staff schedules.",
-                  "correct": false
-                },
-                {
-                  "text": "Only supply lists.",
-                  "correct": false
-                },
-                {
-                  "text": "Only public health flyers.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which action could be considered negligent?",
-              "choices": [
-                {
-                  "text": "Failing to report a serious change in patient condition.",
-                  "correct": true
-                },
-                {
-                  "text": "Asking the instructor before an unfamiliar task.",
-                  "correct": false
-                },
-                {
-                  "text": "Documenting objective facts.",
-                  "correct": false
-                },
-                {
-                  "text": "Following facility policy.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Scope of practice is guided by:",
-              "choices": [
-                {
-                  "text": "The nurse practice act, board rules, school policy, and facility policy.",
-                  "correct": true
-                },
-                {
-                  "text": "Classmate opinion.",
-                  "correct": false
-                },
-                {
-                  "text": "Social media examples.",
-                  "correct": false
-                },
-                {
-                  "text": "Only personal preference.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "The purpose of an incident report is to:",
-              "choices": [
-                {
-                  "text": "Document facts for safety review and follow-up.",
-                  "correct": true
-                },
-                {
-                  "text": "Blame one person publicly.",
-                  "correct": false
-                },
-                {
-                  "text": "Replace the medical record.",
-                  "correct": false
-                },
-                {
-                  "text": "Avoid telling the instructor.",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "quizQuestions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "Good nursing documentation should be:",
-              "choices": [
-                {
-                  "text": "Timely, factual, objective, and complete.",
-                  "correct": true
-                },
-                {
-                  "text": "Based on opinions and memory only.",
-                  "correct": false
-                },
-                {
-                  "text": "Entered at the end of the month.",
-                  "correct": false
-                },
-                {
-                  "text": "Written only when something goes wrong.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "HIPAA protects:",
-              "choices": [
-                {
-                  "text": "Protected health information.",
-                  "correct": true
-                },
-                {
-                  "text": "Only staff schedules.",
-                  "correct": false
-                },
-                {
-                  "text": "Only supply lists.",
-                  "correct": false
-                },
-                {
-                  "text": "Only public health flyers.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which action could be considered negligent?",
-              "choices": [
-                {
-                  "text": "Failing to report a serious change in patient condition.",
-                  "correct": true
-                },
-                {
-                  "text": "Asking the instructor before an unfamiliar task.",
-                  "correct": false
-                },
-                {
-                  "text": "Documenting objective facts.",
-                  "correct": false
-                },
-                {
-                  "text": "Following facility policy.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Scope of practice is guided by:",
-              "choices": [
-                {
-                  "text": "The nurse practice act, board rules, school policy, and facility policy.",
-                  "correct": true
-                },
-                {
-                  "text": "Classmate opinion.",
-                  "correct": false
-                },
-                {
-                  "text": "Social media examples.",
-                  "correct": false
-                },
-                {
-                  "text": "Only personal preference.",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "The purpose of an incident report is to:",
-              "choices": [
-                {
-                  "text": "Document facts for safety review and follow-up.",
-                  "correct": true
-                },
-                {
-                  "text": "Blame one person publicly.",
-                  "correct": false
-                },
-                {
-                  "text": "Replace the medical record.",
-                  "correct": false
-                },
-                {
-                  "text": "Avoid telling the instructor.",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "content": "<h2>Chapter 6 Quiz</h2>\n<p><strong>Due:</strong> Aug 11, 2026 by 11:59 PM. <strong>Points:</strong> 10.</p>\n<div class=\"quiz-instructions\">\n<h3>Instructions before you begin</h3>\n<ul><li>Review the chapter lesson and PowerPoint before opening the quiz.</li><li>This quiz contains multiple-choice questions only.</li><li>Choose the best answer for each question.</li><li>Submit the quiz before the due date listed above.</li><li>Contact your instructor before the deadline if you have a technical issue.</li></ul>\n<button type=\"button\" class=\"quiz-start-button\">Start Quiz</button>\n</div>\n<h3>Questions</h3>\n\n          <section class=\"quiz-question\">\n            <h4>1. Good nursing documentation should be:</h4>\n            <ol type=\"A\">\n              <li>Timely, factual, objective, and complete.</li><li>Based on opinions and memory only.</li><li>Entered at the end of the month.</li><li>Written only when something goes wrong.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>2. HIPAA protects:</h4>\n            <ol type=\"A\">\n              <li>Protected health information.</li><li>Only staff schedules.</li><li>Only supply lists.</li><li>Only public health flyers.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>3. Which action could be considered negligent?</h4>\n            <ol type=\"A\">\n              <li>Failing to report a serious change in patient condition.</li><li>Asking the instructor before an unfamiliar task.</li><li>Documenting objective facts.</li><li>Following facility policy.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>4. Scope of practice is guided by:</h4>\n            <ol type=\"A\">\n              <li>The nurse practice act, board rules, school policy, and facility policy.</li><li>Classmate opinion.</li><li>Social media examples.</li><li>Only personal preference.</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>5. The purpose of an incident report is to:</h4>\n            <ol type=\"A\">\n              <li>Document facts for safety review and follow-up.</li><li>Blame one person publicly.</li><li>Replace the medical record.</li><li>Avoid telling the instructor.</li>\n            </ol>\n          </section>"
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Explain why the nurse practice act, board of nursing rules, school policy, and facility policy matter.\n- Identify legal risks related to unsafe practice, poor documentation, confidentiality breaches, abandonment, and failure to report.\n- Describe the difference between negligence and malpractice at an introductory level.\n\nLearning activity: Documentation correction exercise using sample notes. Students identify objective wording, missing facts, and unsafe language.\n\nAssessment: Midterm Exam: Weeks 1-6."
         }
       ]
     },
     {
-      "title": "Final Exam and Course Wrap-Up",
-      "description": "Comprehensive final exam covering Introduction to Nursing Chapters 1-6.",
+      "title": "Week 7: Culture, Health Equity, and Respectful Care",
       "lessons": [
         {
-          "title": "[PN102 2026] Final Exam - Introduction to Nursing Chapters 1-6",
-          "type": "Quiz",
-          "itemType": "Quiz",
-          "dueDate": "Aug 13, 2026",
-          "pointsPossible": 100,
-          "status": "published",
-          "instructions": "Complete the comprehensive final exam after reviewing Chapters 1-6. This final exam contains multiple-choice questions only.",
-          "questions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "Which behavior best represents professional identity for a beginning practical nursing student?",
-              "choices": [
-                {
-                  "text": "Accountability and readiness",
-                  "correct": true
-                },
-                {
-                  "text": "Ignoring feedback",
-                  "correct": false
-                },
-                {
-                  "text": "Arriving unprepared",
-                  "correct": false
-                },
-                {
-                  "text": "Avoiding communication",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which nursing leader is associated with sanitation, observation, and data-informed care?",
-              "choices": [
-                {
-                  "text": "Florence Nightingale",
-                  "correct": true
-                },
-                {
-                  "text": "Clara Barton",
-                  "correct": false
-                },
-                {
-                  "text": "Lillian Wald",
-                  "correct": false
-                },
-                {
-                  "text": "Mary Breckinridge",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "What is the best response when a patient states a concern that may affect safety?",
-              "choices": [
-                {
-                  "text": "Report the concern promptly",
-                  "correct": true
-                },
-                {
-                  "text": "Wait until the next week",
-                  "correct": false
-                },
-                {
-                  "text": "Keep it private",
-                  "correct": false
-                },
-                {
-                  "text": "Tell another student only",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "SBAR is used to:",
-              "choices": [
-                {
-                  "text": "Organize communication",
-                  "correct": true
-                },
-                {
-                  "text": "Replace charting",
-                  "correct": false
-                },
-                {
-                  "text": "Order medication",
-                  "correct": false
-                },
-                {
-                  "text": "Hide missing information",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which action protects confidentiality?",
-              "choices": [
-                {
-                  "text": "Discussing patient information only with authorized care team members",
-                  "correct": true
-                },
-                {
-                  "text": "Posting de-identified stories online",
-                  "correct": false
-                },
-                {
-                  "text": "Sharing details with friends",
-                  "correct": false
-                },
-                {
-                  "text": "Leaving records open in public",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Documentation should be:",
-              "choices": [
-                {
-                  "text": "Objective and timely",
-                  "correct": true
-                },
-                {
-                  "text": "Based on guesses",
-                  "correct": false
-                },
-                {
-                  "text": "Delayed until memory is unclear",
-                  "correct": false
-                },
-                {
-                  "text": "Written only by classmates",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which patient right is connected to autonomy?",
-              "choices": [
-                {
-                  "text": "The right to make informed choices",
-                  "correct": true
-                },
-                {
-                  "text": "The right to ignore all safety policies",
-                  "correct": false
-                },
-                {
-                  "text": "The right to assign staff",
-                  "correct": false
-                },
-                {
-                  "text": "The right to see other patients' records",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "A student is asked to perform a task they have not been checked off to perform. What should the student do?",
-              "choices": [
-                {
-                  "text": "Stop and ask the instructor or nurse before proceeding",
-                  "correct": true
-                },
-                {
-                  "text": "Perform it quickly",
-                  "correct": false
-                },
-                {
-                  "text": "Ask another student to do it",
-                  "correct": false
-                },
-                {
-                  "text": "Guess from memory",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which phrase best describes whole-person care?",
-              "choices": [
-                {
-                  "text": "Care that considers physical, emotional, cultural, safety, and learning needs",
-                  "correct": true
-                },
-                {
-                  "text": "Care focused only on the diagnosis",
-                  "correct": false
-                },
-                {
-                  "text": "Care without communication",
-                  "correct": false
-                },
-                {
-                  "text": "Care focused only on paperwork",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which source helps define legal nursing practice?",
-              "choices": [
-                {
-                  "text": "Nurse practice act and board rules",
-                  "correct": true
-                },
-                {
-                  "text": "Social media",
-                  "correct": false
-                },
-                {
-                  "text": "Classmate preference",
-                  "correct": false
-                },
-                {
-                  "text": "A patient blog",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Professional boundaries help protect:",
-              "choices": [
-                {
-                  "text": "The patient, student, nurse, and therapeutic relationship",
-                  "correct": true
-                },
-                {
-                  "text": "Only the school budget",
-                  "correct": false
-                },
-                {
-                  "text": "Only the instructor schedule",
-                  "correct": false
-                },
-                {
-                  "text": "Only the gradebook",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which action supports public trust in nursing?",
-              "choices": [
-                {
-                  "text": "Competent, honest, respectful care",
-                  "correct": true
-                },
-                {
-                  "text": "Sharing patient stories",
-                  "correct": false
-                },
-                {
-                  "text": "Avoiding documentation",
-                  "correct": false
-                },
-                {
-                  "text": "Ignoring safety concerns",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "quizQuestions": [
-            {
-              "type": "multiple_choice",
-              "prompt": "Which behavior best represents professional identity for a beginning practical nursing student?",
-              "choices": [
-                {
-                  "text": "Accountability and readiness",
-                  "correct": true
-                },
-                {
-                  "text": "Ignoring feedback",
-                  "correct": false
-                },
-                {
-                  "text": "Arriving unprepared",
-                  "correct": false
-                },
-                {
-                  "text": "Avoiding communication",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which nursing leader is associated with sanitation, observation, and data-informed care?",
-              "choices": [
-                {
-                  "text": "Florence Nightingale",
-                  "correct": true
-                },
-                {
-                  "text": "Clara Barton",
-                  "correct": false
-                },
-                {
-                  "text": "Lillian Wald",
-                  "correct": false
-                },
-                {
-                  "text": "Mary Breckinridge",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "What is the best response when a patient states a concern that may affect safety?",
-              "choices": [
-                {
-                  "text": "Report the concern promptly",
-                  "correct": true
-                },
-                {
-                  "text": "Wait until the next week",
-                  "correct": false
-                },
-                {
-                  "text": "Keep it private",
-                  "correct": false
-                },
-                {
-                  "text": "Tell another student only",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "SBAR is used to:",
-              "choices": [
-                {
-                  "text": "Organize communication",
-                  "correct": true
-                },
-                {
-                  "text": "Replace charting",
-                  "correct": false
-                },
-                {
-                  "text": "Order medication",
-                  "correct": false
-                },
-                {
-                  "text": "Hide missing information",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which action protects confidentiality?",
-              "choices": [
-                {
-                  "text": "Discussing patient information only with authorized care team members",
-                  "correct": true
-                },
-                {
-                  "text": "Posting de-identified stories online",
-                  "correct": false
-                },
-                {
-                  "text": "Sharing details with friends",
-                  "correct": false
-                },
-                {
-                  "text": "Leaving records open in public",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Documentation should be:",
-              "choices": [
-                {
-                  "text": "Objective and timely",
-                  "correct": true
-                },
-                {
-                  "text": "Based on guesses",
-                  "correct": false
-                },
-                {
-                  "text": "Delayed until memory is unclear",
-                  "correct": false
-                },
-                {
-                  "text": "Written only by classmates",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which patient right is connected to autonomy?",
-              "choices": [
-                {
-                  "text": "The right to make informed choices",
-                  "correct": true
-                },
-                {
-                  "text": "The right to ignore all safety policies",
-                  "correct": false
-                },
-                {
-                  "text": "The right to assign staff",
-                  "correct": false
-                },
-                {
-                  "text": "The right to see other patients' records",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "A student is asked to perform a task they have not been checked off to perform. What should the student do?",
-              "choices": [
-                {
-                  "text": "Stop and ask the instructor or nurse before proceeding",
-                  "correct": true
-                },
-                {
-                  "text": "Perform it quickly",
-                  "correct": false
-                },
-                {
-                  "text": "Ask another student to do it",
-                  "correct": false
-                },
-                {
-                  "text": "Guess from memory",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which phrase best describes whole-person care?",
-              "choices": [
-                {
-                  "text": "Care that considers physical, emotional, cultural, safety, and learning needs",
-                  "correct": true
-                },
-                {
-                  "text": "Care focused only on the diagnosis",
-                  "correct": false
-                },
-                {
-                  "text": "Care without communication",
-                  "correct": false
-                },
-                {
-                  "text": "Care focused only on paperwork",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which source helps define legal nursing practice?",
-              "choices": [
-                {
-                  "text": "Nurse practice act and board rules",
-                  "correct": true
-                },
-                {
-                  "text": "Social media",
-                  "correct": false
-                },
-                {
-                  "text": "Classmate preference",
-                  "correct": false
-                },
-                {
-                  "text": "A patient blog",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Professional boundaries help protect:",
-              "choices": [
-                {
-                  "text": "The patient, student, nurse, and therapeutic relationship",
-                  "correct": true
-                },
-                {
-                  "text": "Only the school budget",
-                  "correct": false
-                },
-                {
-                  "text": "Only the instructor schedule",
-                  "correct": false
-                },
-                {
-                  "text": "Only the gradebook",
-                  "correct": false
-                }
-              ]
-            },
-            {
-              "type": "multiple_choice",
-              "prompt": "Which action supports public trust in nursing?",
-              "choices": [
-                {
-                  "text": "Competent, honest, respectful care",
-                  "correct": true
-                },
-                {
-                  "text": "Sharing patient stories",
-                  "correct": false
-                },
-                {
-                  "text": "Avoiding documentation",
-                  "correct": false
-                },
-                {
-                  "text": "Ignoring safety concerns",
-                  "correct": false
-                }
-              ]
-            }
-          ],
-          "content": "<h2>Introduction to Nursing Final Exam</h2>\n<p>This final exam covers Chapters 1-6 and measures beginning understanding of practical nursing identity, history, caring, teamwork, ethics, legal responsibilities, documentation, and privacy.</p>\n<div class=\"quiz-instructions\">\n<h3>Instructions before you begin</h3>\n<ul><li>Review all six weekly lessons and PowerPoints before starting.</li><li>The final exam is multiple choice only.</li><li>Answer every question before submitting.</li><li>The exam is designed as a comprehensive review of the six-week course.</li><li>Contact your instructor before starting if you need testing accommodations.</li></ul>\n<button type=\"button\" class=\"quiz-start-button\">Start Final Exam</button>\n</div>\n<h3>Questions</h3>\n\n          <section class=\"quiz-question\">\n            <h4>1. Which behavior best represents professional identity for a beginning practical nursing student?</h4>\n            <ol type=\"A\">\n              <li>Accountability and readiness</li><li>Ignoring feedback</li><li>Arriving unprepared</li><li>Avoiding communication</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>2. Which nursing leader is associated with sanitation, observation, and data-informed care?</h4>\n            <ol type=\"A\">\n              <li>Florence Nightingale</li><li>Clara Barton</li><li>Lillian Wald</li><li>Mary Breckinridge</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>3. What is the best response when a patient states a concern that may affect safety?</h4>\n            <ol type=\"A\">\n              <li>Report the concern promptly</li><li>Wait until the next week</li><li>Keep it private</li><li>Tell another student only</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>4. SBAR is used to:</h4>\n            <ol type=\"A\">\n              <li>Organize communication</li><li>Replace charting</li><li>Order medication</li><li>Hide missing information</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>5. Which action protects confidentiality?</h4>\n            <ol type=\"A\">\n              <li>Discussing patient information only with authorized care team members</li><li>Posting de-identified stories online</li><li>Sharing details with friends</li><li>Leaving records open in public</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>6. Documentation should be:</h4>\n            <ol type=\"A\">\n              <li>Objective and timely</li><li>Based on guesses</li><li>Delayed until memory is unclear</li><li>Written only by classmates</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>7. Which patient right is connected to autonomy?</h4>\n            <ol type=\"A\">\n              <li>The right to make informed choices</li><li>The right to ignore all safety policies</li><li>The right to assign staff</li><li>The right to see other patients' records</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>8. A student is asked to perform a task they have not been checked off to perform. What should the student do?</h4>\n            <ol type=\"A\">\n              <li>Stop and ask the instructor or nurse before proceeding</li><li>Perform it quickly</li><li>Ask another student to do it</li><li>Guess from memory</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>9. Which phrase best describes whole-person care?</h4>\n            <ol type=\"A\">\n              <li>Care that considers physical, emotional, cultural, safety, and learning needs</li><li>Care focused only on the diagnosis</li><li>Care without communication</li><li>Care focused only on paperwork</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>10. Which source helps define legal nursing practice?</h4>\n            <ol type=\"A\">\n              <li>Nurse practice act and board rules</li><li>Social media</li><li>Classmate preference</li><li>A patient blog</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>11. Professional boundaries help protect:</h4>\n            <ol type=\"A\">\n              <li>The patient, student, nurse, and therapeutic relationship</li><li>Only the school budget</li><li>Only the instructor schedule</li><li>Only the gradebook</li>\n            </ol>\n          </section>\n\n          <section class=\"quiz-question\">\n            <h4>12. Which action supports public trust in nursing?</h4>\n            <ol type=\"A\">\n              <li>Competent, honest, respectful care</li><li>Sharing patient stories</li><li>Avoiding documentation</li><li>Ignoring safety concerns</li>\n            </ol>\n          </section>"
+          "title": "Weekly Overview",
+          "content": "Students explore cultural humility, social determinants of health, bias, and the nurse's role in respectful, equitable care.\n\nNursing leaders: Madeleine Leininger and Hazel W. Johnson-Brown\n\nTopics: Culture, religion, language, family roles, and health beliefs; Social determinants of health and barriers to care; Bias, assumptions, and respectful curiosity; Interpreter use and plain-language communication; Madeleine Leininger's transcultural nursing and Hazel W. Johnson-Brown's leadership as an Army nurse and educator."
         },
         {
-          "title": "Course Completion Reflection",
-          "type": "Assignment",
-          "itemType": "Assignment",
-          "dueDate": "Aug 13, 2026",
-          "pointsPossible": 20,
-          "status": "published",
-          "content": "<h2>Course Completion Reflection</h2>\n<p>Write a short reflection describing three professional nursing habits you developed during this course and how you will carry them into the next nursing course.</p>"
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Define cultural humility and distinguish it from stereotyping.\n- Identify social factors that can influence health, access, communication, and trust.\n- Describe practical actions students can take to provide respectful care to every patient.\n\nLearning activity: Cultural humility scenario workshop. Students practice asking respectful questions without making assumptions.\n\nAssessment: Health Equity Reflection."
+        }
+      ]
+    },
+    {
+      "title": "Week 8: Safety, Quality, Infection Prevention, and the Nurse's Watchful Eye",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students connect nursing observation, safety habits, quality improvement, and infection prevention to patient outcomes.\n\nNursing leaders: Linda Richards and Ildaura Murillo-Rohde\n\nTopics: Patient identification, fall prevention, hand hygiene, standard precautions, and infection prevention; Quality improvement, near misses, incident reports, and a just culture mindset; Observation and reporting as core nursing work; Linda Richards and the development of nursing documentation; Ildaura Murillo-Rohde and advocacy for Hispanic nurses."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Describe the practical nurse's role in preventing harm.\n- Identify common safety risks, including falls, infection, medication errors, communication breakdowns, and patient identification errors.\n- Explain how reporting hazards and near misses improves care.\n\nLearning activity: Safety walk-through: students identify hazards in a simulated room and explain what action a beginning practical nursing student should take.\n\nAssessment: Quiz 3: Weeks 7-8."
+        }
+      ]
+    },
+    {
+      "title": "Week 9: Introduction to the Nursing Process and Clinical Judgment",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students learn the beginning language of nursing thinking: noticing, collecting data, reporting changes, planning basic care, and evaluating outcomes.\n\nNursing leaders: Ida Jean Orlando and Patricia Benner\n\nTopics: Assessment/data collection, nursing diagnosis concepts, planning, implementation, and evaluation; Clinical judgment: noticing, interpreting, responding, and reflecting; Prioritization basics and when to ask for help; Ida Jean Orlando's nursing process theory; Patricia Benner's novice-to-expert model."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Name the steps of the nursing process and describe them in practical terms.\n- Explain the practical nursing student's role in data collection, reporting, implementation, and evaluation under supervision.\n- Use a simple patient scenario to identify priority concerns and safe next actions.\n\nLearning activity: Case mapping exercise: students identify what they noticed, what it might mean, what they would report, and what safe care actions may follow.\n\nAssessment: Clinical Judgment Worksheet."
+        }
+      ]
+    },
+    {
+      "title": "Week 10: Patient Teaching, Health Promotion, and Community Impact",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students discuss how practical nurses make an impact through teaching, prevention, maternal-child health, chronic disease support, and community service.\n\nNursing leaders: Mary Breckinridge and Margaret Sanger\n\nTopics: Health promotion and illness prevention across the lifespan; Teach-back, health literacy, and plain-language education; Community nursing, maternal-child care, chronic disease support, and prevention; Mary Breckinridge and frontier nursing; Margaret Sanger's influence on reproductive health education and the need to discuss controversial history with professionalism."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Describe how patient teaching supports safety, independence, and health outcomes.\n- Use plain language and teach-back for a basic health topic.\n- Identify ways practical nursing students can contribute to community wellness.\n\nLearning activity: Teaching micro-lab: students create and deliver a three-minute plain-language teaching script using teach-back.\n\nAssessment: Quiz 4: Weeks 9-10."
+        }
+      ]
+    },
+    {
+      "title": "Week 11: Professionalism, Resilience, Leadership, and Lifelong Learning",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students prepare for the responsibilities of nursing school and practice by focusing on professionalism, feedback, resilience, leadership, and growth.\n\nNursing leaders: Mary Adelaide Nutting and Luther Christman\n\nTopics: Professional appearance, punctuality, communication, accountability, and integrity; Managing stress, asking for help, and building safe learning habits; Feedback, remediation, and reflective practice; Leadership at the bedside and advocacy through everyday actions; Mary Adelaide Nutting's educational leadership and Luther Christman's advocacy for nursing roles and men in nursing."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Identify professional behaviors expected in class, lab, clinical, and the workplace.\n- Describe healthy responses to feedback, stress, mistakes, and learning challenges.\n- Explain how practical nurses demonstrate leadership from the bedside.\n\nLearning activity: Professional development plan: students identify strengths, growth areas, support resources, and habits that will help them succeed.\n\nAssessment: Professional Development Plan."
+        }
+      ]
+    },
+    {
+      "title": "Week 12: Nursing Today and Your Future Impact",
+      "lessons": [
+        {
+          "title": "Weekly Overview",
+          "content": "Students synthesize what they learned about nursing's past, present, and future while articulating the impact they hope to make as practical nurses.\n\nNursing leaders: Student-selected nursing leader review\n\nTopics: Nursing today: technology, teamwork, evidence, patient rights, community needs, and lifelong learning; How practical nurses make an impact through small, consistent, safe actions; Review of ethical/legal foundations and professional identity; Student-selected leader presentations; Course synthesis and final exam preparation."
+        },
+        {
+          "title": "Objectives and Learning Activity",
+          "content": "Objectives:\n- Compare nursing back then, nursing today, and the future direction of nursing.\n- Explain the student's expected impact on patients, families, teams, and communities.\n- Prepare for continued practical nursing coursework with a clear sense of purpose and responsibility.\n\nLearning activity: Final impact presentation: students connect one nursing leader, one ethical/legal responsibility, and one personal commitment to patient care.\n\nAssessment: Final Exam and Final Impact Presentation."
+        }
+      ]
+    },
+    {
+      "title": "Course Wrap-Up and Final Assessment",
+      "lessons": [
+        {
+          "title": "Final Review",
+          "content": "Students review nursing history, nursing leaders, practical nurse role expectations, ethical principles, legal responsibilities, safety, professional identity, and the impact of nursing practice."
+        },
+        {
+          "title": "Final Exam and Impact Presentation",
+          "content": "Students complete a cumulative final exam and a short final impact presentation connecting nursing history, ethical/legal responsibility, and their personal commitment to patient care."
         }
       ]
     }
   ],
   "assignmentGroups": [
     {
-      "title": "[PN102 2026] Quiz 1 - Chapter 1",
-      "type": "Quiz",
-      "points": 10,
-      "dueDate": "Jul 7, 2026"
+      "title": "Class Participation and Professionalism",
+      "pointsPossible": 100
     },
     {
-      "title": "[PN102 2026] Quiz 2 - Chapter 2",
-      "type": "Quiz",
-      "points": 10,
-      "dueDate": "Jul 14, 2026"
+      "title": "Professional Beginning Reflection",
+      "pointsPossible": 50
     },
     {
-      "title": "[PN102 2026] Quiz 3 - Chapter 3",
-      "type": "Quiz",
-      "points": 10,
-      "dueDate": "Jul 21, 2026"
+      "title": "Quiz 1: Weeks 1-2",
+      "pointsPossible": 50
     },
     {
-      "title": "[PN102 2026] Quiz 4 - Chapter 4",
-      "type": "Quiz",
-      "points": 10,
-      "dueDate": "Jul 28, 2026"
+      "title": "Therapeutic Communication Practice",
+      "pointsPossible": 50
     },
     {
-      "title": "[PN102 2026] Quiz 5 - Chapter 5",
-      "type": "Quiz",
-      "points": 10,
-      "dueDate": "Aug 4, 2026"
+      "title": "Quiz 2: Weeks 3-4",
+      "pointsPossible": 50
     },
     {
-      "title": "[PN102 2026] Quiz 6 - Chapter 6",
-      "type": "Quiz",
-      "points": 10,
-      "dueDate": "Aug 11, 2026"
+      "title": "Ethics Case Response",
+      "pointsPossible": 75
     },
     {
-      "title": "[PN102 2026] Final Exam - Introduction to Nursing Chapters 1-6",
-      "type": "Exam",
-      "points": 100,
-      "dueDate": "Aug 13, 2026"
+      "title": "Midterm Exam: Weeks 1-6",
+      "pointsPossible": 150
+    },
+    {
+      "title": "Health Equity Reflection",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Quiz 3: Weeks 7-8",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Clinical Judgment Worksheet",
+      "pointsPossible": 75
+    },
+    {
+      "title": "Quiz 4: Weeks 9-10",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Professional Development Plan",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Final Impact Presentation",
+      "pointsPossible": 50
+    },
+    {
+      "title": "Cumulative Final Exam",
+      "pointsPossible": 200
     }
   ],
   "notes": [
