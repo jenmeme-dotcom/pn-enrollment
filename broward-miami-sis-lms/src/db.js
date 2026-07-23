@@ -1498,6 +1498,21 @@ function seed() {
   // Introduction to Nursing quiz has a full 15-question student assessment.
   const introductionCourse = db.prepare("SELECT id FROM courses WHERE slug = ?").get("introduction-to-nursing-practical-nursing");
   if (introductionCourse) {
+    const introductionCatalogCourse = courses.find((course) => course.slug === "introduction-to-nursing-practical-nursing");
+    if (introductionCatalogCourse?.description) {
+      db.prepare(`
+        UPDATE lessons
+        SET content = ?
+        WHERE id IN (
+          SELECT lessons.id
+          FROM lessons
+          JOIN modules ON modules.id = lessons.module_id
+          WHERE modules.course_id = ?
+            AND lessons.title = 'How This Course Builds a Practical Nurse'
+        )
+      `).run(introductionCatalogCourse.description, introductionCourse.id);
+    }
+
     const quizLessons = db.prepare(`
       SELECT lessons.id, lessons.title, lessons.content
       FROM lessons

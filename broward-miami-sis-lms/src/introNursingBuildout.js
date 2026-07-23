@@ -533,26 +533,7 @@ const modules = [
       },
       {
         title: "How This Course Builds a Practical Nurse",
-        content: [
-          "Professional Foundation",
-          "This course helps students connect nursing history, nursing leaders, ethical and legal responsibilities, communication, patient safety, cultural humility, and personal purpose before moving deeper into skills and clinical courses.",
-          "",
-          "What a Beginning Practical Nursing Student Practices",
-          bulletList([
-            "Preparing before class and arriving ready to learn.",
-            "Using nursing vocabulary accurately and respectfully.",
-            "Recognizing the limits of the student role and asking for supervision.",
-            "Reporting patient concerns promptly using organized communication.",
-            "Documenting and discussing patient information only in approved ways.",
-            "Accepting feedback and turning it into safer practice."
-          ]),
-          "",
-          "Course Habits That Carry Into Clinical",
-          "The habits built here become clinical habits: punctuality, preparation, hand hygiene, privacy, accurate reporting, respectful care, teamwork, and accountability.",
-          "",
-          "Checkpoint",
-          "By the end of orientation, students should be able to explain how nursing history, ethics, legal duties, communication, and safety connect to the daily work of a practical nurse."
-        ].join("\n")
+        content: courseDescription
       }
     ]
   },

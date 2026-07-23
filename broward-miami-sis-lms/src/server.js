@@ -2036,12 +2036,9 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
     `;
   }
 
-  return fileButtons || `
-    <div class="lesson-action-card">
-      <h2>Module Item</h2>
-      <p>This page contains the information for the selected module item.</p>
-    </div>
-  `;
+  // Plain content pages already render their complete lesson body above. A
+  // second generic "Module Item" card repeats no useful information.
+  return fileButtons;
 }
 
 function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false, gradeItems = [], grades = [], completedLessonIds = new Set(), courseId = null }) {
