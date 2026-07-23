@@ -4928,6 +4928,10 @@ button.small {
   max-width: 1120px;
 }
 
+.welcoming-course-intro > * {
+  min-width: 0;
+}
+
 .welcoming-course-intro aside {
   background: #edf7f7;
   border-left: 5px solid #14828b;
@@ -6233,6 +6237,57 @@ button.small {
 
 .student-actions {
   margin-top: 18px;
+}
+
+/* Keep the student course home usable in a minimized laptop window. The
+   desktop shell otherwise squeezes four columns into the viewport and causes
+   the learning card and To Do panel to overlap. */
+@media (max-width: 1500px) and (min-width: 821px) {
+  .student-course-home {
+    grid-template-columns: 74px 190px minmax(0, 1fr);
+    grid-template-rows: 78px auto auto;
+  }
+
+  .student-course-home .student-canvas-topbar {
+    grid-column: 2 / -1;
+  }
+
+  .student-course-home .canvas-course-nav {
+    grid-column: 2;
+    grid-row: 2 / 4;
+    padding-left: 16px;
+  }
+
+  .student-course-home .canvas-sidebar-toggle,
+  .course-canvas-mode.course-nav-collapsed .student-course-home .canvas-sidebar-toggle {
+    left: calc(74px + 190px - 14px);
+  }
+
+  .student-course-home .canvas-course-main {
+    grid-column: 3;
+    grid-row: 2;
+    padding-left: clamp(24px, 4vw, 48px);
+    padding-right: clamp(24px, 4vw, 48px);
+  }
+
+  .student-course-home .welcoming-course-intro {
+    grid-template-columns: 1fr;
+  }
+
+  .student-course-home .canvas-rightbar {
+    border-top: 1px solid #dfe5ea;
+    display: grid;
+    gap: 24px;
+    grid-column: 3;
+    grid-row: 3;
+    grid-template-columns: minmax(220px, .75fr) minmax(0, 1.25fr);
+    padding: 28px clamp(24px, 4vw, 48px) 40px;
+  }
+
+  .student-course-home .student-actions,
+  .student-course-home .canvas-task-panel {
+    margin-top: 0;
+  }
 }
 
 .canvas-task-panel {
