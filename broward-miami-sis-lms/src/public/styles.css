@@ -4751,19 +4751,19 @@ button.small {
 }
 
 .course-canvas-mode.course-nav-collapsed .canvas-course-shell {
-  grid-template-columns: 52px 214px minmax(0, 1fr) 280px;
+  grid-template-columns: 52px 0 minmax(0, 1fr) 280px;
 }
 
 .course-canvas-mode.course-nav-collapsed .canvas-lesson-shell {
-  grid-template-columns: 52px 214px minmax(0, 1fr);
+  grid-template-columns: 52px 0 minmax(0, 1fr);
 }
 
 .course-canvas-mode.course-nav-collapsed .student-course-shell {
-  grid-template-columns: 74px 214px minmax(0, 1fr) 280px;
+  grid-template-columns: 74px 0 minmax(0, 1fr) 280px;
 }
 
 .course-canvas-mode.course-nav-collapsed .canvas-lesson-shell.student-course-shell {
-  grid-template-columns: 74px 214px minmax(0, 1fr);
+  grid-template-columns: 74px 0 minmax(0, 1fr);
 }
 
 .course-canvas-mode.course-nav-collapsed .canvas-course-nav {
@@ -4779,11 +4779,11 @@ button.small {
 }
 
 .course-canvas-mode.course-nav-collapsed .canvas-sidebar-toggle {
-  left: calc(52px + 214px - 14px);
+  left: calc(52px + 8px);
 }
 
 .course-canvas-mode.course-nav-collapsed .student-course-shell .canvas-sidebar-toggle {
-  left: calc(74px + 214px - 14px);
+  left: calc(74px + 8px);
 }
 
 .canvas-mini-head {
@@ -6258,9 +6258,16 @@ button.small {
     padding-left: 16px;
   }
 
-  .student-course-home .canvas-sidebar-toggle,
-  .course-canvas-mode.course-nav-collapsed .student-course-home .canvas-sidebar-toggle {
+  .student-course-home .canvas-sidebar-toggle {
     left: calc(74px + 190px - 14px);
+  }
+
+  .course-canvas-mode.course-nav-collapsed .student-course-home {
+    grid-template-columns: 74px 0 minmax(0, 1fr);
+  }
+
+  .course-canvas-mode.course-nav-collapsed .student-course-home .canvas-sidebar-toggle {
+    left: calc(74px + 8px);
   }
 
   .student-course-home .canvas-course-main {
