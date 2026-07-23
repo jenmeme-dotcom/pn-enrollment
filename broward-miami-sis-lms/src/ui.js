@@ -13,7 +13,10 @@ function money(cents = 0) {
 
 function date(value) {
   if (!value) return "";
-  return new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short", day: "numeric" }).format(new Date(`${value}T12:00:00`));
+  const rawValue = String(value).trim();
+  const parsedDate = new Date(/^\d{4}-\d{2}-\d{2}$/.test(rawValue) ? `${rawValue}T12:00:00` : rawValue);
+  if (Number.isNaN(parsedDate.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short", day: "numeric" }).format(parsedDate);
 }
 
 function percent(value = 0) {
