@@ -212,6 +212,14 @@ const quizBanks = {
 // Major assessments draw from the same validated chapter banks so every
 // question is aligned to material already taught in the course. The slices
 // keep each exam balanced across its chapter groups without repeating items.
+quizBanks.introMidterm = [
+  ...quizBanks.introChapter1.slice(0, 5),
+  ...quizBanks.introChapter2.slice(0, 5),
+  ...quizBanks.introChapter3.slice(0, 5),
+  ...quizBanks.introChapter4.slice(0, 5),
+  ...quizBanks.introChapter5.slice(0, 5),
+  ...quizBanks.introChapter6.slice(0, 5)
+];
 quizBanks.introFinal = [
   ...quizBanks.introChapter1.slice(0, 7),
   ...quizBanks.introChapter2.slice(0, 7),

@@ -1579,6 +1579,7 @@ function lessonQuizQuestions(lesson = {}) {
 
 function examSettingsForLesson(lesson = {}) {
   const title = String(lesson.title || "");
+  if (title === "Midterm Exam: Weeks 1-6") return { label: "PN 102 Midterm Exam", minutes: 60, opensAt: "2026-07-27T00:00:00-04:00", closesAt: "2026-08-02T23:59:59-04:00" };
   if (title === "Cumulative Final Exam") return { label: "PN 102 Cumulative Final Exam", minutes: 90, opensAt: "2026-09-07T00:00:00-04:00", closesAt: "2026-09-13T23:59:59-04:00" };
   if (/\[PN103 2026\] Midterm - Chapters 14-19/i.test(title)) return { label: "PN 103 Midterm Exam", minutes: 60, opensAt: "2026-07-27T00:00:00-04:00", closesAt: "2026-08-02T23:59:59-04:00" };
   if (/\[PN103 2026\] Final Comprehensive Exam/i.test(title)) return { label: "PN 103 Final Comprehensive Exam", minutes: 90, opensAt: "2026-09-03T00:00:00-04:00", closesAt: "2026-09-09T23:59:59-04:00" };

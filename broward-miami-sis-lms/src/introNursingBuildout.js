@@ -214,7 +214,7 @@ const weeklyModules = [
     ],
     activities:
       "Documentation correction exercise using sample notes. Students identify objective wording, missing facts, and unsafe language.",
-    assessment: "[PN102 2026] Quiz 6 - Chapter 6"
+    assessment: "[PN102 2026] Quiz 6 - Chapter 6 and Midterm Exam: Weeks 1-6"
   },
   {
     week: 7,
@@ -590,6 +590,7 @@ const gradeItems = [
   { title: "Therapeutic Communication Practice", pointsPossible: 50 },
   { title: "Quiz 2: Weeks 3-4", pointsPossible: 50 },
   { title: "Ethics Case Response", pointsPossible: 75 },
+  { title: "Midterm Exam: Weeks 1-6", pointsPossible: 150, dueDate: "2026-08-02 23:59:00" },
   { title: "Health Equity Reflection", pointsPossible: 50, dueDate: "2026-08-09 23:59:00" },
   { title: "[PN102 2026] Quiz - Chapters 7-9", pointsPossible: 50, dueDate: "2026-08-23 23:59:00" },
   { title: "Clinical Judgment Worksheet", pointsPossible: 75, dueDate: "2026-08-23 23:59:00" },
@@ -603,7 +604,7 @@ const policies = {
   attendance:
     "Students are expected to attend and participate in all scheduled class sessions. Because this course establishes professional habits, punctuality, preparation, respectful communication, and active participation are evaluated as part of professionalism.",
   quizzes:
-    "Chapter quizzes are scheduled throughout the course. Week 12 includes the cumulative final exam; Introduction to Nursing does not use a midterm examination.",
+    "Chapter quizzes are scheduled throughout the course. Week 6 includes the midterm examination covering Chapters 1-6, and Week 12 includes the cumulative final examination covering Chapters 1-13.",
   ethicsLegal:
     "Ethical and legal instruction is introductory and must be reinforced by the current student handbook, clinical site policy, state nurse practice act, board of nursing rules, and instructor guidance.",
   remediation:
@@ -698,6 +699,11 @@ const modules = [
         title: quiz.title,
         content: quizContent(`${quiz.title} assessment instructions.`, quiz.questions),
         durationMinutes: 45
+      }] : []),
+      ...(week.week === 6 ? [{
+        title: "Midterm Exam: Weeks 1-6",
+        content: quizContent("PN 102 midterm examination covering Chapters 1-6.", quizBanks.introMidterm),
+        durationMinutes: 60
       }] : [])
     ]
   }}),
@@ -753,7 +759,9 @@ const introNursingCourse = {
       ...week,
       title: extendedWeekModuleTitles[week.week] || week.title,
       chapters: chapters.map((chapter) => `Chapter ${chapter.number}: ${chapter.title} (pp. ${chapter.pages})`).join("; "),
-      assessment: introQuizByWeek[week.week]?.title || `Week ${week.week} Applied Assignment`
+      assessment: week.week === 6
+        ? "[PN102 2026] Quiz 6 - Chapter 6; Midterm Exam: Weeks 1-6"
+        : introQuizByWeek[week.week]?.title || `Week ${week.week} Applied Assignment`
     };
   }),
   modules,

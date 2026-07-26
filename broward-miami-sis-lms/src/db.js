@@ -1722,6 +1722,16 @@ function seed() {
             appendLesson.run(storedModule.id, quizLesson.title, quizLesson.content || "", null, quizLesson.durationMinutes || 30, nextLessonPosition.get(storedModule.id).position, 1, 0);
           }
         }
+
+        const examLesson = module.lessons.find((lesson) => lesson.title === "Midterm Exam: Weeks 1-6");
+        if (examLesson) {
+          const storedExam = existingLessonByTitle.get(storedModule.id, examLesson.title);
+          if (storedExam) {
+            updateLessonDefinition.run(examLesson.content || "", null, examLesson.durationMinutes || 60, 1, 0, storedExam.id);
+          } else {
+            appendLesson.run(storedModule.id, examLesson.title, examLesson.content || "", null, examLesson.durationMinutes || 60, nextLessonPosition.get(storedModule.id).position, 1, 0);
+          }
+        }
       });
 
     const extensionModules = (introductionCatalogCourse?.modules || []).filter((module) =>
@@ -1824,14 +1834,11 @@ function seed() {
 
     const existingGradeItem = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND title = ?");
     const appendGradeItem = db.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, ?, ?)");
-    // PN 102 uses chapter quizzes and a cumulative final, but no midterm.
-    db.prepare("DELETE FROM grade_items WHERE course_id = ? AND title = 'Midterm Exam: Weeks 1-6'").run(introductionCourse.id);
     db.prepare("DELETE FROM grade_items WHERE course_id = ? AND title = '[PN102 2026] Final Exam - Introduction to Nursing Chapters 1-6'").run(introductionCourse.id);
-    db.prepare(`
-      DELETE FROM lessons
-      WHERE title = 'Midterm Exam: Weeks 1-6'
-        AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
-    `).run(introductionCourse.id);
+    const midtermGradeItem = (introductionCatalogCourse?.gradeItems || []).find((item) => item.title === "Midterm Exam: Weeks 1-6");
+    if (midtermGradeItem && !existingGradeItem.get(introductionCourse.id, midtermGradeItem.title)) {
+      appendGradeItem.run(introductionCourse.id, midtermGradeItem.title, midtermGradeItem.pointsPossible, midtermGradeItem.dueDate || null);
+    }
     db.prepare("UPDATE grade_items SET title = ?, due_date = ? WHERE course_id = ? AND title = ?").run(
       "[PN102 2026] Quiz - Chapters 7-9",
       "2026-08-23 23:59:00",
