@@ -1660,6 +1660,51 @@ function seed() {
       }
     }
 
+    // Chapters 14 and above belong to PN 103 after the corrected course split.
+    db.prepare(`
+      DELETE FROM lessons
+      WHERE module_id IN (SELECT id FROM modules WHERE course_id = ?)
+        AND (
+          title GLOB 'Chapter 1[4-9]:*'
+          OR title GLOB 'Chapter 2[0-9]:*'
+          OR title GLOB 'Chapter 3[0-9]:*'
+          OR title GLOB 'Chapter 4[0-9]:*'
+        )
+    `).run(introductionCourse.id);
+
+    // Correct the legacy Week 1-6 labels to the actual textbook Chapters 1-6
+    // while retaining the existing lesson records, PowerPoints, and quizzes.
+    const findLegacyChapterLesson = db.prepare(`
+      SELECT id FROM lessons
+      WHERE module_id = ?
+        AND (title = ? OR title LIKE ?)
+      ORDER BY position, id LIMIT 1
+    `);
+    (introductionCatalogCourse?.modules || [])
+      .filter((module) => /^Week [1-6]:/.test(module.title))
+      .forEach((module) => {
+        const weekNumber = module.title.match(/^Week (\d+):/)?.[1];
+        const storedModule = existingModuleByWeek.get(introductionCourse.id, `Week ${weekNumber}:%`);
+        const chapterLesson = module.lessons.find((lesson) => lesson.title.startsWith(`Chapter ${weekNumber}:`));
+        if (!storedModule || !chapterLesson) return;
+        if (storedModule.title !== module.title) updateModuleTitle.run(module.title, storedModule.id);
+        const storedChapterLesson = findLegacyChapterLesson.get(
+          storedModule.id,
+          chapterLesson.title,
+          `[PN102 2026] Chapter ${weekNumber}:%`
+        );
+        if (storedChapterLesson) {
+          db.prepare("UPDATE lessons SET title = ?, content = ?, duration_minutes = ? WHERE id = ?").run(
+            chapterLesson.title,
+            chapterLesson.content,
+            chapterLesson.durationMinutes || 90,
+            storedChapterLesson.id
+          );
+        } else {
+          appendLesson.run(storedModule.id, chapterLesson.title, chapterLesson.content, null, chapterLesson.durationMinutes || 90, nextLessonPosition.get(storedModule.id).position, 1, 0);
+        }
+      });
+
     const extensionModules = (introductionCatalogCourse?.modules || []).filter((module) =>
       /^Week (?:[7-9]|1[0-2]):/.test(module.title)
     );
@@ -1751,6 +1796,84 @@ function seed() {
         .replace(/length\s*:\s*6 weeks/gi, "Length: 12 weeks")
         .replace(/a six-week introduction/gi, "A 12-week introduction");
       if (catalogAlignedContent !== lesson.content) updateLessonContent.run(catalogAlignedContent, lesson.id);
+    });
+  }
+
+  // Align the existing PN 103 shell to Foundations of Nursing Chapters 14-25
+  // and 37-40 without replacing enrollments, lesson IDs, or grade history.
+  const longTermCareCourseRow = db.prepare("SELECT id FROM courses WHERE slug = ?").get(longTermCareNursingCourse.slug);
+  if (longTermCareCourseRow) {
+    const findModuleByTitle = db.prepare("SELECT id, title FROM modules WHERE course_id = ? AND title = ? ORDER BY position, id LIMIT 1");
+    const findModuleByWeek = db.prepare("SELECT id, title FROM modules WHERE course_id = ? AND title LIKE ? ORDER BY position, id LIMIT 1");
+    const renameModule = db.prepare("UPDATE modules SET title = ? WHERE id = ?");
+    const findLessonByTitle = db.prepare("SELECT id FROM lessons WHERE module_id = ? AND title = ? ORDER BY position, id LIMIT 1");
+    const findDiscussionLesson = db.prepare("SELECT id FROM lessons WHERE module_id = ? AND title LIKE '%Discussion:%' ORDER BY position, id LIMIT 1");
+    const findAssignmentLesson = db.prepare(`
+      SELECT id FROM lessons
+      WHERE module_id = ?
+        AND title LIKE '[PN103 2026]%'
+        AND title NOT LIKE '%Discussion:%'
+      ORDER BY position DESC, id DESC LIMIT 1
+    `);
+    const nextLessonPosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS position FROM lessons WHERE module_id = ?");
+    const insertLesson = db.prepare(`
+      INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const syncLesson = db.prepare(`
+      UPDATE lessons
+      SET title = ?, content = ?, external_url = ?, duration_minutes = ?, published = ?, instructor_only = ?
+      WHERE id = ?
+    `);
+
+    const orientationDefinition = longTermCareNursingCourse.modules.find((module) => module.title === "PN103 2026 - Orientation and Course Resources");
+    const orientationModule = findModuleByTitle.get(longTermCareCourseRow.id, "PN103 2026 - Orientation and Course Resources");
+    const textbookLesson = orientationDefinition?.lessons?.find((lesson) => lesson.title.startsWith("Required Textbook:"));
+    if (orientationModule && textbookLesson) {
+      const storedTextbookLesson = db.prepare("SELECT id FROM lessons WHERE module_id = ? AND lower(title) LIKE '%textbook%' ORDER BY position, id LIMIT 1").get(orientationModule.id);
+      if (storedTextbookLesson) {
+        syncLesson.run(textbookLesson.title, textbookLesson.content, null, textbookLesson.durationMinutes || 20, 1, 0, storedTextbookLesson.id);
+      } else {
+        insertLesson.run(orientationModule.id, textbookLesson.title, textbookLesson.content, null, textbookLesson.durationMinutes || 20, nextLessonPosition.get(orientationModule.id).position, 1, 0);
+      }
+    }
+
+    longTermCareNursingCourse.modules.filter((module) => /^Week \d+:/.test(module.title)).forEach((module) => {
+      const weekNumber = module.title.match(/^Week (\d+):/)?.[1];
+      const storedModule = findModuleByWeek.get(longTermCareCourseRow.id, `Week ${weekNumber}:%`);
+      if (!storedModule) return;
+      if (storedModule.title !== module.title) renameModule.run(module.title, storedModule.id);
+      module.lessons.forEach((lesson) => {
+        let storedLesson = findLessonByTitle.get(storedModule.id, lesson.title);
+        if (!storedLesson && lesson.title.includes("Discussion:")) storedLesson = findDiscussionLesson.get(storedModule.id);
+        if (!storedLesson && lesson.title.startsWith("[PN103 2026]") && !lesson.title.includes("Discussion:")) storedLesson = findAssignmentLesson.get(storedModule.id);
+        if (storedLesson) {
+          syncLesson.run(lesson.title, lesson.content || "", lesson.externalUrl || null, lesson.durationMinutes || 45, 1, 0, storedLesson.id);
+        } else {
+          insertLesson.run(storedModule.id, lesson.title, lesson.content || "", lesson.externalUrl || null, lesson.durationMinutes || 45, nextLessonPosition.get(storedModule.id).position, 1, 0);
+        }
+      });
+    });
+
+    const findGradeItemByTitle = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND title = ?");
+    const findDiscussionGradeItem = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND due_date = ? AND title LIKE '%Discussion:%' ORDER BY id LIMIT 1");
+    const findAssignmentGradeItem = db.prepare(`
+      SELECT id FROM grade_items
+      WHERE course_id = ? AND due_date = ?
+        AND title LIKE '[PN103 2026]%'
+        AND title NOT LIKE '%Discussion:%'
+        AND lower(title) NOT LIKE '%acknowledgment%'
+        AND lower(title) NOT LIKE '%professionalism%'
+      ORDER BY id LIMIT 1
+    `);
+    const updateGradeItem = db.prepare("UPDATE grade_items SET title = ?, points_possible = ?, due_date = ? WHERE id = ?");
+    const insertGradeItem = db.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, ?, ?)");
+    longTermCareNursingCourse.gradeItems.forEach((item) => {
+      let storedItem = findGradeItemByTitle.get(longTermCareCourseRow.id, item.title);
+      if (!storedItem && item.title.includes("Discussion:")) storedItem = findDiscussionGradeItem.get(longTermCareCourseRow.id, item.dueDate);
+      if (!storedItem && item.title.startsWith("[PN103 2026]") && !item.title.includes("Discussion:")) storedItem = findAssignmentGradeItem.get(longTermCareCourseRow.id, item.dueDate);
+      if (storedItem) updateGradeItem.run(item.title, item.pointsPossible, item.dueDate || null, storedItem.id);
+      else insertGradeItem.run(longTermCareCourseRow.id, item.title, item.pointsPossible, item.dueDate || null);
     });
   }
 }

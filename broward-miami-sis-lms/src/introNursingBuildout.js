@@ -16,39 +16,58 @@ const textbookFileName = "Foundations-of-Nursing-9th-Edition-Cooper-Gosnell.pdf"
 const textbookHref = `/course-materials/introduction-to-nursing-practical-nursing/${textbookFileName}`;
 
 const extendedWeekChapters = {
+  1: [
+    { number: 1, title: "The Evolution of Nursing", pages: "1-21", pdfPage: 39, topics: ["history of nursing and nursing education", "development of practical and vocational nursing", "health care delivery systems", "roles and responsibilities of the practical nurse"] }
+  ],
+  2: [
+    { number: 2, title: "Legal and Ethical Aspects of Nursing", pages: "22-39", pdfPage: 60, topics: ["legal system and regulation of practice", "legal issues and avoiding liability", "ethical principles", "advance directives and reporting unethical behavior"] }
+  ],
+  3: [
+    { number: 3, title: "Documentation", pages: "40-59", pdfPage: 78, topics: ["purposes of patient records", "electronic health records and ISBAR", "charting rules and legal standards", "confidentiality and accurate documentation"] }
+  ],
+  4: [
+    { number: 4, title: "Communication", pages: "60-80", pdfPage: 98, topics: ["communication process", "therapeutic communication", "communication barriers", "interprofessional and patient-centered communication"] }
+  ],
+  5: [
+    { number: 5, title: "Nursing Process and Critical Thinking", pages: "81-96", pdfPage: 119, topics: ["assessment and data collection", "patient problems and planning", "implementation and evaluation", "critical thinking and clinical judgment"] }
+  ],
+  6: [
+    { number: 6, title: "Cultural and Ethnic Considerations", pages: "97-116", pdfPage: 135, topics: ["culture, ethnicity, and health beliefs", "cultural humility", "communication and language access", "respectful individualized care"] }
+  ],
   7: [
-    { number: 12, title: "Vital Signs", pages: "280-314", pdfPage: 318, topics: ["temperature, pulse, respirations, and blood pressure", "pulse oximetry", "height and weight", "recording and reporting vital signs"] },
-    { number: 13, title: "Physical Assessment", pages: "315-341", pdfPage: 353, topics: ["signs and symptoms", "health history", "medical and nursing assessment", "systematic physical assessment"] }
+    { number: 7, title: "Asepsis and Infection Control", pages: "117-161", pdfPage: 155, topics: ["microorganisms and the chain of infection", "medical and surgical asepsis", "standard and transmission-based precautions", "infection prevention and reporting"] }
   ],
   8: [
-    { number: 14, title: "Oxygenation", pages: "342-362", pdfPage: 380, topics: ["standard safety steps", "oxygen therapy", "respiratory procedures", "airway and oxygen-delivery equipment"] },
-    { number: 15, title: "Elimination and Gastric Intubation", pages: "363-398", pdfPage: 401, topics: ["urinary elimination", "catheter care", "nasogastric tubes", "bowel elimination, enemas, and ostomies"] }
+    { number: 8, title: "Body Mechanics and Patient Mobility", pages: "162-188", pdfPage: 200, topics: ["body alignment and ergonomics", "positioning and transfer safety", "range-of-motion exercises", "mobility aids and fall prevention"] }
   ],
   9: [
-    { number: 16, title: "Care of Patients Experiencing Urgent Alterations in Health", pages: "399-428", pdfPage: 437, topics: ["emergency assessment and response", "CPR and airway obstruction", "shock and bleeding", "wounds, poisoning, temperature emergencies, and trauma"] },
-    { number: 17, title: "Dosage Calculation and Medication Administration", pages: "429-488", pdfPage: 467, topics: ["measurement systems and dosage calculations", "medication orders", "rights of medication administration", "enteral, topical, and parenteral routes"] }
+    { number: 9, title: "Hygiene and Care of the Patient's Environment", pages: "189-236", pdfPage: 227, topics: ["personal hygiene and oral care", "bathing and grooming", "bedmaking and environmental comfort", "skin observation, dignity, and independence"] }
   ],
   10: [
-    { number: 18, title: "Fluids and Electrolytes", pages: "489-530", pdfPage: 527, topics: ["fluid compartments and intake/output", "electrolytes and acid-base balance", "intravenous therapy", "blood transfusion monitoring"] },
-    { number: 19, title: "Nutritional Concepts and Related Therapies", pages: "531-578", pdfPage: 569, topics: ["essential nutrients", "nutrition across the lifespan", "therapeutic diets", "enteral and parenteral nutrition"] }
+    { number: 10, title: "Safety", pages: "237-261", pdfPage: 275, topics: ["patient identification and environmental safety", "fall, fire, and electrical safety", "restraint alternatives", "incident prevention and reporting"] }
   ],
   11: [
-    { number: 20, title: "Complementary, Integrative, and Alternative Therapies", pages: "579-600", pdfPage: 617, topics: ["herbal and manual therapies", "acupuncture and acupressure", "mind-body approaches", "nursing safety and patient teaching"] },
-    { number: 21, title: "Pain Management, Comfort, Rest, and Sleep", pages: "601-623", pdfPage: 639, topics: ["pain assessment and types of pain", "pharmacologic and nonpharmacologic comfort", "sleep physiology", "promoting rest and evaluating response"] }
+    { number: 11, title: "Admission, Transfer, and Discharge", pages: "262-279", pdfPage: 300, topics: ["admission assessment and orientation", "safe patient transfer", "discharge planning and teaching", "continuity of care and documentation"] }
   ],
   12: [
-    { number: 22, title: "Surgical Wound Care", pages: "624-658", pdfPage: 662, topics: ["wound classification and healing", "incision and dressing care", "wound complications", "drains, bandages, and binders"] },
-    { number: 23, title: "Specimen Collection and Diagnostic Testing", pages: "659-707", pdfPage: 697, topics: ["diagnostic examinations", "urine, stool, sputum, and wound specimens", "blood glucose and venipuncture", "electrocardiography and nursing responsibilities"] }
+    { number: 12, title: "Vital Signs", pages: "280-314", pdfPage: 318, topics: ["temperature, pulse, respirations, and blood pressure", "pulse oximetry", "height and weight", "recording and reporting vital signs"] },
+    { number: 13, title: "Physical Assessment", pages: "315-341", pdfPage: 353, topics: ["signs and symptoms", "health history", "medical and nursing assessment", "systematic physical assessment"] }
   ]
 };
 
 const extendedWeekModuleTitles = {
-  7: "Vital Signs and Physical Assessment",
-  8: "Oxygenation and Elimination",
-  9: "Urgent Care and Medication Administration",
-  10: "Fluids, Electrolytes, and Nutrition",
-  11: "Integrative Therapies, Pain, Comfort, and Sleep",
-  12: "Wound Care and Diagnostic Testing"
+  1: "The Evolution of Nursing",
+  2: "Legal and Ethical Aspects of Nursing",
+  3: "Documentation",
+  4: "Communication",
+  5: "Nursing Process and Critical Thinking",
+  6: "Cultural and Ethnic Considerations",
+  7: "Asepsis and Infection Control",
+  8: "Body Mechanics and Patient Mobility",
+  9: "Hygiene and the Patient Environment",
+  10: "Safety",
+  11: "Admission, Transfer, and Discharge",
+  12: "Vital Signs and Physical Assessment"
 };
 
 const weeklyModules = [
@@ -639,7 +658,7 @@ const modules = [
   ...weeklyModules.map((week) => {
     const chapters = extendedWeekChapters[week.week] || [];
     const moduleTitle = chapters.length
-      ? `Week ${week.week}: Chapters ${chapters[0].number}-${chapters[chapters.length - 1].number} - ${extendedWeekModuleTitles[week.week]}`
+      ? `Week ${week.week}: ${chapters.length === 1 ? `Chapter ${chapters[0].number}` : `Chapters ${chapters[0].number}-${chapters[chapters.length - 1].number}`} - ${extendedWeekModuleTitles[week.week]}`
       : `Week ${week.week}: ${week.title}`;
     return {
     title: moduleTitle,

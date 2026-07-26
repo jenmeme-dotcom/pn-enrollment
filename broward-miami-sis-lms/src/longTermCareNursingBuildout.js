@@ -12,9 +12,9 @@ const courseObjectives = [
   "Demonstrate professional accountability through preparation, discussion participation, case-based assignments, remediation, and final synthesis."
 ];
 
-const sourceText = "Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition";
+const sourceText = "Cooper and Gosnell, Foundations of Nursing, 9th Edition";
 const materialBase = "/course-materials/long-term-care-nursing-pn103";
-const textbookFileName = "mosbys-long-term-care-nursing-assistants-8th-edition.pdf";
+const textbookFileName = "Foundations-of-Nursing-9th-Edition-Cooper-Gosnell.pdf";
 
 const weeklyModules = [
   {
@@ -261,9 +261,155 @@ const weeklyModules = [
   }
 ];
 
+const chapterAlignedPlans = {
+  1: {
+    title: "Oxygenation in Long-Term Care",
+    readings: [{ number: 14, title: "Oxygenation", pages: "342-362", pdfPage: 380 }],
+    focus: "Oxygen therapy, respiratory assessment, airway safety, equipment precautions, and changes in condition in long-term care.",
+    objectives: ["Recognize respiratory distress and abnormal oxygenation findings.", "Apply oxygen-safety and reporting expectations within practical nursing scope."],
+    discussionTitle: "[PN103 2026] Week 1 Discussion: Oxygen Safety and Changes in Condition",
+    discussionPrompt: "Identify one respiratory change that requires prompt reporting and explain the immediate safety priorities.",
+    assignmentTitle: "[PN103 2026] Oxygenation Safety Case",
+    assignmentDescription: "Analyze oxygen saturation, respiratory findings, equipment safety, priority actions, and documentation in a long-term care scenario."
+  },
+  2: {
+    title: "Elimination and Gastric Intubation",
+    readings: [{ number: 15, title: "Elimination and Gastric Intubation", pages: "363-398", pdfPage: 401 }],
+    focus: "Urinary and bowel elimination, catheter care, nasogastric tubes, enemas, ostomies, dignity, and infection prevention.",
+    objectives: ["Recognize elimination findings that require intervention or reporting.", "Support safe catheter, bowel, ostomy, and gastric-tube care within policy."],
+    discussionTitle: "[PN103 2026] Week 2 Discussion: Dignity and Elimination Care",
+    discussionPrompt: "Explain how a nurse protects dignity, safety, and infection prevention during elimination care.",
+    assignmentTitle: "[PN103 2026] Elimination and Tube-Care Worksheet",
+    assignmentDescription: "Complete a resident case involving elimination changes, catheter or ostomy care, intake/output, and reporting priorities."
+  },
+  3: {
+    title: "Urgent Alterations in Health",
+    readings: [{ number: 16, title: "Care of Patients Experiencing Urgent Alterations in Health", pages: "399-428", pdfPage: 437 }],
+    focus: "Emergency assessment, CPR awareness, airway obstruction, shock, bleeding, wounds, poisoning, temperature emergencies, and trauma.",
+    objectives: ["Recognize urgent changes and initiate the correct emergency response.", "Communicate, document, and follow facility emergency procedures."],
+    discussionTitle: "[PN103 2026] Week 3 Discussion: Recognizing an Emergency",
+    discussionPrompt: "Choose one emergency and explain what the nurse should recognize, do first, and report.",
+    assignmentTitle: "[PN103 2026] Emergency Recognition and Response Map",
+    assignmentDescription: "Prioritize actions for urgent long-term care scenarios involving airway, breathing, circulation, bleeding, shock, or injury."
+  },
+  4: {
+    title: "Dosage Calculation and Medication Administration",
+    readings: [{ number: 17, title: "Dosage Calculation and Medication Administration", pages: "429-488", pdfPage: 467 }],
+    focus: "Dosage calculation, medication orders, medication rights, routes of administration, monitoring, and error prevention.",
+    objectives: ["Calculate introductory medication doses accurately.", "Apply medication-administration rights, safety checks, monitoring, and reporting."],
+    discussionTitle: "[PN103 2026] Week 4 Discussion: Medication Safety",
+    discussionPrompt: "Identify one medication-safety check that prevents harm in long-term care and explain why it matters.",
+    assignmentTitle: "[PN103 2026] Dosage Calculation and Medication Safety Practice",
+    assignmentDescription: "Complete dosage calculations and medication-administration scenarios using required safety checks."
+  },
+  5: {
+    title: "Fluids and Electrolytes",
+    readings: [{ number: 18, title: "Fluids and Electrolytes", pages: "489-530", pdfPage: 527 }],
+    focus: "Hydration, intake/output, electrolyte and acid-base concepts, IV monitoring, blood therapy awareness, and complications.",
+    objectives: ["Identify dehydration, fluid overload, and common electrolyte concerns.", "Monitor intake/output and report IV or transfusion complications promptly."],
+    discussionTitle: "[PN103 2026] Week 5 Discussion: Hydration and Fluid Balance",
+    discussionPrompt: "Describe one sign of fluid imbalance and the nursing observations that should be reported.",
+    assignmentTitle: "[PN103 2026] Fluid Balance and Intake-Output Case",
+    assignmentDescription: "Interpret intake/output and assessment findings, identify priority fluid concerns, and document appropriate actions."
+  },
+  6: {
+    title: "Nutrition and Related Therapies",
+    readings: [{ number: 19, title: "Nutritional Concepts and Related Therapies", pages: "531-578", pdfPage: 569 }],
+    focus: "Essential nutrients, therapeutic diets, feeding assistance, dysphagia and aspiration prevention, tube feeding, and parenteral nutrition.",
+    objectives: ["Connect nutrition and hydration needs to resident safety and healing.", "Apply feeding, aspiration, therapeutic-diet, and nutritional-support precautions."],
+    discussionTitle: "[PN103 2026] Week 6 Discussion: Nutrition, Choice, and Safety",
+    discussionPrompt: "Explain how the nurse balances resident choice with dysphagia, aspiration, or therapeutic-diet safety.",
+    assignmentTitle: "[PN103 2026] Midterm - Chapters 14-19",
+    assignmentDescription: "Midterm assessment covering oxygenation, elimination, urgent care, medication safety, fluids/electrolytes, and nutrition.",
+    exam: true
+  },
+  7: {
+    title: "Complementary, Integrative, and Alternative Therapies",
+    readings: [{ number: 20, title: "Complementary, Integrative, and Alternative Therapies", pages: "579-600", pdfPage: 617 }],
+    focus: "Common complementary therapies, resident preferences, interactions, evidence, safety, documentation, and nursing education.",
+    objectives: ["Describe common complementary and integrative therapies.", "Identify interaction risks and use nonjudgmental safety-focused communication."],
+    discussionTitle: "[PN103 2026] Week 7 Discussion: Respectful Integrative Care",
+    discussionPrompt: "How should a nurse respond when a resident uses an herbal or complementary therapy?",
+    assignmentTitle: "[PN103 2026] Complementary Therapy Safety Review",
+    assignmentDescription: "Evaluate a complementary-therapy scenario for preferences, possible risks, teaching, and provider notification."
+  },
+  8: {
+    title: "Pain Management, Comfort, Rest, and Sleep",
+    readings: [{ number: 21, title: "Pain Management, Comfort, Rest, and Sleep", pages: "601-623", pdfPage: 639 }],
+    focus: "Pain assessment, comfort measures, medication and nonmedication approaches, sleep, rest, and evaluation of response.",
+    objectives: ["Use resident-centered pain and comfort assessment.", "Plan and evaluate safe interventions that support comfort, rest, and sleep."],
+    discussionTitle: "[PN103 2026] Week 8 Discussion: Pain Is What the Resident Says",
+    discussionPrompt: "Explain how a nurse should respond when a resident reports pain that is not outwardly visible.",
+    assignmentTitle: "[PN103 2026] Pain, Comfort, and Sleep Care Plan",
+    assignmentDescription: "Create a resident-centered plan using assessment, comfort measures, medication monitoring, and outcome evaluation."
+  },
+  9: {
+    title: "Wound Care, Specimens, and Diagnostic Testing",
+    readings: [
+      { number: 22, title: "Surgical Wound Care", pages: "624-658", pdfPage: 662 },
+      { number: 23, title: "Specimen Collection and Diagnostic Testing", pages: "659-707", pdfPage: 697 }
+    ],
+    focus: "Wound classification and healing, dressing and drain care, complications, specimen collection, diagnostic testing, and documentation.",
+    objectives: ["Recognize wound complications and protect healing.", "Collect and label specimens correctly while following infection-prevention policy."],
+    discussionTitle: "[PN103 2026] Week 9 Discussion: Wound and Specimen Accuracy",
+    discussionPrompt: "Explain how objective wound documentation or correct specimen handling protects a resident.",
+    assignmentTitle: "[PN103 2026] Wound Assessment and Specimen Collection Case",
+    assignmentDescription: "Document wound findings and sequence safe specimen collection, labeling, transport, and reporting."
+  },
+  10: {
+    title: "Lifespan Development, Loss, Grief, Dying, and Death",
+    readings: [
+      { number: 24, title: "Lifespan Development", pages: "708-746", pdfPage: 746 },
+      { number: 25, title: "Loss, Grief, Dying, and Death", pages: "747-774", pdfPage: 785 }
+    ],
+    focus: "Older-adult development, family patterns, loss, grief, dying, culturally respectful support, and end-of-life communication.",
+    objectives: ["Relate lifespan and family factors to resident-centered care.", "Support residents and families experiencing loss, grief, dying, and death."],
+    discussionTitle: "[PN103 2026] Week 10 Discussion: Grief and Family Support",
+    discussionPrompt: "Describe one culturally respectful action that supports a resident or family experiencing grief.",
+    assignmentTitle: "[PN103 2026] Lifespan and Grief Support Reflection",
+    assignmentDescription: "Analyze a resident and family scenario involving development, loss, grief, communication, and dignity."
+  },
+  11: {
+    title: "Home Health and Long-Term Care",
+    readings: [
+      { number: 37, title: "Home Health Nursing", pages: "1182-1197", pdfPage: 1220 },
+      { number: 38, title: "Long-Term Care", pages: "1198-1211", pdfPage: 1236 }
+    ],
+    focus: "Home health nursing, long-term care services, care coordination, safety, resident rights, independence, and continuity of care.",
+    objectives: ["Compare home health and long-term care nursing responsibilities.", "Promote safety, independence, rights, and coordinated care across settings."],
+    discussionTitle: "[PN103 2026] Week 11 Discussion: Independence Across Care Settings",
+    discussionPrompt: "Compare one nursing priority in home health with the same priority in a long-term care facility.",
+    assignmentTitle: "[PN103 2026] Home Health and Long-Term Care Comparison",
+    assignmentDescription: "Compare environment, safety, communication, resident rights, family roles, and continuity across both settings."
+  },
+  12: {
+    title: "Rehabilitation and Hospice Care",
+    readings: [
+      { number: 39, title: "Rehabilitation Nursing", pages: "1212-1227", pdfPage: 1250 },
+      { number: 40, title: "Hospice Care", pages: "1228-1244", pdfPage: 1266 }
+    ],
+    focus: "Rehabilitation, restorative goals, independence, hospice philosophy, symptom comfort, family support, dignity, and final synthesis.",
+    objectives: ["Explain rehabilitation and restorative nursing priorities.", "Apply hospice, comfort, dignity, family-support, and professional-accountability principles."],
+    discussionTitle: "[PN103 2026] Week 12 Discussion: Function, Comfort, and Dignity",
+    discussionPrompt: "Explain how nursing goals change between rehabilitation and hospice while dignity remains central.",
+    assignmentTitle: "[PN103 2026] Final Comprehensive Exam - Chapters 14-25 and 37-40",
+    assignmentDescription: "Cumulative final assessment covering Chapters 14-25 and 37-40 with long-term care application.",
+    exam: true
+  }
+};
+
+const alignedWeeklyModules = weeklyModules.map((week) => {
+  const plan = chapterAlignedPlans[week.week];
+  return {
+    ...week,
+    ...plan,
+    chapters: `Chapters ${plan.readings.map((reading) => reading.number).join(" and ")}`
+  };
+});
+
 const gradeItems = [
   { title: "[PN103 2026] Syllabus and Course Orientation Acknowledgment", pointsPossible: 0, dueDate: "2026-06-28" },
-  ...weeklyModules.flatMap((week) => [
+  ...alignedWeeklyModules.flatMap((week) => [
     { title: week.discussionTitle, pointsPossible: 10, dueDate: week.dueDate },
     { title: week.assignmentTitle, pointsPossible: week.exam ? (week.week === 6 ? 150 : 200) : 25, dueDate: week.dueDate }
   ]),
@@ -278,7 +424,7 @@ const policies = {
   discussions:
     "Weekly discussions are graded for relevance, professionalism, application to resident-centered care, and respectful replies to classmates when required by the instructor.",
   textbook:
-    "The course uses selected important chapters from Mosby's Textbook for Long-Term Care Nursing Assistants, 8th edition. Students are not assigned every chapter in full; the instructor may narrow or expand readings based on clinical schedule and cohort needs.",
+    "The course uses Chapters 14-25 and 37-40 from Cooper and Gosnell, Foundations of Nursing, 9th Edition. The instructor may narrow or expand readings based on clinical schedule and cohort needs.",
   legal:
     "All skills and role expectations must follow the current student handbook, Florida practical nursing scope guidance, facility policy, clinical instructor direction, and applicable federal/state long-term care requirements."
 };
@@ -292,6 +438,25 @@ function weeklyLesson(week) {
         durationMinutes: 45,
         content: `${week.focus}\n\nReading: ${week.chapters} from ${sourceText}.\n\nObjectives:\n${week.objectives.map((objective) => `- ${objective}`).join("\n")}`
       },
+      ...week.readings.map((reading) => ({
+        title: `Chapter ${reading.number}: ${reading.title}`,
+        durationMinutes: 90,
+        content: [
+          `Chapter ${reading.number}: ${reading.title}`,
+          `Required reading: ${sourceText}, pages ${reading.pages}.`,
+          "",
+          "Open the Required Textbook",
+          `- Foundations of Nursing, 9th Edition: ${materialBase}/${textbookFileName}?inline=1#page=${reading.pdfPage}`,
+          "",
+          "Long-Term Care Application",
+          week.focus,
+          "",
+          "Study Expectations",
+          "- Review safety alerts, nursing-process sections, skill steps, and findings that require reporting.",
+          "- Connect the chapter to resident rights, dignity, independence, chronic-care needs, and facility policy.",
+          "- Complete the weekly discussion and assignment after finishing the assigned reading."
+        ].join("\n")
+      })),
       {
         title: week.discussionTitle,
         durationMinutes: 30,
@@ -322,13 +487,13 @@ const modules = [
           "Canvas item type: Assignment. Students acknowledge the syllabus, course calendar, required readings, professionalism expectations, discussion requirements, and instructor communication policy."
       },
       {
-        title: "Mosby's Long-Term Care Textbook PDF",
+        title: "Required Textbook: Foundations of Nursing, 9th Edition",
         durationMinutes: 20,
-        content: `Canvas item type: Attachment.\n\nCourse file:\n- ${textbookFileName}: ${materialBase}/${textbookFileName}\n\nUse only the selected assigned chapters listed in each weekly module unless the instructor assigns additional review.`
+        content: `Canvas item type: Attachment.\n\nCourse file:\n- Foundations of Nursing, 9th Edition: ${materialBase}/${textbookFileName}?inline=1\n\nUse Chapters 14-25 and 37-40 as assigned in the weekly modules unless the instructor assigns additional review.`
       }
     ]
   },
-  ...weeklyModules.map(weeklyLesson),
+  ...alignedWeeklyModules.map(weeklyLesson),
   {
     title: "PN103 2026 - Final Review and Course Completion",
     lessons: [
@@ -363,13 +528,13 @@ const longTermCareNursingCourse = {
   courseNumber: "PN 103",
   seedVersion: "pn103-long-term-care-nursing-2026-07-15",
   requiredTitles: [
-    "Kostelnick, C. (2019). Mosby's Textbook for Long-Term Care Nursing Assistants (8th ed.). Elsevier.",
+    "Cooper, K., & Gosnell, K. (2023). Foundations of Nursing (9th ed.). Elsevier.",
     "Current student handbook and practical nursing program policies",
     "Clinical facility policies, care plans, and instructor-assigned long-term care resources"
   ],
   policies,
   objectives: courseObjectives,
-  weeks: weeklyModules,
+  weeks: alignedWeeklyModules,
   modules,
   gradeItems
 };
