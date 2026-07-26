@@ -69,6 +69,131 @@
   justify-self: start;
 }
 
+.assignment-inbox-filters {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 220px minmax(260px, 1fr) auto;
+  margin-top: 18px;
+}
+
+.assignment-inbox-filters label {
+  display: grid;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.assignment-inbox-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.assignment-inbox-item {
+  border-left: 5px solid #0f6e78;
+}
+
+.assignment-inbox-item.ungraded {
+  border-left-color: #d78017;
+}
+
+.assignment-inbox-item > header {
+  align-items: flex-start;
+  border-bottom: 1px solid #e1e8eb;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin: -20px -20px 16px;
+  padding: 16px 20px;
+}
+
+.assignment-inbox-item header h2,
+.assignment-inbox-item header p {
+  margin-top: 0;
+}
+
+.assignment-inbox-meta {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.assignment-inbox-meta > div {
+  background: #f5f8f9;
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.assignment-inbox-meta span {
+  color: #6d7a83;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.assignment-inbox-meta small {
+  color: #6d7a83;
+}
+
+.assignment-inbox-meta .button {
+  justify-self: start;
+  margin-top: 5px;
+}
+
+.assignment-student-note {
+  background: #fff8e9;
+  border: 1px solid #ead7ad;
+  border-radius: 6px;
+  margin-top: 12px;
+  padding: 11px 13px;
+}
+
+.assignment-student-note p {
+  margin-bottom: 0;
+}
+
+.assignment-grade-form {
+  align-items: end;
+  border-top: 1px solid #e1e8eb;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 180px minmax(280px, 1fr) auto;
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.assignment-grade-form label {
+  display: grid;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.assignment-grade-form label > span {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.assignment-grade-form input,
+.assignment-grade-form textarea {
+  border: 1px solid #bcc9cf;
+  border-radius: 5px;
+  font: inherit;
+  font-weight: 400;
+  padding: 9px;
+  width: 100%;
+}
+
+@media (max-width: 800px) {
+  .assignment-inbox-filters,
+  .assignment-inbox-meta,
+  .assignment-grade-form {
+    grid-template-columns: 1fr;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

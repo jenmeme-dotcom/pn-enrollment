@@ -7508,6 +7508,124 @@ app.post("/admin/hesi/scores", requireAuth, requireRole("admin", "instructor"), 
   res.redirect(`/admin/hesi?cohort=${encodeURIComponent(String(req.body.cohort || student.cohort_name || "Cohort 1"))}`);
 });
 
+app.get("/admin/assignment-submissions", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const status = ["all", "ungraded", "graded"].includes(String(req.query.status || "")) ? String(req.query.status) : "ungraded";
+  const q = String(req.query.q || "").trim().slice(0, 100);
+  const submissions = db.prepare(`
+    SELECT assignment_submissions.*, grade_items.title AS assignment_title, grade_items.points_possible,
+      courses.id AS course_id, courses.title AS course_title,
+      users.id AS student_id, users.first_name, users.last_name, users.email,
+      grades.score, grades.note AS grade_feedback, grades.updated_at AS graded_at
+    FROM assignment_submissions
+    JOIN grade_items ON grade_items.id = assignment_submissions.grade_item_id
+    JOIN enrollments ON enrollments.id = assignment_submissions.enrollment_id
+    JOIN courses ON courses.id = enrollments.course_id
+    JOIN users ON users.id = enrollments.user_id
+    LEFT JOIN grades ON grades.enrollment_id = enrollments.id AND grades.grade_item_id = grade_items.id
+    WHERE (? = 'all' OR (? = 'graded' AND grades.id IS NOT NULL) OR (? = 'ungraded' AND grades.id IS NULL))
+      AND (? = '' OR lower(users.first_name || ' ' || users.last_name || ' ' || users.email || ' ' || courses.title || ' ' || grade_items.title) LIKE '%' || lower(?) || '%')
+    ORDER BY CASE WHEN grades.id IS NULL THEN 0 ELSE 1 END, assignment_submissions.submitted_at DESC
+  `).all(status, status, status, q, q);
+  const counts = db.prepare(`
+    SELECT COUNT(*) AS total,
+      SUM(CASE WHEN grades.id IS NULL THEN 1 ELSE 0 END) AS ungraded,
+      SUM(CASE WHEN grades.id IS NOT NULL THEN 1 ELSE 0 END) AS graded
+    FROM assignment_submissions
+    JOIN grade_items ON grade_items.id = assignment_submissions.grade_item_id
+    JOIN enrollments ON enrollments.id = assignment_submissions.enrollment_id
+    LEFT JOIN grades ON grades.enrollment_id = enrollments.id AND grades.grade_item_id = grade_items.id
+  `).get();
+  const body = `
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">Grading Queue</p>
+        <h1>Assignment Inbox</h1>
+        <p>Review all student file submissions, download their work, and post grades and feedback from one place.</p>
+      </div>
+      <div class="actions"><a class="button ghost" href="/admin/students">Students</a><a class="button ghost" href="/admin/courses">Courses</a></div>
+    </div>
+    <section class="grid cols-3">
+      ${stat("Awaiting grade", String(counts.ungraded || 0))}
+      ${stat("Graded", String(counts.graded || 0))}
+      ${stat("Total submissions", String(counts.total || 0))}
+    </section>
+    <form class="card assignment-inbox-filters" method="get" action="/admin/assignment-submissions">
+      <label>Status<select name="status"><option value="ungraded" ${status === "ungraded" ? "selected" : ""}>Awaiting grade</option><option value="graded" ${status === "graded" ? "selected" : ""}>Graded</option><option value="all" ${status === "all" ? "selected" : ""}>All submissions</option></select></label>
+      <label>Search<input type="search" name="q" value="${escapeHtml(q)}" placeholder="Student, course, or assignment"></label>
+      <button class="small" type="submit">Apply</button>
+    </form>
+    <section class="assignment-inbox-list">
+      ${submissions.map((submission) => `
+        <article class="card assignment-inbox-item ${submission.score === null || submission.score === undefined ? "ungraded" : "graded"}">
+          <header>
+            <div>
+              <p class="eyebrow">${submission.score === null || submission.score === undefined ? "Awaiting grade" : "Graded"}</p>
+              <h2>${escapeHtml(submission.assignment_title)}</h2>
+              <p>${escapeHtml(submission.course_title)}</p>
+            </div>
+            <span class="pill ${submission.score === null || submission.score === undefined ? "orange" : ""}">${submission.score === null || submission.score === undefined ? "New submission" : `${escapeHtml(submission.score)} / ${escapeHtml(submission.points_possible)}`}</span>
+          </header>
+          <div class="assignment-inbox-meta">
+            <div><span>Student</span><strong>${escapeHtml(submission.first_name)} ${escapeHtml(submission.last_name)}</strong><small>${escapeHtml(submission.email)}</small></div>
+            <div><span>Submitted</span><strong>${escapeHtml(formatMessageDate(submission.submitted_at))}</strong><small>${escapeHtml(formatBytes(submission.file_size))}</small></div>
+            <div><span>File</span><strong>${escapeHtml(submission.file_original_name)}</strong><a class="button small ghost" href="/admin/assignment-submissions/${submission.id}/file">Download</a></div>
+          </div>
+          ${submission.student_note ? `<div class="assignment-student-note"><strong>Student note</strong><p>${escapeHtml(submission.student_note)}</p></div>` : ""}
+          <form class="assignment-grade-form" method="post" action="/admin/assignment-submissions/${submission.id}/grade">
+            <label>Score
+              <span><input type="number" name="score" min="0" max="${escapeHtml(submission.points_possible)}" step="0.01" value="${escapeHtml(submission.score ?? "")}" required> / ${escapeHtml(submission.points_possible)}</span>
+            </label>
+            <label>Instructor feedback<textarea name="feedback" rows="3" maxlength="3000" placeholder="Feedback visible to the student">${escapeHtml(submission.grade_feedback || "")}</textarea></label>
+            <button class="button" type="submit">${submission.score === null || submission.score === undefined ? "Post Grade" : "Update Grade"}</button>
+          </form>
+        </article>
+      `).join("") || `<article class="card"><p class="empty">No assignment submissions match this view.</p></article>`}
+    </section>
+  `;
+  render(req, res, "Assignment Inbox", body);
+});
+
+app.get("/admin/assignment-submissions/:id/file", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const submission = db.prepare("SELECT * FROM assignment_submissions WHERE id = ?").get(Number(req.params.id));
+  if (!submission?.file_storage_name) return res.status(404).send("Assignment submission not found");
+  const filePath = path.join(uploadDir, submission.file_storage_name);
+  if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Assignment file not found");
+  res.download(filePath, submission.file_original_name || submission.file_storage_name);
+});
+
+app.post("/admin/assignment-submissions/:id/grade", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const submission = db.prepare(`
+    SELECT assignment_submissions.*, grade_items.title AS assignment_title, grade_items.points_possible,
+      enrollments.user_id, courses.id AS course_id, courses.title AS course_title
+    FROM assignment_submissions
+    JOIN grade_items ON grade_items.id = assignment_submissions.grade_item_id
+    JOIN enrollments ON enrollments.id = assignment_submissions.enrollment_id
+    JOIN courses ON courses.id = enrollments.course_id
+    WHERE assignment_submissions.id = ?
+  `).get(Number(req.params.id));
+  if (!submission) return res.status(404).send("Assignment submission not found");
+  const score = Number(req.body.score);
+  const feedback = String(req.body.feedback || "").trim().slice(0, 3000);
+  if (!Number.isFinite(score) || score < 0 || score > Number(submission.points_possible)) {
+    flash(req, `Enter a score between 0 and ${submission.points_possible}.`);
+    return res.redirect("/admin/assignment-submissions");
+  }
+  db.prepare(`
+    INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
+    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET score = excluded.score, note = excluded.note, updated_at = CURRENT_TIMESTAMP
+  `).run(submission.enrollment_id, submission.grade_item_id, score, feedback);
+  savePortalMessage({
+    senderId: req.user.id,
+    recipientId: submission.user_id,
+    courseId: submission.course_id,
+    subject: `Assignment graded: ${submission.assignment_title}`,
+    body: `Your ${submission.assignment_title} submission in ${submission.course_title} was graded ${score} out of ${submission.points_possible}.${feedback ? ` Feedback: ${feedback}` : ""}`
+  });
+  flash(req, `Grade posted for ${submission.assignment_title}. The student was notified.`);
+  res.redirect("/admin/assignment-submissions");
+});
+
 app.get("/admin/student-evaluations", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const enrollments = db.prepare(`
     SELECT e.*, c.title AS course_title, u.first_name, u.last_name, u.email
@@ -12295,9 +12413,10 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     return res.redirect("/student");
   }
   const assignment = db.prepare(`
-    SELECT grade_items.*, enrollments.id AS enrollment_id
+    SELECT grade_items.*, enrollments.id AS enrollment_id, courses.title AS course_title
     FROM enrollments
     JOIN grade_items ON grade_items.course_id = enrollments.course_id
+    JOIN courses ON courses.id = enrollments.course_id
     WHERE enrollments.id = ? AND enrollments.user_id = ?
       AND enrollments.status IN ('active', 'completed') AND grade_items.id = ?
   `).get(enrollmentId, req.user.id, assignmentId);
@@ -12349,7 +12468,16 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     const previousPath = path.join(uploadDir, previous.file_storage_name);
     if (isPathInside(uploadDir, previousPath)) fs.unlink(previousPath, () => {});
   }
-  flash(req, "Assignment submitted successfully. Your instructor can now review the uploaded file.");
+  const staffRecipients = db.prepare("SELECT id FROM users WHERE role IN ('admin', 'instructor') AND status = 'active'").all();
+  const studentName = `${req.user.first_name} ${req.user.last_name}`.trim() || req.user.email;
+  staffRecipients.forEach((staff) => savePortalMessage({
+    senderId: req.user.id,
+    recipientId: staff.id,
+    courseId: assignment.course_id,
+    subject: `${previous ? "Assignment resubmitted" : "Assignment submitted"}: ${assignment.title}`,
+    body: `${studentName} ${previous ? "replaced the submission for" : "submitted"} ${assignment.title} in ${assignment.course_title}. Open Assignment Inbox to download and grade the work.`
+  }));
+  flash(req, "Assignment submitted successfully. Staff were notified and the work was added to the grading queue.");
   res.redirect(redirectToAssignment);
 });
 
