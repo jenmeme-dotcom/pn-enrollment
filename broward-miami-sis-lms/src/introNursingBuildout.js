@@ -83,6 +83,63 @@ const introQuizByWeek = {
   12: { title: "[PN102 2026] Quiz - Chapters 10-13", questions: quizBanks.introChapters10to13 }
 };
 
+const powerPointReviewNotes = {
+  1: [
+    ["What is nursing?", "Nursing combines scientific knowledge, clinical skills, observation, communication, compassion, and advocacy to help people maintain health, recover from illness, manage chronic conditions, and experience comfort and dignity."],
+    ["The practical nurse role", "The practical nurse provides direct care, gathers and reports patient data, administers authorized treatments and medications, reinforces teaching, documents care, and collaborates with the registered nurse and health care team."],
+    ["Professional identity in training", "Students begin forming a nursing identity by arriving prepared, communicating respectfully, accepting feedback, protecting confidentiality, and taking responsibility for their actions and learning."],
+    ["Scope, supervision, and safety", "Practical nurses and students must know which tasks are permitted, which require supervision, and when a change in condition must be reported. When uncertain, stop and ask before proceeding."],
+    ["Readiness for class and clinical", "Read assigned material, review skills, bring required supplies, arrive on time, follow dress and identification requirements, and be ready to explain the patient's main risks and priorities."]
+  ],
+  2: [
+    ["Nursing law and regulation", "The nurse practice act, board of nursing rules, facility policies, and the student's assigned role define what care may be performed and what supervision is required."],
+    ["Ethical principles", "Autonomy, beneficence, nonmaleficence, justice, fidelity, and veracity guide decisions that respect patient choice, promote good, prevent harm, support fairness, keep promises, and communicate truthfully."],
+    ["Patient rights and informed consent", "Patients have the right to understandable information, privacy, participation in decisions, and refusal of care. Consent must be informed, voluntary, and obtained from a person with decision-making capacity."],
+    ["Preventing negligence and liability", "Follow standards of care, identify the patient correctly, communicate changes promptly, question unsafe directions, document accurately, and never perform a task beyond training or authorization."],
+    ["Confidentiality and professional boundaries", "Access and share health information only for legitimate care needs. Maintain therapeutic boundaries and never post patient stories, images, or identifying details online."]
+  ],
+  3: [
+    ["Purpose of the health record", "The record communicates the patient's condition, care, response, and plan across the team. It also supports continuity, quality review, reimbursement, and legal accountability."],
+    ["Objective and complete charting", "Document measurable findings, actions, patient statements, and responses. Avoid labels, assumptions, vague phrases, blame, and opinions that are not supported by facts."],
+    ["Timeliness and accuracy", "Chart as soon as possible after care, use the correct patient record, include required dates and times, and never document a treatment before it is completed."],
+    ["Electronic records and confidentiality", "Protect passwords, lock the screen when leaving, access only assigned records, and discuss information only with authorized team members in private settings."],
+    ["Corrections, reporting, and ISBAR", "Correct errors according to policy without hiding the original entry. Use ISBAR to organize urgent communication and document significant changes and notifications."]
+  ],
+  4: [
+    ["The communication process", "Communication includes a sender, message, receiver, feedback, and context. Tone, posture, facial expression, personal space, and silence may communicate as strongly as words."],
+    ["Therapeutic communication", "Use active listening, open-ended questions, clarification, reflection, empathy, and appropriate silence to help patients express concerns and participate in care."],
+    ["Barriers to understanding", "Medical jargon, rushing, false reassurance, arguing, stereotyping, excessive questioning, hearing or vision limitations, and language differences can prevent safe communication."],
+    ["Language and cultural respect", "Use qualified interpreters for important information, speak directly to the patient, use plain language, and ask about individual preferences instead of making cultural assumptions."],
+    ["Team communication and ISBAR", "Report the situation, relevant background, current assessment, and recommendation clearly. Confirm critical instructions through read-back or closed-loop communication."]
+  ],
+  5: [
+    ["Assessment", "Collect subjective information from the patient and objective findings from observation, examination, measurements, records, and the care team. Validate unexpected or inconsistent data."],
+    ["Identifying patient problems", "Organize assessment cues, recognize actual or potential concerns, and promptly report findings that suggest deterioration or require care beyond the practical nurse's scope."],
+    ["Planning and priorities", "Set measurable, patient-centered outcomes and choose safe interventions. Use ABCs, immediate safety needs, urgency, and the patient's preferences to establish priorities."],
+    ["Implementation", "Carry out authorized interventions, explain care, protect privacy, use infection-control and safety measures, and document what was performed and how the patient responded."],
+    ["Evaluation and clinical judgment", "Reassess the patient, compare results with expected outcomes, recognize whether care worked, and communicate when the plan needs to be continued, changed, or escalated."]
+  ],
+  6: [
+    ["Culture, ethnicity, and health", "Culture can influence communication, family roles, food, modesty, pain expression, spiritual practices, treatment preferences, and beliefs about health and illness, but every patient remains an individual."],
+    ["Cultural humility", "Approach each person with curiosity and respect, recognize the limits of your own knowledge, examine personal bias, and invite the patient to explain what matters in their care."],
+    ["Communication and language access", "Use qualified interpreters and translated materials when appropriate. Speak to the patient—not the interpreter—and use teach-back to confirm understanding."],
+    ["Bias, equity, and social needs", "Avoid stereotypes and consider how transportation, housing, finances, food access, education, disability, and discrimination may affect the patient's ability to follow a plan."],
+    ["Individualized respectful care", "Ask about preferences, explain procedures before touching, protect dignity, include chosen support people when authorized, and adapt the plan safely with the health care team."]
+  ]
+};
+
+function buildPowerPointReviewContent(chapter) {
+  const notes = powerPointReviewNotes[chapter.number];
+  if (!notes) return "";
+  return [
+    `<h2>Chapter ${chapter.number} PowerPoint Review</h2>`,
+    "<p>Use these concise explanations to review the main ideas before completing the chapter quiz and applied activity.</p>",
+    "<h3>Study outline</h3>",
+    `<ul>${notes.map(([topic, explanation]) => `<li><strong>${topic}</strong><br>${explanation}</li>`).join("")}</ul>`,
+    `<p>Instructor note: keep this review aligned with Chapter ${chapter.number} and attach supplementary slides only when they add value for the class.</p>`
+  ].join("\n");
+}
+
 const weeklyModules = [
   {
     week: 1,
@@ -685,6 +742,11 @@ const modules = [
         title: `Chapter ${chapter.number}: ${chapter.title}`,
         content: buildTextbookChapterContent(chapter),
         durationMinutes: 90
+      })),
+      ...chapters.filter((chapter) => powerPointReviewNotes[chapter.number]).map((chapter) => ({
+        title: `[PN102 2026] Chapter ${chapter.number} PowerPoint Review`,
+        content: buildPowerPointReviewContent(chapter),
+        durationMinutes: 30
       })),
       {
         title: "Objectives and Learning Activity",

@@ -1704,6 +1704,16 @@ function seed() {
           appendLesson.run(storedModule.id, chapterLesson.title, chapterLesson.content, null, chapterLesson.durationMinutes || 90, nextLessonPosition.get(storedModule.id).position, 1, 0);
         }
 
+        const powerPointLesson = module.lessons.find((lesson) => lesson.title === `[PN102 2026] Chapter ${weekNumber} PowerPoint Review`);
+        if (powerPointLesson) {
+          const storedPowerPoint = existingLessonByTitle.get(storedModule.id, powerPointLesson.title);
+          if (storedPowerPoint) {
+            updateLessonDefinition.run(powerPointLesson.content || "", null, powerPointLesson.durationMinutes || 30, 1, 0, storedPowerPoint.id);
+          } else {
+            appendLesson.run(storedModule.id, powerPointLesson.title, powerPointLesson.content || "", null, powerPointLesson.durationMinutes || 30, nextLessonPosition.get(storedModule.id).position, 1, 0);
+          }
+        }
+
         // Replace the legacy preview-style five-question quiz with the
         // interactive 15-question assessment while preserving its lesson ID.
         const quizLesson = module.lessons.find((lesson) => lesson.title === `[PN102 2026] Quiz ${weekNumber} - Chapter ${weekNumber}`);
