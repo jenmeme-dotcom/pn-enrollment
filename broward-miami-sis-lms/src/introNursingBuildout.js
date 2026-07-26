@@ -72,6 +72,87 @@ const extendedWeekModuleTitles = {
   12: "Vital Signs and Physical Assessment"
 };
 
+const readingFocusExplanations = {
+  1: [
+    "History of nursing and nursing education — You will trace how caregiving developed into a regulated profession and how formal education improved the safety and consistency of nursing care.",
+    "Development of practical and vocational nursing — You will learn why the practical nurse role was created and how education, licensure, and supervision shape your practice.",
+    "Health care delivery systems — You will examine where care is provided, how patients move through the system, and how different members of the health care team work together.",
+    "Roles and responsibilities of the practical nurse — You will connect your scope of practice with direct care, observation, reporting, documentation, teaching reinforcement, and collaboration."
+  ],
+  2: [
+    "Legal system and regulation of practice — You will learn how nurse practice acts, board rules, facility policies, and standards of care define what you may do and when you need supervision.",
+    "Legal issues and avoiding liability — You will focus on following policy, communicating changes promptly, documenting accurately, and asking for help before performing an unfamiliar or unauthorized task.",
+    "Ethical principles — You will use autonomy, beneficence, nonmaleficence, justice, fidelity, and veracity to make respectful, patient-centered decisions.",
+    "Advance directives and reporting unethical behavior — You will learn to respect documented patient wishes and use the proper chain of command when you observe unsafe or unethical care."
+  ],
+  3: [
+    "Purposes of patient records — You will see how the health record supports communication, continuity of care, quality improvement, reimbursement, and legal accountability.",
+    "Electronic health records and ISBAR — You will practice protecting electronic information and organizing important communication with Introduction, Situation, Background, Assessment, and Recommendation.",
+    "Charting rules and legal standards — You will learn to document promptly, objectively, accurately, and completely without assumptions, blame, or prohibited abbreviations.",
+    "Confidentiality and accurate documentation — You will protect private information, access only records needed for your role, and correct documentation errors according to policy."
+  ],
+  4: [
+    "Communication process — You will examine how words, tone, body language, environment, culture, and feedback affect whether your message is understood.",
+    "Therapeutic communication — You will practice active listening, open-ended questions, clarification, reflection, empathy, and appropriate silence to support your patient.",
+    "Communication barriers — You will recognize how pain, anxiety, language differences, hearing or vision changes, assumptions, and medical jargon can interfere with understanding.",
+    "Interprofessional and patient-centered communication — You will learn to share clear, relevant information with the health care team while including your patient in decisions and confirming understanding."
+  ],
+  5: [
+    "Assessment and data collection — You will gather subjective and objective information, recognize important cues, and report abnormal or urgent findings promptly.",
+    "Patient problems and planning — You will use collected data to identify patient needs, understand priorities, and contribute to realistic, measurable care goals.",
+    "Implementation and evaluation — You will provide assigned care safely, observe the patient's response, and determine whether the plan is helping achieve the expected outcome.",
+    "Critical thinking and clinical judgment — You will learn to connect cues, risks, priorities, and scope of practice so you can choose the safest next action and know when to seek help."
+  ],
+  6: [
+    "Culture, ethnicity, and health beliefs — You will explore how a person's background and experiences may influence health practices, decision-making, communication, and trust.",
+    "Cultural humility — You will practice self-awareness, curiosity, and respectful questions instead of assuming that every person from a group has the same beliefs.",
+    "Communication and language access — You will learn to use qualified interpreters, plain language, and teach-back so your patient can understand and participate in care.",
+    "Respectful individualized care — You will adapt care when it is safe to do so, protect dignity, and include each patient's preferences, values, and support persons."
+  ],
+  7: [
+    "Microorganisms and the chain of infection — You will identify how infectious organisms spread and where your actions can interrupt transmission.",
+    "Medical and surgical asepsis — You will distinguish clean technique from sterile technique and learn how each protects your patient during care and procedures.",
+    "Standard and transmission-based precautions — You will select hand hygiene, personal protective equipment, and isolation practices according to the exposure risk and mode of transmission.",
+    "Infection prevention and reporting — You will monitor for signs of infection, perform care that reduces risk, and promptly report concerning findings or exposures."
+  ],
+  8: [
+    "Body alignment and ergonomics — You will use a stable base of support, proper alignment, and available equipment to protect yourself and your patient from injury.",
+    "Positioning and transfer safety — You will assess your patient's ability, explain the plan, use assistance correctly, and protect lines, tubes, skin, and joints during movement.",
+    "Range-of-motion exercises — You will learn how active and passive movement helps maintain joint mobility, circulation, comfort, and function.",
+    "Mobility aids and fall prevention — You will use gait belts and prescribed assistive devices safely while identifying fall risks and keeping the environment clear."
+  ],
+  9: [
+    "Personal hygiene and oral care — You will provide individualized hygiene that promotes comfort, prevents infection, protects the mouth and skin, and respects your patient's preferences.",
+    "Bathing and grooming — You will support cleanliness and self-esteem while encouraging your patient to do as much as safely possible and protecting privacy throughout care.",
+    "Bedmaking and environmental comfort — You will maintain clean, dry, wrinkle-free linens and a safe, organized environment that supports rest, comfort, and skin protection.",
+    "Skin observation, dignity, and independence — You will inspect the skin during care, report redness or breakdown, preserve dignity, and promote safe independence rather than doing everything for your patient."
+  ],
+  10: [
+    "Patient identification and environmental safety — You will use approved identifiers, check the care environment, and correct hazards before they cause harm.",
+    "Fall, fire, and electrical safety — You will recognize common risks, follow emergency procedures, and use equipment and prevention measures correctly.",
+    "Restraint alternatives — You will try the least restrictive safety measures first and understand that restraints require authorization, monitoring, documentation, and ongoing reassessment.",
+    "Incident prevention and reporting — You will respond to immediate patient needs, notify the appropriate nurse, document facts in the health record, and complete required safety reports according to policy."
+  ],
+  11: [
+    "Admission assessment and orientation — You will welcome your patient, verify identity, collect essential information, protect belongings, and explain the room, routines, and safety features.",
+    "Safe patient transfer — You will communicate current needs, medications, risks, and pending care so responsibility passes safely from one unit or setting to another.",
+    "Discharge planning and teaching — You will reinforce instructions using clear language and teach-back so your patient understands medications, follow-up care, warning signs, and available resources.",
+    "Continuity of care and documentation — You will record accurate information and communicate unresolved needs so the next caregiver can continue safe, coordinated care."
+  ],
+  12: [
+    "Temperature, pulse, respirations, and blood pressure — You will measure each vital sign accurately, compare results with the patient's baseline, and recognize values or changes that require prompt reporting.",
+    "Pulse oximetry — You will obtain a reliable oxygen-saturation reading, consider factors that can affect accuracy, and respond appropriately to low or worsening results.",
+    "Height and weight — You will use safe equipment and consistent measurement techniques because changes can affect medication dosing, nutrition assessment, fluid balance, and care planning.",
+    "Recording and reporting vital signs — You will document results promptly and communicate abnormal findings, symptoms, trends, and actions taken rather than recording numbers without follow-up."
+  ],
+  13: [
+    "Signs and symptoms — You will distinguish objective signs from subjective symptoms and combine both types of information to understand your patient's condition.",
+    "Health history — You will use respectful, organized questions to collect information about current concerns, past health, medications, allergies, daily habits, and support needs.",
+    "Medical and nursing assessment — You will understand how the provider's diagnostic examination and the nurse's ongoing assessment contribute different but connected information to patient care.",
+    "Systematic physical assessment — You will follow an organized head-to-toe or focused approach, compare findings with expected results, protect comfort and privacy, and report important changes."
+  ]
+};
+
 const introQuizByWeek = {
   1: { title: "[PN102 2026] Quiz 1 - Chapter 1", questions: quizBanks.introChapter1 },
   2: { title: "[PN102 2026] Quiz 2 - Chapter 2", questions: quizBanks.introChapter2 },
@@ -628,7 +709,7 @@ function buildTextbookChapterContent(chapter) {
     `- Foundations of Nursing, 9th Edition: ${textbookHref}?inline=1#page=${chapter.pdfPage}`,
     "",
     "Reading Focus",
-    bulletList(chapter.topics),
+    bulletList(readingFocusExplanations[chapter.number] || chapter.topics),
     "",
     "Study Expectations",
     bulletList([
