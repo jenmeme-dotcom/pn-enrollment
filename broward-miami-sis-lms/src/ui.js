@@ -140,6 +140,8 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
       const setOpen = (open) => {
         menu.hidden = !open;
         button.setAttribute("aria-expanded", String(open));
+        button.setAttribute("aria-label", open ? "Close course menu" : "Open course menu");
+        button.setAttribute("title", open ? "Close course menu" : "Open course menu");
       };
 
       button.addEventListener("click", () => setOpen(menu.hidden));

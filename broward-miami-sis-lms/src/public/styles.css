@@ -5281,15 +5281,24 @@ button.small {
 .canvas-course-submenu {
   background: #ffffff;
   border-bottom: 1px solid #dce3e8;
+  border-radius: 0 0 8px 8px;
   box-shadow: 0 10px 24px rgba(45, 59, 72, 0.14);
   display: grid;
   gap: 8px;
-  grid-column: 2 / -1;
   grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  left: 52px;
+  max-height: calc(100vh - 70px);
+  overflow-y: auto;
   padding: 12px 24px;
-  position: sticky;
-  top: 0;
-  z-index: 24;
+  position: absolute;
+  right: 0;
+  top: 54px;
+  z-index: 40;
+}
+
+.student-course-shell .canvas-course-submenu {
+  left: 74px;
+  top: 78px;
 }
 
 .canvas-course-submenu[hidden] {
@@ -10516,6 +10525,19 @@ button.small {
 
   .canvas-populi-bar {
     padding: 8px 12px;
+  }
+
+  .canvas-course-submenu,
+  .student-course-shell .canvas-course-submenu {
+    border: 1px solid #dce3e8;
+    border-radius: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    left: 12px;
+    max-height: calc(100vh - 88px);
+    padding: 10px;
+    position: fixed;
+    right: 12px;
+    top: 72px;
   }
 
   .canvas-course-nav {
