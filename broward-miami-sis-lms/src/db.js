@@ -1494,7 +1494,8 @@ function seed() {
         ["Week 8 Discussion: Safety, Quality, Infection Prevention, and the Nurse's Watchful Eye", "Identify one common safety risk and explain what a beginning practical nursing student should observe, report, or do.", "2026-08-16 23:59:00"],
         ["Week 9 Discussion: Nursing Process and Clinical Judgment", "Use noticing, interpreting, responding, and reflecting to walk through a simple patient scenario.", "2026-08-23 23:59:00"],
         ["Week 10 Discussion: Patient Teaching, Health Promotion, and Community Impact", "Write a short teaching message using plain language and explain how you would check understanding.", "2026-08-30 23:59:00"],
-        ["Week 11 Discussion: Professionalism, Resilience, Leadership, and Lifelong Learning", "Identify one professional habit you will practice this term and explain how it supports patient safety and student success.", "2026-09-06 23:59:00"]
+        ["Week 11 Discussion: Professionalism, Resilience, Leadership, and Lifelong Learning", "Identify one professional habit you will practice this term and explain how it supports patient safety and student success.", "2026-09-06 23:59:00"],
+        ["Week 12 Discussion: Nursing Today and Your Future Impact", "Connect one nursing leader, one ethical or legal responsibility, and one personal commitment you will carry into future practical nursing courses.", "2026-09-13 23:59:00"]
       ]
     },
     {
@@ -1595,22 +1596,105 @@ function seed() {
       if (upgradedContent !== lesson.content) updateQuiz.run(upgradedContent, lesson.id);
     });
 
-    // Older PN 102 content used college-credit language and an incorrect
-    // 100-hour value. BMHI's catalog is clock-hour based and lists PN 102 as
-    // 48 hours, so normalize persisted lesson content on every deployment.
+    // PN 102 is a 12-week, 100-clock-hour course. Preserve instructor-authored
+    // Weeks 1-6 while appending the catalog buildout for Weeks 7-12.
+    const welcomeDefinition = introductionCatalogCourse?.modules
+      ?.flatMap((module) => module.lessons || [])
+      .find((lesson) => lesson.title === "Course Welcome and Expectations");
+    if (welcomeDefinition) {
+      db.prepare(`
+        UPDATE lessons
+        SET content = ?
+        WHERE id IN (
+          SELECT lessons.id
+          FROM lessons
+          JOIN modules ON modules.id = lessons.module_id
+          WHERE modules.course_id = ?
+            AND lessons.title = 'Course Welcome and Expectations'
+        )
+      `).run(welcomeDefinition.content, introductionCourse.id);
+    }
+
+    const existingModuleByTitle = db.prepare("SELECT id FROM modules WHERE course_id = ? AND title = ?");
+    const nextModulePosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS position FROM modules WHERE course_id = ?");
+    const appendModule = db.prepare("INSERT INTO modules (course_id, title, position) VALUES (?, ?, ?)");
+    const appendLesson = db.prepare(`
+      INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const extensionModules = (introductionCatalogCourse?.modules || []).filter((module) =>
+      /^Week (?:[7-9]|1[0-2]):/.test(module.title)
+    );
+    extensionModules.forEach((module) => {
+      if (existingModuleByTitle.get(introductionCourse.id, module.title)) return;
+      const position = nextModulePosition.get(introductionCourse.id).position;
+      const moduleId = appendModule.run(introductionCourse.id, module.title, position).lastInsertRowid;
+      (module.lessons || []).forEach((lesson, index) => {
+        appendLesson.run(
+          moduleId,
+          lesson.title,
+          lesson.content || "",
+          lesson.externalUrl || null,
+          lesson.durationMinutes || 45,
+          index + 1,
+          lesson.published === false ? 0 : 1,
+          lesson.instructorOnly ? 1 : 0
+        );
+      });
+    });
+
+    // The legacy six-week build placed its final module immediately after
+    // Week 6. Keep the final assessment last after extending the course.
+    const finalModules = db.prepare(`
+      SELECT id
+      FROM modules AS final_module
+      WHERE final_module.course_id = ?
+        AND lower(final_module.title) LIKE '%wrap-up%'
+        AND EXISTS (
+          SELECT 1
+          FROM modules AS weekly_module
+          WHERE weekly_module.course_id = final_module.course_id
+            AND weekly_module.position > final_module.position
+            AND weekly_module.title LIKE 'Week %'
+        )
+      ORDER BY position, id
+    `).all(introductionCourse.id);
+    const moveModule = db.prepare("UPDATE modules SET position = ? WHERE id = ?");
+    finalModules.forEach((module) => {
+      const position = nextModulePosition.get(introductionCourse.id).position;
+      moveModule.run(position, module.id);
+    });
+
+    const existingGradeItem = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND title = ?");
+    const appendGradeItem = db.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, ?, ?)");
+    (introductionCatalogCourse?.gradeItems || []).slice(7).forEach((item) => {
+      if (!existingGradeItem.get(introductionCourse.id, item.title)) {
+        appendGradeItem.run(introductionCourse.id, item.title, item.pointsPossible, item.dueDate || null);
+      }
+    });
+
+    // Remove legacy credit references and repair any old six-week/48-hour
+    // wording that remains in instructor-created PN 102 pages.
     const storedLessons = db.prepare(`
       SELECT lessons.id, lessons.content
       FROM lessons
       JOIN modules ON modules.id = lessons.module_id
       WHERE modules.course_id = ?
-        AND (lower(lessons.content) LIKE '%credit%' OR lower(lessons.content) LIKE '%contact hours: 100%')
+        AND (
+          lower(lessons.content) LIKE '%credit%'
+          OR lower(lessons.content) LIKE '%clock hours: 48%'
+          OR lower(lessons.content) LIKE '%length: 6 weeks%'
+          OR lower(lessons.content) LIKE '%six-week introduction%'
+        )
     `).all(introductionCourse.id);
     const updateLessonContent = db.prepare("UPDATE lessons SET content = ? WHERE id = ?");
     storedLessons.forEach((lesson) => {
       const catalogAlignedContent = String(lesson.content || "")
         .replace(/<li>\s*(?:academic\s+)?credits?\s*:\s*[^<]*<\/li>/gi, "")
         .replace(/^\s*(?:[-*•]\s*)?(?:academic\s+)?credits?\s*:\s*[^\r\n]*(?:\r?\n|$)/gim, "")
-        .replace(/contact hours\s*:\s*100/gi, "Clock hours: 48");
+        .replace(/(?:contact|clock) hours\s*:\s*48/gi, "Clock hours: 100")
+        .replace(/length\s*:\s*6 weeks/gi, "Length: 12 weeks")
+        .replace(/a six-week introduction/gi, "A 12-week introduction");
       if (catalogAlignedContent !== lesson.content) updateLessonContent.run(catalogAlignedContent, lesson.id);
     });
   }

@@ -472,6 +472,25 @@ function buildWeeklyActivityContent(week) {
   ].join("\n");
 }
 
+function buildWeeklyAssignmentContent(week) {
+  const details = weeklyStudyDetails[week.week] || {};
+  return [
+    `Week ${week.week} Applied Assignment`,
+    details.practice || week.activities,
+    "",
+    "Submission Requirements",
+    bulletList([
+      "Use complete sentences and practical-nursing terminology from this week's lesson.",
+      "Connect each response to patient safety, dignity, communication, or professional accountability.",
+      "Support decisions with the assigned course material and identify when the instructor or supervising nurse must be notified.",
+      "Review spelling, clarity, and confidentiality before submitting; never include real patient-identifying information."
+    ]),
+    "",
+    "Graded Evidence",
+    `${week.assessment}. Follow the instructor's submission directions and rubric.`
+  ].join("\n");
+}
+
 const gradeItems = [
   { title: "Class Participation and Professionalism", pointsPossible: 100 },
   { title: "Professional Beginning Reflection", pointsPossible: 50 },
@@ -480,13 +499,13 @@ const gradeItems = [
   { title: "Quiz 2: Weeks 3-4", pointsPossible: 50 },
   { title: "Ethics Case Response", pointsPossible: 75 },
   { title: "Midterm Exam: Weeks 1-6", pointsPossible: 150 },
-  { title: "Health Equity Reflection", pointsPossible: 50 },
-  { title: "Quiz 3: Weeks 7-8", pointsPossible: 50 },
-  { title: "Clinical Judgment Worksheet", pointsPossible: 75 },
-  { title: "Quiz 4: Weeks 9-10", pointsPossible: 50 },
-  { title: "Professional Development Plan", pointsPossible: 50 },
-  { title: "Final Impact Presentation", pointsPossible: 50 },
-  { title: "Cumulative Final Exam", pointsPossible: 200 }
+  { title: "Health Equity Reflection", pointsPossible: 50, dueDate: "2026-08-09 23:59:00" },
+  { title: "Quiz 3: Weeks 7-8", pointsPossible: 50, dueDate: "2026-08-16 23:59:00" },
+  { title: "Clinical Judgment Worksheet", pointsPossible: 75, dueDate: "2026-08-23 23:59:00" },
+  { title: "Quiz 4: Weeks 9-10", pointsPossible: 50, dueDate: "2026-08-30 23:59:00" },
+  { title: "Professional Development Plan", pointsPossible: 50, dueDate: "2026-09-06 23:59:00" },
+  { title: "Final Impact Presentation", pointsPossible: 50, dueDate: "2026-09-13 23:59:00" },
+  { title: "Cumulative Final Exam", pointsPossible: 200, dueDate: "2026-09-13 23:59:00" }
 ];
 
 const policies = {
@@ -509,6 +528,15 @@ const modules = [
         content: [
           "Course Welcome",
           courseDescription,
+          "",
+          "Course Details",
+          bulletList([
+            "Course code: PN 102",
+            "Length: 12 weeks",
+            "Clock hours: 100",
+            "Delivery: Online / Zoom",
+            "Weekly structure: lesson, discussion, applied assignment, and scheduled assessment"
+          ]),
           "",
           "What Students Should Do First",
           bulletList([
@@ -547,6 +575,11 @@ const modules = [
       {
         title: "Objectives and Learning Activity",
         content: buildWeeklyActivityContent(week)
+      },
+      {
+        title: `Week ${week.week} Applied Assignment`,
+        content: buildWeeklyAssignmentContent(week),
+        durationMinutes: 60
       }
     ]
   })),
@@ -572,7 +605,7 @@ const introNursingCourse = {
   slug: "introduction-to-nursing-practical-nursing",
   seedVersion: "2026-07-15-detailed-lessons",
   category: "Practical Nursing Course",
-  hours: 48,
+  hours: 100,
   credentialType: "Course Completion",
   deliveryMode: "Campus / blended",
   description: courseDescription,
@@ -583,7 +616,7 @@ const introNursingCourse = {
     "PN Intro",
     "introduction-to-nursing-practical-nursing"
   ],
-  courseNumber: "PN-INTRO",
+  courseNumber: "PN 102",
   requiredTitles: [
     "Adopted practical nursing fundamentals textbook or instructor-provided readings",
     "Current student handbook and program policies",
