@@ -934,6 +934,13 @@ const modules = [
             "Weekly structure: lesson, discussion, applied assignment, and scheduled assessment"
           ]),
           "",
+          "Upcoming Exams",
+          bulletList([
+            "Week 6 Midterm Exam — Due August 2, 2026 by 11:59 PM. This 150-point exam covers Chapters 1-6 and the major concepts from Weeks 1-6.",
+            "Week 12 Cumulative Final Exam — Due September 13, 2026 by 11:59 PM. This 200-point exam covers Chapters 1-13 and integrates safety, communication, ethics, legal responsibilities, infection prevention, mobility, hygiene, vital signs, and physical assessment."
+          ]),
+          "Begin preparing now by reviewing each chapter's learning objectives, vocabulary, NCLEX-PN practice question, quiz rationale, and any topic your instructor identifies for remediation. The Calendar and To Do areas will remind you as each exam approaches.",
+          "",
           "What Students Should Do First",
           bulletList([
             "Review the syllabus, course schedule, grading categories, and attendance expectations.",
