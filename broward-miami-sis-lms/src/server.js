@@ -2061,49 +2061,57 @@ const introNursingNclexHints = [
     question: "A practical nursing student notices that a patient's breathing is suddenly more difficult. Which action should the student take first?",
     options: ["Document the finding at the end of the shift.", "Immediately report the change to the supervising nurse.", "Ask the patient's visitor what usually helps.", "Wait 30 minutes and reassess without telling anyone."],
     answer: 1,
-    rationale: "A sudden change in breathing can indicate deterioration. A student or practical nurse should protect the patient, stay within scope, and promptly report the change through the appropriate chain of command."
+    rationale: "A sudden change in breathing can indicate deterioration. A student or practical nurse should protect the patient, stay within scope, and promptly report the change through the appropriate chain of command.",
+    strategy: "Circle the priority word first. For breathing changes, apply ABCs: airway and breathing outrank routine documentation, delay, or asking a visitor."
   },
   {
     question: "Which chart entry best demonstrates objective nursing documentation?",
     options: ["Patient seems angry and difficult.", "Patient probably did not sleep last night.", "Patient states, “My pain is 7 out of 10.”", "Patient had a bad morning."],
     answer: 2,
-    rationale: "Objective documentation includes observable findings and the patient's exact statements. It avoids judgment, assumptions, and vague language."
+    rationale: "Objective documentation includes observable findings and the patient's exact statements. It avoids judgment, assumptions, and vague language.",
+    strategy: "Separate facts from opinions. On NCLEX, choose measurable observations or an exact patient quote and eliminate judgmental or speculative wording."
   },
   {
     question: "A patient says, “I am afraid of what will happen after surgery.” Which response is most therapeutic?",
     options: ["There is nothing to worry about.", "Why are you afraid?", "Tell me more about what concerns you.", "Other patients do well after this surgery."],
     answer: 2,
-    rationale: "An open-ended invitation encourages the patient to express concerns and gives the nurse information needed to provide support. False reassurance and comparison can block communication."
+    rationale: "An open-ended invitation encourages the patient to express concerns and gives the nurse information needed to provide support. False reassurance and comparison can block communication.",
+    strategy: "For therapeutic communication, prefer responses that invite the patient to talk. Eliminate false reassurance, advice, blame, comparison, and questions beginning with why."
   },
   {
     question: "Which action by a practical nurse best demonstrates patient advocacy?",
     options: ["Making treatment decisions for the patient.", "Speaking up when the patient's stated concern has not been addressed.", "Sharing the patient's information with a friend who is a nurse.", "Avoiding questions that may delay discharge."],
     answer: 1,
-    rationale: "Advocacy means protecting the patient's rights, preferences, safety, and access to understandable information while working within the nurse's role."
+    rationale: "Advocacy means protecting the patient's rights, preferences, safety, and access to understandable information while working within the nurse's role.",
+    strategy: "Choose the option that protects the patient's voice and safety without making decisions outside the practical nurse's scope."
   },
   {
     question: "Which action is most important before delegating a patient-care task?",
     options: ["Choose the task that will save the most time.", "Confirm the task is appropriate and the team member is competent to perform it.", "Delegate all routine communication to another person.", "Avoid giving specific directions so the team member can work independently."],
     answer: 1,
-    rationale: "Safe delegation requires the right task, circumstance, person, directions, and supervision. The nurse remains accountable for appropriate delegation and follow-up."
+    rationale: "Safe delegation requires the right task, circumstance, person, directions, and supervision. The nurse remains accountable for appropriate delegation and follow-up.",
+    strategy: "Use the five rights of delegation. Eliminate choices that delegate assessment, judgment, teaching, or evaluation to personnel who are not authorized to perform them."
   },
   {
     question: "Which action best protects patient confidentiality?",
     options: ["Discussing the patient's condition quietly in an elevator.", "Accessing only the records needed for assigned patient care.", "Sharing a login with a classmate during a busy clinical day.", "Posting a clinical story online without using the patient's name."],
     answer: 1,
-    rationale: "Patient information should be accessed only for a legitimate care or learning need and discussed only in approved private settings. Passwords and clinical stories must never be shared."
+    rationale: "Patient information should be accessed only for a legitimate care or learning need and discussed only in approved private settings. Passwords and clinical stories must never be shared.",
+    strategy: "Apply the need-to-know rule. A quiet voice, missing name, or busy shift never makes public discussion, curiosity access, or password sharing acceptable."
   },
   {
     question: "Which nursing action is the best example of culturally respectful care?",
     options: ["Assume patients from the same culture have the same preferences.", "Ask the patient which beliefs or practices should be considered in the plan of care.", "Avoid discussing culture because it may be uncomfortable.", "Ask a family member to interpret all health information."],
     answer: 1,
-    rationale: "Cultural humility requires respectful questions, self-awareness, and an individualized plan. Nurses should avoid assumptions and use qualified interpreters when language assistance is needed."
+    rationale: "Cultural humility requires respectful questions, self-awareness, and an individualized plan. Nurses should avoid assumptions and use qualified interpreters when language assistance is needed.",
+    strategy: "Select individualized assessment over assumptions. NCLEX usually favors asking the patient respectfully and using qualified language assistance."
   },
   {
     question: "After providing patient teaching, which action best evaluates understanding?",
     options: ["Ask, “Do you understand?”", "Give the patient a longer handout.", "Use teach-back and ask the patient to explain the instructions in their own words.", "Document that teaching was completed without asking questions."],
     answer: 2,
-    rationale: "Teach-back evaluates whether communication was clear and identifies information that needs to be explained again. A yes-or-no question does not reliably confirm understanding."
+    rationale: "Teach-back evaluates whether communication was clear and identifies information that needs to be explained again. A yes-or-no question does not reliably confirm understanding.",
+    strategy: "When the stem asks how to evaluate teaching, choose an observable demonstration or teach-back—not simply providing more information or asking whether the patient understands."
   }
 ];
 
@@ -2116,6 +2124,16 @@ function renderIntroNursingNclexHint(lesson = {}) {
     <section class="lesson-action-card nclex-prep-card" aria-labelledby="nclex-prep-${escapeHtml(lesson.id || hintIndex)}">
       <span class="nclex-prep-kicker">NCLEX-PN preparation · Not graded</span>
       <h2 id="nclex-prep-${escapeHtml(lesson.id || hintIndex)}">Think Like a Practical Nurse</h2>
+      <div class="nclex-strategy-box">
+        <h3>NCLEX strategy</h3>
+        <p><strong>How to approach this item:</strong> ${escapeHtml(hint.strategy)}</p>
+        <ol>
+          <li>Read the final sentence first and identify words such as <strong>first</strong>, <strong>priority</strong>, <strong>best</strong>, or <strong>immediate</strong>.</li>
+          <li>Decide what the question is testing: safety, ABCs, nursing process, communication, or scope of practice.</li>
+          <li>Eliminate choices that delay care, create harm, ignore assessment findings, or fall outside the practical nurse's role.</li>
+          <li>Compare the remaining choices and select the safest action that directly answers the stem.</li>
+        </ol>
+      </div>
       <p class="nclex-prep-question"><strong>Practice question:</strong> ${escapeHtml(hint.question)}</p>
       <ol class="nclex-prep-options" type="A">
         ${hint.options.map((option) => `<li>${escapeHtml(option)}</li>`).join("")}

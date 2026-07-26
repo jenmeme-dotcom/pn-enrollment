@@ -6207,6 +6207,34 @@ button.small {
   text-transform: uppercase;
 }
 
+.nclex-strategy-box {
+  margin: 1.1rem 0 1.35rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid #b9dfe3;
+  border-left: 5px solid #0b7c86;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.nclex-strategy-box h3 {
+  margin: 0 0 0.55rem;
+  color: #075964;
+  font-size: 1.05rem;
+}
+
+.lesson-action-card .nclex-strategy-box p {
+  margin: 0 0 0.65rem;
+}
+
+.nclex-strategy-box ol {
+  margin: 0;
+  padding-left: 1.35rem;
+}
+
+.nclex-strategy-box li + li {
+  margin-top: 0.35rem;
+}
+
 .lesson-action-card .nclex-prep-question {
   color: #243746;
   font-size: 16px;
