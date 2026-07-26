@@ -1,3 +1,5 @@
+const { quizBanks, quizContent } = require("./nursingCourseQuizzes");
+
 const courseDescription =
   "PN 103 Long-Term Care Nursing prepares practical nursing students to provide safe, respectful, resident-centered care in long-term care, skilled nursing, rehabilitation, assisted living, dementia care, and end-of-life settings. The course emphasizes the practical nurse role, resident rights, communication, safety, infection prevention, mobility, personal care, nutrition, elimination, restorative care, common chronic conditions, dementia, emergencies, documentation, and professional accountability.";
 
@@ -407,11 +409,19 @@ const alignedWeeklyModules = weeklyModules.map((week) => {
   };
 });
 
+const longTermQuizByWeek = {
+  4: { title: "[PN103 2026] Quiz - Chapters 14-17", questions: quizBanks.longTermChapters14to17 },
+  8: { title: "[PN103 2026] Quiz - Chapters 18-21", questions: quizBanks.longTermChapters18to21 },
+  10: { title: "[PN103 2026] Quiz - Chapters 22-25", questions: quizBanks.longTermChapters22to25 },
+  12: { title: "[PN103 2026] Quiz - Chapters 37-40", questions: quizBanks.longTermChapters37to40 }
+};
+
 const gradeItems = [
   { title: "[PN103 2026] Syllabus and Course Orientation Acknowledgment", pointsPossible: 0, dueDate: "2026-06-28" },
   ...alignedWeeklyModules.flatMap((week) => [
     { title: week.discussionTitle, pointsPossible: 10, dueDate: week.dueDate },
-    { title: week.assignmentTitle, pointsPossible: week.exam ? (week.week === 6 ? 150 : 200) : 25, dueDate: week.dueDate }
+    { title: week.assignmentTitle, pointsPossible: week.exam ? (week.week === 6 ? 150 : 200) : 25, dueDate: week.dueDate },
+    ...(longTermQuizByWeek[week.week] ? [{ title: longTermQuizByWeek[week.week].title, pointsPossible: 50, dueDate: week.dueDate }] : [])
   ]),
   { title: "[PN103 2026] Long-Term Care Participation and Professionalism", pointsPossible: 100, dueDate: "2026-09-09" }
 ];
@@ -430,6 +440,7 @@ const policies = {
 };
 
 function weeklyLesson(week) {
+  const quiz = longTermQuizByWeek[week.week];
   return {
     title: `Week ${week.week}: ${week.title}`,
     lessons: [
@@ -466,7 +477,12 @@ function weeklyLesson(week) {
         title: week.assignmentTitle,
         durationMinutes: week.exam ? 90 : 45,
         content: `Canvas item type: ${week.exam ? "Exam" : "Assignment"}.\n\n${week.assignmentDescription}\n\nDue: ${week.dueDate} at 11:59 PM.`
-      }
+      },
+      ...(quiz ? [{
+        title: quiz.title,
+        durationMinutes: 45,
+        content: quizContent(`${quiz.title} assessment instructions.`, quiz.questions)
+      }] : [])
     ]
   };
 }
@@ -534,7 +550,11 @@ const longTermCareNursingCourse = {
   ],
   policies,
   objectives: courseObjectives,
-  weeks: alignedWeeklyModules,
+  weeks: alignedWeeklyModules.map((week) => ({
+    ...week,
+    chapters: (week.readings || []).map((chapter) => `Chapter ${chapter.number}: ${chapter.title} (pp. ${chapter.pages})`).join("; "),
+    assessment: longTermQuizByWeek[week.week]?.title || week.assignmentTitle || "Module activities"
+  })),
   modules,
   gradeItems
 };

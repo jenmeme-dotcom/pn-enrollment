@@ -1703,6 +1703,25 @@ function seed() {
         } else {
           appendLesson.run(storedModule.id, chapterLesson.title, chapterLesson.content, null, chapterLesson.durationMinutes || 90, nextLessonPosition.get(storedModule.id).position, 1, 0);
         }
+
+        // Replace the legacy preview-style five-question quiz with the
+        // interactive 15-question assessment while preserving its lesson ID.
+        const quizLesson = module.lessons.find((lesson) => lesson.title === `[PN102 2026] Quiz ${weekNumber} - Chapter ${weekNumber}`);
+        if (quizLesson) {
+          const storedQuiz = existingLessonByTitle.get(storedModule.id, quizLesson.title);
+          if (storedQuiz) {
+            updateLessonDefinition.run(
+              quizLesson.content || "",
+              quizLesson.externalUrl || null,
+              quizLesson.durationMinutes || 30,
+              1,
+              0,
+              storedQuiz.id
+            );
+          } else {
+            appendLesson.run(storedModule.id, quizLesson.title, quizLesson.content || "", null, quizLesson.durationMinutes || 30, nextLessonPosition.get(storedModule.id).position, 1, 0);
+          }
+        }
       });
 
     const extensionModules = (introductionCatalogCourse?.modules || []).filter((module) =>
@@ -1782,6 +1801,18 @@ function seed() {
 
     const existingGradeItem = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND title = ?");
     const appendGradeItem = db.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, ?, ?)");
+    db.prepare("UPDATE grade_items SET title = ?, due_date = ? WHERE course_id = ? AND title = ?").run(
+      "[PN102 2026] Quiz - Chapters 7-9",
+      "2026-08-23 23:59:00",
+      introductionCourse.id,
+      "Quiz 3: Weeks 7-8"
+    );
+    db.prepare("UPDATE grade_items SET title = ?, due_date = ? WHERE course_id = ? AND title = ?").run(
+      "[PN102 2026] Quiz - Chapters 10-13",
+      "2026-09-13 23:59:00",
+      introductionCourse.id,
+      "Quiz 4: Weeks 9-10"
+    );
     (introductionCatalogCourse?.gradeItems || []).slice(7).forEach((item) => {
       if (!existingGradeItem.get(introductionCourse.id, item.title)) {
         appendGradeItem.run(introductionCourse.id, item.title, item.pointsPossible, item.dueDate || null);
@@ -1861,7 +1892,7 @@ function seed() {
       module.lessons.forEach((lesson) => {
         let storedLesson = findLessonByTitle.get(storedModule.id, lesson.title);
         if (!storedLesson && lesson.title.includes("Discussion:")) storedLesson = findDiscussionLesson.get(storedModule.id);
-        if (!storedLesson && lesson.title.startsWith("[PN103 2026]") && !lesson.title.includes("Discussion:")) storedLesson = findAssignmentLesson.get(storedModule.id);
+        if (!storedLesson && lesson.title.startsWith("[PN103 2026]") && !lesson.title.includes("Discussion:") && !lesson.title.includes("Quiz -")) storedLesson = findAssignmentLesson.get(storedModule.id);
         if (storedLesson) {
           syncLesson.run(lesson.title, lesson.content || "", lesson.externalUrl || null, lesson.durationMinutes || 45, 1, 0, storedLesson.id);
         } else {
@@ -1886,7 +1917,7 @@ function seed() {
     longTermCareNursingCourse.gradeItems.forEach((item) => {
       let storedItem = findGradeItemByTitle.get(longTermCareCourseRow.id, item.title);
       if (!storedItem && item.title.includes("Discussion:")) storedItem = findDiscussionGradeItem.get(longTermCareCourseRow.id, item.dueDate);
-      if (!storedItem && item.title.startsWith("[PN103 2026]") && !item.title.includes("Discussion:")) storedItem = findAssignmentGradeItem.get(longTermCareCourseRow.id, item.dueDate);
+      if (!storedItem && item.title.startsWith("[PN103 2026]") && !item.title.includes("Discussion:") && !item.title.includes("Quiz -")) storedItem = findAssignmentGradeItem.get(longTermCareCourseRow.id, item.dueDate);
       if (storedItem) updateGradeItem.run(item.title, item.pointsPossible, item.dueDate || null, storedItem.id);
       else insertGradeItem.run(longTermCareCourseRow.id, item.title, item.pointsPossible, item.dueDate || null);
     });

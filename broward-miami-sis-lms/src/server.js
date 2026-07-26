@@ -11,6 +11,7 @@ const nodemailer = require("nodemailer");
 const { adminAccessAccounts, adminAccessDefaultPassword } = require("./adminAccess");
 const { db, initialize, databaseFile } = require("./db");
 const {
+  courses,
   feeSchedule,
   tuitionNotes,
   catalogOperatingHours,
@@ -3497,7 +3498,12 @@ function renderMonthCalendarPage({ events = [], courses = [], currentCourseId = 
   `;
 }
 
-function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, courseHours, courseCategory, gradeItems = [], lessons = [], baseHref }) {
+function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, courseHours, courseCategory, courseSlug = "", gradeItems = [], lessons = [], baseHref }) {
+  const courseDefinition = courses.find((course) => course.slug === courseSlug);
+  const objectives = courseDefinition?.objectives || [];
+  const requiredTitles = courseDefinition?.requiredTitles || [];
+  const policies = Object.entries(courseDefinition?.policies || {});
+  const weeklySchedule = courseDefinition?.weeks || [];
   const tallyRows = gradeTallyRows(gradeItems);
   const totalPoints = gradeItems.reduce((sum, item) => sum + Number(item.points_possible || 0), 0);
   const assignmentRows = gradeItems.length ? gradeItems : [
@@ -3559,6 +3565,47 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
               <p><strong>Program area</strong><span>${escapeHtml(courseCategory)}</span></p>
             </div>
           </section>
+
+          ${objectives.length ? `
+            <section class="syllabus-card">
+              <h2>Course Objectives</h2>
+              <ul>${objectives.map((objective) => `<li>${escapeHtml(objective)}</li>`).join("")}</ul>
+            </section>
+          ` : ""}
+
+          ${requiredTitles.length ? `
+            <section class="syllabus-card">
+              <h2>Required Textbook and Course Materials</h2>
+              <ul>${requiredTitles.map((title) => `<li>${escapeHtml(title)}</li>`).join("")}</ul>
+              <p>Electronic course files are available to signed-in students from the Files navigation for this course.</p>
+            </section>
+          ` : ""}
+
+          ${weeklySchedule.length ? `
+            <section class="syllabus-card">
+              <h2>Weekly Course Schedule</h2>
+              <table class="syllabus-table">
+                <thead><tr><th>Week</th><th>Topic and Required Reading</th><th>Assessment</th></tr></thead>
+                <tbody>${weeklySchedule.map((week) => `
+                  <tr>
+                    <td>Week ${escapeHtml(week.week)}</td>
+                    <td><strong>${escapeHtml(week.title)}</strong>${week.chapters ? `<br>${escapeHtml(week.chapters)}` : ""}</td>
+                    <td>${escapeHtml(week.assessment || week.assignmentTitle || "Module activities")}</td>
+                  </tr>
+                `).join("")}</tbody>
+              </table>
+            </section>
+          ` : ""}
+
+          ${policies.length ? `
+            <section class="syllabus-card">
+              <h2>Course Policies and Expectations</h2>
+              ${policies.map(([key, value]) => `
+                <h3>${escapeHtml(key.replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase()))}</h3>
+                <p>${escapeHtml(value)}</p>
+              `).join("")}
+            </section>
+          ` : ""}
 
           <section class="syllabus-card">
             <h2>Course Summary</h2>
@@ -9645,6 +9692,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         courseCode,
         courseHours: course.hours,
         courseCategory: course.category,
+        courseSlug: course.slug,
         gradeItems,
         lessons,
         baseHref: adminCourseBaseHref
@@ -12452,6 +12500,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         courseCode,
         courseHours: enrollment.hours,
         courseCategory: enrollment.category,
+        courseSlug: enrollment.slug,
         gradeItems,
         lessons,
         baseHref: courseBaseHref
