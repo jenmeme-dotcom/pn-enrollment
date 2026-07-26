@@ -2167,6 +2167,7 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
   // The encoded quiz bank belongs to the interactive quiz engine. Showing the
   // source content on a student page exposes every question before Start Now.
   const showLessonSourceContent = instructor || !selectedLessonIsQuiz;
+  const lessonContentForViewer = instructor ? selectedLesson.content : studentFacingLessonContent(selectedLesson.content);
   return `
     <main class="canvas-course-main canvas-page-main">
       <div class="canvas-mini-head">
@@ -2189,7 +2190,7 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
               <a class="button" href="${escapeHtml(selectedLesson.external_url)}">Open ${escapeHtml(selectedLesson.title)}</a>
             </div>
           ` : ""}
-          ${showLessonSourceContent ? renderCanvasLessonContent(selectedLesson.content, selectedLesson.title) : ""}
+          ${showLessonSourceContent ? renderCanvasLessonContent(lessonContentForViewer, selectedLesson.title) : ""}
         </div>
         ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId, examAttempt })}
         ${showIntroNursingNclexHint ? renderIntroNursingNclexHint(selectedLesson) : ""}
@@ -4297,6 +4298,24 @@ function renderSimpleLineRun(lines = []) {
     return `<ul>${cleanLines.map((line) => `<li>${linkifyText(line.replace(/^[*•-]\s+/, ""))}</li>`).join("")}</ul>`;
   }
   return cleanLines.map(renderCanvasParagraph).join("");
+}
+
+function studentFacingLessonContent(value = "") {
+  const internalHtmlPatterns = [
+    /<p\b[^>]*>\s*(?:<strong>)?\s*Instructor\s+(?:note|only)\s*:?[\s\S]*?<\/p>/gi,
+    /<p\b[^>]*>[\s\S]*?This item represents[\s\S]*?(?:uploaded|attached)[\s\S]*?<\/p>/gi,
+    /<p\b[^>]*>\s*<strong>\s*File name\s*:\s*<\/strong>[\s\S]*?<\/p>/gi,
+    /<p\b[^>]*>[\s\S]*?(?:build note|placeholder instructions?|attach the actual slide file)[\s\S]*?<\/p>/gi
+  ];
+  let cleaned = String(value || "");
+  internalHtmlPatterns.forEach((pattern) => {
+    cleaned = cleaned.replace(pattern, "");
+  });
+  return cleaned
+    .split("\n")
+    .filter((line) => !/^\s*(?:Instructor\s+(?:note|only)|Build note|File name)\s*:/i.test(line))
+    .filter((line) => !/\b(?:upload|attach) the actual (?:slide|PowerPoint|file)\b/i.test(line))
+    .join("\n");
 }
 
 function renderLineRun(lines = []) {
