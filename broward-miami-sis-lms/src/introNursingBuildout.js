@@ -623,6 +623,172 @@ const weeklyStudyDetails = {
   }
 };
 
+const weeklyCoreTopicExplanations = {
+  1: [
+    "Course orientation and expectations — You will learn how attendance, preparation, communication, assignments, and professional conduct support your success and patient safety.",
+    "What nursing meant historically and what nursing means today — You will compare early caregiving with today's educated, licensed, evidence-informed profession.",
+    "The practical nurse as caregiver, communicator, advocate, team member, and lifelong learner — You will connect each role with actions you will perform in class, clinical practice, and patient care.",
+    "Florence Nightingale's work in sanitation, observation, data, and reform — You will examine how careful observation and a clean environment helped establish modern nursing standards.",
+    "Clara Barton's service, disaster response, and humanitarian leadership — You will connect Barton's example with preparedness, courage, organized relief, and service during emergencies."
+  ],
+  2: [
+    "Nursing before formal schools and licensing — You will explore how caregivers learned through experience before standardized education and regulation protected the public.",
+    "Hospital training schools, community health, and the growth of professional standards — You will see how education, public health work, and licensure strengthened nursing practice and public trust.",
+    "Mary Seacole's battlefield care and resilience — You will examine how clinical skill, resourcefulness, and persistence allowed Seacole to care for soldiers despite discrimination.",
+    "Mary Eliza Mahoney as the first professionally trained Black nurse in the United States — You will connect Mahoney's achievement with diversity, opportunity, professionalism, and equity in nursing.",
+    "Lillian Wald, public health nursing, settlement work, and care for vulnerable communities — You will learn how nurses can improve health by bringing education and services into the community."
+  ],
+  3: [
+    "Nursing as care of the whole person — You will consider physical, emotional, social, cultural, developmental, and spiritual needs instead of focusing only on a diagnosis.",
+    "Basic needs, independence, comfort, and dignity — You will learn to assist safely while encouraging your patient to do as much as possible and make choices about care.",
+    "Therapeutic presence, active listening, and respectful communication — You will use your attention, words, silence, and body language to reduce anxiety and build trust.",
+    "Virginia Henderson's definition of nursing and patient independence — You will connect Henderson's work with helping patients regain strength, knowledge, and independence.",
+    "Jean Watson's caring theory and the human side of care — You will examine how compassion, respect, presence, and meaningful relationships remain essential during technical care."
+  ],
+  4: [
+    "Practical nurse role and limits of student practice — You will identify what you may do, what requires supervision, and when you must stop and ask for guidance.",
+    "Teamwork, delegation, assignment, and supervision — You will learn how clear roles and follow-up help the health care team complete care safely.",
+    "SBAR communication and closed-loop communication — You will organize important reports and confirm that critical information or instructions were heard correctly.",
+    "Isabel Hampton Robb and nursing education standards — You will examine how stronger education and professional standards improved preparation for nursing practice.",
+    "Mildred Montag and the development of associate degree nursing education — You will learn how Montag expanded educational pathways designed to prepare nurses for practice."
+  ],
+  5: [
+    "Autonomy, beneficence, nonmaleficence, justice, fidelity, veracity, and accountability — You will use these principles to respect choices, promote good, avoid harm, act fairly, keep promises, tell the truth, and accept responsibility.",
+    "Confidentiality and privacy as ethical duties — You will protect patient information and discuss it only with authorized people who need it for care.",
+    "Professional boundaries and social media caution — You will maintain a therapeutic relationship and keep all patient information, images, and stories off personal social media.",
+    "Patient rights, dignity, and respect for cultural or religious values — You will include your patient in care, protect privacy, and respond respectfully to individual beliefs and preferences.",
+    "Lavinia Dock's advocacy and Mabel Keaton Staupers' civil rights leadership in nursing — You will connect their work with professional advocacy, equality, and removing barriers in health care and nursing."
+  ],
+  6: [
+    "Scope of practice and student nurse limitations — You will use laws, policies, your preparation, and required supervision to determine whether an action is within your role.",
+    "HIPAA, confidentiality, and protected health information — You will safeguard identifiable health information in conversations, records, electronic systems, and school assignments.",
+    "Informed consent, refusal of care, incident reporting, and mandatory reporting — You will respect patient choices and follow the correct notification and reporting process when required.",
+    "Documentation basics: timely, factual, objective, complete, and corrected appropriately — You will create a clear legal record of findings, care, responses, and notifications.",
+    "Dorothea Dix's mental health advocacy and Susie Walking Bear Yellowtail's advocacy for Native American health — You will examine how nurses can identify inequity and advocate for respectful, accessible care."
+  ],
+  7: [
+    "Culture, religion, language, family roles, and health beliefs — You will ask respectful questions to understand what matters to your patient instead of making assumptions.",
+    "Social determinants of health and barriers to care — You will consider how housing, food, transportation, income, education, disability, and discrimination can affect health and follow-through.",
+    "Bias, assumptions, and respectful curiosity — You will examine your own thinking and use open-ended questions to provide individualized care.",
+    "Interpreter use and plain-language communication — You will use qualified interpreters, speak directly to your patient, avoid jargon, and confirm understanding.",
+    "Madeleine Leininger's transcultural nursing and Hazel W. Johnson-Brown's leadership as an Army nurse and educator — You will connect cultural respect and leadership with equitable nursing practice."
+  ],
+  8: [
+    "Patient identification, fall prevention, hand hygiene, standard precautions, and infection prevention — You will use consistent safety checks to prevent common and serious patient harm.",
+    "Quality improvement, near misses, incident reports, and a just culture mindset — You will learn how reporting problems helps improve systems without replacing individual accountability.",
+    "Observation and reporting as core nursing work — You will watch for changes, collect accurate information, and promptly communicate concerns to the appropriate nurse.",
+    "Linda Richards and the development of nursing documentation — You will connect organized records with communication, continuity, and safer care.",
+    "Ildaura Murillo-Rohde and advocacy for Hispanic nurses — You will examine how representation, education, and professional advocacy strengthen nursing and patient care."
+  ],
+  9: [
+    "Assessment or data collection, nursing diagnosis concepts, planning, implementation, and evaluation — You will follow the nursing process to organize information and contribute safely to patient care.",
+    "Clinical judgment: noticing, interpreting, responding, and reflecting — You will recognize cues, consider their meaning, choose a safe response, and learn from the outcome.",
+    "Prioritization basics and when to ask for help — You will address immediate threats first and promptly seek assistance when findings are urgent, unfamiliar, or outside your role.",
+    "Ida Jean Orlando's nursing process theory — You will examine how checking your observations with the patient supports purposeful, individualized nursing actions.",
+    "Patricia Benner's novice-to-expert model — You will understand that judgment grows through education, supervised experience, reflection, and continued learning."
+  ],
+  10: [
+    "Health promotion and illness prevention across the lifespan — You will help patients strengthen healthy behaviors, reduce risks, and use age-appropriate screening and preventive care.",
+    "Teach-back, health literacy, and plain-language education — You will explain information clearly and ask your patient to describe it in their own words so you can correct misunderstandings.",
+    "Community nursing, maternal-child care, chronic disease support, and prevention — You will examine how nurses provide education, monitoring, referrals, and support beyond the hospital.",
+    "Mary Breckinridge and frontier nursing — You will connect Breckinridge's work with expanding maternal-child nursing services to rural and underserved communities.",
+    "Margaret Sanger's influence on reproductive health education and controversial history — You will study her historical influence while discussing ethical concerns and affected communities accurately and professionally."
+  ],
+  11: [
+    "Professional appearance, punctuality, communication, accountability, and integrity — You will practice behaviors that help patients and team members trust your readiness and judgment.",
+    "Managing stress, asking for help, and building safe learning habits — You will use healthy coping strategies and seek support before stress interferes with learning or patient safety.",
+    "Feedback, remediation, and reflective practice — You will use correction as information, complete needed review, and adjust your approach to improve performance.",
+    "Leadership at the bedside and advocacy through everyday actions — You will lead by noticing needs, communicating clearly, protecting safety, and following through on responsibilities.",
+    "Mary Adelaide Nutting's educational leadership and Luther Christman's advocacy — You will examine how leaders strengthen education, expand opportunity, and advance professional nursing roles."
+  ],
+  12: [
+    "Nursing today: technology, teamwork, evidence, patient rights, community needs, and lifelong learning — You will integrate these influences when planning your continued growth in nursing.",
+    "How practical nurses make an impact through small, consistent, safe actions — You will connect preparation, observation, respect, reporting, and follow-through with better patient outcomes.",
+    "Review of ethical and legal foundations and professional identity — You will bring together your responsibilities for scope, privacy, documentation, boundaries, advocacy, and accountability.",
+    "Your selected nursing leader presentation — You will explain how one leader's work connects with your values and the nurse you are becoming.",
+    "Course synthesis and final exam preparation — You will identify strong areas, close knowledge gaps, practice NCLEX-style reasoning, and prepare a focused study plan."
+  ]
+};
+
+const keyTermDefinitions = {
+  "professional identity": "the values, behaviors, responsibilities, and standards you develop as a member of the nursing profession",
+  "scope of practice": "the care and responsibilities the law, your education, your role, and organizational policy authorize you to perform",
+  accountability: "your responsibility to explain and accept the results of your decisions and actions",
+  compassion: "recognizing another person's suffering and responding with concern and helpful action",
+  "patient advocacy": "speaking up for your patient's rights, safety, choices, and access to appropriate care",
+  "lifelong learning": "continuing to build your knowledge and skills throughout your nursing career",
+  "public trust": "the confidence people place in nurses to act competently, ethically, and safely",
+  "nursing reform": "organized efforts to improve nursing education, working conditions, standards, and patient care",
+  "professional standards": "authoritative expectations used to guide and evaluate safe nursing practice",
+  "public health": "the protection and improvement of health for populations and communities",
+  equity: "providing fair opportunities and resources according to each person's needs and barriers",
+  licensure: "legal authorization from a regulatory board to practice nursing after requirements are met",
+  caring: "purposeful attention and action that support your patient's health, comfort, and dignity",
+  comfort: "relief from physical or emotional distress and support for ease and well-being",
+  dignity: "the inherent worth of every person that you protect through respectful care",
+  "therapeutic communication": "intentional communication that supports your patient's needs and the goals of care",
+  advocacy: "action you take to protect rights, safety, access, or informed choices",
+  "holistic care": "care that considers the whole person rather than only a disease or symptom",
+  collaboration: "working with your patient and the health care team toward shared goals",
+  delegation: "transferring responsibility for an appropriate task while retaining required accountability and supervision",
+  assignment: "the distribution of care responsibilities within a person's authorized role",
+  supervision: "guidance, direction, observation, and follow-up provided by an authorized nurse or instructor",
+  SBAR: "a structured report using Situation, Background, Assessment, and Recommendation",
+  "closed-loop communication": "confirming that a message was received, understood, and acted upon correctly",
+  autonomy: "your patient's right to make informed decisions about personal care",
+  beneficence: "the ethical duty to promote good and support your patient's well-being",
+  nonmaleficence: "the ethical duty to avoid or prevent harm",
+  justice: "fair and equitable treatment of patients",
+  fidelity: "keeping professional promises and commitments",
+  veracity: "communicating truthfully",
+  confidentiality: "protecting private information from unauthorized access or disclosure",
+  boundaries: "limits that keep your relationship with a patient therapeutic and professional",
+  HIPAA: "the federal law that establishes protections for certain health information",
+  "protected health information": "identifiable health information protected from unauthorized use or disclosure",
+  "informed consent": "a voluntary decision made after the patient receives and understands necessary information",
+  negligence: "failure to act with the care a reasonably prudent person would use in similar circumstances",
+  malpractice: "professional negligence that causes harm",
+  "incident report": "an internal safety record used to document and review an unusual event according to policy",
+  "cultural humility": "an ongoing practice of self-reflection, respectful curiosity, and learning from each patient",
+  bias: "a preference or belief that can influence your judgment, sometimes without your awareness",
+  stereotyping: "assuming a person has certain traits because of membership in a group",
+  "health equity": "a fair opportunity for every person to achieve their best possible health",
+  interpreter: "a qualified person who accurately communicates spoken or signed information between languages",
+  "social determinants of health": "the social and environmental conditions that influence health and access to care",
+  "patient safety": "the prevention of avoidable harm during health care",
+  "standard precautions": "infection-prevention practices you use for every patient based on possible exposure",
+  "fall risk": "the likelihood that a patient may fall because of personal, medication, mobility, or environmental factors",
+  "near miss": "a safety event that could have caused harm but did not reach or injure the patient",
+  "quality improvement": "systematic work to measure care and make processes safer and more effective",
+  "just culture": "an approach that improves systems while maintaining fair accountability for choices and behavior",
+  "nursing process": "the organized cycle of assessment, diagnosis or problem identification, planning, implementation, and evaluation",
+  assessment: "systematic collection and validation of information about your patient's condition",
+  planning: "setting priorities and outcomes and selecting appropriate nursing actions",
+  implementation: "carrying out the planned nursing actions within your role",
+  evaluation: "comparing your patient's response with the expected outcome and deciding what should happen next",
+  "clinical judgment": "using patient information, nursing knowledge, priorities, and scope to choose a safe response",
+  priority: "the need or action that requires attention before others because of urgency, safety, or importance",
+  "health promotion": "helping people strengthen behaviors and conditions that support health and well-being",
+  "health literacy": "a person's ability to find, understand, and use health information and services",
+  "teach-back": "asking your patient to explain information in their own words so you can check how clearly you taught it",
+  "plain language": "clear, familiar wording that makes important information easier to understand and use",
+  prevention: "actions that reduce the chance, severity, or complications of illness and injury",
+  "community health": "nursing and health efforts focused on the needs of people within a community or population",
+  professionalism: "consistent conduct that demonstrates competence, respect, integrity, accountability, and reliability",
+  resilience: "your ability to adapt, recover, and continue learning during stress or difficulty",
+  feedback: "specific information about performance that you can use to improve",
+  remediation: "targeted review and practice used to correct a knowledge or performance gap",
+  leadership: "influencing safe, coordinated, ethical care through your actions and communication",
+  "reflective practice": "examining an experience to understand what happened and improve your future actions",
+  "professional impact": "the effect your nursing choices and actions have on patients, teams, and communities",
+  "patient-centered care": "care organized around your patient's needs, values, preferences, and participation",
+  "professional commitment": "your promise to uphold nursing responsibilities, standards, and continued growth"
+};
+
+function expandedKeyTerms(terms = []) {
+  return terms.map((term) => `${term} — ${keyTermDefinitions[term] || "a nursing concept you should be able to define, apply, and connect with safe patient care"}.`);
+}
+
 function bulletList(items) {
   return items.map((item) => `- ${item}`).join("\n");
 }
@@ -640,10 +806,10 @@ function buildWeeklyOverviewContent(week) {
     details.reading || "Review instructor-provided readings, module notes, and related handbook sections before class.",
     "",
     "Core Topics",
-    bulletList(week.topics),
+    bulletList(weeklyCoreTopicExplanations[week.week] || week.topics),
     "",
     "Key Vocabulary",
-    bulletList(details.keyTerms || []),
+    bulletList(expandedKeyTerms(details.keyTerms || [])),
     "",
     "Clinical Connection",
     details.clinicalConnection || "Connect this week's concepts to safe beginning practical nursing practice.",
