@@ -214,7 +214,7 @@ const weeklyModules = [
     ],
     activities:
       "Documentation correction exercise using sample notes. Students identify objective wording, missing facts, and unsafe language.",
-    assessment: "Midterm Exam: Weeks 1-6"
+    assessment: "[PN102 2026] Quiz 6 - Chapter 6"
   },
   {
     week: 7,
@@ -590,7 +590,6 @@ const gradeItems = [
   { title: "Therapeutic Communication Practice", pointsPossible: 50 },
   { title: "Quiz 2: Weeks 3-4", pointsPossible: 50 },
   { title: "Ethics Case Response", pointsPossible: 75 },
-  { title: "Midterm Exam: Weeks 1-6", pointsPossible: 150 },
   { title: "Health Equity Reflection", pointsPossible: 50, dueDate: "2026-08-09 23:59:00" },
   { title: "[PN102 2026] Quiz - Chapters 7-9", pointsPossible: 50, dueDate: "2026-08-23 23:59:00" },
   { title: "Clinical Judgment Worksheet", pointsPossible: 75, dueDate: "2026-08-23 23:59:00" },
@@ -604,7 +603,7 @@ const policies = {
   attendance:
     "Students are expected to attend and participate in all scheduled class sessions. Because this course establishes professional habits, punctuality, preparation, respectful communication, and active participation are evaluated as part of professionalism.",
   quizzes:
-    "Short quizzes are scheduled every two weeks in Weeks 2, 4, 8, and 10. Week 6 is reserved for the midterm exam and Week 12 is reserved for the cumulative final exam.",
+    "Chapter quizzes are scheduled throughout the course. Week 12 includes the cumulative final exam; Introduction to Nursing does not use a midterm examination.",
   ethicsLegal:
     "Ethical and legal instruction is introductory and must be reinforced by the current student handbook, clinical site policy, state nurse practice act, board of nursing rules, and instructor guidance.",
   remediation:
@@ -711,9 +710,13 @@ const modules = [
           "Students review nursing history, nursing leaders, practical nurse role expectations, ethical principles, legal responsibilities, safety, professional identity, and the impact of nursing practice."
       },
       {
-        title: "Final Exam and Impact Presentation",
-        content:
-          "Students complete a cumulative final exam and a short final impact presentation connecting nursing history, ethical/legal responsibility, and their personal commitment to patient care."
+        title: "Cumulative Final Exam",
+        content: quizContent("PN 102 cumulative final examination covering Chapters 1-13.", quizBanks.introFinal),
+        durationMinutes: 90
+      },
+      {
+        title: "Final Impact Presentation",
+        content: "Students complete a short final impact presentation connecting nursing history, ethical/legal responsibility, and their personal commitment to patient care."
       }
     ]
   }

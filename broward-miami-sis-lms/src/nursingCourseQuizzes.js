@@ -209,6 +209,30 @@ const quizBanks = {
   ]
 };
 
+// Major assessments draw from the same validated chapter banks so every
+// question is aligned to material already taught in the course. The slices
+// keep each exam balanced across its chapter groups without repeating items.
+quizBanks.introFinal = [
+  ...quizBanks.introChapter1.slice(0, 7),
+  ...quizBanks.introChapter2.slice(0, 7),
+  ...quizBanks.introChapter3.slice(0, 7),
+  ...quizBanks.introChapter4.slice(0, 7),
+  ...quizBanks.introChapter5.slice(0, 7),
+  ...quizBanks.introChapter6.slice(0, 7),
+  ...quizBanks.introChapters7to9.slice(0, 9),
+  ...quizBanks.introChapters10to13.slice(0, 9)
+];
+quizBanks.longTermMidterm = [
+  ...quizBanks.longTermChapters14to17,
+  ...quizBanks.longTermChapters18to21.slice(0, 10)
+];
+quizBanks.longTermFinal = [
+  ...quizBanks.longTermChapters14to17,
+  ...quizBanks.longTermChapters18to21,
+  ...quizBanks.longTermChapters22to25,
+  ...quizBanks.longTermChapters37to40
+];
+
 function quizContent(label, questions) {
   return `${label}\n\nThis assessment contains ${questions.length} multiple-choice questions. Select Start Now when you are ready.\n\nQUIZ_DATA_BASE64:${Buffer.from(JSON.stringify(questions), "utf8").toString("base64")}`;
 }

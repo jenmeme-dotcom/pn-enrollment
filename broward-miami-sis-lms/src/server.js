@@ -1579,6 +1579,9 @@ function lessonQuizQuestions(lesson = {}) {
 
 function examSettingsForLesson(lesson = {}) {
   const title = String(lesson.title || "");
+  if (title === "Cumulative Final Exam") return { label: "PN 102 Cumulative Final Exam", minutes: 90, opensAt: "2026-09-07T00:00:00-04:00", closesAt: "2026-09-13T23:59:59-04:00" };
+  if (/\[PN103 2026\] Midterm - Chapters 14-19/i.test(title)) return { label: "PN 103 Midterm Exam", minutes: 60, opensAt: "2026-07-27T00:00:00-04:00", closesAt: "2026-08-02T23:59:59-04:00" };
+  if (/\[PN103 2026\] Final Comprehensive Exam/i.test(title)) return { label: "PN 103 Final Comprehensive Exam", minutes: 90, opensAt: "2026-09-03T00:00:00-04:00", closesAt: "2026-09-09T23:59:59-04:00" };
   if (/Midterm Exam 1/i.test(title)) return { label: "Midterm Exam 1", minutes: 30, opensAt: "2026-07-29T00:00:00-04:00", closesAt: "2026-08-05T23:59:59-04:00" };
   if (/Midterm Exam 2/i.test(title)) return { label: "Midterm Exam 2", minutes: 30, opensAt: "2026-09-02T00:00:00-04:00", closesAt: "2026-09-08T23:59:59-04:00" };
   if (/Final Comprehensive Exam/i.test(title)) return { label: "Final Comprehensive Exam", minutes: 50, opensAt: "2026-09-09T00:00:00-04:00", closesAt: "2026-09-09T23:59:59-04:00" };
@@ -2455,7 +2458,6 @@ function instructorGradebookItems(course, gradeItems = []) {
     { title: "Therapeutic Communication Practice", points_possible: 50, unpublished: true },
     { title: "Quiz 2: Weeks 3-4", points_possible: 50, unpublished: true },
     { title: "Ethics Case Response", points_possible: 75, unpublished: true },
-    { title: "Midterm Exam: Weeks 1-6", points_possible: 150, unpublished: true },
     { title: "Health Equity Reflection", points_possible: 50, unpublished: true }
   ];
   const source = course.slug === "introduction-to-nursing-practical-nursing" ? pnDefaults : gradeItems;

@@ -1799,8 +1799,39 @@ function seed() {
       moveModule.run(position, module.id);
     });
 
+    const finalDefinition = (introductionCatalogCourse?.modules || []).find((module) => module.title === "Course Wrap-Up and Final Assessment");
+    const storedFinalModule = existingModuleByTitle.get(introductionCourse.id, "Course Wrap-Up and Final Assessment")
+      || db.prepare("SELECT id, title FROM modules WHERE course_id = ? AND lower(title) LIKE '%wrap-up%' ORDER BY position, id LIMIT 1").get(introductionCourse.id)
+      || finalModules[0];
+    if (storedFinalModule && finalDefinition) {
+      finalDefinition.lessons.forEach((lesson) => {
+        let storedLesson = existingLessonByTitle.get(storedFinalModule.id, lesson.title);
+        if (!storedLesson && lesson.title === "Cumulative Final Exam") {
+          storedLesson = db.prepare("SELECT id FROM lessons WHERE module_id = ? AND lower(title) LIKE '%final exam%' ORDER BY position, id LIMIT 1").get(storedFinalModule.id);
+        }
+        if (storedLesson) {
+          db.prepare("UPDATE lessons SET title = ?, content = ?, duration_minutes = ?, published = 1, instructor_only = 0 WHERE id = ?").run(
+            lesson.title,
+            lesson.content || "",
+            lesson.durationMinutes || 45,
+            storedLesson.id
+          );
+        } else {
+          appendLesson.run(storedFinalModule.id, lesson.title, lesson.content || "", lesson.externalUrl || null, lesson.durationMinutes || 45, nextLessonPosition.get(storedFinalModule.id).position, 1, 0);
+        }
+      });
+    }
+
     const existingGradeItem = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND title = ?");
     const appendGradeItem = db.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, ?, ?)");
+    // PN 102 uses chapter quizzes and a cumulative final, but no midterm.
+    db.prepare("DELETE FROM grade_items WHERE course_id = ? AND title = 'Midterm Exam: Weeks 1-6'").run(introductionCourse.id);
+    db.prepare("DELETE FROM grade_items WHERE course_id = ? AND title = '[PN102 2026] Final Exam - Introduction to Nursing Chapters 1-6'").run(introductionCourse.id);
+    db.prepare(`
+      DELETE FROM lessons
+      WHERE title = 'Midterm Exam: Weeks 1-6'
+        AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
+    `).run(introductionCourse.id);
     db.prepare("UPDATE grade_items SET title = ?, due_date = ? WHERE course_id = ? AND title = ?").run(
       "[PN102 2026] Quiz - Chapters 7-9",
       "2026-08-23 23:59:00",

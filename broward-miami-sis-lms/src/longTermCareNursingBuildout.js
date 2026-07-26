@@ -441,6 +441,7 @@ const policies = {
 
 function weeklyLesson(week) {
   const quiz = longTermQuizByWeek[week.week];
+  const examQuestions = week.week === 6 ? quizBanks.longTermMidterm : week.week === 12 ? quizBanks.longTermFinal : null;
   return {
     title: `Week ${week.week}: ${week.title}`,
     lessons: [
@@ -476,7 +477,9 @@ function weeklyLesson(week) {
       {
         title: week.assignmentTitle,
         durationMinutes: week.exam ? 90 : 45,
-        content: `Canvas item type: ${week.exam ? "Exam" : "Assignment"}.\n\n${week.assignmentDescription}\n\nDue: ${week.dueDate} at 11:59 PM.`
+        content: examQuestions
+          ? quizContent(`${week.assignmentDescription} Due ${week.dueDate} at 11:59 PM.`, examQuestions)
+          : `Canvas item type: Assignment.\n\n${week.assignmentDescription}\n\nDue: ${week.dueDate} at 11:59 PM.`
       },
       ...(quiz ? [{
         title: quiz.title,
