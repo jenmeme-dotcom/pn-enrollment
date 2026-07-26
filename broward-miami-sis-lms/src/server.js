@@ -4311,11 +4311,42 @@ function studentFacingLessonContent(value = "") {
   internalHtmlPatterns.forEach((pattern) => {
     cleaned = cleaned.replace(pattern, "");
   });
-  return cleaned
+  cleaned = cleaned
     .split("\n")
     .filter((line) => !/^\s*(?:Instructor\s+(?:note|only)|Build note|File name)\s*:/i.test(line))
     .filter((line) => !/\b(?:upload|attach) the actual (?:slide|PowerPoint|file)\b/i.test(line))
     .join("\n");
+  return directStudentVoice(cleaned);
+}
+
+function directStudentVoice(value = "") {
+  return String(value || "")
+    .replace(/\bWhat Students Should Do First\b/g, "What You Should Do First")
+    .replace(/\bStudent Success Expectations\b/g, "Your Success Expectations")
+    .replace(/\bStudent Practice Task\b/g, "Your Practice Task")
+    .replace(/\bStudent-selected\b/g, "Your selected")
+    .replace(/\bstudent-selected\b/g, "your selected")
+    .replace(/\bavailable only to signed-in students enrolled in this course\b/gi, "available to you while you are signed in and enrolled in this course")
+    .replace(/\bthe practical nursing student['’]s role\b/gi, "your role as a practical nursing student")
+    .replace(/\bthe student['’]s expected impact\b/gi, "your expected impact")
+    .replace(/\bthe student['’]s role\b/gi, "your role")
+    .replace(/\bstudents['’]/gi, "your")
+    .replace(/\bpractical nursing students can\b/gi, "you can")
+    .replace(/\bpractical nursing students should\b/gi, "you should")
+    .replace(/\bpractical nursing students\b/gi, "you as a practical nursing student")
+    .replace(/\bstudent nurse limitations\b/gi, "your limits as a student nurse")
+    .replace(/\bA student sees\b/g, "You see")
+    .replace(/\ba student sees\b/g, "you see")
+    .replace(/\bA student protects\b/g, "You protect")
+    .replace(/\ba student protects\b/g, "you protect")
+    .replace(/\ba beginning practical nursing student should\b/gi, "you should")
+    .replace(/\ba practical nursing student should\b/gi, "you should")
+    .replace(/\ba student should\b/gi, "you should")
+    .replace(/\ba student must\b/gi, "you must")
+    .replace(/\bfor a student to\b/gi, "for you to")
+    .replace(/\bsafe student-level action\b/gi, "the safe action you can take within your role")
+    .replace(/\bStudents\b/g, "You")
+    .replace(/\bstudents\b/g, "you");
 }
 
 function renderLineRun(lines = []) {
