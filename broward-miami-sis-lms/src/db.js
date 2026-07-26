@@ -1615,31 +1615,86 @@ function seed() {
       `).run(welcomeDefinition.content, introductionCourse.id);
     }
 
-    const existingModuleByTitle = db.prepare("SELECT id FROM modules WHERE course_id = ? AND title = ?");
+    const existingModuleByWeek = db.prepare("SELECT id, title FROM modules WHERE course_id = ? AND title LIKE ? ORDER BY position, id LIMIT 1");
+    const existingModuleByTitle = db.prepare("SELECT id, title FROM modules WHERE course_id = ? AND title = ? ORDER BY position, id LIMIT 1");
+    const updateModuleTitle = db.prepare("UPDATE modules SET title = ? WHERE id = ?");
     const nextModulePosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS position FROM modules WHERE course_id = ?");
     const appendModule = db.prepare("INSERT INTO modules (course_id, title, position) VALUES (?, ?, ?)");
     const appendLesson = db.prepare(`
       INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
+    const existingLessonByTitle = db.prepare("SELECT id FROM lessons WHERE module_id = ? AND title = ? ORDER BY position, id LIMIT 1");
+    const nextLessonPosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS position FROM lessons WHERE module_id = ?");
+    const updateLessonDefinition = db.prepare(`
+      UPDATE lessons
+      SET content = ?, external_url = ?, duration_minutes = ?, published = ?, instructor_only = ?
+      WHERE id = ?
+    `);
+
+    const orientationDefinition = (introductionCatalogCourse?.modules || []).find((module) => module.title === "Orientation and Course Resources");
+    const textbookDefinition = orientationDefinition?.lessons?.find((lesson) => lesson.title.startsWith("Required Textbook:"));
+    const orientationModule = existingModuleByTitle.get(introductionCourse.id, "Orientation and Course Resources");
+    if (orientationModule && textbookDefinition) {
+      const storedTextbookLesson = existingLessonByTitle.get(orientationModule.id, textbookDefinition.title);
+      if (storedTextbookLesson) {
+        updateLessonDefinition.run(
+          textbookDefinition.content,
+          textbookDefinition.externalUrl || null,
+          textbookDefinition.durationMinutes || 10,
+          1,
+          0,
+          storedTextbookLesson.id
+        );
+      } else {
+        appendLesson.run(
+          orientationModule.id,
+          textbookDefinition.title,
+          textbookDefinition.content,
+          textbookDefinition.externalUrl || null,
+          textbookDefinition.durationMinutes || 10,
+          nextLessonPosition.get(orientationModule.id).position,
+          1,
+          0
+        );
+      }
+    }
+
     const extensionModules = (introductionCatalogCourse?.modules || []).filter((module) =>
       /^Week (?:[7-9]|1[0-2]):/.test(module.title)
     );
     extensionModules.forEach((module) => {
-      if (existingModuleByTitle.get(introductionCourse.id, module.title)) return;
-      const position = nextModulePosition.get(introductionCourse.id).position;
-      const moduleId = appendModule.run(introductionCourse.id, module.title, position).lastInsertRowid;
+      const weekNumber = module.title.match(/^Week (\d+):/)?.[1];
+      const storedModule = weekNumber ? existingModuleByWeek.get(introductionCourse.id, `Week ${weekNumber}:%`) : null;
+      const moduleId = storedModule?.id || appendModule.run(
+        introductionCourse.id,
+        module.title,
+        nextModulePosition.get(introductionCourse.id).position
+      ).lastInsertRowid;
+      if (storedModule && storedModule.title !== module.title) updateModuleTitle.run(module.title, moduleId);
       (module.lessons || []).forEach((lesson, index) => {
-        appendLesson.run(
-          moduleId,
-          lesson.title,
-          lesson.content || "",
-          lesson.externalUrl || null,
-          lesson.durationMinutes || 45,
-          index + 1,
-          lesson.published === false ? 0 : 1,
-          lesson.instructorOnly ? 1 : 0
-        );
+        const storedLesson = existingLessonByTitle.get(moduleId, lesson.title);
+        if (storedLesson) {
+          updateLessonDefinition.run(
+            lesson.content || "",
+            lesson.externalUrl || null,
+            lesson.durationMinutes || 45,
+            lesson.published === false ? 0 : 1,
+            lesson.instructorOnly ? 1 : 0,
+            storedLesson.id
+          );
+        } else {
+          appendLesson.run(
+            moduleId,
+            lesson.title,
+            lesson.content || "",
+            lesson.externalUrl || null,
+            lesson.durationMinutes || 45,
+            nextLessonPosition.get(moduleId).position,
+            lesson.published === false ? 0 : 1,
+            lesson.instructorOnly ? 1 : 0
+          );
+        }
       });
     });
 

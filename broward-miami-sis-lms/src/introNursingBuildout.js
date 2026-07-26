@@ -12,6 +12,45 @@ const courseObjectives = [
   "Explain how practical nursing students can make a positive impact through safe care, compassion, advocacy, health teaching, cultural humility, and community service."
 ];
 
+const textbookFileName = "Foundations-of-Nursing-9th-Edition-Cooper-Gosnell.pdf";
+const textbookHref = `/course-materials/introduction-to-nursing-practical-nursing/${textbookFileName}`;
+
+const extendedWeekChapters = {
+  7: [
+    { number: 12, title: "Vital Signs", pages: "280-314", pdfPage: 318, topics: ["temperature, pulse, respirations, and blood pressure", "pulse oximetry", "height and weight", "recording and reporting vital signs"] },
+    { number: 13, title: "Physical Assessment", pages: "315-341", pdfPage: 353, topics: ["signs and symptoms", "health history", "medical and nursing assessment", "systematic physical assessment"] }
+  ],
+  8: [
+    { number: 14, title: "Oxygenation", pages: "342-362", pdfPage: 380, topics: ["standard safety steps", "oxygen therapy", "respiratory procedures", "airway and oxygen-delivery equipment"] },
+    { number: 15, title: "Elimination and Gastric Intubation", pages: "363-398", pdfPage: 401, topics: ["urinary elimination", "catheter care", "nasogastric tubes", "bowel elimination, enemas, and ostomies"] }
+  ],
+  9: [
+    { number: 16, title: "Care of Patients Experiencing Urgent Alterations in Health", pages: "399-428", pdfPage: 437, topics: ["emergency assessment and response", "CPR and airway obstruction", "shock and bleeding", "wounds, poisoning, temperature emergencies, and trauma"] },
+    { number: 17, title: "Dosage Calculation and Medication Administration", pages: "429-488", pdfPage: 467, topics: ["measurement systems and dosage calculations", "medication orders", "rights of medication administration", "enteral, topical, and parenteral routes"] }
+  ],
+  10: [
+    { number: 18, title: "Fluids and Electrolytes", pages: "489-530", pdfPage: 527, topics: ["fluid compartments and intake/output", "electrolytes and acid-base balance", "intravenous therapy", "blood transfusion monitoring"] },
+    { number: 19, title: "Nutritional Concepts and Related Therapies", pages: "531-578", pdfPage: 569, topics: ["essential nutrients", "nutrition across the lifespan", "therapeutic diets", "enteral and parenteral nutrition"] }
+  ],
+  11: [
+    { number: 20, title: "Complementary, Integrative, and Alternative Therapies", pages: "579-600", pdfPage: 617, topics: ["herbal and manual therapies", "acupuncture and acupressure", "mind-body approaches", "nursing safety and patient teaching"] },
+    { number: 21, title: "Pain Management, Comfort, Rest, and Sleep", pages: "601-623", pdfPage: 639, topics: ["pain assessment and types of pain", "pharmacologic and nonpharmacologic comfort", "sleep physiology", "promoting rest and evaluating response"] }
+  ],
+  12: [
+    { number: 22, title: "Surgical Wound Care", pages: "624-658", pdfPage: 662, topics: ["wound classification and healing", "incision and dressing care", "wound complications", "drains, bandages, and binders"] },
+    { number: 23, title: "Specimen Collection and Diagnostic Testing", pages: "659-707", pdfPage: 697, topics: ["diagnostic examinations", "urine, stool, sputum, and wound specimens", "blood glucose and venipuncture", "electrocardiography and nursing responsibilities"] }
+  ]
+};
+
+const extendedWeekModuleTitles = {
+  7: "Vital Signs and Physical Assessment",
+  8: "Oxygenation and Elimination",
+  9: "Urgent Care and Medication Administration",
+  10: "Fluids, Electrolytes, and Nutrition",
+  11: "Integrative Therapies, Pain, Comfort, and Sleep",
+  12: "Wound Care and Diagnostic Testing"
+};
+
 const weeklyModules = [
   {
     week: 1,
@@ -491,6 +530,27 @@ function buildWeeklyAssignmentContent(week) {
   ].join("\n");
 }
 
+function buildTextbookChapterContent(chapter) {
+  return [
+    `Chapter ${chapter.number}: ${chapter.title}`,
+    `Required reading: Cooper and Gosnell, Foundations of Nursing, 9th Edition, pages ${chapter.pages}.`,
+    "",
+    "Open the Required Textbook",
+    `- Foundations of Nursing, 9th Edition: ${textbookHref}?inline=1#page=${chapter.pdfPage}`,
+    "",
+    "Reading Focus",
+    bulletList(chapter.topics),
+    "",
+    "Study Expectations",
+    bulletList([
+      "Read the assigned chapter before completing the weekly applied assignment.",
+      "Review chapter vocabulary, safety alerts, nursing-process sections, and skill steps.",
+      "Be prepared to identify abnormal findings, patient-safety priorities, and findings that require immediate reporting.",
+      "Use the textbook to support assignment answers without including identifiable patient information."
+    ])
+  ].join("\n");
+}
+
 const gradeItems = [
   { title: "Class Participation and Professionalism", pointsPossible: 100 },
   { title: "Professional Beginning Reflection", pointsPossible: 50 },
@@ -562,16 +622,37 @@ const modules = [
       {
         title: "How This Course Builds a Practical Nurse",
         content: courseDescription
+      },
+      {
+        title: "Required Textbook: Foundations of Nursing, 9th Edition",
+        content: [
+          "Required Textbook",
+          "Kim Cooper and Kelly Gosnell, Foundations of Nursing, 9th Edition, Elsevier.",
+          "",
+          "The textbook is available only to signed-in students enrolled in this course and authorized instructors.",
+          `- Foundations of Nursing, 9th Edition: ${textbookHref}?inline=1`
+        ].join("\n"),
+        durationMinutes: 10
       }
     ]
   },
-  ...weeklyModules.map((week) => ({
-    title: `Week ${week.week}: ${week.title}`,
+  ...weeklyModules.map((week) => {
+    const chapters = extendedWeekChapters[week.week] || [];
+    const moduleTitle = chapters.length
+      ? `Week ${week.week}: Chapters ${chapters[0].number}-${chapters[chapters.length - 1].number} - ${extendedWeekModuleTitles[week.week]}`
+      : `Week ${week.week}: ${week.title}`;
+    return {
+    title: moduleTitle,
     lessons: [
       {
         title: "Weekly Overview",
         content: buildWeeklyOverviewContent(week)
       },
+      ...chapters.map((chapter) => ({
+        title: `Chapter ${chapter.number}: ${chapter.title}`,
+        content: buildTextbookChapterContent(chapter),
+        durationMinutes: 90
+      })),
       {
         title: "Objectives and Learning Activity",
         content: buildWeeklyActivityContent(week)
@@ -582,7 +663,7 @@ const modules = [
         durationMinutes: 60
       }
     ]
-  })),
+  }}),
   {
     title: "Course Wrap-Up and Final Assessment",
     lessons: [
