@@ -1249,6 +1249,204 @@ nav a {
   grid-column: span 12;
 }
 
+.course-survey-intro {
+  align-items: center;
+  background: #f4f9fa;
+  border-bottom: 1px solid #dce8ea;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.course-survey-intro p {
+  color: #4e6069;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.course-survey-intro > span {
+  background: #0f5f6b;
+  border-radius: 999px;
+  color: white;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
+.course-survey-list {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.course-survey-card {
+  border: 1px solid #d7e0e4;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.course-survey-card.available {
+  border-color: #8fc6c9;
+  box-shadow: inset 4px 0 0 #0f7780;
+}
+
+.course-survey-card.submitted {
+  background: #f4faf7;
+  border-color: #b9ddc7;
+}
+
+.course-survey-card.locked {
+  background: #f7f8f9;
+  color: #687681;
+}
+
+.course-survey-card-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.course-survey-card-head span:first-child {
+  color: #0f6d76;
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+}
+
+.course-survey-card h3 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.course-survey-form {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.course-survey-form fieldset {
+  border: 1px solid #d8e1e5;
+  border-radius: 6px;
+  margin: 0;
+  padding: 12px;
+}
+
+.course-survey-form legend,
+.course-survey-form > label {
+  color: #26363e;
+  font-weight: 800;
+}
+
+.survey-rating > div,
+.survey-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.survey-rating label {
+  cursor: pointer;
+}
+
+.survey-rating label input {
+  position: absolute;
+  opacity: 0;
+}
+
+.survey-rating label span {
+  align-items: center;
+  background: #f1f5f6;
+  border: 1px solid #c9d5da;
+  border-radius: 50%;
+  display: flex;
+  font-weight: 800;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.survey-rating label input:checked + span {
+  background: #0f6671;
+  border-color: #0f6671;
+  color: white;
+}
+
+.survey-rating label input:focus-visible + span {
+  outline: 3px solid rgba(15, 102, 113, 0.25);
+  outline-offset: 2px;
+}
+
+.survey-rating small {
+  color: #6c7982;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  max-width: 230px;
+}
+
+.survey-choice-row label {
+  align-items: center;
+  border: 1px solid #d4dde1;
+  border-radius: 5px;
+  display: flex;
+  gap: 7px;
+  padding: 8px 10px;
+}
+
+.course-survey-form > label {
+  display: grid;
+  gap: 7px;
+}
+
+.course-survey-form textarea {
+  border: 1px solid #bcc9cf;
+  border-radius: 5px;
+  font: inherit;
+  font-weight: 400;
+  padding: 10px;
+  resize: vertical;
+  width: 100%;
+}
+
+.course-survey-form .button {
+  justify-self: start;
+}
+
+.survey-result-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 0;
+}
+
+.survey-result-summary div {
+  background: white;
+  border: 1px solid #d8e7dd;
+  border-radius: 5px;
+  min-width: 150px;
+  padding: 9px 11px;
+}
+
+.survey-result-summary dt {
+  color: #64716e;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.survey-result-summary dd {
+  font-weight: 800;
+  margin: 4px 0 0;
+  text-transform: capitalize;
+}
+
 .profile-table {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

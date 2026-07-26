@@ -11007,6 +11007,143 @@ app.post("/student/profile/personal-email", requireAuth, requireRole("student"),
   res.redirect("/student/profile#profile");
 });
 
+const courseSurveyWeeks = [4, 8, 12];
+
+function courseSurveyAvailableDate(startDate, weekNumber) {
+  const available = new Date(`${startDate}T12:00:00`);
+  available.setDate(available.getDate() + ((weekNumber - 1) * 7));
+  return available;
+}
+
+function renderCourseSurveyForm(enrollment, weekNumber, response) {
+  const availableDate = courseSurveyAvailableDate(enrollment.start_date, weekNumber);
+  const available = enrollment.status === "completed" || availableDate.getTime() <= Date.now();
+  if (response) {
+    return `
+      <article class="course-survey-card submitted">
+        <div class="course-survey-card-head">
+          <div><span>Week ${weekNumber}</span><h3>${escapeHtml(enrollment.title)}</h3></div>
+          <span class="pill">Submitted</span>
+        </div>
+        <p>Thank you. Your Week ${weekNumber} course evaluation was submitted on ${escapeHtml(date(response.submitted_at.slice(0, 10)))}.</p>
+        <dl class="survey-result-summary">
+          <div><dt>Overall experience</dt><dd>${escapeHtml(response.overall_rating)} / 5</dd></div>
+          <div><dt>Course pace</dt><dd>${escapeHtml(String(response.pace).replaceAll("_", " "))}</dd></div>
+          <div><dt>Recommend course</dt><dd>${response.would_recommend ? "Yes" : "No"}</dd></div>
+        </dl>
+      </article>
+    `;
+  }
+  if (!available) {
+    return `
+      <article class="course-survey-card locked">
+        <div class="course-survey-card-head">
+          <div><span>Week ${weekNumber}</span><h3>${escapeHtml(enrollment.title)}</h3></div>
+          <span class="pill orange">Opens ${escapeHtml(date(availableDate.toISOString().slice(0, 10)))}</span>
+        </div>
+        <p>This survey becomes available during Week ${weekNumber} of your course.</p>
+      </article>
+    `;
+  }
+  const ratingQuestion = (name, label) => `
+    <fieldset class="survey-rating">
+      <legend>${escapeHtml(label)}</legend>
+      <div>
+        ${[1, 2, 3, 4, 5].map((value) => `
+          <label><input type="radio" name="${name}" value="${value}" required><span>${value}</span></label>
+        `).join("")}
+      </div>
+      <small><span>Needs improvement</span><span>Excellent</span></small>
+    </fieldset>
+  `;
+  return `
+    <article class="course-survey-card available">
+      <div class="course-survey-card-head">
+        <div><span>Week ${weekNumber}</span><h3>${escapeHtml(enrollment.title)}</h3></div>
+        <span class="pill">Ready</span>
+      </div>
+      <p>Share your experience so the school can improve teaching, course materials, and student support.</p>
+      <form class="course-survey-form" method="post" action="/student/evaluations/${enrollment.id}/${weekNumber}">
+        ${ratingQuestion("overallRating", "Overall, how would you rate this course?")}
+        ${ratingQuestion("instructorRating", "How effective and supportive is your instructor?")}
+        ${ratingQuestion("contentRating", "How useful and clear are the course materials?")}
+        ${ratingQuestion("supportRating", "How satisfied are you with student support?")}
+        <fieldset>
+          <legend>How is the pace of the course?</legend>
+          <div class="survey-choice-row">
+            <label><input type="radio" name="pace" value="too_fast" required> Too fast</label>
+            <label><input type="radio" name="pace" value="about_right" required> About right</label>
+            <label><input type="radio" name="pace" value="too_slow" required> Too slow</label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Would you recommend this course to another student?</legend>
+          <div class="survey-choice-row">
+            <label><input type="radio" name="wouldRecommend" value="1" required> Yes</label>
+            <label><input type="radio" name="wouldRecommend" value="0" required> No</label>
+          </div>
+        </fieldset>
+        <label>What has helped you learn the most?
+          <textarea name="learningHighlight" rows="3" maxlength="2000"></textarea>
+        </label>
+        <label>What could improve your course experience?
+          <textarea name="improvementSuggestion" rows="3" maxlength="2000"></textarea>
+        </label>
+        <label>Additional comments (optional)
+          <textarea name="additionalComments" rows="3" maxlength="2000"></textarea>
+        </label>
+        <p class="muted">Submit once you are satisfied with your answers. Each milestone survey can be submitted one time.</p>
+        <button class="button" type="submit">Submit Week ${weekNumber} Survey</button>
+      </form>
+    </article>
+  `;
+}
+
+app.post("/student/evaluations/:enrollmentId/:weekNumber", requireAuth, requireRole("student"), (req, res) => {
+  const enrollmentId = Number(req.params.enrollmentId);
+  const weekNumber = Number(req.params.weekNumber);
+  const enrollment = db.prepare(`
+    SELECT e.*, c.title
+    FROM enrollments e JOIN courses c ON c.id = e.course_id
+    WHERE e.id = ? AND e.user_id = ? AND e.status IN ('active', 'completed')
+  `).get(enrollmentId, req.user.id);
+  if (!enrollment || !courseSurveyWeeks.includes(weekNumber)) return res.status(404).send("Course survey not found");
+  const availableDate = courseSurveyAvailableDate(enrollment.start_date, weekNumber);
+  if (enrollment.status !== "completed" && availableDate.getTime() > Date.now()) {
+    flash(req, `The Week ${weekNumber} survey is not available yet.`);
+    return res.redirect("/student/profile#evals");
+  }
+  const existing = db.prepare("SELECT id FROM course_survey_responses WHERE enrollment_id = ? AND week_number = ?").get(enrollmentId, weekNumber);
+  if (existing) {
+    flash(req, `Your Week ${weekNumber} survey has already been submitted.`);
+    return res.redirect("/student/profile#evals");
+  }
+  const ratings = ["overallRating", "instructorRating", "contentRating", "supportRating"].map((field) => Number(req.body[field]));
+  const pace = String(req.body.pace || "");
+  const wouldRecommend = Number(req.body.wouldRecommend);
+  if (ratings.some((value) => !Number.isInteger(value) || value < 1 || value > 5) || !["too_fast", "about_right", "too_slow"].includes(pace) || ![0, 1].includes(wouldRecommend)) {
+    flash(req, "Complete every required survey question before submitting.");
+    return res.redirect("/student/profile#evals");
+  }
+  db.prepare(`
+    INSERT INTO course_survey_responses (
+      enrollment_id, week_number, overall_rating, instructor_rating, content_rating, support_rating,
+      pace, would_recommend, learning_highlight, improvement_suggestion, additional_comments
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    enrollmentId,
+    weekNumber,
+    ...ratings,
+    pace,
+    wouldRecommend,
+    String(req.body.learningHighlight || "").trim().slice(0, 2000),
+    String(req.body.improvementSuggestion || "").trim().slice(0, 2000),
+    String(req.body.additionalComments || "").trim().slice(0, 2000)
+  );
+  flash(req, `Thank you. Your Week ${weekNumber} ${enrollment.title} survey was submitted.`);
+  res.redirect("/student/profile#evals");
+});
+
 app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
   const enrollments = db.prepare(`
     SELECT e.*, c.title, c.category, c.hours, c.credential_type, c.delivery_mode, cr.id AS credential_id
@@ -11026,6 +11163,14 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
     ORDER BY a.meeting_date DESC
     LIMIT 6
   `).all(req.user.id);
+  const surveyResponses = db.prepare(`
+    SELECT csr.*
+    FROM course_survey_responses csr
+    JOIN enrollments e ON e.id = csr.enrollment_id
+    WHERE e.user_id = ?
+    ORDER BY csr.submitted_at DESC
+  `).all(req.user.id);
+  const surveyResponseByMilestone = new Map(surveyResponses.map((response) => [`${response.enrollment_id}-${response.week_number}`, response]));
 
   const name = `${req.user.first_name} ${req.user.last_name}`.trim();
   const activeEnrollment = enrollments[0];
@@ -11173,7 +11318,17 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
 
         <article class="student-panel profile-wide" id="evals">
           <h2>Student Evaluation and Surveys</h2>
-          <p class="profile-note">No evaluations or surveys have been posted for this student.</p>
+          <div class="course-survey-intro">
+            <p>Complete a short evaluation during Weeks 4, 8, and 12 of each course. Your feedback helps improve instruction, learning materials, pacing, and student support.</p>
+            <span>${escapeHtml(surveyResponses.length)} submitted</span>
+          </div>
+          <div class="course-survey-list">
+            ${enrollments.map((enrollment) => courseSurveyWeeks.map((weekNumber) => renderCourseSurveyForm(
+              enrollment,
+              weekNumber,
+              surveyResponseByMilestone.get(`${enrollment.id}-${weekNumber}`)
+            )).join("")).join("") || `<p class="profile-note">Course surveys will appear after you enroll in a course.</p>`}
+          </div>
         </article>
       </section>
     </section>

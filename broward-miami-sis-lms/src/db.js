@@ -214,6 +214,23 @@ function migrate() {
       UNIQUE(grade_item_id, enrollment_id)
     );
 
+    CREATE TABLE IF NOT EXISTS course_survey_responses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+      week_number INTEGER NOT NULL CHECK(week_number IN (4, 8, 12)),
+      overall_rating INTEGER NOT NULL CHECK(overall_rating BETWEEN 1 AND 5),
+      instructor_rating INTEGER NOT NULL CHECK(instructor_rating BETWEEN 1 AND 5),
+      content_rating INTEGER NOT NULL CHECK(content_rating BETWEEN 1 AND 5),
+      support_rating INTEGER NOT NULL CHECK(support_rating BETWEEN 1 AND 5),
+      pace TEXT NOT NULL CHECK(pace IN ('too_fast', 'about_right', 'too_slow')),
+      would_recommend INTEGER NOT NULL CHECK(would_recommend IN (0, 1)),
+      learning_highlight TEXT,
+      improvement_suggestion TEXT,
+      additional_comments TEXT,
+      submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(enrollment_id, week_number)
+    );
+
     CREATE TABLE IF NOT EXISTS hesi_scores (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
