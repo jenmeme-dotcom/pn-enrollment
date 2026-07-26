@@ -354,6 +354,16 @@ function receiveVideo(req, res, next) {
   });
 }
 
+function receiveAssignment(req, res, next) {
+  upload.single("assignmentFile")(req, res, (error) => {
+    if (!error) return next();
+    flash(req, error.code === "LIMIT_FILE_SIZE" ? "Assignment file is too large. The maximum file size is 25 MB." : error.message);
+    const enrollmentId = Number(req.params.id || 0);
+    const assignmentId = Number(req.params.assignmentId || 0);
+    return res.redirect(enrollmentId ? `/student/enrollments/${enrollmentId}?assignment=${assignmentId}` : "/student/courses");
+  });
+}
+
 app.set("trust proxy", 1);
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json({ limit: "1mb" }));
@@ -3770,7 +3780,7 @@ function renderCourseRubricsPage({ courseCode, baseHref, gradeItems = [], instru
   `;
 }
 
-function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons = [], instructor = false, studentScore = null, courseId = null }) {
+function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons = [], instructor = false, studentScore = null, courseId = null, enrollmentId = null, submission = null }) {
   const type = assignmentTypeLabel(item);
   const relatedLessonHref = assignmentItemHref({ ...item, id: null }, lessons, baseHref);
   const hasRelatedLesson = relatedLessonHref.includes("?lesson=");
@@ -3812,6 +3822,37 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
           </div>
         </section>
         ${renderAssignmentRubric({ item, instructor, courseId })}
+        ${!instructor && enrollmentId && type !== "Quiz" && type !== "Exam" ? `
+          <section class="lesson-action-card assignment-submission-card">
+            <div class="assignment-submission-heading">
+              <div>
+                <p class="eyebrow">Your work</p>
+                <h2>${submission ? "Assignment submitted" : "Submit assignment"}</h2>
+              </div>
+              ${submission ? `<span class="pill">Submitted</span>` : ""}
+            </div>
+            ${submission ? `
+              <div class="assignment-submission-receipt">
+                <p><strong>${escapeHtml(submission.file_original_name)}</strong></p>
+                <p class="muted">Submitted ${escapeHtml(date(submission.submitted_at))} · ${escapeHtml(formatBytes(submission.file_size))}</p>
+                ${submission.student_note ? `<p><strong>Your note:</strong> ${escapeHtml(submission.student_note)}</p>` : ""}
+                <a class="button ghost small" href="/student/assignment-submissions/${submission.id}/file">Download submitted file</a>
+              </div>
+            ` : `<p>Upload your completed work for your instructor to review and grade.</p>`}
+            <form class="assignment-submission-form" method="post" enctype="multipart/form-data" action="/student/enrollments/${enrollmentId}/assignments/${item.id}/submit">
+              <label>
+                ${submission ? "Replace submitted file" : "Assignment file"}
+                <input type="file" name="assignmentFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.webp,.zip" required>
+              </label>
+              <label>
+                Note for your instructor (optional)
+                <textarea name="studentNote" rows="3" maxlength="2000" placeholder="Add context or a message about your submission">${escapeHtml(submission?.student_note || "")}</textarea>
+              </label>
+              <p class="muted">Accepted: PDF, Office documents, text, CSV, images, and ZIP files up to 25 MB.</p>
+              <button class="button" type="submit">${submission ? "Replace Submission" : "Submit Assignment"}</button>
+            </form>
+          </section>
+        ` : ""}
         ${type === "Quiz" || type === "Exam" ? `
           <section class="lesson-action-card">
             <h2>${escapeHtml(type)}</h2>
@@ -11551,6 +11592,9 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   const selectedAssignmentId = Number(req.query.assignment || 0);
   const selectedAssignment = selectedAssignmentId ? gradeItems.find((item) => item.id === selectedAssignmentId) : null;
   const selectedAssignmentGrade = selectedAssignment ? grades.find((grade) => grade.grade_item_id === selectedAssignment.id) : null;
+  const selectedAssignmentSubmission = selectedAssignment ? db.prepare(`
+    SELECT * FROM assignment_submissions WHERE grade_item_id = ? AND enrollment_id = ?
+  `).get(selectedAssignment.id, enrollment.id) : null;
   const selectedAssignmentNav = selectedAssignment && assignmentTypeLabel(selectedAssignment) === "Quiz" ? "Quizzes" : "Assignments";
   const body = selectedAssignment ? `
     <section class="canvas-course-shell student-course-shell">
@@ -11572,7 +11616,9 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         item: selectedAssignment,
         lessons,
         instructor: false,
-        studentScore: selectedAssignmentGrade?.score
+        studentScore: selectedAssignmentGrade?.score,
+        enrollmentId: enrollment.id,
+        submission: selectedAssignmentSubmission
       })}
     </section>
   ` : activeView === "modules" ? `
@@ -11871,6 +11917,87 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     </section>
   `;
   render(req, res, enrollment.title, body, { courseCanvas: true });
+});
+
+app.get("/student/assignment-submissions/:id/file", requireAuth, requireRole("student"), (req, res) => {
+  const submission = db.prepare(`
+    SELECT assignment_submissions.*
+    FROM assignment_submissions
+    JOIN enrollments ON enrollments.id = assignment_submissions.enrollment_id
+    WHERE assignment_submissions.id = ? AND enrollments.user_id = ?
+  `).get(Number(req.params.id), req.user.id);
+  if (!submission?.file_storage_name) return res.status(404).send("Assignment submission not found");
+  const filePath = path.join(uploadDir, submission.file_storage_name);
+  if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Assignment file not found");
+  res.download(filePath, submission.file_original_name || submission.file_storage_name);
+});
+
+app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAuth, requireRole("student"), receiveAssignment, (req, res) => {
+  const enrollmentId = Number(req.params.id);
+  const assignmentId = Number(req.params.assignmentId);
+  const redirectToAssignment = `/student/enrollments/${enrollmentId}?assignment=${assignmentId}`;
+  if (isClassLocked(req.user)) {
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    flash(req, "Class access is locked until the office marks your student file as organized.");
+    return res.redirect("/student");
+  }
+  const assignment = db.prepare(`
+    SELECT grade_items.*, enrollments.id AS enrollment_id
+    FROM enrollments
+    JOIN grade_items ON grade_items.course_id = enrollments.course_id
+    WHERE enrollments.id = ? AND enrollments.user_id = ?
+      AND enrollments.status IN ('active', 'completed') AND grade_items.id = ?
+  `).get(enrollmentId, req.user.id, assignmentId);
+  if (!assignment) {
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    return res.status(404).send("Assignment not found");
+  }
+  const type = assignmentTypeLabel(assignment);
+  if (type === "Quiz" || type === "Exam") {
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    flash(req, "This assessment must be completed in the portal and does not accept file uploads.");
+    return res.redirect(redirectToAssignment);
+  }
+  if (!req.file) {
+    flash(req, "Choose an assignment file before submitting.");
+    return res.redirect(redirectToAssignment);
+  }
+  const previous = db.prepare(`
+    SELECT file_storage_name FROM assignment_submissions WHERE grade_item_id = ? AND enrollment_id = ?
+  `).get(assignmentId, enrollmentId);
+  try {
+    db.prepare(`
+      INSERT INTO assignment_submissions (
+        grade_item_id, enrollment_id, file_storage_name, file_original_name, file_mime_type, file_size,
+        student_note, submitted_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(grade_item_id, enrollment_id) DO UPDATE SET
+        file_storage_name = excluded.file_storage_name,
+        file_original_name = excluded.file_original_name,
+        file_mime_type = excluded.file_mime_type,
+        file_size = excluded.file_size,
+        student_note = excluded.student_note,
+        submitted_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(
+      assignmentId,
+      enrollmentId,
+      req.file.filename,
+      req.file.originalname,
+      req.file.mimetype,
+      req.file.size,
+      String(req.body.studentNote || "").trim().slice(0, 2000)
+    );
+  } catch (error) {
+    fs.unlink(req.file.path, () => {});
+    throw error;
+  }
+  if (previous?.file_storage_name && previous.file_storage_name !== req.file.filename) {
+    const previousPath = path.join(uploadDir, previous.file_storage_name);
+    if (isPathInside(uploadDir, previousPath)) fs.unlink(previousPath, () => {});
+  }
+  flash(req, "Assignment submitted successfully. Your instructor can now review the uploaded file.");
+  res.redirect(redirectToAssignment);
 });
 
 app.get("/video-submissions/:id/media", requireAuth, (req, res) => {

@@ -84,12 +84,7 @@ const studentNavItems = [
   { key: "transcript", href: "/student/transcript", label: "Transcript" },
   { key: "timetable", href: "/student/profile#attendance", label: "Class Timetable" },
   { key: "help", href: "/help/browser-cache", label: "Help" },
-  { key: "lesson-plan", href: "/student/lesson-plan", label: "Lesson Plan" },
-  { key: "syllabus", href: "/student/syllabus-status", label: "Syllabus Status" },
-  { key: "homework", href: "/student/homework", label: "Homework" },
-  { key: "exam", href: "/student/profile#exam", label: "Online Exam" },
   { key: "leave", href: "/student/profile#timeline", label: "Apply Leave" },
-  { key: "visitor", href: "/student/profile#timeline", label: "Visitor Book" },
   { key: "download", href: "/catalog", label: "Download Center" },
   { key: "attendance", href: "/student/profile#attendance", label: "Attendance" },
   { key: "exams", href: "/student/profile#exam", label: "Examinations" }

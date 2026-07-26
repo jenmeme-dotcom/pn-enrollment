@@ -200,6 +200,20 @@ function migrate() {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS assignment_submissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      grade_item_id INTEGER NOT NULL REFERENCES grade_items(id) ON DELETE CASCADE,
+      enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+      file_storage_name TEXT NOT NULL,
+      file_original_name TEXT NOT NULL,
+      file_mime_type TEXT,
+      file_size INTEGER NOT NULL DEFAULT 0,
+      student_note TEXT,
+      submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(grade_item_id, enrollment_id)
+    );
+
     CREATE TABLE IF NOT EXISTS hesi_scores (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
