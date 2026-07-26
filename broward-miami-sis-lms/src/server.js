@@ -7642,6 +7642,8 @@ app.get("/admin/student-evaluations", requireAuth, requireRole("admin", "instruc
     ORDER BY sce.updated_at DESC
   `).all();
   const evaluationMap = new Map(evaluations.map((evaluation) => [`${evaluation.enrollment_id}-${evaluation.week_number}`, evaluation]));
+  const selfEvaluations = db.prepare("SELECT * FROM student_self_evaluations ORDER BY submitted_at DESC").all();
+  const selfEvaluationMap = new Map(selfEvaluations.map((evaluation) => [`${evaluation.enrollment_id}-${evaluation.week_number}`, evaluation]));
   const filter = String(req.query.q || "").trim().toLowerCase();
   const visibleEnrollments = filter ? enrollments.filter((row) => `${row.first_name} ${row.last_name} ${row.email} ${row.course_title}`.toLowerCase().includes(filter)) : enrollments;
   const ratingInput = (name, label, value = "") => `
@@ -7665,7 +7667,7 @@ app.get("/admin/student-evaluations", requireAuth, requireRole("admin", "instruc
       ${stat("Active enrollments", String(enrollments.filter((row) => row.status === "active").length))}
       ${stat("Evaluations completed", String(evaluations.length))}
       ${stat("Released to students", String(evaluations.filter((row) => row.released_to_student).length))}
-      ${stat("Milestones", "Weeks 4, 8, 12")}
+      ${stat("Awaiting instructor", String(selfEvaluations.filter((row) => !evaluationMap.has(`${row.enrollment_id}-${row.week_number}`)).length))}
     </section>
     <form class="card evaluation-search" method="get" action="/admin/student-evaluations">
       <label>Find student or course<input type="search" name="q" value="${escapeHtml(req.query.q || "")}" placeholder="Search by student, email, or course"></label>
@@ -7681,6 +7683,7 @@ app.get("/admin/student-evaluations", requireAuth, requireRole("admin", "instruc
           <div class="staff-evaluation-milestones">
             ${courseSurveyWeeks.map((weekNumber) => {
               const evaluation = evaluationMap.get(`${enrollment.id}-${weekNumber}`);
+              const selfEvaluation = selfEvaluationMap.get(`${enrollment.id}-${weekNumber}`);
               const availableDate = courseSurveyAvailableDate(enrollment.start_date, weekNumber);
               const available = enrollment.status === "completed" || availableDate.getTime() <= Date.now();
               if (!available && !evaluation) return `
@@ -7689,10 +7692,34 @@ app.get("/admin/student-evaluations", requireAuth, requireRole("admin", "instruc
                   <p>This evaluation opens during Week ${weekNumber}.</p>
                 </section>
               `;
+              if (!selfEvaluation && !evaluation) return `
+                <section class="staff-evaluation-card waiting">
+                  <div class="staff-evaluation-title"><h3>Week ${weekNumber}</h3><span class="pill orange">Waiting for student</span></div>
+                  <p>The instructor evaluation opens after the student submits the Week ${weekNumber} self-evaluation.</p>
+                </section>
+              `;
               return `
                 <details class="staff-evaluation-card ${evaluation ? "completed" : "due"}" ${evaluation ? "" : "open"}>
                   <summary><span>Week ${weekNumber} Evaluation</span><strong>${evaluation ? (evaluation.released_to_student ? "Released" : "Saved privately") : "Due"}</strong></summary>
                   <form method="post" action="/admin/student-evaluations/${enrollment.id}/${weekNumber}">
+                    ${selfEvaluation ? `
+                      <section class="staff-self-evaluation-review">
+                        <div class="staff-evaluation-title"><h4>Student Self-Evaluation</h4><span>Submitted ${escapeHtml(date(selfEvaluation.submitted_at.slice(0, 10)))}</span></div>
+                        <dl class="self-evaluation-scores">
+                          <div><dt>Academic</dt><dd>${escapeHtml(selfEvaluation.academic_progress)} / 5</dd></div>
+                          <div><dt>Attendance</dt><dd>${escapeHtml(selfEvaluation.attendance_punctuality)} / 5</dd></div>
+                          <div><dt>Professionalism</dt><dd>${escapeHtml(selfEvaluation.professionalism)} / 5</dd></div>
+                          <div><dt>Communication</dt><dd>${escapeHtml(selfEvaluation.communication_teamwork)} / 5</dd></div>
+                          <div><dt>Skills</dt><dd>${escapeHtml(selfEvaluation.clinical_skills)} / 5</dd></div>
+                        </dl>
+                        <div class="self-evaluation-reflections">
+                          <p><strong>Accomplishments</strong>${escapeHtml(selfEvaluation.accomplishments || "None provided.")}</p>
+                          <p><strong>Challenges</strong>${escapeHtml(selfEvaluation.challenges || "None provided.")}</p>
+                          <p><strong>Goals</strong>${escapeHtml(selfEvaluation.goals || "None provided.")}</p>
+                          <p><strong>Support needed</strong>${escapeHtml(selfEvaluation.support_needed || "None requested.")}</p>
+                        </div>
+                      </section>
+                    ` : ""}
                     <div class="evaluation-rating-grid">
                       ${ratingInput("academicProgress", "Academic progress", evaluation?.academic_progress)}
                       ${ratingInput("attendancePunctuality", "Attendance and punctuality", evaluation?.attendance_punctuality)}
@@ -7734,6 +7761,11 @@ app.post("/admin/student-evaluations/:enrollmentId/:weekNumber", requireAuth, re
     WHERE e.id = ? AND e.status IN ('active', 'completed') AND u.role = 'student'
   `).get(enrollmentId);
   if (!enrollment || !courseSurveyWeeks.includes(weekNumber)) return res.status(404).send("Student evaluation not found");
+  const selfEvaluation = db.prepare("SELECT id FROM student_self_evaluations WHERE enrollment_id = ? AND week_number = ?").get(enrollmentId, weekNumber);
+  if (!selfEvaluation) {
+    flash(req, `The student must submit the Week ${weekNumber} self-evaluation before the instructor evaluation can be completed.`);
+    return res.redirect("/admin/student-evaluations");
+  }
   const availableDate = courseSurveyAvailableDate(enrollment.start_date, weekNumber);
   if (enrollment.status !== "completed" && availableDate.getTime() > Date.now()) {
     flash(req, `The Week ${weekNumber} evaluation is not available yet.`);
@@ -7776,6 +7808,15 @@ app.post("/admin/student-evaluations/:enrollmentId/:weekNumber", requireAuth, re
     req.user.id,
     req.body.releasedToStudent === "1" ? 1 : 0
   );
+  if (req.body.releasedToStudent === "1") {
+    savePortalMessage({
+      senderId: req.user.id,
+      recipientId: enrollment.user_id,
+      courseId: enrollment.course_id,
+      subject: `Student evaluation completed: Week ${weekNumber} ${enrollment.course_title}`,
+      body: `Your instructor completed and released your Week ${weekNumber} evaluation for ${enrollment.course_title}. Open Student Evaluation and Surveys in your profile to review the scores, feedback, and action plan.`
+    });
+  }
   flash(req, `Week ${weekNumber} evaluation saved for ${enrollment.first_name} ${enrollment.last_name}.`);
   res.redirect(`/admin/student-evaluations?q=${encodeURIComponent(`${enrollment.first_name} ${enrollment.last_name}`)}`);
 });
@@ -11287,6 +11328,108 @@ function courseSurveyAvailableDate(startDate, weekNumber) {
   return available;
 }
 
+function renderStudentSelfEvaluationCard(enrollment, weekNumber, selfEvaluation, finalEvaluation) {
+  const availableDate = courseSurveyAvailableDate(enrollment.start_date, weekNumber);
+  const available = enrollment.status === "completed" || availableDate.getTime() <= Date.now();
+  if (selfEvaluation) {
+    return `
+      <article class="student-self-eval-card submitted">
+        <header>
+          <div><span>Week ${weekNumber} Self-Evaluation</span><h4>${escapeHtml(enrollment.title)}</h4></div>
+          <span class="pill">${finalEvaluation ? "Instructor completed" : "Sent to instructor"}</span>
+        </header>
+        <p>Your self-evaluation was submitted on ${escapeHtml(date(selfEvaluation.submitted_at.slice(0, 10)))}. ${finalEvaluation ? "Your instructor has completed the evaluation." : "Your instructor has been notified and will complete the final evaluation."}</p>
+        <dl class="survey-result-summary">
+          <div><dt>Academic progress</dt><dd>${escapeHtml(selfEvaluation.academic_progress)} / 5</dd></div>
+          <div><dt>Professionalism</dt><dd>${escapeHtml(selfEvaluation.professionalism)} / 5</dd></div>
+          <div><dt>Skills</dt><dd>${escapeHtml(selfEvaluation.clinical_skills)} / 5</dd></div>
+        </dl>
+      </article>
+    `;
+  }
+  if (!available) {
+    return `
+      <article class="student-self-eval-card locked">
+        <header><div><span>Week ${weekNumber} Self-Evaluation</span><h4>${escapeHtml(enrollment.title)}</h4></div><span class="pill orange">Opens ${escapeHtml(date(availableDate.toISOString().slice(0, 10)))}</span></header>
+        <p>Complete this self-evaluation during Week ${weekNumber}. It will then be sent to your instructor.</p>
+      </article>
+    `;
+  }
+  const ratingQuestion = (name, label) => `
+    <fieldset class="survey-rating">
+      <legend>${escapeHtml(label)}</legend>
+      <div>${[1, 2, 3, 4, 5].map((value) => `<label><input type="radio" name="${name}" value="${value}" required><span>${value}</span></label>`).join("")}</div>
+      <small><span>Needs improvement</span><span>Excellent</span></small>
+    </fieldset>
+  `;
+  return `
+    <article class="student-self-eval-card available">
+      <header><div><span>Week ${weekNumber} Self-Evaluation</span><h4>${escapeHtml(enrollment.title)}</h4></div><span class="pill">Action required</span></header>
+      <p>Rate your own progress honestly. After submission, this evaluation is sent to your instructor for completion.</p>
+      <form class="course-survey-form" method="post" action="/student/self-evaluations/${enrollment.id}/${weekNumber}">
+        ${ratingQuestion("academicProgress", "How would you rate your academic progress?")}
+        ${ratingQuestion("attendancePunctuality", "How would you rate your attendance and punctuality?")}
+        ${ratingQuestion("professionalism", "How would you rate your professionalism?")}
+        ${ratingQuestion("communicationTeamwork", "How would you rate your communication and teamwork?")}
+        ${ratingQuestion("clinicalSkills", "How would you rate your skills and competency?")}
+        <label>My accomplishments<textarea name="accomplishments" rows="3" maxlength="3000" required></textarea></label>
+        <label>Challenges I am experiencing<textarea name="challenges" rows="3" maxlength="3000" required></textarea></label>
+        <label>My goals before the next evaluation<textarea name="goals" rows="3" maxlength="3000" required></textarea></label>
+        <label>Support I need from my instructor or school<textarea name="supportNeeded" rows="3" maxlength="3000"></textarea></label>
+        <p class="muted">This self-evaluation can be submitted once. Your instructor will be notified immediately.</p>
+        <button class="button" type="submit">Send Self-Evaluation to Instructor</button>
+      </form>
+    </article>
+  `;
+}
+
+app.post("/student/self-evaluations/:enrollmentId/:weekNumber", requireAuth, requireRole("student"), (req, res) => {
+  const enrollmentId = Number(req.params.enrollmentId);
+  const weekNumber = Number(req.params.weekNumber);
+  const enrollment = db.prepare(`
+    SELECT e.*, c.title AS course_title
+    FROM enrollments e JOIN courses c ON c.id = e.course_id
+    WHERE e.id = ? AND e.user_id = ? AND e.status IN ('active', 'completed')
+  `).get(enrollmentId, req.user.id);
+  if (!enrollment || !courseSurveyWeeks.includes(weekNumber)) return res.status(404).send("Student self-evaluation not found");
+  const availableDate = courseSurveyAvailableDate(enrollment.start_date, weekNumber);
+  if (enrollment.status !== "completed" && availableDate.getTime() > Date.now()) {
+    flash(req, `The Week ${weekNumber} self-evaluation is not available yet.`);
+    return res.redirect("/student/profile#evals");
+  }
+  const existing = db.prepare("SELECT id FROM student_self_evaluations WHERE enrollment_id = ? AND week_number = ?").get(enrollmentId, weekNumber);
+  if (existing) {
+    flash(req, `Your Week ${weekNumber} self-evaluation has already been sent to your instructor.`);
+    return res.redirect("/student/profile#evals");
+  }
+  const ratings = ["academicProgress", "attendancePunctuality", "professionalism", "communicationTeamwork", "clinicalSkills"].map((field) => Number(req.body[field]));
+  const accomplishments = String(req.body.accomplishments || "").trim().slice(0, 3000);
+  const challenges = String(req.body.challenges || "").trim().slice(0, 3000);
+  const goals = String(req.body.goals || "").trim().slice(0, 3000);
+  const supportNeeded = String(req.body.supportNeeded || "").trim().slice(0, 3000);
+  if (ratings.some((value) => !Number.isInteger(value) || value < 1 || value > 5) || !accomplishments || !challenges || !goals) {
+    flash(req, "Complete all required self-evaluation questions.");
+    return res.redirect("/student/profile#evals");
+  }
+  db.prepare(`
+    INSERT INTO student_self_evaluations (
+      enrollment_id, week_number, academic_progress, attendance_punctuality, professionalism,
+      communication_teamwork, clinical_skills, accomplishments, challenges, goals, support_needed
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(enrollmentId, weekNumber, ...ratings, accomplishments, challenges, goals, supportNeeded);
+  const staffRecipients = db.prepare("SELECT id FROM users WHERE role IN ('admin', 'instructor') AND status = 'active'").all();
+  const studentName = `${req.user.first_name} ${req.user.last_name}`.trim() || req.user.email;
+  staffRecipients.forEach((staff) => savePortalMessage({
+    senderId: req.user.id,
+    recipientId: staff.id,
+    courseId: enrollment.course_id,
+    subject: `Self-evaluation submitted: Week ${weekNumber} ${enrollment.course_title}`,
+    body: `${studentName} submitted the Week ${weekNumber} self-evaluation for ${enrollment.course_title}. Open Student Evals to review the student's reflection and complete the instructor evaluation.`
+  }));
+  flash(req, `Your Week ${weekNumber} self-evaluation was sent to your instructor for completion.`);
+  res.redirect("/student/profile#evals");
+});
+
 function renderCourseSurveyForm(enrollment, weekNumber, response) {
   const availableDate = courseSurveyAvailableDate(enrollment.start_date, weekNumber);
   const available = enrollment.status === "completed" || availableDate.getTime() <= Date.now();
@@ -11452,6 +11595,15 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
     WHERE e.user_id = ? AND sce.released_to_student = 1
     ORDER BY sce.evaluated_at DESC
   `).all(req.user.id);
+  const selfEvaluations = db.prepare(`
+    SELECT sse.*
+    FROM student_self_evaluations sse
+    JOIN enrollments e ON e.id = sse.enrollment_id
+    WHERE e.user_id = ?
+    ORDER BY sse.submitted_at DESC
+  `).all(req.user.id);
+  const selfEvaluationByMilestone = new Map(selfEvaluations.map((evaluation) => [`${evaluation.enrollment_id}-${evaluation.week_number}`, evaluation]));
+  const releasedEvaluationByMilestone = new Map(releasedEvaluations.map((evaluation) => [`${evaluation.enrollment_id}-${evaluation.week_number}`, evaluation]));
 
   const name = `${req.user.first_name} ${req.user.last_name}`.trim();
   const activeEnrollment = enrollments[0];
@@ -11600,12 +11752,24 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
         <article class="student-panel profile-wide" id="evals">
           <h2>Student Evaluation and Surveys</h2>
           <div class="course-survey-intro">
-            <p>Review evaluations released by your instructor and complete your own course surveys during Weeks 4, 8, and 12.</p>
+            <p>Complete your self-evaluation first at Weeks 4, 8, and 12. It is sent to your instructor, who completes and releases the final evaluation. Course surveys remain separate below.</p>
             <span>${escapeHtml(releasedEvaluations.length)} evaluation${releasedEvaluations.length === 1 ? "" : "s"}</span>
           </div>
+          <section class="student-self-evaluation-list">
+            <div class="evaluation-section-heading">
+              <div><p class="eyebrow">Step 1 · Student</p><h3>My Self-Evaluations</h3></div>
+              <span>${escapeHtml(selfEvaluations.length)} submitted</span>
+            </div>
+            ${enrollments.map((enrollment) => courseSurveyWeeks.map((weekNumber) => renderStudentSelfEvaluationCard(
+              enrollment,
+              weekNumber,
+              selfEvaluationByMilestone.get(`${enrollment.id}-${weekNumber}`),
+              releasedEvaluationByMilestone.get(`${enrollment.id}-${weekNumber}`)
+            )).join("")).join("") || `<p class="profile-note">Self-evaluations will appear after you enroll in a course.</p>`}
+          </section>
           <section class="student-evaluation-results">
             <div class="evaluation-section-heading">
-              <div><p class="eyebrow">Instructor feedback</p><h3>My Student Evaluations</h3></div>
+              <div><p class="eyebrow">Step 2 · Instructor</p><h3>Completed Instructor Evaluations</h3></div>
               <span>Weeks 4, 8, and 12</span>
             </div>
             ${releasedEvaluations.map((evaluation) => {

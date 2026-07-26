@@ -1601,6 +1601,59 @@ nav a {
   padding: 0 16px 16px;
 }
 
+.student-self-evaluation-list {
+  display: grid;
+  gap: 14px;
+  padding: 0 16px 16px;
+}
+
+.student-self-evaluation-list .evaluation-section-heading {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.student-self-eval-card {
+  border: 1px solid #d4dfe3;
+  border-radius: 7px;
+  padding: 15px;
+}
+
+.student-self-eval-card.available {
+  border-color: #8fc5ca;
+  box-shadow: inset 5px 0 0 #0e707a;
+}
+
+.student-self-eval-card.submitted {
+  background: #f4faf7;
+  border-color: #b8ddc6;
+}
+
+.student-self-eval-card.locked {
+  background: #f6f8f9;
+  color: #6c7982;
+}
+
+.student-self-eval-card > header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.student-self-eval-card header > div > span {
+  color: #0e6973;
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+}
+
+.student-self-eval-card h4 {
+  font-size: 18px;
+  margin: 0;
+}
+
 .student-evaluation-results .evaluation-section-heading {
   padding-left: 0;
   padding-right: 0;
@@ -1761,6 +1814,82 @@ nav a {
   color: #697780;
 }
 
+.staff-evaluation-card.waiting {
+  background: #fff9ed;
+  border-color: #e7d4ad;
+}
+
+.staff-evaluation-title {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.staff-evaluation-title h3,
+.staff-evaluation-title h4 {
+  margin: 0;
+}
+
+.staff-self-evaluation-review {
+  background: #edf7f8;
+  border: 1px solid #c7e0e3;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.staff-self-evaluation-review .staff-evaluation-title > span {
+  color: #62727a;
+  font-size: 11px;
+}
+
+.self-evaluation-scores {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 10px 0;
+}
+
+.self-evaluation-scores div {
+  background: white;
+  border-radius: 4px;
+  padding: 7px;
+}
+
+.self-evaluation-scores dt {
+  color: #697780;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.self-evaluation-scores dd {
+  font-weight: 900;
+  margin: 3px 0 0;
+}
+
+.self-evaluation-reflections {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.self-evaluation-reflections p {
+  background: white;
+  border-radius: 4px;
+  color: #4f5f67;
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 8px;
+}
+
+.self-evaluation-reflections strong {
+  color: #23343c;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
 .staff-evaluation-card summary {
   cursor: pointer;
   display: flex;
@@ -1823,6 +1952,11 @@ nav a {
 
   .student-evaluation-scores {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .self-evaluation-scores,
+  .self-evaluation-reflections {
+    grid-template-columns: 1fr;
   }
 }
 
