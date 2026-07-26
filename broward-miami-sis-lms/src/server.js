@@ -2117,6 +2117,7 @@ const introNursingNclexHints = [
 
 function renderIntroNursingNclexHint(lesson = {}) {
   const title = String(lesson.title || "Introduction to Nursing");
+  const isWelcomeLesson = normalizedTitle(title).includes("course welcome");
   const hintIndex = [...title].reduce((total, character) => total + character.charCodeAt(0), 0) % introNursingNclexHints.length;
   const hint = introNursingNclexHints[hintIndex];
   const letters = ["A", "B", "C", "D"];
@@ -2124,6 +2125,13 @@ function renderIntroNursingNclexHint(lesson = {}) {
     <section class="lesson-action-card nclex-prep-card" aria-labelledby="nclex-prep-${escapeHtml(lesson.id || hintIndex)}">
       <span class="nclex-prep-kicker">NCLEX-PN preparation · Not graded</span>
       <h2 id="nclex-prep-${escapeHtml(lesson.id || hintIndex)}">Think Like a Practical Nurse</h2>
+      ${isWelcomeLesson ? `
+        <div class="nclex-prep-intro">
+          <h3>Why you are beginning with this question</h3>
+          <p>You will see short NCLEX-PN practice questions throughout this course. They are not graded and do not affect your course score. They are included to help you become comfortable with the way NCLEX-PN questions are written and to begin practicing safe practical-nursing judgment from your first lesson.</p>
+          <p>Before you reveal the answer, identify what the question is asking, choose the safest response within your role, and explain why the other choices are less appropriate. Then open the answer and rationale to compare your reasoning. This routine will help you recognize priority words, eliminate unsafe choices, and understand why one answer is better than the others.</p>
+        </div>
+      ` : ""}
       <div class="nclex-strategy-box">
         <h3>NCLEX strategy</h3>
         <p><strong>How to approach this item:</strong> ${escapeHtml(hint.strategy)}</p>

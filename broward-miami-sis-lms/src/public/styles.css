@@ -6226,6 +6226,29 @@ button.small {
   text-transform: uppercase;
 }
 
+.nclex-prep-intro {
+  background: #ffffff;
+  border: 1px solid #cfe0e4;
+  border-left: 5px solid #0f7c86;
+  border-radius: 8px;
+  margin: 16px 0;
+  padding: 16px 18px;
+}
+
+.nclex-prep-intro h3 {
+  color: #0b5661;
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+
+.lesson-action-card .nclex-prep-intro p {
+  margin: 0 0 10px;
+}
+
+.lesson-action-card .nclex-prep-intro p:last-child {
+  margin-bottom: 0;
+}
+
 .nclex-strategy-box {
   margin: 1.1rem 0 1.35rem;
   padding: 1rem 1.15rem;
