@@ -1,7 +1,7 @@
 const { quizBanks, quizContent } = require("./nursingCourseQuizzes");
 
 const courseDescription =
-  "A 12-week introduction to nursing course for practical nursing students that explores the history and purpose of nursing, influential nursing leaders, the practical nurse role today, ethical and legal responsibilities, professional identity, and the impact students can make in patient care and the community.";
+  "In this 12-week introduction to nursing course, you will explore the history and purpose of nursing, influential nursing leaders, your role as a practical nurse, your ethical and legal responsibilities, your professional identity, and the positive impact you can make in patient care and your community.";
 
 const courseObjectives = [
   "Explain how nursing developed from early caregiving and hospital reform into today's evidence-informed, patient-centered profession.",
