@@ -85,46 +85,46 @@ const introQuizByWeek = {
 
 const powerPointReviewNotes = {
   1: [
-    ["What is nursing?", "Nursing combines scientific knowledge, clinical skills, observation, communication, compassion, and advocacy to help people maintain health, recover from illness, manage chronic conditions, and experience comfort and dignity."],
-    ["The practical nurse role", "The practical nurse provides direct care, gathers and reports patient data, administers authorized treatments and medications, reinforces teaching, documents care, and collaborates with the registered nurse and health care team."],
-    ["Professional identity in training", "Students begin forming a nursing identity by arriving prepared, communicating respectfully, accepting feedback, protecting confidentiality, and taking responsibility for their actions and learning."],
-    ["Scope, supervision, and safety", "Practical nurses and students must know which tasks are permitted, which require supervision, and when a change in condition must be reported. When uncertain, stop and ask before proceeding."],
-    ["Readiness for class and clinical", "Read assigned material, review skills, bring required supplies, arrive on time, follow dress and identification requirements, and be ready to explain the patient's main risks and priorities."]
+    ["What is nursing?", "As a student nurse, you are learning to combine scientific knowledge, clinical skills, observation, communication, compassion, and advocacy so you can help people maintain health, recover from illness, manage chronic conditions, and experience comfort and dignity."],
+    ["Your practical nurse role", "As a practical nurse, you will provide direct care, gather and report patient data, administer authorized treatments and medications, reinforce teaching, document care, and collaborate with the registered nurse and health care team."],
+    ["Your professional identity in training", "You begin forming your nursing identity now. Arrive prepared, communicate respectfully, accept feedback, protect confidentiality, and take responsibility for your actions and learning."],
+    ["Your scope, supervision, and safety", "You must know which tasks you may perform, which require supervision, and when you must report a change in condition. When you are uncertain, stop and ask before proceeding."],
+    ["Your readiness for class and clinical", "Read your assigned material, review your skills, bring required supplies, arrive on time, follow dress and identification requirements, and be ready to explain your patient's main risks and priorities."]
   ],
   2: [
-    ["Nursing law and regulation", "The nurse practice act, board of nursing rules, facility policies, and the student's assigned role define what care may be performed and what supervision is required."],
-    ["Ethical principles", "Autonomy, beneficence, nonmaleficence, justice, fidelity, and veracity guide decisions that respect patient choice, promote good, prevent harm, support fairness, keep promises, and communicate truthfully."],
-    ["Patient rights and informed consent", "Patients have the right to understandable information, privacy, participation in decisions, and refusal of care. Consent must be informed, voluntary, and obtained from a person with decision-making capacity."],
-    ["Preventing negligence and liability", "Follow standards of care, identify the patient correctly, communicate changes promptly, question unsafe directions, document accurately, and never perform a task beyond training or authorization."],
-    ["Confidentiality and professional boundaries", "Access and share health information only for legitimate care needs. Maintain therapeutic boundaries and never post patient stories, images, or identifying details online."]
+    ["The laws that guide your practice", "Your practice is defined by the nurse practice act, board of nursing rules, facility policies, and your assigned student or practical nurse role. Know what care you may provide and what supervision you need."],
+    ["Using ethical principles", "Use autonomy, beneficence, nonmaleficence, justice, fidelity, and veracity to respect your patient's choices, promote good, prevent harm, support fairness, keep promises, and communicate truthfully."],
+    ["Protecting patient rights and informed consent", "You must protect each patient's right to understandable information, privacy, participation in decisions, and refusal of care. Confirm that consent is informed and voluntary, and report questions through the appropriate nurse or provider."],
+    ["Preventing negligence and liability", "Follow your standards of care, identify your patient correctly, communicate changes promptly, question unsafe directions, document accurately, and never perform a task beyond your training or authorization."],
+    ["Maintaining confidentiality and boundaries", "Access and share health information only when you have a legitimate care need. Maintain therapeutic boundaries and never post patient stories, images, or identifying details online."]
   ],
   3: [
-    ["Purpose of the health record", "The record communicates the patient's condition, care, response, and plan across the team. It also supports continuity, quality review, reimbursement, and legal accountability."],
-    ["Objective and complete charting", "Document measurable findings, actions, patient statements, and responses. Avoid labels, assumptions, vague phrases, blame, and opinions that are not supported by facts."],
-    ["Timeliness and accuracy", "Chart as soon as possible after care, use the correct patient record, include required dates and times, and never document a treatment before it is completed."],
-    ["Electronic records and confidentiality", "Protect passwords, lock the screen when leaving, access only assigned records, and discuss information only with authorized team members in private settings."],
-    ["Corrections, reporting, and ISBAR", "Correct errors according to policy without hiding the original entry. Use ISBAR to organize urgent communication and document significant changes and notifications."]
+    ["How you use the health record", "You use the record to communicate your patient's condition, care, response, and plan to the health care team. Your documentation also supports continuity, quality review, reimbursement, and legal accountability."],
+    ["Charting objectively and completely", "Document the measurable findings you observe, the actions you take, the patient's exact statements, and the response to care. Avoid labels, assumptions, vague phrases, blame, and unsupported opinions."],
+    ["Charting on time and accurately", "Chart as soon as possible after you provide care, use the correct patient record, include required dates and times, and never document a treatment before you complete it."],
+    ["Protecting electronic records", "Protect your password, lock the screen when you leave, access only records assigned to you, and discuss information only with authorized team members in private settings."],
+    ["Correcting and reporting clearly", "Correct your errors according to policy without hiding the original entry. Use ISBAR to organize urgent communication, and document significant changes and the people you notified."]
   ],
   4: [
-    ["The communication process", "Communication includes a sender, message, receiver, feedback, and context. Tone, posture, facial expression, personal space, and silence may communicate as strongly as words."],
-    ["Therapeutic communication", "Use active listening, open-ended questions, clarification, reflection, empathy, and appropriate silence to help patients express concerns and participate in care."],
-    ["Barriers to understanding", "Medical jargon, rushing, false reassurance, arguing, stereotyping, excessive questioning, hearing or vision limitations, and language differences can prevent safe communication."],
-    ["Language and cultural respect", "Use qualified interpreters for important information, speak directly to the patient, use plain language, and ask about individual preferences instead of making cultural assumptions."],
-    ["Team communication and ISBAR", "Report the situation, relevant background, current assessment, and recommendation clearly. Confirm critical instructions through read-back or closed-loop communication."]
+    ["How your communication works", "Your communication includes the message you send, how your patient receives it, the feedback you observe, and the surrounding context. Your tone, posture, facial expression, personal space, and silence may communicate as strongly as your words."],
+    ["Using therapeutic communication", "Use active listening, open-ended questions, clarification, reflection, empathy, and appropriate silence to help your patient express concerns and participate in care."],
+    ["Removing barriers to understanding", "Avoid medical jargon, rushing, false reassurance, arguing, stereotyping, and excessive questioning. Adapt your approach when your patient has hearing, vision, language, literacy, or cognitive needs."],
+    ["Showing language and cultural respect", "Use a qualified interpreter for important information, speak directly to your patient, use plain language, and ask about individual preferences instead of making cultural assumptions."],
+    ["Communicating with your team using ISBAR", "Clearly report the situation, relevant background, your current assessment, and your recommendation. Confirm critical instructions through read-back or closed-loop communication."]
   ],
   5: [
-    ["Assessment", "Collect subjective information from the patient and objective findings from observation, examination, measurements, records, and the care team. Validate unexpected or inconsistent data."],
-    ["Identifying patient problems", "Organize assessment cues, recognize actual or potential concerns, and promptly report findings that suggest deterioration or require care beyond the practical nurse's scope."],
-    ["Planning and priorities", "Set measurable, patient-centered outcomes and choose safe interventions. Use ABCs, immediate safety needs, urgency, and the patient's preferences to establish priorities."],
-    ["Implementation", "Carry out authorized interventions, explain care, protect privacy, use infection-control and safety measures, and document what was performed and how the patient responded."],
-    ["Evaluation and clinical judgment", "Reassess the patient, compare results with expected outcomes, recognize whether care worked, and communicate when the plan needs to be continued, changed, or escalated."]
+    ["How you assess", "Collect subjective information from your patient and objective findings through observation, examination, measurements, records, and communication with the care team. Validate data that are unexpected or inconsistent."],
+    ["How you identify patient problems", "Organize the cues you collect, recognize actual or potential concerns, and promptly report findings that suggest deterioration or require care beyond your scope."],
+    ["How you plan and prioritize", "Help set measurable, patient-centered outcomes and choose safe authorized interventions. Use ABCs, immediate safety needs, urgency, and your patient's preferences to establish priorities."],
+    ["How you implement care", "Carry out your authorized interventions, explain care, protect privacy, use infection-control and safety measures, and document what you performed and how your patient responded."],
+    ["How you evaluate and use clinical judgment", "Reassess your patient, compare the results with expected outcomes, decide whether care worked, and communicate when the plan should be continued, changed, or escalated."]
   ],
   6: [
-    ["Culture, ethnicity, and health", "Culture can influence communication, family roles, food, modesty, pain expression, spiritual practices, treatment preferences, and beliefs about health and illness, but every patient remains an individual."],
-    ["Cultural humility", "Approach each person with curiosity and respect, recognize the limits of your own knowledge, examine personal bias, and invite the patient to explain what matters in their care."],
-    ["Communication and language access", "Use qualified interpreters and translated materials when appropriate. Speak to the patient—not the interpreter—and use teach-back to confirm understanding."],
-    ["Bias, equity, and social needs", "Avoid stereotypes and consider how transportation, housing, finances, food access, education, disability, and discrimination may affect the patient's ability to follow a plan."],
-    ["Individualized respectful care", "Ask about preferences, explain procedures before touching, protect dignity, include chosen support people when authorized, and adapt the plan safely with the health care team."]
+    ["How culture may affect your patient's care", "Remember that culture can influence communication, family roles, food, modesty, pain expression, spiritual practices, treatment preferences, and beliefs about health and illness. Ask rather than assume, because every patient is an individual."],
+    ["Practicing cultural humility", "Approach each person with curiosity and respect, recognize the limits of your own knowledge, examine your personal biases, and invite your patient to explain what matters in their care."],
+    ["Providing language access", "Use qualified interpreters and translated materials when appropriate. Speak to your patient—not the interpreter—and use teach-back to confirm understanding."],
+    ["Recognizing bias, equity, and social needs", "Avoid stereotypes. Consider how transportation, housing, finances, food access, education, disability, and discrimination may affect your patient's ability to follow the plan."],
+    ["Providing individualized respectful care", "Ask your patient about preferences, explain procedures before touching, protect dignity, include chosen support people when authorized, and work with the health care team to adapt the plan safely."]
   ]
 };
 
