@@ -82,12 +82,9 @@ const studentNavItems = [
   { key: "fees", href: "/student/financial", label: "Fees" },
   { key: "registration", href: "/student/registration", label: "Registration" },
   { key: "transcript", href: "/student/transcript", label: "Transcript" },
-  { key: "timetable", href: "/student/profile#attendance", label: "Class Timetable" },
   { key: "help", href: "/help/browser-cache", label: "Help" },
-  { key: "leave", href: "/student/profile#timeline", label: "Apply Leave" },
   { key: "download", href: "/catalog", label: "Download Center" },
-  { key: "attendance", href: "/student/profile#attendance", label: "Attendance" },
-  { key: "exams", href: "/student/profile#exam", label: "Examinations" }
+  { key: "attendance", href: "/student/profile#attendance", label: "Attendance" }
 ];
 
 function studentPortalLink(activeStudentNav, { key, href, label }) {
