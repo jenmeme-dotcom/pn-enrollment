@@ -2155,7 +2155,12 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
   const previousLesson = selectedIndex > 0 ? lessons[selectedIndex - 1] : null;
   const nextLesson = selectedIndex >= 0 && selectedIndex < lessons.length - 1 ? lessons[selectedIndex + 1] : null;
   const selectedModule = moduleGroups.find((module) => module.id === selectedLesson.module_id) || moduleGroups[0];
-  const selectedGradeItem = gradeItems.find((item) => normalizedTitle(item.title) === normalizedTitle(selectedLesson.title));
+  const selectedLessonTitle = normalizedTitle(selectedLesson.title);
+  const selectedGradeItem = gradeItems.find((item) => normalizedTitle(item.title) === selectedLessonTitle)
+    || gradeItems.find((item) => {
+      const itemTitle = normalizedTitle(item.title);
+      return itemTitle && selectedLessonTitle && (itemTitle.includes(selectedLessonTitle) || selectedLessonTitle.includes(itemTitle));
+    });
   const quizGrade = selectedGradeItem ? grades.find((grade) => grade.grade_item_id === selectedGradeItem.id) : null;
   const examAttempt = !instructor && enrollmentId && moduleItemKind(selectedLesson.title) === "quiz"
     ? db.prepare("SELECT * FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollmentId, selectedLesson.id)
@@ -2193,6 +2198,9 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
           ${showLessonSourceContent ? renderCanvasLessonContent(lessonContentForViewer, selectedLesson.title) : ""}
         </div>
         ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId, examAttempt })}
+        ${selectedGradeItem && rubricEligible(selectedGradeItem)
+          ? renderAssignmentRubric({ item: selectedGradeItem, instructor, courseId })
+          : ""}
         ${showIntroNursingNclexHint ? renderIntroNursingNclexHint(selectedLesson) : ""}
         ${!instructor && enrollmentId && moduleItemKind(selectedLesson.title) !== "quiz" && !db.prepare("SELECT id FROM video_assignments WHERE lesson_id = ?").get(selectedLesson.id) ? `
           <form method="post" action="/student/enrollments/${enrollmentId}/lesson-complete" class="canvas-complete-action">
@@ -3669,7 +3677,7 @@ function assignmentTypeLabel(item = {}) {
   const title = String(item.title || "").toLowerCase();
   if (title.includes("quiz")) return "Quiz";
   if (title.includes("discussion")) return "Discussion";
-  if (title.includes("exam") || title.includes("midterm") || title.includes("final")) return "Exam";
+  if (title.includes("exam") || title.includes("midterm")) return "Exam";
   if (title.includes("acknowledg")) return "Acknowledgment";
   if (title.includes("worksheet") || title.includes("exercise") || title.includes("drill")) return "Course assignment";
   return item.group || "Assignment";
@@ -3783,7 +3791,7 @@ function renderAssignmentRubric({ item, instructor = false, courseId = null, com
   if (!rubric) return "";
   const totalPoints = rubric.criteria.reduce((sum, criterion) => sum + Number(criterion.maxPoints || 0), 0);
   return `
-    <section class="lesson-action-card assignment-rubric-card">
+    <section class="lesson-action-card assignment-rubric-card"${compact ? "" : ` id="assignment-rubric"`}>
       <div class="rubric-title-row">
         <div><p class="eyebrow">Grading expectations</p><h2>${escapeHtml(rubric.title || `${item.title} Rubric`)}</h2></div>
         <strong>${escapeHtml(rubricPoints(totalPoints))} points</strong>
@@ -3982,7 +3990,7 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
         </div>
         <table class="syllabus-table">
           <thead>
-            <tr><th>Name</th><th>Type</th><th>Due Date</th><th>Points</th><th>Status</th></tr>
+            <tr><th>Name</th><th>Type</th><th>Due Date</th><th>Points</th><th>Rubric</th><th>Status</th></tr>
           </thead>
           <tbody>
             ${rows.map((item) => {
@@ -3994,10 +4002,11 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
                   <td>${escapeHtml(assignmentTypeLabel(item))}</td>
                   <td>${escapeHtml(formatGradeDue(item.due_date) || "No due date")}</td>
                   <td>${escapeHtml(item.points_possible || 0)}</td>
+                  <td>${rubricEligible(item) ? `<a href="${escapeHtml(item.id ? `${baseHref}?assignment=${item.id}` : href)}#assignment-rubric">View rubric</a>` : "—"}</td>
                   <td><span class="pill ${status === "Unpublished" ? "orange" : ""}">${escapeHtml(status)}</span></td>
                 </tr>
               `;
-            }).join("") || `<tr><td colspan="5" class="empty">No ${escapeHtml(title.toLowerCase())} have been added yet.</td></tr>`}
+            }).join("") || `<tr><td colspan="6" class="empty">No ${escapeHtml(title.toLowerCase())} have been added yet.</td></tr>`}
           </tbody>
         </table>
       </section>
