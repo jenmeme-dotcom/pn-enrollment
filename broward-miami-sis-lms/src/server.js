@@ -11069,7 +11069,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
         <a href="#attendance">Attendance</a>
         <a href="#documents">Documents</a>
         <a href="#timeline">Timeline</a>
-        <a href="#behavior">Student Behaviour</a>
+        <a href="#evals">Evals</a>
       </nav>
 
       <section class="profile-grid">
@@ -11171,9 +11171,9 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
           </div>
         </article>
 
-        <article class="student-panel profile-wide" id="behavior">
-          <h2>Student Behaviour</h2>
-          <p class="profile-note">No behavior records have been posted for this student.</p>
+        <article class="student-panel profile-wide" id="evals">
+          <h2>Evals</h2>
+          <p class="profile-note">No evaluations have been posted for this student.</p>
         </article>
       </section>
     </section>
