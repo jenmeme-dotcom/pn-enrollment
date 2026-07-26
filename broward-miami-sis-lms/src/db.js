@@ -1743,6 +1743,21 @@ function seed() {
       });
     });
 
+    // Remove chapter-reading links left in a prior week by earlier course
+    // allocations. Each textbook chapter must appear in exactly one week.
+    const removeMisallocatedChapter = db.prepare(`
+      DELETE FROM lessons
+      WHERE title GLOB ?
+        AND module_id IN (
+          SELECT id FROM modules
+          WHERE course_id = ? AND title NOT LIKE ?
+        )
+    `);
+    for (let chapter = 7; chapter <= 13; chapter += 1) {
+      const assignedWeek = chapter >= 12 ? 12 : chapter;
+      removeMisallocatedChapter.run(`Chapter ${chapter}:*`, introductionCourse.id, `Week ${assignedWeek}:%`);
+    }
+
     // The legacy six-week build placed its final module immediately after
     // Week 6. Keep the final assessment last after extending the course.
     const finalModules = db.prepare(`
