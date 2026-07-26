@@ -7508,6 +7508,160 @@ app.post("/admin/hesi/scores", requireAuth, requireRole("admin", "instructor"), 
   res.redirect(`/admin/hesi?cohort=${encodeURIComponent(String(req.body.cohort || student.cohort_name || "Cohort 1"))}`);
 });
 
+app.get("/admin/student-evaluations", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const enrollments = db.prepare(`
+    SELECT e.*, c.title AS course_title, u.first_name, u.last_name, u.email
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    JOIN users u ON u.id = e.user_id
+    WHERE e.status IN ('active', 'completed') AND u.role = 'student'
+    ORDER BY u.last_name, u.first_name, c.title
+  `).all();
+  const evaluations = db.prepare(`
+    SELECT sce.*, u.first_name AS evaluator_first_name, u.last_name AS evaluator_last_name
+    FROM student_course_evaluations sce
+    LEFT JOIN users u ON u.id = sce.evaluator_id
+    ORDER BY sce.updated_at DESC
+  `).all();
+  const evaluationMap = new Map(evaluations.map((evaluation) => [`${evaluation.enrollment_id}-${evaluation.week_number}`, evaluation]));
+  const filter = String(req.query.q || "").trim().toLowerCase();
+  const visibleEnrollments = filter ? enrollments.filter((row) => `${row.first_name} ${row.last_name} ${row.email} ${row.course_title}`.toLowerCase().includes(filter)) : enrollments;
+  const ratingInput = (name, label, value = "") => `
+    <label>${escapeHtml(label)}
+      <select name="${name}" required>
+        <option value="">Select rating</option>
+        ${[1, 2, 3, 4, 5].map((rating) => `<option value="${rating}" ${Number(value) === rating ? "selected" : ""}>${rating} - ${rating === 1 ? "Unsatisfactory" : rating === 2 ? "Developing" : rating === 3 ? "Satisfactory" : rating === 4 ? "Strong" : "Excellent"}</option>`).join("")}
+      </select>
+    </label>
+  `;
+  const body = `
+    <div class="page-head">
+      <div>
+        <p class="eyebrow">Academic Progress</p>
+        <h1>Student Evaluations</h1>
+        <p>Complete and release formal student evaluations at Weeks 4, 8, and 12 of each course.</p>
+      </div>
+      <div class="actions"><a class="button ghost" href="/admin/students">Students</a></div>
+    </div>
+    <section class="grid cols-4">
+      ${stat("Active enrollments", String(enrollments.filter((row) => row.status === "active").length))}
+      ${stat("Evaluations completed", String(evaluations.length))}
+      ${stat("Released to students", String(evaluations.filter((row) => row.released_to_student).length))}
+      ${stat("Milestones", "Weeks 4, 8, 12")}
+    </section>
+    <form class="card evaluation-search" method="get" action="/admin/student-evaluations">
+      <label>Find student or course<input type="search" name="q" value="${escapeHtml(req.query.q || "")}" placeholder="Search by student, email, or course"></label>
+      <button class="small" type="submit">Search</button>
+    </form>
+    <section class="staff-evaluation-list">
+      ${visibleEnrollments.map((enrollment) => `
+        <article class="card staff-evaluation-enrollment">
+          <header>
+            <div><p class="eyebrow">${escapeHtml(enrollment.status)}</p><h2>${escapeHtml(enrollment.last_name)}, ${escapeHtml(enrollment.first_name)}</h2><p>${escapeHtml(enrollment.course_title)} · Started ${escapeHtml(date(enrollment.start_date))}</p></div>
+            <span>${escapeHtml(enrollment.progress)}% course progress</span>
+          </header>
+          <div class="staff-evaluation-milestones">
+            ${courseSurveyWeeks.map((weekNumber) => {
+              const evaluation = evaluationMap.get(`${enrollment.id}-${weekNumber}`);
+              const availableDate = courseSurveyAvailableDate(enrollment.start_date, weekNumber);
+              const available = enrollment.status === "completed" || availableDate.getTime() <= Date.now();
+              if (!available && !evaluation) return `
+                <section class="staff-evaluation-card locked">
+                  <div class="staff-evaluation-title"><h3>Week ${weekNumber}</h3><span class="pill orange">Opens ${escapeHtml(date(availableDate.toISOString().slice(0, 10)))}</span></div>
+                  <p>This evaluation opens during Week ${weekNumber}.</p>
+                </section>
+              `;
+              return `
+                <details class="staff-evaluation-card ${evaluation ? "completed" : "due"}" ${evaluation ? "" : "open"}>
+                  <summary><span>Week ${weekNumber} Evaluation</span><strong>${evaluation ? (evaluation.released_to_student ? "Released" : "Saved privately") : "Due"}</strong></summary>
+                  <form method="post" action="/admin/student-evaluations/${enrollment.id}/${weekNumber}">
+                    <div class="evaluation-rating-grid">
+                      ${ratingInput("academicProgress", "Academic progress", evaluation?.academic_progress)}
+                      ${ratingInput("attendancePunctuality", "Attendance and punctuality", evaluation?.attendance_punctuality)}
+                      ${ratingInput("professionalism", "Professionalism", evaluation?.professionalism)}
+                      ${ratingInput("communicationTeamwork", "Communication and teamwork", evaluation?.communication_teamwork)}
+                      ${ratingInput("clinicalSkills", "Skills and competency", evaluation?.clinical_skills)}
+                      <label>Overall status
+                        <select name="overallStatus" required>
+                          <option value="satisfactory" ${evaluation?.overall_status === "satisfactory" ? "selected" : ""}>Satisfactory</option>
+                          <option value="needs_improvement" ${evaluation?.overall_status === "needs_improvement" ? "selected" : ""}>Needs improvement</option>
+                          <option value="unsatisfactory" ${evaluation?.overall_status === "unsatisfactory" ? "selected" : ""}>Unsatisfactory</option>
+                        </select>
+                      </label>
+                    </div>
+                    <label>Student strengths<textarea name="strengths" rows="3" maxlength="3000">${escapeHtml(evaluation?.strengths || "")}</textarea></label>
+                    <label>Areas for improvement<textarea name="improvementAreas" rows="3" maxlength="3000">${escapeHtml(evaluation?.improvement_areas || "")}</textarea></label>
+                    <label>Action plan and next steps<textarea name="actionPlan" rows="3" maxlength="3000">${escapeHtml(evaluation?.action_plan || "")}</textarea></label>
+                    <label class="evaluation-release"><input type="checkbox" name="releasedToStudent" value="1" ${evaluation ? (evaluation.released_to_student ? "checked" : "") : "checked"}> Release this evaluation for the student to view</label>
+                    ${evaluation ? `<p class="muted">Last evaluated ${escapeHtml(date(evaluation.evaluated_at.slice(0, 10)))} by ${escapeHtml(`${evaluation.evaluator_first_name || "Staff"} ${evaluation.evaluator_last_name || ""}`.trim())}.</p>` : ""}
+                    <button class="button" type="submit">${evaluation ? "Update Evaluation" : "Save Evaluation"}</button>
+                  </form>
+                </details>
+              `;
+            }).join("")}
+          </div>
+        </article>
+      `).join("") || `<article class="card"><p class="empty">No matching student enrollments.</p></article>`}
+    </section>
+  `;
+  render(req, res, "Student Evaluations", body);
+});
+
+app.post("/admin/student-evaluations/:enrollmentId/:weekNumber", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const enrollmentId = Number(req.params.enrollmentId);
+  const weekNumber = Number(req.params.weekNumber);
+  const enrollment = db.prepare(`
+    SELECT e.*, c.title AS course_title, u.first_name, u.last_name
+    FROM enrollments e JOIN courses c ON c.id = e.course_id JOIN users u ON u.id = e.user_id
+    WHERE e.id = ? AND e.status IN ('active', 'completed') AND u.role = 'student'
+  `).get(enrollmentId);
+  if (!enrollment || !courseSurveyWeeks.includes(weekNumber)) return res.status(404).send("Student evaluation not found");
+  const availableDate = courseSurveyAvailableDate(enrollment.start_date, weekNumber);
+  if (enrollment.status !== "completed" && availableDate.getTime() > Date.now()) {
+    flash(req, `The Week ${weekNumber} evaluation is not available yet.`);
+    return res.redirect("/admin/student-evaluations");
+  }
+  const ratings = ["academicProgress", "attendancePunctuality", "professionalism", "communicationTeamwork", "clinicalSkills"].map((field) => Number(req.body[field]));
+  const overallStatus = String(req.body.overallStatus || "");
+  if (ratings.some((value) => !Number.isInteger(value) || value < 1 || value > 5) || !["satisfactory", "needs_improvement", "unsatisfactory"].includes(overallStatus)) {
+    flash(req, "Complete all required evaluation ratings.");
+    return res.redirect("/admin/student-evaluations");
+  }
+  db.prepare(`
+    INSERT INTO student_course_evaluations (
+      enrollment_id, week_number, academic_progress, attendance_punctuality, professionalism,
+      communication_teamwork, clinical_skills, overall_status, strengths, improvement_areas,
+      action_plan, evaluator_id, released_to_student, evaluated_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT(enrollment_id, week_number) DO UPDATE SET
+      academic_progress = excluded.academic_progress,
+      attendance_punctuality = excluded.attendance_punctuality,
+      professionalism = excluded.professionalism,
+      communication_teamwork = excluded.communication_teamwork,
+      clinical_skills = excluded.clinical_skills,
+      overall_status = excluded.overall_status,
+      strengths = excluded.strengths,
+      improvement_areas = excluded.improvement_areas,
+      action_plan = excluded.action_plan,
+      evaluator_id = excluded.evaluator_id,
+      released_to_student = excluded.released_to_student,
+      evaluated_at = CURRENT_TIMESTAMP,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(
+    enrollmentId,
+    weekNumber,
+    ...ratings,
+    overallStatus,
+    String(req.body.strengths || "").trim().slice(0, 3000),
+    String(req.body.improvementAreas || "").trim().slice(0, 3000),
+    String(req.body.actionPlan || "").trim().slice(0, 3000),
+    req.user.id,
+    req.body.releasedToStudent === "1" ? 1 : 0
+  );
+  flash(req, `Week ${weekNumber} evaluation saved for ${enrollment.first_name} ${enrollment.last_name}.`);
+  res.redirect(`/admin/student-evaluations?q=${encodeURIComponent(`${enrollment.first_name} ${enrollment.last_name}`)}`);
+});
+
 app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   if (req.user.role === "admin") {
     db.prepare("SELECT id FROM users WHERE role = 'student'").all().forEach((student) => ensureRegistrarChecklist(student.id));
@@ -11171,6 +11325,15 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
     ORDER BY csr.submitted_at DESC
   `).all(req.user.id);
   const surveyResponseByMilestone = new Map(surveyResponses.map((response) => [`${response.enrollment_id}-${response.week_number}`, response]));
+  const releasedEvaluations = db.prepare(`
+    SELECT sce.*, c.title AS course_title, u.first_name AS evaluator_first_name, u.last_name AS evaluator_last_name
+    FROM student_course_evaluations sce
+    JOIN enrollments e ON e.id = sce.enrollment_id
+    JOIN courses c ON c.id = e.course_id
+    LEFT JOIN users u ON u.id = sce.evaluator_id
+    WHERE e.user_id = ? AND sce.released_to_student = 1
+    ORDER BY sce.evaluated_at DESC
+  `).all(req.user.id);
 
   const name = `${req.user.first_name} ${req.user.last_name}`.trim();
   const activeEnrollment = enrollments[0];
@@ -11319,7 +11482,42 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
         <article class="student-panel profile-wide" id="evals">
           <h2>Student Evaluation and Surveys</h2>
           <div class="course-survey-intro">
-            <p>Complete a short evaluation during Weeks 4, 8, and 12 of each course. Your feedback helps improve instruction, learning materials, pacing, and student support.</p>
+            <p>Review evaluations released by your instructor and complete your own course surveys during Weeks 4, 8, and 12.</p>
+            <span>${escapeHtml(releasedEvaluations.length)} evaluation${releasedEvaluations.length === 1 ? "" : "s"}</span>
+          </div>
+          <section class="student-evaluation-results">
+            <div class="evaluation-section-heading">
+              <div><p class="eyebrow">Instructor feedback</p><h3>My Student Evaluations</h3></div>
+              <span>Weeks 4, 8, and 12</span>
+            </div>
+            ${releasedEvaluations.map((evaluation) => {
+              const average = Math.round((evaluation.academic_progress + evaluation.attendance_punctuality + evaluation.professionalism + evaluation.communication_teamwork + evaluation.clinical_skills) / 5 * 10) / 10;
+              return `
+                <article class="student-evaluation-result ${escapeHtml(evaluation.overall_status)}">
+                  <header>
+                    <div><span>Week ${escapeHtml(evaluation.week_number)} Evaluation</span><h4>${escapeHtml(evaluation.course_title)}</h4></div>
+                    <strong>${escapeHtml(String(evaluation.overall_status).replaceAll("_", " "))}</strong>
+                  </header>
+                  <div class="student-evaluation-scores">
+                    <div><span>Academic progress</span><strong>${escapeHtml(evaluation.academic_progress)} / 5</strong></div>
+                    <div><span>Attendance</span><strong>${escapeHtml(evaluation.attendance_punctuality)} / 5</strong></div>
+                    <div><span>Professionalism</span><strong>${escapeHtml(evaluation.professionalism)} / 5</strong></div>
+                    <div><span>Communication</span><strong>${escapeHtml(evaluation.communication_teamwork)} / 5</strong></div>
+                    <div><span>Skills</span><strong>${escapeHtml(evaluation.clinical_skills)} / 5</strong></div>
+                    <div><span>Average</span><strong>${escapeHtml(average)} / 5</strong></div>
+                  </div>
+                  <div class="student-evaluation-feedback">
+                    <section><h5>Strengths</h5><p>${escapeHtml(evaluation.strengths || "No comments provided.")}</p></section>
+                    <section><h5>Areas for improvement</h5><p>${escapeHtml(evaluation.improvement_areas || "No comments provided.")}</p></section>
+                    <section><h5>Action plan</h5><p>${escapeHtml(evaluation.action_plan || "Continue working toward course objectives.")}</p></section>
+                  </div>
+                  <footer>Evaluated ${escapeHtml(date(evaluation.evaluated_at.slice(0, 10)))} by ${escapeHtml(`${evaluation.evaluator_first_name || "BMHI"} ${evaluation.evaluator_last_name || "Staff"}`.trim())}</footer>
+                </article>
+              `;
+            }).join("") || `<p class="profile-note">No instructor evaluations have been released yet. Your Week 4, 8, and 12 evaluations will appear here after staff completes them.</p>`}
+          </section>
+          <div class="evaluation-section-heading student-survey-heading">
+            <div><p class="eyebrow">Your feedback</p><h3>Course Surveys</h3></div>
             <span>${escapeHtml(surveyResponses.length)} submitted</span>
           </div>
           <div class="course-survey-list">

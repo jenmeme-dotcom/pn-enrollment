@@ -231,6 +231,26 @@ function migrate() {
       UNIQUE(enrollment_id, week_number)
     );
 
+    CREATE TABLE IF NOT EXISTS student_course_evaluations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+      week_number INTEGER NOT NULL CHECK(week_number IN (4, 8, 12)),
+      academic_progress INTEGER NOT NULL CHECK(academic_progress BETWEEN 1 AND 5),
+      attendance_punctuality INTEGER NOT NULL CHECK(attendance_punctuality BETWEEN 1 AND 5),
+      professionalism INTEGER NOT NULL CHECK(professionalism BETWEEN 1 AND 5),
+      communication_teamwork INTEGER NOT NULL CHECK(communication_teamwork BETWEEN 1 AND 5),
+      clinical_skills INTEGER NOT NULL CHECK(clinical_skills BETWEEN 1 AND 5),
+      overall_status TEXT NOT NULL CHECK(overall_status IN ('satisfactory', 'needs_improvement', 'unsatisfactory')),
+      strengths TEXT,
+      improvement_areas TEXT,
+      action_plan TEXT,
+      evaluator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      released_to_student INTEGER NOT NULL DEFAULT 1 CHECK(released_to_student IN (0, 1)),
+      evaluated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(enrollment_id, week_number)
+    );
+
     CREATE TABLE IF NOT EXISTS hesi_scores (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -1447,6 +1447,260 @@ nav a {
   text-transform: capitalize;
 }
 
+.evaluation-section-heading {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.evaluation-section-heading h3,
+.evaluation-section-heading p {
+  margin: 0;
+}
+
+.evaluation-section-heading > span {
+  color: #61717a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.student-survey-heading {
+  border-top: 1px solid #dce6e9;
+}
+
+.student-evaluation-results {
+  display: grid;
+  gap: 14px;
+  padding: 0 16px 16px;
+}
+
+.student-evaluation-results .evaluation-section-heading {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.student-evaluation-result {
+  border: 1px solid #ccd9de;
+  border-left: 5px solid #0f6e78;
+  border-radius: 7px;
+  padding: 15px;
+}
+
+.student-evaluation-result.needs_improvement {
+  border-left-color: #d48217;
+}
+
+.student-evaluation-result.unsatisfactory {
+  border-left-color: #c53a3a;
+}
+
+.student-evaluation-result > header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.student-evaluation-result header span {
+  color: #0f6671;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.student-evaluation-result header h4 {
+  font-size: 18px;
+  margin: 3px 0 0;
+}
+
+.student-evaluation-result header > strong {
+  background: #e6f3ef;
+  border-radius: 999px;
+  color: #286b58;
+  font-size: 12px;
+  padding: 6px 10px;
+  text-transform: capitalize;
+}
+
+.student-evaluation-scores {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.student-evaluation-scores div {
+  background: #f5f8f9;
+  border-radius: 5px;
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+}
+
+.student-evaluation-scores span {
+  color: #697780;
+  font-size: 11px;
+}
+
+.student-evaluation-feedback {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.student-evaluation-feedback section {
+  border-top: 2px solid #dce6e9;
+  padding-top: 8px;
+}
+
+.student-evaluation-feedback h5,
+.student-evaluation-feedback p {
+  margin: 0;
+}
+
+.student-evaluation-feedback p {
+  color: #52616a;
+  line-height: 1.5;
+  margin-top: 5px;
+}
+
+.student-evaluation-result footer {
+  color: #718089;
+  font-size: 11px;
+  margin-top: 12px;
+}
+
+.evaluation-search {
+  align-items: end;
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.evaluation-search label {
+  display: grid;
+  flex: 1;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.staff-evaluation-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.staff-evaluation-enrollment > header {
+  align-items: flex-start;
+  border-bottom: 1px solid #e1e8eb;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin: -20px -20px 18px;
+  padding: 18px 20px;
+}
+
+.staff-evaluation-enrollment header h2,
+.staff-evaluation-enrollment header p {
+  margin-top: 0;
+}
+
+.staff-evaluation-milestones {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.staff-evaluation-card {
+  border: 1px solid #d5dfe3;
+  border-radius: 7px;
+  min-width: 0;
+  padding: 13px;
+}
+
+.staff-evaluation-card.due {
+  border-color: #91c4c8;
+  box-shadow: inset 4px 0 0 #0f707a;
+}
+
+.staff-evaluation-card.completed {
+  background: #f4faf7;
+  border-color: #b9ddc7;
+}
+
+.staff-evaluation-card.locked {
+  background: #f6f7f8;
+  color: #697780;
+}
+
+.staff-evaluation-card summary {
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  font-weight: 800;
+}
+
+.staff-evaluation-card summary strong {
+  color: #0f6972;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.staff-evaluation-card form {
+  display: grid;
+  gap: 11px;
+  margin-top: 15px;
+}
+
+.evaluation-rating-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.staff-evaluation-card form > label,
+.evaluation-rating-grid label {
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 5px;
+}
+
+.staff-evaluation-card textarea,
+.staff-evaluation-card select {
+  border: 1px solid #bcc9cf;
+  border-radius: 5px;
+  font: inherit;
+  font-weight: 400;
+  padding: 8px;
+  width: 100%;
+}
+
+.staff-evaluation-card .evaluation-release {
+  align-items: center;
+  display: flex;
+  font-size: 12px;
+}
+
+.staff-evaluation-card .button {
+  justify-self: start;
+}
+
+@media (max-width: 900px) {
+  .staff-evaluation-milestones,
+  .student-evaluation-feedback {
+    grid-template-columns: 1fr;
+  }
+
+  .student-evaluation-scores {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .profile-table {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
