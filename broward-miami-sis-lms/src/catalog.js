@@ -3,6 +3,7 @@ const { fundamentalsCourse } = require("./fundamentalsBuildout");
 const { homeHealthAideEnglishCourse, homeHealthAideCreoleCourse } = require("./homeHealthAideBuildout");
 const { introNursingCourse } = require("./introNursingBuildout");
 const { longTermCareNursingCourse } = require("./longTermCareNursingBuildout");
+const { anatomyPhysiologyCourse } = require("./anatomyPhysiologyBuildout");
 const { medicalAssistantCourse } = require("./medicalAssistantBuildout");
 const { medicalBillingCodingCourse } = require("./medicalBillingCodingBuildout");
 const { medicalTerminologyCourse } = require("./medicalTerminologyBuildout");
@@ -60,69 +61,7 @@ const courses = [
   },
   medicalTerminologyCourse,
   fundamentalsCourse,
-  {
-    title: "Anatomy and Physiology",
-    slug: "anatomy-and-physiology",
-    category: "Practical Nursing Course",
-    hours: 90,
-    credentialType: "Course",
-    deliveryMode: "Campus / blended",
-    seedVersion: "2026-07-12-student-quiz-set",
-    description: "PN 104 Anatomy and Physiology course shell for Practical Nursing students with modules, faculty materials, assignments, discussions, and gradebook support.",
-    ghlProductKeys: ["Anatomy and Physiology", "PN 104", "PN104", "anatomy-and-physiology"],
-    modules: [
-      {
-        title: "PN104 Student Quizzes and Assessments",
-        lessons: [
-          {
-            title: "Quiz 1: Anatomy and Physiology Foundations",
-            content: "Complete Quiz 1 in Canvas. This quiz checks foundational anatomy and physiology vocabulary, levels of organization, cells, tissues, and homeostasis. Review your module notes before starting.",
-            durationMinutes: 30
-          },
-          {
-            title: "Quiz 2: Integumentary and Skeletal Systems",
-            content: "Complete Quiz 2 in Canvas. This quiz covers the integumentary system, bone tissue, skeletal system structures, and related clinical vocabulary. Students should complete the assigned Chapter 5 and Chapter 6 review before opening the quiz.",
-            durationMinutes: 30
-          },
-          {
-            title: "Quiz 3: Muscular and Nervous Systems",
-            content: "Complete Quiz 3 in Canvas. This quiz covers muscular system organization, muscle function, nervous system structures, basic neurophysiology, and related practical nursing applications.",
-            durationMinutes: 30
-          },
-          {
-            title: "Quiz 4: Body Systems Integration",
-            content: "Complete Quiz 4 in Canvas. This quiz checks cardiovascular, respiratory, digestive, urinary, reproductive, endocrine, and lymphatic system concepts with emphasis on how body systems work together.",
-            durationMinutes: 30
-          }
-        ]
-      },
-      {
-        title: "PN104 Faculty Instructor Resources",
-        lessons: [
-          {
-            title: "PN104_Ch05_Integumentary_System_FACULTY_with_instructor_script_notes.pptx",
-            content: "Faculty-only PowerPoint resource for Chapter 5. This item is intentionally unpublished and hidden from students until the instructor decides otherwise.",
-            durationMinutes: 0,
-            published: false,
-            instructorOnly: true
-          },
-          {
-            title: "PN104_Ch06_Bone_Tissue_and_Skeletal_System_FACULTY_with_instructor_script_notes.pptx",
-            content: "Faculty-only PowerPoint resource for Chapter 6. This item is intentionally unpublished and hidden from students until the instructor decides otherwise.",
-            durationMinutes: 0,
-            published: false,
-            instructorOnly: true
-          }
-        ]
-      }
-    ],
-    gradeItems: [
-      { title: "Quiz 1: Anatomy and Physiology Foundations", pointsPossible: 50, dueDate: "2026-07-27" },
-      { title: "Quiz 2: Integumentary and Skeletal Systems", pointsPossible: 50, dueDate: "2026-08-10" },
-      { title: "Quiz 3: Muscular and Nervous Systems", pointsPossible: 50, dueDate: "2026-08-31" },
-      { title: "Quiz 4: Body Systems Integration", pointsPossible: 50, dueDate: "2026-09-21" }
-    ]
-  },
+  anatomyPhysiologyCourse,
   introNursingCourse,
   longTermCareNursingCourse
 ];
