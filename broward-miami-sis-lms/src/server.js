@@ -7895,6 +7895,7 @@ app.get("/admin/student-evaluations", requireAuth, requireRole("admin", "instruc
                           <p><strong>Challenges</strong>${escapeHtml(selfEvaluation.challenges || "None provided.")}</p>
                           <p><strong>Goals</strong>${escapeHtml(selfEvaluation.goals || "None provided.")}</p>
                           <p><strong>Support needed</strong>${escapeHtml(selfEvaluation.support_needed || "None requested.")}</p>
+                          <p><strong>Additional notes</strong>${escapeHtml(selfEvaluation.additional_notes || "None provided.")}</p>
                         </div>
                       </section>
                     ` : ""}
@@ -7915,6 +7916,7 @@ app.get("/admin/student-evaluations", requireAuth, requireRole("admin", "instruc
                     <label>Student strengths<textarea name="strengths" rows="3" maxlength="3000">${escapeHtml(evaluation?.strengths || "")}</textarea></label>
                     <label>Areas for improvement<textarea name="improvementAreas" rows="3" maxlength="3000">${escapeHtml(evaluation?.improvement_areas || "")}</textarea></label>
                     <label>Action plan and next steps<textarea name="actionPlan" rows="3" maxlength="3000">${escapeHtml(evaluation?.action_plan || "")}</textarea></label>
+                    <label>Additional notes or comments<textarea name="additionalNotes" rows="4" maxlength="3000" placeholder="Add anything important that was not covered by the questions above.">${escapeHtml(evaluation?.additional_notes || "")}</textarea></label>
                     <label class="evaluation-release"><input type="checkbox" name="releasedToStudent" value="1" ${evaluation ? (evaluation.released_to_student ? "checked" : "") : "checked"}> Release this evaluation for the student to view</label>
                     ${evaluation ? `<p class="muted">Last evaluated ${escapeHtml(date(evaluation.evaluated_at.slice(0, 10)))} by ${escapeHtml(`${evaluation.evaluator_first_name || "Staff"} ${evaluation.evaluator_last_name || ""}`.trim())}.</p>` : ""}
                     <button class="button" type="submit">${evaluation ? "Update Evaluation" : "Save Evaluation"}</button>
@@ -7959,8 +7961,8 @@ app.post("/admin/student-evaluations/:enrollmentId/:weekNumber", requireAuth, re
     INSERT INTO student_course_evaluations (
       enrollment_id, week_number, academic_progress, attendance_punctuality, professionalism,
       communication_teamwork, clinical_skills, overall_status, strengths, improvement_areas,
-      action_plan, evaluator_id, released_to_student, evaluated_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      action_plan, additional_notes, evaluator_id, released_to_student, evaluated_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT(enrollment_id, week_number) DO UPDATE SET
       academic_progress = excluded.academic_progress,
       attendance_punctuality = excluded.attendance_punctuality,
@@ -7971,6 +7973,7 @@ app.post("/admin/student-evaluations/:enrollmentId/:weekNumber", requireAuth, re
       strengths = excluded.strengths,
       improvement_areas = excluded.improvement_areas,
       action_plan = excluded.action_plan,
+      additional_notes = excluded.additional_notes,
       evaluator_id = excluded.evaluator_id,
       released_to_student = excluded.released_to_student,
       evaluated_at = CURRENT_TIMESTAMP,
@@ -7983,6 +7986,7 @@ app.post("/admin/student-evaluations/:enrollmentId/:weekNumber", requireAuth, re
     String(req.body.strengths || "").trim().slice(0, 3000),
     String(req.body.improvementAreas || "").trim().slice(0, 3000),
     String(req.body.actionPlan || "").trim().slice(0, 3000),
+    String(req.body.additionalNotes || "").trim().slice(0, 3000),
     req.user.id,
     req.body.releasedToStudent === "1" ? 1 : 0
   );
@@ -11579,6 +11583,7 @@ function renderStudentSelfEvaluationCard(enrollment, weekNumber, selfEvaluation,
           <div><dt>Professionalism</dt><dd>${escapeHtml(selfEvaluation.professionalism)} / 5</dd></div>
           <div><dt>Skills</dt><dd>${escapeHtml(selfEvaluation.clinical_skills)} / 5</dd></div>
         </dl>
+        ${selfEvaluation.additional_notes ? `<p><strong>Your additional notes:</strong> ${escapeHtml(selfEvaluation.additional_notes)}</p>` : ""}
       </article>
     `;
   }
@@ -11611,6 +11616,7 @@ function renderStudentSelfEvaluationCard(enrollment, weekNumber, selfEvaluation,
         <label>Challenges I am experiencing<textarea name="challenges" rows="3" maxlength="3000" required></textarea></label>
         <label>My goals before the next evaluation<textarea name="goals" rows="3" maxlength="3000" required></textarea></label>
         <label>Support I need from my instructor or school<textarea name="supportNeeded" rows="3" maxlength="3000"></textarea></label>
+        <label>Additional notes or comments<textarea name="additionalNotes" rows="4" maxlength="3000" placeholder="Mention anything important that these questions did not ask."></textarea></label>
         <p class="muted">This self-evaluation can be submitted once. Your instructor will be notified immediately.</p>
         <button class="button" type="submit">Send Self-Evaluation to Instructor</button>
       </form>
@@ -11642,6 +11648,7 @@ app.post("/student/self-evaluations/:enrollmentId/:weekNumber", requireAuth, req
   const challenges = String(req.body.challenges || "").trim().slice(0, 3000);
   const goals = String(req.body.goals || "").trim().slice(0, 3000);
   const supportNeeded = String(req.body.supportNeeded || "").trim().slice(0, 3000);
+  const additionalNotes = String(req.body.additionalNotes || "").trim().slice(0, 3000);
   if (ratings.some((value) => !Number.isInteger(value) || value < 1 || value > 5) || !accomplishments || !challenges || !goals) {
     flash(req, "Complete all required self-evaluation questions.");
     return res.redirect("/student/profile#evals");
@@ -11649,9 +11656,9 @@ app.post("/student/self-evaluations/:enrollmentId/:weekNumber", requireAuth, req
   db.prepare(`
     INSERT INTO student_self_evaluations (
       enrollment_id, week_number, academic_progress, attendance_punctuality, professionalism,
-      communication_teamwork, clinical_skills, accomplishments, challenges, goals, support_needed
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(enrollmentId, weekNumber, ...ratings, accomplishments, challenges, goals, supportNeeded);
+      communication_teamwork, clinical_skills, accomplishments, challenges, goals, support_needed, additional_notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(enrollmentId, weekNumber, ...ratings, accomplishments, challenges, goals, supportNeeded, additionalNotes);
   const staffRecipients = db.prepare("SELECT id FROM users WHERE role IN ('admin', 'instructor') AND status = 'active'").all();
   const studentName = `${req.user.first_name} ${req.user.last_name}`.trim() || req.user.email;
   staffRecipients.forEach((staff) => savePortalMessage({
@@ -12027,6 +12034,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
                     <section><h5>Strengths</h5><p>${escapeHtml(evaluation.strengths || "No comments provided.")}</p></section>
                     <section><h5>Areas for improvement</h5><p>${escapeHtml(evaluation.improvement_areas || "No comments provided.")}</p></section>
                     <section><h5>Action plan</h5><p>${escapeHtml(evaluation.action_plan || "Continue working toward course objectives.")}</p></section>
+                    <section><h5>Additional notes</h5><p>${escapeHtml(evaluation.additional_notes || "No additional notes provided.")}</p></section>
                   </div>
                   <footer>Evaluated ${escapeHtml(date(evaluation.evaluated_at.slice(0, 10)))} by ${escapeHtml(`${evaluation.evaluator_first_name || "BMHI"} ${evaluation.evaluator_last_name || "Staff"}`.trim())}</footer>
                 </article>

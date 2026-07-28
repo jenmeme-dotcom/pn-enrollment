@@ -247,6 +247,7 @@ function migrate() {
       strengths TEXT,
       improvement_areas TEXT,
       action_plan TEXT,
+      additional_notes TEXT,
       evaluator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       released_to_student INTEGER NOT NULL DEFAULT 1 CHECK(released_to_student IN (0, 1)),
       evaluated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -267,6 +268,7 @@ function migrate() {
       challenges TEXT,
       goals TEXT,
       support_needed TEXT,
+      additional_notes TEXT,
       submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(enrollment_id, week_number)
     );
@@ -654,6 +656,14 @@ function migrate() {
   const moduleColumns = db.prepare("PRAGMA table_info(modules)").all().map((column) => column.name);
   if (!moduleColumns.includes("published")) {
     db.exec("ALTER TABLE modules ADD COLUMN published INTEGER NOT NULL DEFAULT 1;");
+  }
+  const courseEvaluationColumns = db.prepare("PRAGMA table_info(student_course_evaluations)").all().map((column) => column.name);
+  if (!courseEvaluationColumns.includes("additional_notes")) {
+    db.exec("ALTER TABLE student_course_evaluations ADD COLUMN additional_notes TEXT;");
+  }
+  const selfEvaluationColumns = db.prepare("PRAGMA table_info(student_self_evaluations)").all().map((column) => column.name);
+  if (!selfEvaluationColumns.includes("additional_notes")) {
+    db.exec("ALTER TABLE student_self_evaluations ADD COLUMN additional_notes TEXT;");
   }
   const userColumns = db.prepare("PRAGMA table_info(users)").all().map((column) => column.name);
   if (!userColumns.includes("personal_email")) {
