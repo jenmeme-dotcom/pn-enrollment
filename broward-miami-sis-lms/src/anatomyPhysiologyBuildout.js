@@ -34,8 +34,8 @@ const chapters = [
 ].map(([number, title, stem]) => ({
   number,
   title,
-  studentFile: `${stem}.pdf`,
-  facultyFile: number === 11 ? `${stem}.pptx` : `${stem}_FACULTY.pptx`
+  studentFile: `${stem}.pptx`,
+  facultyFile: `${stem}_FACULTY.pptx`
 }));
 
 const weekPlan = [
@@ -149,9 +149,9 @@ function weekModule([week, chapterNumbers, title]) {
         content: `This week, you will study ${selected.map((chapter) => `Chapter ${chapter.number}: ${chapter.title}`).join(", ")}. Focus on normal structure, normal function, how the systems work together, and the changes you would recognize and report in practical nursing care.`
       },
       ...selected.map((chapter) => ({
-        title: `Chapter ${chapter.number}: ${chapter.title} — Student Slide Review`,
+        title: `Chapter ${chapter.number}: ${chapter.title} — PowerPoint`,
         durationMinutes: 75,
-        content: `Study the chapter presentation before completing this week's discussion and assignment.\n\nStudent presentation (instructor notes removed):\n- Open Chapter ${chapter.number} slides: ${materialBase}/${chapter.studentFile}?inline=1\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`
+        content: `Study this chapter PowerPoint before completing this week's discussion and assignment.\n\nChapter ${chapter.number} PowerPoint:\n- Open or download: ${materialBase}/${chapter.studentFile}\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`
       })),
       {
         title: discussionTitle,
@@ -208,7 +208,7 @@ const anatomyPhysiologyCourse = {
   credentialType: "Course",
   deliveryMode: "Campus / blended",
   ghlProductKeys: ["Anatomy and Physiology", "PN 104", "PN104", "anatomy-and-physiology"],
-  seedVersion: "2026-07-28-complete-12-week-course-with-drive-slides",
+  seedVersion: "2026-07-28-individual-student-powerpoints",
   description: "In this 12-week Anatomy and Physiology course, you will study how the structures of the human body are organized, how they function, and how body systems work together. You will connect normal anatomy and physiology to observations, safety concerns, and changes in condition that matter in practical nursing care.",
   objectives: [
     "Use correct anatomical terminology to describe body structures and relationships.",
@@ -220,7 +220,7 @@ const anatomyPhysiologyCourse = {
   policies: {
     attendance: "You are expected to participate in all scheduled learning activities and complete each week in sequence.",
     assessment: "Weekly discussions and assignments prepare you for four 15-question quizzes, a midterm, and a comprehensive final examination.",
-    materials: "Student slide reviews do not display faculty notes. Original faculty PowerPoints remain available only on the instructor side."
+    materials: "Each chapter PowerPoint is attached individually in its assigned week. Student copies do not contain faculty notes; the original faculty versions remain available only on the instructor side."
   },
   syllabus: {
     courseCode: "PN 104",
