@@ -10493,6 +10493,20 @@ app.get("/credentials/:id/print", requireAuth, (req, res) => {
   render(req, res, noun, body, { full: true });
 });
 
+const upcomingSemesterStartsAt = new Date("2026-09-30T00:00:00-04:00");
+const upcomingRegistrationOpensAt = new Date("2026-09-16T00:00:00-04:00");
+
+function studentRegistrationWindowIsOpen(now = Date.now()) {
+  const timestamp = Number(now);
+  return timestamp >= upcomingRegistrationOpensAt.getTime() && timestamp < upcomingSemesterStartsAt.getTime();
+}
+
+function studentRegistrationStatus(now = Date.now()) {
+  if (Number(now) < upcomingRegistrationOpensAt.getTime()) return "upcoming";
+  if (Number(now) >= upcomingSemesterStartsAt.getTime()) return "closed";
+  return "open";
+}
+
 app.get("/student", requireAuth, (req, res) => {
   if (req.user.role !== "student") {
     return res.redirect("/admin");
@@ -10529,6 +10543,7 @@ app.get("/student", requireAuth, (req, res) => {
   const lockNotice = isClassLocked(req.user)
     ? `<article class="student-panel lock-panel"><h2>Class access locked</h2><p>${escapeHtml(classLockMessage(req.user))}</p></article>`
     : "";
+  const registrationStatus = studentRegistrationStatus();
 
   const body = `
     <section class="student-dashboard">
@@ -10554,11 +10569,11 @@ app.get("/student", requireAuth, (req, res) => {
 
       <article class="student-alert-panel">
         <div>
-          <strong>Registration is open</strong>
-          <p>Select upcoming courses, review current enrollments, and check your transcript from the student portal.</p>
+          <strong>${registrationStatus === "open" ? "Registration is open" : registrationStatus === "upcoming" ? "Registration opens September 16" : "Registration is closed"}</strong>
+          <p>${registrationStatus === "open" ? "Select upcoming courses, review current enrollments, and check your transcript from the student portal." : registrationStatus === "upcoming" ? "Course registration will become available two weeks before the September 30 semester begins." : "The September 30 semester has begun. Contact the school office if you need registration assistance."}</p>
         </div>
         <div class="actions">
-          <a class="button small" href="/student/registration">Register for courses</a>
+          ${registrationStatus === "open" ? `<a class="button small" href="/student/registration">Register for courses</a>` : ""}
           <a class="button small ghost" href="/student/transcript">View transcript</a>
         </div>
       </article>
@@ -10997,6 +11012,7 @@ app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
   const lockNotice = isClassLocked(req.user)
     ? `<article class="student-panel lock-panel" style="margin-bottom:12px"><h2>Class access locked</h2><p>${escapeHtml(classLockMessage(req.user))}</p></article>`
     : "";
+  const registrationOpen = studentRegistrationWindowIsOpen();
 
   const body = `
     <section class="student-registration">
@@ -11009,7 +11025,7 @@ app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
         </div>
         <div class="financial-actions">
           <a class="button ghost" href="/student">Dashboard</a>
-          <a class="button" href="/student/registration">Register for courses</a>
+          ${registrationOpen ? `<a class="button" href="/student/registration">Register for courses</a>` : ""}
         </div>
       </div>
 
@@ -11062,6 +11078,21 @@ app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
 });
 
 app.get("/student/registration", requireAuth, requireRole("student"), (req, res) => {
+  if (!studentRegistrationWindowIsOpen()) {
+    const status = studentRegistrationStatus();
+    const body = `
+      <section class="student-registration">
+        <div class="financial-head">
+          <div><p class="eyebrow">Course registration</p><h1>${status === "upcoming" ? "Registration opens September 16" : "Registration is closed"}</h1></div>
+          <a class="button ghost" href="/student/courses">My Courses</a>
+        </div>
+        <article class="student-panel">
+          <p>${status === "upcoming" ? "Registration becomes available two weeks before the new semester begins on September 30, 2026." : "The September 30 semester has begun. Contact the school office if you need registration assistance."}</p>
+        </article>
+      </section>
+    `;
+    return render(req, res, "Course Registration", body, { studentPortal: true, activeStudentNav: "courses" });
+  }
   const admissionsChecklist = admissionsDocumentChecklistForStudent(req.user.id);
   const enrollments = db.prepare(`
     SELECT e.*, c.title, c.category, c.hours, c.credential_type, c.delivery_mode
@@ -11287,6 +11318,10 @@ app.get("/student/registration/documents/:itemKey/file", requireAuth, requireRol
 });
 
 app.post("/student/registration/enroll", requireAuth, requireRole("student"), (req, res) => {
+  if (!studentRegistrationWindowIsOpen()) {
+    flash(req, "Course registration is not open. Registration begins September 16, 2026.");
+    return res.redirect("/student/registration");
+  }
   if (isClassLocked(req.user)) {
     flash(req, "Class access is locked until the office marks your student file as organized.");
     return res.redirect("/student/registration");
