@@ -207,6 +207,7 @@ const anatomyPhysiologyCourse = {
   hours: 90,
   credentialType: "Course",
   deliveryMode: "Campus / blended",
+  ghlProductKeys: ["Anatomy and Physiology", "PN 104", "PN104", "anatomy-and-physiology"],
   seedVersion: "2026-07-28-complete-12-week-course-with-drive-slides",
   description: "In this 12-week Anatomy and Physiology course, you will study how the structures of the human body are organized, how they function, and how body systems work together. You will connect normal anatomy and physiology to observations, safety concerns, and changes in condition that matter in practical nursing care.",
   objectives: [
