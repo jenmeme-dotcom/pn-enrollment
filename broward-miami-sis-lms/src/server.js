@@ -1412,14 +1412,23 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
         ${instructor ? `<a class="canvas-top-button" href="${escapeHtml(baseHref)}">View as Student</a>` : `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=syllabus">Immersive Reader</a>`}
         <button type="button" data-collapse-modules aria-expanded="true">Collapse All</button>
         <a href="${escapeHtml(baseHref)}?view=grades">View Progress</a>
-        <button type="button"><span class="canvas-published-dot"></span> Publish All</button>
-        ${instructor && courseId ? `<a class="canvas-module-add" href="/admin/courses/${courseId}/tools">+ Module</a>` : ""}
+        ${instructor && courseId ? `
+          <details class="canvas-module-create">
+            <summary class="canvas-module-add">+ Module</summary>
+            <form method="post" action="/admin/courses/${courseId}/modules">
+              <label>Module name</label>
+              <input name="title" required placeholder="Module name">
+              <label><input type="checkbox" name="published" value="1" checked> Publish to students</label>
+              <button type="submit">Add module</button>
+            </form>
+          </details>
+        ` : ""}
         <button type="button" aria-label="More options">⋮</button>
       </div>
       ${renderWeeklyLearningPattern({ compact: true })}
       <div class="canvas-module-list">
         ${moduleGroups.map((module) => `
-          <section class="canvas-module-block" id="module-${module.id}">
+          <section class="canvas-module-block ${Number(module.published ?? 1) === 1 ? "" : "is-unpublished"}" id="module-${module.id}">
             <header class="canvas-module-header">
               <div>
                 <span class="module-drag">⁝</span>
@@ -1427,9 +1436,16 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
                 <strong>${escapeHtml(module.title)}</strong>
               </div>
               <div>
-                <span class="canvas-published-dot"></span>
-                <span>⌄</span>
-                ${instructor ? `<span>＋</span><span>⋮</span>` : ""}
+                <span class="${Number(module.published ?? 1) === 1 ? "canvas-published-dot" : "canvas-unpublished-dot"}"></span>
+                ${instructor && courseId ? `
+                  <form method="post" action="/admin/courses/${courseId}/modules/${module.id}/visibility">
+                    <input type="hidden" name="published" value="${Number(module.published ?? 1) === 1 ? "0" : "1"}">
+                    <button class="module-action-button" type="submit">${Number(module.published ?? 1) === 1 ? "Unpublish" : "Publish"}</button>
+                  </form>
+                  <form method="post" action="/admin/courses/${courseId}/modules/${module.id}/delete" onsubmit="return confirm('Delete this module and all items inside it?')">
+                    <button class="module-action-button danger" type="submit">Delete</button>
+                  </form>
+                ` : ""}
               </div>
             </header>
             <div class="canvas-module-items" id="module-items-${module.id}">
@@ -1453,6 +1469,23 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
                   <span></span><span></span><span class="module-title"><strong>No items yet</strong></span><span></span><span></span>
                 </div>
               `}
+              ${instructor && courseId ? `
+                <details class="canvas-module-item-create">
+                  <summary>+ Add item</summary>
+                  <form method="post" action="/admin/courses/${courseId}/modules/${module.id}/items">
+                    <div><label>Item type</label><select name="itemType" data-module-item-type><option value="page">Page</option><option value="assignment">Assignment</option><option value="link">External link</option></select></div>
+                    <div><label>Title</label><input name="title" required></div>
+                    <div data-module-link-field hidden><label>Web address</label><input name="externalUrl" type="url" placeholder="https://example.com"></div>
+                    <div><label>Content or instructions</label><textarea name="content" placeholder="Add page content or assignment instructions"></textarea></div>
+                    <div data-module-assignment-fields hidden>
+                      <label>Points</label><input name="points" type="number" min="0" step="0.01" value="100">
+                      <label>Due date</label><input name="dueDate" type="date">
+                    </div>
+                    <label><input type="checkbox" name="published" value="1" checked> Publish item</label>
+                    <button type="submit">Add item</button>
+                  </form>
+                </details>
+              ` : ""}
             </div>
           </section>
         `).join("") || `
@@ -1499,6 +1532,16 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
               updateModuleState(module, !module.classList.contains('is-collapsed'));
               updateCollapseAllState();
             });
+          });
+
+          page.querySelectorAll('[data-module-item-type]').forEach((select) => {
+            const form = select.closest('form');
+            const updateFields = () => {
+              form.querySelector('[data-module-link-field]').hidden = select.value !== 'link';
+              form.querySelector('[data-module-assignment-fields]').hidden = select.value !== 'assignment';
+            };
+            select.addEventListener('change', updateFields);
+            updateFields();
           });
 
           collapseButton.addEventListener('click', () => {
@@ -9390,12 +9433,13 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   if (!course) return res.status(404).send("Course not found");
 
   const lessons = db.prepare(`
-    SELECT l.*, m.id AS module_id, m.title AS module_title, m.position AS module_position
+    SELECT l.*, m.id AS module_id, m.title AS module_title, m.position AS module_position, m.published AS module_published
     FROM lessons l
     JOIN modules m ON m.id = l.module_id
     WHERE m.course_id = ?
     ORDER BY m.position, l.position
   `).all(course.id);
+  const courseModules = db.prepare("SELECT * FROM modules WHERE course_id = ? ORDER BY position, id").all(course.id);
   const gradeItems = db.prepare(`
     SELECT *
     FROM grade_items
@@ -9423,20 +9467,10 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   const materialFiles = courseMaterialFiles(course.slug);
   const allCourses = db.prepare("SELECT id, title, slug FROM courses WHERE published = 1 ORDER BY category, title").all();
 
-  const moduleGroups = lessons.reduce((groups, lesson) => {
-    const existing = groups.find((group) => group.id === lesson.module_id);
-    if (existing) {
-      existing.lessons.push(lesson);
-    } else {
-      groups.push({
-        id: lesson.module_id,
-        title: lesson.module_title,
-        position: lesson.module_position,
-        lessons: [lesson]
-      });
-    }
-    return groups;
-  }, []);
+  const moduleGroups = courseModules.map((module) => ({
+    ...module,
+    lessons: lessons.filter((lesson) => lesson.module_id === module.id)
+  }));
 
   const firstLesson = lessons[0];
   const navItems = [...courseNavItems.slice(0, -1), "Course Details", "Settings"];
@@ -10214,6 +10248,71 @@ app.post("/admin/courses/:id/lessons", requireAuth, requireRole("admin", "instru
   );
   flash(req, "Lesson added.");
   res.redirect(`/admin/courses/${Number(req.params.id)}`);
+});
+
+app.post("/admin/courses/:courseId/modules", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const courseId = Number(req.params.courseId);
+  const course = db.prepare("SELECT id FROM courses WHERE id = ?").get(courseId);
+  const title = String(req.body.title || "").trim();
+  if (!course || !title) {
+    flash(req, "Enter a module name.");
+    return res.redirect(`/admin/courses/${courseId}/student-view?view=modules`);
+  }
+  const position = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM modules WHERE course_id = ?").get(courseId).next;
+  db.prepare("INSERT INTO modules (course_id, title, position, published) VALUES (?, ?, ?, ?)").run(courseId, title, position, req.body.published ? 1 : 0);
+  flash(req, "Module added.");
+  res.redirect(`/admin/courses/${courseId}/student-view?view=modules`);
+});
+
+app.post("/admin/courses/:courseId/modules/:moduleId/visibility", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const courseId = Number(req.params.courseId);
+  const published = String(req.body.published) === "1" ? 1 : 0;
+  const result = db.prepare("UPDATE modules SET published = ? WHERE id = ? AND course_id = ?").run(published, Number(req.params.moduleId), courseId);
+  if (!result.changes) return res.status(404).send("Module not found");
+  flash(req, published ? "Module published." : "Module unpublished and hidden from students.");
+  res.redirect(`/admin/courses/${courseId}/student-view?view=modules`);
+});
+
+app.post("/admin/courses/:courseId/modules/:moduleId/delete", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const courseId = Number(req.params.courseId);
+  const linkedGradeItems = db.prepare(`
+    SELECT l.grade_item_id
+    FROM lessons l
+    JOIN modules m ON m.id = l.module_id
+    WHERE m.id = ? AND m.course_id = ? AND l.grade_item_id IS NOT NULL
+  `).all(Number(req.params.moduleId), courseId);
+  const result = db.prepare("DELETE FROM modules WHERE id = ? AND course_id = ?").run(Number(req.params.moduleId), courseId);
+  if (!result.changes) return res.status(404).send("Module not found");
+  const deleteGradeItem = db.prepare("DELETE FROM grade_items WHERE id = ? AND course_id = ?");
+  linkedGradeItems.forEach((item) => deleteGradeItem.run(item.grade_item_id, courseId));
+  flash(req, "Module and its items deleted.");
+  res.redirect(`/admin/courses/${courseId}/student-view?view=modules`);
+});
+
+app.post("/admin/courses/:courseId/modules/:moduleId/items", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const courseId = Number(req.params.courseId);
+  const moduleId = Number(req.params.moduleId);
+  const module = db.prepare("SELECT id FROM modules WHERE id = ? AND course_id = ?").get(moduleId, courseId);
+  const itemType = ["page", "assignment", "link"].includes(req.body.itemType) ? req.body.itemType : "page";
+  const title = String(req.body.title || "").trim();
+  const content = stripCanvasSource(req.body.content) || (itemType === "link" ? "Open the external resource using the link below." : "");
+  const externalUrl = itemType === "link" ? normalizeExternalUrl(req.body.externalUrl) : null;
+  if (!module || !title || (itemType === "link" && !externalUrl)) {
+    flash(req, "Enter a title and a valid web address for external links.");
+    return res.redirect(`/admin/courses/${courseId}/student-view?view=modules`);
+  }
+  const nextPosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(moduleId).next;
+  let gradeItemId = null;
+  if (itemType === "assignment") {
+    const points = Math.max(0, Number(req.body.points || 100));
+    gradeItemId = Number(db.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, ?, ?)").run(courseId, title, points, String(req.body.dueDate || "").trim() || null).lastInsertRowid);
+  }
+  db.prepare(`
+    INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only, item_type, grade_item_id)
+    VALUES (?, ?, ?, ?, 30, ?, ?, 0, ?, ?)
+  `).run(moduleId, title, content, externalUrl, nextPosition, req.body.published ? 1 : 0, itemType, gradeItemId);
+  flash(req, `${itemType === "assignment" ? "Assignment" : itemType === "link" ? "External link" : "Page"} added to the module.`);
+  res.redirect(`/admin/courses/${courseId}/student-view?view=modules#module-${moduleId}`);
 });
 
 app.post("/admin/courses/:id/lessons/:lessonId", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -12240,6 +12339,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     FROM lessons l
     JOIN modules m ON m.id = l.module_id
     WHERE m.course_id = ?
+      AND COALESCE(m.published, 1) = 1
       AND COALESCE(l.published, 1) = 1
       AND COALESCE(l.instructor_only, 0) = 0
     ORDER BY m.position, l.position

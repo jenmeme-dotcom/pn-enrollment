@@ -65,7 +65,8 @@ function migrate() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
       title TEXT NOT NULL,
-      position INTEGER NOT NULL DEFAULT 1
+      position INTEGER NOT NULL DEFAULT 1,
+      published INTEGER NOT NULL DEFAULT 1
     );
 
     CREATE TABLE IF NOT EXISTS lessons (
@@ -77,7 +78,9 @@ function migrate() {
       duration_minutes INTEGER NOT NULL DEFAULT 30,
       position INTEGER NOT NULL DEFAULT 1,
       published INTEGER NOT NULL DEFAULT 1,
-      instructor_only INTEGER NOT NULL DEFAULT 0
+      instructor_only INTEGER NOT NULL DEFAULT 0,
+      item_type TEXT NOT NULL DEFAULT 'page',
+      grade_item_id INTEGER REFERENCES grade_items(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS course_imports (
@@ -641,6 +644,16 @@ function migrate() {
   }
   if (!lessonColumns.includes("instructor_only")) {
     db.exec("ALTER TABLE lessons ADD COLUMN instructor_only INTEGER NOT NULL DEFAULT 0;");
+  }
+  if (!lessonColumns.includes("item_type")) {
+    db.exec("ALTER TABLE lessons ADD COLUMN item_type TEXT NOT NULL DEFAULT 'page';");
+  }
+  if (!lessonColumns.includes("grade_item_id")) {
+    db.exec("ALTER TABLE lessons ADD COLUMN grade_item_id INTEGER REFERENCES grade_items(id) ON DELETE SET NULL;");
+  }
+  const moduleColumns = db.prepare("PRAGMA table_info(modules)").all().map((column) => column.name);
+  if (!moduleColumns.includes("published")) {
+    db.exec("ALTER TABLE modules ADD COLUMN published INTEGER NOT NULL DEFAULT 1;");
   }
   const userColumns = db.prepare("PRAGMA table_info(users)").all().map((column) => column.name);
   if (!userColumns.includes("personal_email")) {
