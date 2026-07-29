@@ -10599,7 +10599,7 @@ app.get("/student", requireAuth, (req, res) => {
           <div class="class-row">
             <span class="teacher-avatar">IN</span>
             <div><strong>Instructor</strong><small>${escapeHtml(row.title)}</small></div>
-            <div><strong>Room No.: 05</strong><small>${escapeHtml(times[index] || times[0])}</small></div>
+            <div><strong>Room No.: ${index % 2 === 0 ? "Humerus" : "Femur"}</strong><small>${escapeHtml(times[index] || times[0])}</small></div>
           </div>
         `).join("")}
       </article>
