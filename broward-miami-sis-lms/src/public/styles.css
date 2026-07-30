@@ -5997,6 +5997,13 @@ button.small {
 }
 .canvas-module-item-create > summary { color: #086b3a; cursor: pointer; font-weight: 700; }
 .canvas-module-item-create form { display: grid; gap: 10px; margin-top: 12px; max-width: 720px; }
+.canvas-module-item-create .module-item-create-help {
+  background: #eef7f3;
+  border-left: 4px solid #086b3a;
+  color: #294239;
+  margin: 0;
+  padding: 10px 12px;
+}
 .canvas-module-item-create form > div { display: grid; gap: 5px; }
 .canvas-module-item-create [hidden] { display: none; }
 .canvas-module-item-create textarea { min-height: 90px; }
