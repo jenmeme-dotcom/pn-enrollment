@@ -31,6 +31,10 @@ function migrate() {
       phone TEXT,
       password_hash TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'active',
+      withdrawal_effective_date TEXT,
+      withdrawal_reason TEXT,
+      withdrawn_at TEXT,
+      withdrawn_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       organization_status TEXT NOT NULL DEFAULT 'organized' CHECK(organization_status IN ('organized','not_organized')),
       class_lock_reason TEXT,
       cohort_name TEXT,
@@ -114,6 +118,10 @@ function migrate() {
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
       status TEXT NOT NULL DEFAULT 'active',
+      withdrawal_effective_date TEXT,
+      withdrawal_reason TEXT,
+      withdrawn_at TEXT,
+      withdrawn_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       start_date TEXT NOT NULL DEFAULT (date('now')),
       completion_date TEXT,
       progress INTEGER NOT NULL DEFAULT 0,
@@ -410,6 +418,25 @@ function migrate() {
     CREATE INDEX IF NOT EXISTS idx_student_photo_review_events_student
       ON student_photo_review_events(student_id, created_at DESC, id DESC);
 
+    CREATE TABLE IF NOT EXISTS student_withdrawal_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      enrollment_id INTEGER REFERENCES enrollments(id) ON DELETE SET NULL,
+      course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL,
+      scope TEXT NOT NULL CHECK(scope IN ('course','school')),
+      course_title TEXT,
+      previous_student_status TEXT,
+      previous_enrollment_status TEXT,
+      effective_date TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      affected_enrollment_count INTEGER NOT NULL DEFAULT 0,
+      withdrawn_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_student_withdrawal_events_student
+      ON student_withdrawal_events(student_id, created_at DESC, id DESC);
+
     CREATE TABLE IF NOT EXISTS announcements (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
@@ -690,6 +717,18 @@ function migrate() {
   if (!userColumns.includes("personal_email")) {
     db.exec("ALTER TABLE users ADD COLUMN personal_email TEXT;");
   }
+  if (!userColumns.includes("withdrawal_effective_date")) {
+    db.exec("ALTER TABLE users ADD COLUMN withdrawal_effective_date TEXT;");
+  }
+  if (!userColumns.includes("withdrawal_reason")) {
+    db.exec("ALTER TABLE users ADD COLUMN withdrawal_reason TEXT;");
+  }
+  if (!userColumns.includes("withdrawn_at")) {
+    db.exec("ALTER TABLE users ADD COLUMN withdrawn_at TEXT;");
+  }
+  if (!userColumns.includes("withdrawn_by")) {
+    db.exec("ALTER TABLE users ADD COLUMN withdrawn_by INTEGER REFERENCES users(id) ON DELETE SET NULL;");
+  }
   if (!userColumns.includes("organization_status")) {
     db.exec("ALTER TABLE users ADD COLUMN organization_status TEXT NOT NULL DEFAULT 'organized';");
   }
@@ -728,6 +767,19 @@ function migrate() {
   }
   if (!userColumns.includes("photo_reviewed_by")) {
     db.exec("ALTER TABLE users ADD COLUMN photo_reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL;");
+  }
+  const enrollmentColumns = db.prepare("PRAGMA table_info(enrollments)").all().map((column) => column.name);
+  if (!enrollmentColumns.includes("withdrawal_effective_date")) {
+    db.exec("ALTER TABLE enrollments ADD COLUMN withdrawal_effective_date TEXT;");
+  }
+  if (!enrollmentColumns.includes("withdrawal_reason")) {
+    db.exec("ALTER TABLE enrollments ADD COLUMN withdrawal_reason TEXT;");
+  }
+  if (!enrollmentColumns.includes("withdrawn_at")) {
+    db.exec("ALTER TABLE enrollments ADD COLUMN withdrawn_at TEXT;");
+  }
+  if (!enrollmentColumns.includes("withdrawn_by")) {
+    db.exec("ALTER TABLE enrollments ADD COLUMN withdrawn_by INTEGER REFERENCES users(id) ON DELETE SET NULL;");
   }
   db.exec(`
     UPDATE users
@@ -1334,9 +1386,6 @@ function seed() {
       role = 'student',
       first_name = excluded.first_name,
       last_name = excluded.last_name,
-      status = 'active',
-      organization_status = 'organized',
-      class_lock_reason = NULL,
       cohort_name = excluded.cohort_name,
       cohort_start_date = excluded.cohort_start_date,
       cohort_end_date = excluded.cohort_end_date,
@@ -1345,10 +1394,6 @@ function seed() {
   const insertCohortEnrollment = db.prepare(`
     INSERT OR IGNORE INTO enrollments (user_id, course_id, status, start_date, progress, source, external_order_id)
     VALUES (?, ?, 'active', ?, 0, 'cohort_seed', ?)
-    ON CONFLICT(user_id, course_id, external_order_id) DO UPDATE SET
-      status = 'active',
-      start_date = excluded.start_date,
-      source = 'cohort_seed'
   `);
   const cohortTwoCourses = [
     { code: "pn101", course: medicalTerminology, startDate: "2026-06-17" },
@@ -1374,42 +1419,8 @@ function seed() {
       });
     }
   });
-  const cohortTwoCourseIds = cohortTwoCourses.filter(({ course }) => course).map(({ course }) => course.id);
-  if (cohortTwoCourseIds.length) {
-    const cohortTwoCoursePlaceholders = cohortTwoCourseIds.map(() => "?").join(",");
-    db.prepare(`
-      DELETE FROM enrollments
-      WHERE user_id IN (
-        SELECT id
-        FROM users
-        WHERE role = 'student' AND cohort_name = ?
-      )
-        AND course_id NOT IN (${cohortTwoCoursePlaceholders})
-    `).run(cohortName, ...cohortTwoCourseIds);
-    db.prepare(`
-      DELETE FROM enrollments
-      WHERE user_id IN (
-        SELECT id
-        FROM users
-        WHERE role = 'student' AND cohort_name = ?
-      )
-        AND id NOT IN (
-          SELECT keep_id
-          FROM (
-            SELECT COALESCE(
-              MIN(CASE WHEN e.source = 'cohort_seed' THEN e.id END),
-              MIN(e.id)
-            ) AS keep_id
-            FROM enrollments e
-            JOIN users u ON u.id = e.user_id
-            WHERE u.role = 'student'
-              AND u.cohort_name = ?
-              AND e.course_id IN (${cohortTwoCoursePlaceholders})
-            GROUP BY e.user_id, e.course_id
-          )
-        )
-    `).run(cohortName, cohortName, ...cohortTwoCourseIds);
-  }
+  // Seeded cohort data is additive only. Operational enrollment status and
+  // academic records must never be overwritten or deleted during startup.
 
   const hesiSubjects = [
     ["Critical Thinking", 700],
@@ -1489,9 +1500,6 @@ function seed() {
       role = 'student',
       first_name = excluded.first_name,
       last_name = excluded.last_name,
-      status = 'active',
-      organization_status = 'organized',
-      class_lock_reason = NULL,
       cohort_name = 'Cohort 1'
   `);
   const upsertHesiScore = db.prepare(`

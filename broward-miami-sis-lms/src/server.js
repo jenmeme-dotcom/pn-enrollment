@@ -393,7 +393,7 @@ app.use(
 
 function currentUser(req) {
   if (!req.session.userId) return null;
-  return db.prepare("SELECT id, role, first_name, last_name, email, personal_email, phone, status, organization_status, class_lock_reason, photo_storage_name, photo_original_name, photo_review_status, photo_review_note, photo_submitted_at, photo_reviewed_at, photo_reviewed_by, created_at FROM users WHERE id = ?").get(req.session.userId);
+  return db.prepare("SELECT id, role, first_name, last_name, email, personal_email, phone, status, withdrawal_effective_date, withdrawal_reason, withdrawn_at, withdrawn_by, organization_status, class_lock_reason, photo_storage_name, photo_original_name, photo_review_status, photo_review_note, photo_submitted_at, photo_reviewed_at, photo_reviewed_by, created_at FROM users WHERE id = ?").get(req.session.userId);
 }
 
 function detectedImageMimeType(filePath) {
@@ -569,6 +569,118 @@ function renderPhotoReviewControls(student, { returnTo = "dashboard", canReview 
         </div>
       ` : ""}
     </div>
+  `;
+}
+
+function withdrawalReturnPath(returnTo, studentId) {
+  if (returnTo === "students") return `/admin/students#student-${studentId}`;
+  if (returnTo === "detail") return `/admin/students/${studentId}/registrar-checklist#withdrawal-management`;
+  return `/admin#student-${studentId}`;
+}
+
+function withdrawalCsrfToken(req) {
+  if (!req.session.withdrawalCsrfToken) {
+    req.session.withdrawalCsrfToken = crypto.randomBytes(32).toString("hex");
+  }
+  return req.session.withdrawalCsrfToken;
+}
+
+function validWithdrawalCsrfToken(req, suppliedToken) {
+  const expectedToken = String(req.session.withdrawalCsrfToken || "");
+  const receivedToken = String(suppliedToken || "");
+  if (!/^[a-f0-9]{64}$/.test(expectedToken) || !/^[a-f0-9]{64}$/.test(receivedToken)) return false;
+  const expectedBuffer = Buffer.from(expectedToken, "hex");
+  const receivedBuffer = Buffer.from(receivedToken, "hex");
+  return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
+function enrollmentAccessAllowed(enrollment) {
+  return Boolean(enrollment && !enrollment.withdrawn_at && ["active", "completed"].includes(enrollment.status));
+}
+
+function eligibleWithdrawalEnrollmentsByStudent(studentIds = []) {
+  const normalizedIds = [...new Set(studentIds.map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+  const grouped = new Map(normalizedIds.map((id) => [id, []]));
+  if (!normalizedIds.length) return grouped;
+  const placeholders = normalizedIds.map(() => "?").join(",");
+  db.prepare(`
+    SELECT e.id, e.user_id, e.course_id, e.status, e.start_date, e.progress, c.title, c.category
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    WHERE e.user_id IN (${placeholders}) AND e.status IN ('active','hold') AND e.withdrawn_at IS NULL
+    ORDER BY e.user_id, c.title, e.id
+  `).all(...normalizedIds).forEach((enrollment) => grouped.get(enrollment.user_id)?.push(enrollment));
+  return grouped;
+}
+
+function renderStudentWithdrawalControl(student, enrollments = [], { returnTo = "students", compact = false, csrfToken = "" } = {}) {
+  const currentEnrollmentRecords = enrollments.filter((enrollment) => ["active", "hold"].includes(enrollment.status) && !enrollment.withdrawn_at);
+  const affectedRecordCounts = new Map();
+  enrollments
+    .filter((enrollment) => ["active", "hold", "completed"].includes(enrollment.status) && !enrollment.withdrawn_at)
+    .forEach((enrollment) => affectedRecordCounts.set(Number(enrollment.course_id), (affectedRecordCounts.get(Number(enrollment.course_id)) || 0) + 1));
+  const currentCoursesById = new Map();
+  currentEnrollmentRecords.forEach((enrollment) => {
+    const courseId = Number(enrollment.course_id);
+    if (!currentCoursesById.has(courseId)) currentCoursesById.set(courseId, { ...enrollment, recordCount: affectedRecordCounts.get(courseId) || 1 });
+  });
+  const currentCourses = [...currentCoursesById.values()];
+  if (student.status === "withdrawn") {
+    return `
+      <div class="withdrawal-status withdrawn">
+        <span class="withdrawal-badge">School withdrawn</span>
+        ${student.withdrawal_effective_date ? `<small>Effective ${escapeHtml(date(student.withdrawal_effective_date))}</small>` : ""}
+        ${student.withdrawal_reason ? `<p>${escapeHtml(student.withdrawal_reason)}</p>` : ""}
+        ${returnTo === "detail" ? "" : `<a href="/admin/students/${student.id}/registrar-checklist#withdrawal-management">View record</a>`}
+      </div>
+    `;
+  }
+  if (student.status !== "active") {
+    return `<div class="withdrawal-status"><span class="withdrawal-badge muted">Account ${escapeHtml(student.status)}</span><small>Withdrawal is unavailable while this account is not active.</small></div>`;
+  }
+  if (returnTo !== "detail") {
+    return `<a class="button small withdrawal-trigger" href="/admin/students/${student.id}/registrar-checklist#withdrawal-management" aria-label="Withdraw ${escapeHtml(`${student.first_name || ""} ${student.last_name || ""}`.trim() || "student")} from courses or the school">Withdraw student</a>`;
+  }
+  const controlId = `withdrawal-${returnTo}-${student.id}`;
+  const today = easternDateParts().date;
+  return `
+    <details class="student-withdrawal-control ${compact ? "compact" : ""}">
+      <summary class="button small withdrawal-trigger">Withdraw student</summary>
+      <form class="student-withdrawal-form" method="post" action="/admin/students/${student.id}/withdraw">
+        <input type="hidden" name="returnTo" value="${escapeHtml(returnTo)}">
+        <input type="hidden" name="expectedStudentStatus" value="${escapeHtml(student.status)}">
+        <input type="hidden" name="csrfToken" value="${escapeHtml(csrfToken)}">
+        <p><strong>Choose what to withdraw</strong></p>
+        ${currentCourses.length ? `
+          <label class="withdrawal-scope-option">
+            <input type="radio" name="scope" value="courses" checked>
+            <span><strong>Selected course(s)</strong><small>Remove all portal access to each selected course. Other courses remain available, and completed results and credentials stay on file.</small></span>
+          </label>
+          <fieldset class="withdrawal-course-list">
+            <legend>Current courses</legend>
+            ${currentCourses.map((enrollment) => `
+              <label>
+                <input type="checkbox" name="courseIds" value="${enrollment.course_id}">
+                <span><strong>${escapeHtml(enrollment.title)}</strong><small>${escapeHtml(enrollment.status)} · ${escapeHtml(enrollment.progress || 0)}% complete${enrollment.recordCount > 1 ? ` · ${escapeHtml(enrollment.recordCount)} enrollment records affected` : ""}</small></span>
+              </label>
+            `).join("")}
+          </fieldset>
+        ` : `<p class="withdrawal-no-courses">This student has no active or on-hold courses.</p>`}
+        <label class="withdrawal-scope-option school">
+          <input type="radio" name="scope" value="school" ${currentCourses.length ? "" : "checked"}>
+          <span><strong>Entire school</strong><small>Disable portal login and withdraw every active or on-hold course. Completed courses remain completed.</small></span>
+        </label>
+        <label for="${escapeHtml(controlId)}-date">Effective date</label>
+        <input id="${escapeHtml(controlId)}-date" name="effectiveDate" type="date" value="${today}" max="${today}" required>
+        <label for="${escapeHtml(controlId)}-reason">Reason / internal note</label>
+        <textarea id="${escapeHtml(controlId)}-reason" name="reason" rows="3" maxlength="2000" placeholder="Record the reason for this withdrawal." required></textarea>
+        <label class="withdrawal-confirmation">
+          <input type="checkbox" name="confirmed" value="1" required>
+          <span>I understand this immediately removes the selected access. Academic records will be preserved.</span>
+        </label>
+        <button class="withdrawal-submit" type="submit">Confirm withdrawal</button>
+      </form>
+    </details>
   `;
 }
 
@@ -3378,7 +3490,7 @@ function dashboardDataForStudent(studentId) {
     SELECT e.*, c.title, c.slug, c.category, c.description, c.hours, c.credential_type
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
-    WHERE e.user_id = ?
+    WHERE e.user_id = ? AND e.status IN ('active','completed') AND e.withdrawn_at IS NULL
     ORDER BY e.created_at DESC
   `).all(studentId);
   const courseIds = enrollments.map((row) => row.course_id);
@@ -3396,7 +3508,7 @@ function dashboardDataForStudent(studentId) {
     SELECT gi.*, c.title AS course_title, c.slug AS course_slug, e.id AS enrollment_id
     FROM grade_items gi
     JOIN courses c ON c.id = gi.course_id
-    JOIN enrollments e ON e.course_id = c.id AND e.user_id = ?
+    JOIN enrollments e ON e.course_id = c.id AND e.user_id = ? AND e.status IN ('active','completed') AND e.withdrawn_at IS NULL
     WHERE gi.course_id IN (${placeholders})
     ORDER BY gi.due_date IS NULL, gi.due_date, gi.id
     LIMIT 20
@@ -4872,7 +4984,7 @@ function messageCourseOptions(user) {
       SELECT DISTINCT c.id, c.title, NULL AS code
       FROM enrollments e
       JOIN courses c ON c.id = e.course_id
-      WHERE e.user_id = ? AND e.status IN ('active', 'completed')
+      WHERE e.user_id = ? AND e.status IN ('active', 'completed') AND e.withdrawn_at IS NULL
       ORDER BY c.title
     `).all(user.id);
   }
@@ -6360,6 +6472,10 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
       u.first_name,
       u.last_name,
       u.email,
+      u.status AS account_status,
+      u.withdrawal_effective_date,
+      u.withdrawal_reason,
+      u.withdrawn_at,
       u.cohort_name,
       u.photo_storage_name,
       u.photo_original_name,
@@ -6367,15 +6483,17 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
       u.photo_review_note,
       u.photo_submitted_at,
       u.photo_reviewed_at,
-      GROUP_CONCAT(DISTINCT c.title) AS course_titles,
+      GROUP_CONCAT(DISTINCT CASE WHEN e.status IN ('active','completed') AND e.withdrawn_at IS NULL THEN c.title END) AS course_titles,
       CASE
-        WHEN SUM(CASE WHEN e.status = 'active' THEN 1 ELSE 0 END) > 0 THEN 'active'
-        WHEN SUM(CASE WHEN e.status = 'completed' THEN 1 ELSE 0 END) > 0 THEN 'completed'
+        WHEN u.status = 'withdrawn' THEN 'school withdrawn'
+        WHEN u.status <> 'active' THEN u.status
+        WHEN SUM(CASE WHEN e.status = 'active' AND e.withdrawn_at IS NULL THEN 1 ELSE 0 END) > 0 THEN 'active'
+        WHEN SUM(CASE WHEN e.status = 'completed' AND e.withdrawn_at IS NULL THEN 1 ELSE 0 END) > 0 THEN 'completed'
         WHEN COUNT(e.id) > 0 THEN COALESCE(MAX(e.status), 'enrolled')
         ELSE 'not enrolled'
       END AS student_status,
-      ROUND(COALESCE(AVG(e.progress), 0)) AS progress,
-      MIN(e.start_date) AS start_date,
+      ROUND(COALESCE(AVG(CASE WHEN e.status IN ('active','completed') AND e.withdrawn_at IS NULL THEN e.progress END), 0)) AS progress,
+      MIN(CASE WHEN e.status IN ('active','completed') AND e.withdrawn_at IS NULL THEN e.start_date END) AS start_date,
       MAX(e.created_at) AS latest_enrollment_at
     FROM users u
     LEFT JOIN enrollments e ON e.user_id = u.id
@@ -6387,6 +6505,9 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
     LIMIT 100
   `;
   const recent = selectedCohort ? db.prepare(recentSql).all(selectedCohort) : db.prepare(recentSql).all();
+  const withdrawalEnrollments = req.user.role === "admin"
+    ? eligibleWithdrawalEnrollmentsByStudent(recent.map((student) => student.user_id))
+    : new Map();
   const cohortLabel = selectedCohort || "All cohorts";
   const urgentTickets = activeUrgentTickets(3);
   const urgentTicketCount = db.prepare(`
@@ -6447,22 +6568,23 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
     </section>
     <section class="table-card student-roster-table-card" style="margin-top:18px">
       <table class="student-roster-table">
-        <thead><tr><th>Photo</th><th>Student</th><th>Photo review</th><th>Cohort</th><th>Courses</th><th>Status</th><th>Progress</th><th>Started</th></tr></thead>
+        <thead><tr><th>Photo</th><th>Student</th><th>Photo review</th><th>Cohort</th><th>Courses</th><th>Status</th><th>Progress</th><th>Started</th>${req.user.role === "admin" ? "<th>Withdrawal</th>" : ""}</tr></thead>
         <tbody>
           ${recent.map((row) => {
             const student = { ...row, id: row.user_id };
             return `
             <tr id="student-${row.user_id}">
               <td>${studentPhotoThumb(student, "student-thumb")}</td>
-              <td><strong>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</strong><br><span class="muted">${escapeHtml(row.email)}</span></td>
+              <td>${req.user.role === "admin" ? `<a class="student-record-link" href="/admin/students/${row.user_id}/registrar-checklist"><strong>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</strong></a>` : `<strong>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</strong>`}<br><span class="muted">${escapeHtml(row.email)}</span></td>
               <td class="photo-review-cell">${renderPhotoReviewControls(student, { returnTo: "dashboard", canReview: req.user.role === "admin" })}</td>
               <td>${row.cohort_name ? `<span class="pill">${escapeHtml(row.cohort_name)}</span>` : `<span class="muted">Not assigned</span>`}</td>
               <td>${row.course_titles ? escapeHtml(String(row.course_titles).split(",").join(", ")) : `<span class="muted">No active course</span>`}</td>
               <td><span class="pill">${escapeHtml(row.student_status)}</span></td>
               <td>${progressBar(row.progress)}<span class="muted">${escapeHtml(row.progress)}%</span></td>
               <td>${date(row.start_date)}</td>
+              ${req.user.role === "admin" ? `<td class="withdrawal-cell">${renderStudentWithdrawalControl({ ...student, status: row.account_status }, withdrawalEnrollments.get(row.user_id) || [], { returnTo: "dashboard", compact: true })}</td>` : ""}
             </tr>
-          `; }).join("") || `<tr><td class="empty" colspan="8">No enrollments yet.</td></tr>`}
+          `; }).join("") || `<tr><td class="empty" colspan="${req.user.role === "admin" ? 9 : 8}">No enrollments yet.</td></tr>`}
         </tbody>
       </table>
     </section>
@@ -7442,7 +7564,7 @@ app.post("/admin/messages", requireAuth, requireRole("admin", "instructor"), asy
       SELECT id, first_name, last_name, email
       FROM users
       WHERE role = 'student' AND status = 'active'
-        ${courseId ? "AND id IN (SELECT user_id FROM enrollments WHERE course_id = ? AND status IN ('active', 'completed'))" : ""}
+        ${courseId ? "AND id IN (SELECT user_id FROM enrollments WHERE course_id = ? AND status IN ('active', 'completed') AND withdrawn_at IS NULL)" : ""}
     `).all(...(courseId ? [courseId] : []));
     let externalSent = 0;
     let externalFailed = 0;
@@ -8140,7 +8262,7 @@ app.get("/admin/student-evaluations", requireAuth, requireRole("admin", "instruc
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     JOIN users u ON u.id = e.user_id
-    WHERE e.status IN ('active', 'completed') AND u.role = 'student'
+    WHERE e.status IN ('active', 'completed') AND e.withdrawn_at IS NULL AND u.role = 'student'
     ORDER BY u.last_name, u.first_name, c.title
   `).all();
   const evaluations = db.prepare(`
@@ -8268,7 +8390,7 @@ app.post("/admin/student-evaluations/:enrollmentId/:weekNumber", requireAuth, re
   const enrollment = db.prepare(`
     SELECT e.*, c.title AS course_title, u.first_name, u.last_name
     FROM enrollments e JOIN courses c ON c.id = e.course_id JOIN users u ON u.id = e.user_id
-    WHERE e.id = ? AND e.status IN ('active', 'completed') AND u.role = 'student'
+    WHERE e.id = ? AND e.status IN ('active', 'completed') AND e.withdrawn_at IS NULL AND u.role = 'student'
   `).get(enrollmentId);
   if (!enrollment || !courseSurveyWeeks.includes(weekNumber)) return res.status(404).send("Student evaluation not found");
   const selfEvaluation = db.prepare("SELECT id FROM student_self_evaluations WHERE enrollment_id = ? AND week_number = ?").get(enrollmentId, weekNumber);
@@ -8340,6 +8462,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
   const students = db.prepare(`
     SELECT u.*,
       COUNT(DISTINCT e.id) AS enrollment_count,
+      COUNT(DISTINCT CASE WHEN e.status IN ('active','hold') THEN e.id END) AS current_enrollment_count,
       COUNT(DISTINCT CASE WHEN e.status = 'completed' THEN e.id END) AS completed_count,
       COUNT(DISTINCT rc.id) AS checklist_count,
       COUNT(DISTINCT CASE WHEN rc.status IN ('approved','waived') THEN rc.id END) AS checklist_complete,
@@ -8354,6 +8477,9 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
     GROUP BY u.id
     ORDER BY u.last_name, u.first_name
   `).all();
+  const withdrawalEnrollments = req.user.role === "admin"
+    ? eligibleWithdrawalEnrollmentsByStudent(students.map((student) => student.id))
+    : new Map();
 
   if (req.user.role === "instructor") {
     const body = `
@@ -8505,8 +8631,9 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 <span class="muted">${escapeHtml(student.checklist_uploads || 0)} upload${Number(student.checklist_uploads || 0) === 1 ? "" : "s"}</span><br>
                 <a class="button small" href="/admin/students/${student.id}/registrar-checklist">Upload documents</a>
               </td>
-              <td>${student.enrollment_count || 0} total<br><span class="muted">${student.completed_count || 0} completed</span></td>
+              <td>${student.current_enrollment_count || 0} current<br><span class="muted">${student.completed_count || 0} completed · ${student.enrollment_count || 0} total</span></td>
               <td>
+                ${renderStudentWithdrawalControl(student, withdrawalEnrollments.get(student.id) || [], { returnTo: "students" })}
                 <form method="post" action="/admin/students/${student.id}/class-access" class="actions">
                   <select name="organizationStatus">
                     <option value="organized" ${student.organization_status === "organized" ? "selected" : ""}>Organized</option>
@@ -8558,6 +8685,14 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
     ORDER BY e.created_at DESC, e.id DESC
     LIMIT 20
   `).all(student.id);
+  const withdrawalEvents = db.prepare(`
+    SELECT e.*, TRIM(COALESCE(a.first_name, '') || ' ' || COALESCE(a.last_name, '')) AS actor_name
+    FROM student_withdrawal_events e
+    LEFT JOIN users a ON a.id = e.withdrawn_by
+    WHERE e.student_id = ?
+    ORDER BY e.created_at DESC, e.id DESC
+    LIMIT 50
+  `).all(student.id);
   const enrollmentRows = db.prepare(`
     SELECT e.*, c.title, c.category
     FROM enrollments e
@@ -8592,6 +8727,7 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
         ${progressBar(progress.percent)}
         <p class="muted">Approved or waived items count toward readiness. Uploaded files stay attached to each checklist item for registrar review.</p>
         <div class="registrar-mini-list registrar-anchor-list">
+          <a href="#withdrawal-management">Withdrawal management</a>
           <a href="#photo-review">Profile photo review</a>
           ${checklist.map((item) => `<a href="#${escapeHtml(item.item_key)}">${escapeHtml(item.title)}</a>`).join("")}
         </div>
@@ -8601,6 +8737,44 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
       </article>
 
       <div class="registrar-checklist-grid">
+        <article class="card withdrawal-management-card" id="withdrawal-management">
+          <div class="registrar-item-head">
+            <div>
+              <h2>Withdrawal management</h2>
+              <p>Withdraw this student from selected current courses or from the entire school without deleting academic records.</p>
+            </div>
+            <span class="withdrawal-badge ${student.status === "withdrawn" ? "school" : "active"}">${escapeHtml(student.status === "withdrawn" ? "School withdrawn" : "Account active")}</span>
+          </div>
+          <div class="withdrawal-detail-layout">
+            <div>
+              ${renderStudentWithdrawalControl(student, enrollmentRows, { returnTo: "detail", csrfToken: withdrawalCsrfToken(req) })}
+            </div>
+            <div class="withdrawal-enrollment-list">
+              <h3>Course enrollment record</h3>
+              ${enrollmentRows.map((row) => `
+                <p class="${escapeHtml(row.withdrawn_at ? "withdrawn" : row.status)}">
+                  <strong>${escapeHtml(row.title)}</strong>
+                  <span>${escapeHtml(row.status)}${row.withdrawn_at && row.status !== "withdrawn" ? " · access withdrawn" : ""} · ${escapeHtml(row.progress || 0)}% complete${row.withdrawal_effective_date ? ` · Effective ${escapeHtml(date(row.withdrawal_effective_date))}` : ""}</span>
+                </p>
+              `).join("") || `<p class="empty compact">No enrollment records.</p>`}
+            </div>
+          </div>
+          <details class="withdrawal-history" ${withdrawalEvents.length ? "" : "hidden"}>
+            <summary>Withdrawal history (${withdrawalEvents.length})</summary>
+            <div>
+              ${withdrawalEvents.map((event) => `
+                <p>
+                  <strong>${event.scope === "school" ? "Entire school" : escapeHtml(event.course_title || "Course")}</strong>
+                  <span>Effective ${escapeHtml(date(event.effective_date))} · Recorded ${escapeHtml(formatMessageDate(event.created_at))}${event.actor_name ? ` · ${escapeHtml(event.actor_name)}` : ""}</span>
+                  <span>${escapeHtml(event.reason)}</span>
+                  ${event.scope === "school" ? `<small>${escapeHtml(event.affected_enrollment_count)} current course enrollment${Number(event.affected_enrollment_count) === 1 ? "" : "s"} withdrawn; completed courses preserved.</small>` : ""}
+                </p>
+              `).join("")}
+            </div>
+          </details>
+          ${withdrawalEvents.length ? "" : `<p class="muted">No withdrawal actions have been recorded for this student.</p>`}
+        </article>
+
         <article class="card photo-review-detail-card" id="photo-review">
           <div class="registrar-item-head">
             <div>
@@ -8892,6 +9066,138 @@ app.post("/admin/students", requireAuth, requireRole("admin"), (req, res) => {
     flash(req, `Could not create student: ${error.message}`);
   }
   res.redirect("/admin/students");
+});
+
+app.post("/admin/students/:id/withdraw", requireAuth, requireRole("admin"), (req, res) => {
+  const studentId = Number(req.params.id);
+  if (!validWithdrawalCsrfToken(req, req.body.csrfToken)) return res.status(403).send("Invalid or expired withdrawal form");
+  const redirectTo = withdrawalReturnPath(String(req.body.returnTo || ""), studentId);
+  const scope = String(req.body.scope || "");
+  const reason = String(req.body.reason || "").trim();
+  const effectiveDate = String(req.body.effectiveDate || "").trim();
+  const today = easternDateParts().date;
+  const parsedEffectiveDate = /^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)
+    ? new Date(`${effectiveDate}T00:00:00.000Z`)
+    : null;
+  if (!["courses", "school"].includes(scope)) {
+    flash(req, "Choose selected courses or the entire school.");
+    return res.redirect(303, redirectTo);
+  }
+  if (!reason) {
+    flash(req, "Enter an internal reason for the withdrawal.");
+    return res.redirect(303, redirectTo);
+  }
+  if (reason.length > 2000) {
+    flash(req, "The withdrawal reason must be 2,000 characters or fewer.");
+    return res.redirect(303, redirectTo);
+  }
+  if (!parsedEffectiveDate || Number.isNaN(parsedEffectiveDate.getTime()) || parsedEffectiveDate.toISOString().slice(0, 10) !== effectiveDate || effectiveDate > today) {
+    flash(req, "Enter a valid withdrawal date that is not in the future.");
+    return res.redirect(303, redirectTo);
+  }
+  if (req.body.confirmed !== "1") {
+    flash(req, "Confirm that you understand the access change before withdrawing the student.");
+    return res.redirect(303, redirectTo);
+  }
+
+  const student = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'student'").get(studentId);
+  if (!student) return res.status(404).send("Student not found");
+  if (String(req.body.expectedStudentStatus || "") !== String(student.status || "")) {
+    flash(req, "The student account changed after this page loaded. Review the current status before trying again.");
+    return res.redirect(303, redirectTo);
+  }
+  if (student.status !== "active") {
+    flash(req, student.status === "withdrawn" ? "This student is already withdrawn from the school." : "Only an active student account can be withdrawn.");
+    return res.redirect(303, redirectTo);
+  }
+
+  try {
+    db.exec("BEGIN IMMEDIATE");
+    if (scope === "school") {
+      const currentEnrollments = db.prepare(`
+        SELECT e.id, e.course_id, e.status, c.title
+        FROM enrollments e
+        JOIN courses c ON c.id = e.course_id
+        WHERE e.user_id = ? AND e.status IN ('active','hold')
+        ORDER BY e.id
+      `).all(student.id);
+      const accountUpdate = db.prepare(`
+        UPDATE users
+        SET status = 'withdrawn', withdrawal_effective_date = ?, withdrawal_reason = ?,
+          withdrawn_at = CURRENT_TIMESTAMP, withdrawn_by = ?
+        WHERE id = ? AND role = 'student' AND status = 'active'
+      `).run(effectiveDate, reason, req.user.id, student.id);
+      if (accountUpdate.changes !== 1) throw new Error("The student account changed before the withdrawal could be saved.");
+      db.prepare(`
+        UPDATE enrollments
+        SET status = 'withdrawn', withdrawal_effective_date = ?, withdrawal_reason = ?,
+          withdrawn_at = CURRENT_TIMESTAMP, withdrawn_by = ?
+        WHERE user_id = ? AND status IN ('active','hold')
+      `).run(effectiveDate, reason, req.user.id, student.id);
+      db.prepare(`
+        INSERT INTO student_withdrawal_events (
+          student_id, scope, previous_student_status, effective_date, reason,
+          affected_enrollment_count, withdrawn_by
+        ) VALUES (?, 'school', ?, ?, ?, ?, ?)
+      `).run(student.id, student.status, effectiveDate, reason, currentEnrollments.length, req.user.id);
+      db.exec("COMMIT");
+      delete req.session.withdrawalCsrfToken;
+      flash(req, `Student withdrawn from the entire school. ${currentEnrollments.length} current course enrollment${currentEnrollments.length === 1 ? " was" : "s were"} withdrawn; completed courses and all academic records were preserved.`);
+      return res.redirect(303, redirectTo);
+    }
+
+    const rawCourseIds = Array.isArray(req.body.courseIds) ? req.body.courseIds : [req.body.courseIds];
+    const courseIds = [...new Set(rawCourseIds.map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+    if (!courseIds.length || courseIds.length > 100) throw new Error("Select at least one current course to withdraw.");
+    const placeholders = courseIds.map(() => "?").join(",");
+    const selectedEnrollments = db.prepare(`
+      SELECT e.id, e.course_id, e.status, c.title
+      FROM enrollments e
+      JOIN courses c ON c.id = e.course_id
+      WHERE e.user_id = ? AND e.course_id IN (${placeholders})
+        AND e.status IN ('active','hold','completed') AND e.withdrawn_at IS NULL
+      ORDER BY e.id
+    `).all(student.id, ...courseIds);
+    const matchedCourseIds = new Set(selectedEnrollments.map((enrollment) => Number(enrollment.course_id)));
+    if (matchedCourseIds.size !== courseIds.length) throw new Error("One or more selected courses changed after this page loaded. Review the current enrollments and try again.");
+    const updateEnrollment = db.prepare(`
+      UPDATE enrollments
+      SET status = CASE WHEN status IN ('active','hold') THEN 'withdrawn' ELSE status END,
+        withdrawal_effective_date = ?, withdrawal_reason = ?,
+        withdrawn_at = CURRENT_TIMESTAMP, withdrawn_by = ?
+      WHERE id = ? AND user_id = ? AND status IN ('active','hold','completed') AND withdrawn_at IS NULL
+    `);
+    const insertEvent = db.prepare(`
+      INSERT INTO student_withdrawal_events (
+        student_id, enrollment_id, course_id, scope, course_title, previous_student_status,
+        previous_enrollment_status, effective_date, reason, affected_enrollment_count, withdrawn_by
+      ) VALUES (?, ?, ?, 'course', ?, ?, ?, ?, ?, 1, ?)
+    `);
+    selectedEnrollments.forEach((enrollment) => {
+      const update = updateEnrollment.run(effectiveDate, reason, req.user.id, enrollment.id, student.id);
+      if (update.changes !== 1) throw new Error(`${enrollment.title} changed before the withdrawal could be saved.`);
+      insertEvent.run(
+        student.id,
+        enrollment.id,
+        enrollment.course_id,
+        enrollment.title,
+        student.status,
+        enrollment.status,
+        effectiveDate,
+        reason,
+        req.user.id
+      );
+    });
+    db.exec("COMMIT");
+    delete req.session.withdrawalCsrfToken;
+    flash(req, `${courseIds.length} course${courseIds.length === 1 ? "" : "s"} withdrawn. The student account, other courses, progress, grades, and submissions were preserved.`);
+    return res.redirect(303, redirectTo);
+  } catch (error) {
+    try { db.exec("ROLLBACK"); } catch {}
+    console.error("Could not withdraw student", error);
+    flash(req, `Withdrawal could not be saved: ${error.message}`);
+    return res.redirect(303, redirectTo);
+  }
 });
 
 app.post("/admin/students/:id/photo-review/deny", requireAuth, requireRole("admin"), async (req, res) => {
@@ -9687,7 +9993,7 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
   const availableStudents = db.prepare(`
     SELECT id, first_name, last_name, email
     FROM users
-    WHERE role = 'student'
+    WHERE role = 'student' AND status = 'active'
       AND id NOT IN (SELECT user_id FROM enrollments WHERE course_id = ?)
     ORDER BY last_name, first_name
   `).all(course.id);
@@ -9888,17 +10194,24 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
               <td>${progressBar(row.progress)}<span class="muted">${escapeHtml(row.progress)}%</span></td>
               <td>${row.credential_id ? `<a href="/credentials/${row.credential_id}/print">Print credential</a>` : `<span class="muted">Not issued</span>`}</td>
               <td>
-                <form class="actions" method="post" action="/admin/enrollments/${row.id}/status">
-                  <select name="status">
-                    ${["active", "completed", "withdrawn", "hold"].map((status) => `<option value="${status}" ${row.status === status ? "selected" : ""}>${status}</option>`).join("")}
-                  </select>
-                  <input name="progress" type="number" min="0" max="100" value="${row.progress}">
-                  <input name="finalGrade" placeholder="Final grade" value="${escapeHtml(row.final_grade || "")}">
-                  <button class="small" type="submit">Save</button>
-                </form>
-                <form method="post" action="/admin/enrollments/${row.id}/issue-credential" style="margin-top:8px">
-                  <button class="small ghost" type="submit">Issue ${escapeHtml(course.credential_type)}</button>
-                </form>
+                ${row.status === "withdrawn" || row.withdrawn_at ? `
+                  <span class="withdrawal-badge">${row.status === "withdrawn" ? "Withdrawn" : "Access withdrawn"}</span><br>
+                  <a class="button small ghost" href="/admin/students/${row.user_id}/registrar-checklist#withdrawal-management">View withdrawal record</a>
+                ` : `
+                  <form class="actions" method="post" action="/admin/enrollments/${row.id}/status">
+                    <select name="status">
+                      ${["active", "completed", "hold"].map((status) => `<option value="${status}" ${row.status === status ? "selected" : ""}>${status}</option>`).join("")}
+                    </select>
+                    <input name="progress" type="number" min="0" max="100" value="${row.progress}">
+                    <input name="finalGrade" placeholder="Final grade" value="${escapeHtml(row.final_grade || "")}">
+                    <button class="small" type="submit">Save</button>
+                  </form>
+                  ${enrollmentAccessAllowed(row) ? `
+                    <form method="post" action="/admin/enrollments/${row.id}/issue-credential" style="margin-top:8px">
+                      <button class="small ghost" type="submit">Issue ${escapeHtml(course.credential_type)}</button>
+                    </form>
+                  ` : ""}
+                `}
               </td>
             </tr>
           `).join("") || `<tr><td class="empty" colspan="5">No students enrolled in this course yet.</td></tr>`}
@@ -10954,6 +11267,11 @@ app.post("/admin/courses/:id/rubrics/:gradeItemId", requireAuth, requireRole("ad
 app.post("/admin/enrollments", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const userId = Number(req.body.userId);
   const courseId = Number(req.body.courseId);
+  const student = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'student' AND status = 'active'").get(userId);
+  if (!student) {
+    flash(req, "Only an active student account can be enrolled. Review any school withdrawal first.");
+    return res.redirect(`/admin/courses/${courseId}`);
+  }
   const existing = db.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").get(userId, courseId);
   if (existing) {
     flash(req, "Student is already enrolled in this course.");
@@ -10965,9 +11283,11 @@ app.post("/admin/enrollments", requireAuth, requireRole("admin", "instructor"), 
 });
 
 app.post("/admin/enrollments/:id/status", requireAuth, requireRole("admin", "instructor"), (req, res) => {
-  const enrollment = db.prepare("SELECT course_id FROM enrollments WHERE id = ?").get(Number(req.params.id));
+  const enrollment = db.prepare("SELECT course_id, status, withdrawn_at FROM enrollments WHERE id = ?").get(Number(req.params.id));
   if (!enrollment) return res.status(404).send("Enrollment not found");
   const status = String(req.body.status || "active");
+  if (!["active", "completed", "hold"].includes(status)) return res.status(422).send("Invalid enrollment status");
+  if (enrollment.status === "withdrawn" || enrollment.withdrawn_at) return res.status(409).send("An enrollment with withdrawn access cannot be changed from the generic course-status form.");
   const completionDate = status === "completed" ? new Date().toISOString().slice(0, 10) : null;
   db.prepare(`
     UPDATE enrollments
@@ -10983,7 +11303,7 @@ app.post("/admin/enrollments/:id/issue-credential", requireAuth, requireRole("ad
     SELECT e.*, c.credential_type, c.id AS course_id
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
-    WHERE e.id = ?
+    WHERE e.id = ? AND e.status IN ('active','completed') AND e.withdrawn_at IS NULL
   `).get(Number(req.params.id));
   if (!enrollment) return res.status(404).send("Enrollment not found");
 
@@ -11060,21 +11380,14 @@ app.get("/student", requireAuth, (req, res) => {
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     LEFT JOIN credentials cr ON cr.enrollment_id = e.id
-    WHERE e.user_id = ?
+    WHERE e.user_id = ? AND e.status IN ('active','completed') AND e.withdrawn_at IS NULL
     ORDER BY
       CASE WHEN c.slug = 'introduction-to-nursing-practical-nursing' THEN 0 ELSE 1 END,
       e.created_at DESC
   `).all(req.user.id);
 
   const studentName = `${req.user.first_name} ${req.user.last_name}`.trim();
-  const fallbackSubjects = [
-    { title: "Introduction to Nursing", progress: 83, category: "Practical Nursing" },
-    { title: "Fundamentals of Nursing", progress: 71, category: "Nursing Core" },
-    { title: "Medical Terminology", progress: 80, category: "Healthcare Foundation" },
-    { title: "Anatomy and Physiology", progress: 60, category: "Science" },
-    { title: "Pharmacology", progress: 50, category: "Clinical Preparation" }
-  ];
-  const subjectRows = (enrollments.length ? enrollments : fallbackSubjects).slice(0, 6);
+  const subjectRows = enrollments.slice(0, 6);
   const notices = [
     ["Clinical orientation meeting", "07/08/2026", "red"],
     ["Tuition payment reminder", "07/10/2026", "red"],
@@ -11132,7 +11445,7 @@ app.get("/student", requireAuth, (req, res) => {
                 <td>${escapeHtml(row.title)}</td>
                 <td><span>${escapeHtml(row.progress || 0)}%</span>${progressBar(row.progress || 0)}</td>
               </tr>
-            `).join("")}
+            `).join("") || `<tr><td class="empty" colspan="2">No current courses.</td></tr>`}
           </tbody>
         </table>
       </article>
@@ -11145,7 +11458,7 @@ app.get("/student", requireAuth, (req, res) => {
             <div><strong>Instructor</strong><small>${escapeHtml(row.title)}</small></div>
             <div><strong>Room No.: ${index % 2 === 0 ? "Humerus" : "Femur"}</strong><small>${escapeHtml(times[index] || times[0])}</small></div>
           </div>
-        `).join("")}
+        `).join("") || `<p class="empty">No upcoming classes.</p>`}
       </article>
 
       <article class="student-panel homework-panel" id="homework">
@@ -11155,7 +11468,7 @@ app.get("/student", requireAuth, (req, res) => {
             <h3>${escapeHtml(row.title)}</h3>
             <p>Homework Date: 07/${String(18 + index).padStart(2, "0")}/2026, Submission Date: 07/${String(24 + index).padStart(2, "0")}/2026, Status: <span>Pending</span></p>
           </div>
-        `).join("")}
+        `).join("") || `<p class="empty">No current homework.</p>`}
       </article>
 
       <article class="student-panel courses-panel" id="enrolled-courses">
@@ -11201,7 +11514,7 @@ app.get("/student/lesson-plan", requireAuth, requireRole("student"), (req, res) 
     SELECT e.*, c.title, c.slug, c.category, c.hours
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
-    WHERE e.user_id = ?
+    WHERE e.user_id = ? AND e.status IN ('active','completed') AND e.withdrawn_at IS NULL
     ORDER BY
       CASE e.status WHEN 'active' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
       e.start_date DESC,
@@ -11316,7 +11629,7 @@ app.get("/student/homework", requireAuth, requireRole("student"), (req, res) => 
     JOIN courses c ON c.id = e.course_id
     JOIN grade_items gi ON gi.course_id = c.id
     LEFT JOIN grades g ON g.grade_item_id = gi.id AND g.enrollment_id = e.id
-    WHERE e.user_id = ?
+    WHERE e.user_id = ? AND e.status IN ('active','completed') AND e.withdrawn_at IS NULL
     ORDER BY gi.due_date IS NULL, gi.due_date, c.title, gi.id
   `).all(req.user.id);
   const assignmentRows = rows.filter((row) => {
@@ -11391,7 +11704,7 @@ app.get("/student/syllabus-status", requireAuth, requireRole("student"), (req, r
     SELECT e.*, c.title, c.slug, c.category, c.hours
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
-    WHERE e.user_id = ?
+    WHERE e.user_id = ? AND e.status IN ('active','completed') AND e.withdrawn_at IS NULL
     ORDER BY
       CASE e.status WHEN 'active' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
       e.start_date DESC,
@@ -11550,9 +11863,11 @@ app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
       e.created_at DESC
   `).all(req.user.id);
 
-  const activeCount = enrollments.filter((row) => row.status === "active").length;
+  const activeCount = enrollments.filter((row) => row.status === "active" && !row.withdrawn_at).length;
   const completedCount = enrollments.filter((row) => row.status === "completed").length;
-  const totalHours = enrollments.reduce((total, row) => total + Number(row.hours || 0), 0);
+  const totalHours = enrollments
+    .filter((row) => ["active", "completed"].includes(row.status))
+    .reduce((total, row) => total + Number(row.hours || 0), 0);
   const lockNotice = isClassLocked(req.user)
     ? `<article class="student-panel lock-panel" style="margin-bottom:12px"><h2>Class access locked</h2><p>${escapeHtml(classLockMessage(req.user))}</p></article>`
     : "";
@@ -11592,7 +11907,7 @@ app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
             <article class="student-course-card tone-${(index % 6) + 1}">
               <div class="student-course-card-banner">
                 <img src="/assets/healthcare-students-login.png" alt="">
-                <span class="student-course-card-status ${escapeHtml(row.status)}">${escapeHtml(row.status)}</span>
+                <span class="student-course-card-status ${escapeHtml(row.withdrawn_at ? "withdrawn" : row.status)}">${escapeHtml(row.withdrawn_at && row.status !== "withdrawn" ? "access withdrawn" : row.status)}</span>
                 <strong>${escapeHtml(row.category)}</strong>
               </div>
               <div class="student-course-card-body">
@@ -11608,9 +11923,14 @@ app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
                   ${progressBar(row.progress)}
                 </div>
                 <div class="student-course-card-actions">
-                  ${isClassLocked(req.user) ? lockedButton("Course Locked") : `<a class="button" href="/student/enrollments/${row.id}">Open Course</a>`}
+                  ${!enrollmentAccessAllowed(row)
+                    ? lockedButton(row.status === "hold" && !row.withdrawn_at ? "On hold" : "Withdrawn")
+                    : isClassLocked(req.user)
+                      ? lockedButton("Course Locked")
+                      : `<a class="button" href="/student/enrollments/${row.id}">Open Course</a>`}
                   ${row.credential_id ? `<a class="button ghost" href="/credentials/${row.credential_id}/print">View Credential</a>` : ""}
                 </div>
+                ${row.withdrawn_at && row.withdrawal_effective_date ? `<p class="student-course-withdrawal-note">Course access withdrawn effective ${escapeHtml(date(row.withdrawal_effective_date))}. Your academic record remains on file.</p>` : ""}
               </div>
             </article>
           `).join("") || `<article class="student-panel"><p class="empty">No course enrollments yet. Use registration to add an available course.</p></article>`}
@@ -11653,7 +11973,11 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
     ORDER BY category, title
   `).all();
   const courseBySlug = new Map(courses.map((course) => [course.slug, course]));
-  const courseEnrollmentByCourseId = new Map(enrollments.map((row) => [row.course_id, row]));
+  const courseEnrollmentsByCourseId = new Map();
+  enrollments.forEach((enrollment) => {
+    if (!courseEnrollmentsByCourseId.has(enrollment.course_id)) courseEnrollmentsByCourseId.set(enrollment.course_id, []);
+    courseEnrollmentsByCourseId.get(enrollment.course_id).push(enrollment);
+  });
   const programCourseSlugs = {
     "practical-nursing": [
       "introduction-to-nursing-practical-nursing",
@@ -11698,8 +12022,13 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
     : "";
   const renderCourseAction = (course) => {
     if (isClassLocked(req.user)) return lockedButton("Locked");
-    const enrollment = courseEnrollmentByCourseId.get(course.id);
-    if (enrollment) return `<a class="button small ghost" href="/student/enrollments/${enrollment.id}">Open</a>`;
+    const courseEnrollments = courseEnrollmentsByCourseId.get(course.id) || [];
+    if (courseEnrollments.length) {
+      if (courseEnrollments.some((enrollment) => enrollment.status === "withdrawn" || enrollment.withdrawn_at)) return lockedButton("Withdrawn");
+      const accessibleEnrollment = courseEnrollments.find(enrollmentAccessAllowed);
+      if (accessibleEnrollment) return `<a class="button small ghost" href="/student/enrollments/${accessibleEnrollment.id}">Open</a>`;
+      return lockedButton("On hold");
+    }
     return `
       <form method="post" action="/student/registration/enroll">
         <input type="hidden" name="courseId" value="${course.id}">
@@ -11728,7 +12057,7 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
       </div>
 
       <section class="grid cols-3 registration-stats">
-        ${stat("Current courses", String(enrollments.filter((row) => row.status === "active").length))}
+        ${stat("Current courses", String(enrollments.filter((row) => row.status === "active" && !row.withdrawn_at).length))}
         ${stat("Available programs", String(availablePrograms.length))}
         ${stat("Available courses", String(availableSubCourseCount))}
         ${stat("Completed", String(enrollments.filter((row) => row.status === "completed").length))}
@@ -11786,12 +12115,16 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
                   <td>${escapeHtml(row.status)}</td>
                   <td>${escapeHtml(row.progress)}%</td>
                   <td>
-                    ${row.source === "student" ? `
+                    ${row.source === "student" && row.status === "active" ? `
                       <form method="post" action="/student/registration/drop">
                         <input type="hidden" name="enrollmentId" value="${row.id}">
                         <button class="small ghost" type="submit">Remove</button>
                       </form>
-                    ` : isClassLocked(req.user) ? lockedButton("Locked") : `<a class="button small ghost" href="/student/enrollments/${row.id}">Open</a>`}
+                    ` : !enrollmentAccessAllowed(row)
+                      ? lockedButton(row.status === "hold" && !row.withdrawn_at ? "On hold" : "Withdrawn")
+                      : isClassLocked(req.user)
+                        ? lockedButton("Locked")
+                        : `<a class="button small ghost" href="/student/enrollments/${row.id}">Open</a>`}
                   </td>
                 </tr>
               `).join("") || `<tr><td class="empty" colspan="4">No current enrollments.</td></tr>`}
@@ -11887,8 +12220,12 @@ app.post("/student/registration/enroll", requireAuth, requireRole("student"), (r
 });
 
 app.post("/student/registration/drop", requireAuth, requireRole("student"), (req, res) => {
-  db.prepare("DELETE FROM enrollments WHERE id = ? AND user_id = ? AND source = 'student'").run(Number(req.body.enrollmentId), req.user.id);
-  flash(req, "Course removed from your registration.");
+  if (!studentRegistrationWindowIsOpen()) {
+    flash(req, "Course registration is not open.");
+    return res.redirect("/student/registration");
+  }
+  const result = db.prepare("DELETE FROM enrollments WHERE id = ? AND user_id = ? AND source = 'student' AND status = 'active'").run(Number(req.body.enrollmentId), req.user.id);
+  flash(req, result.changes ? "Course removed from your registration." : "That course registration can no longer be removed.");
   res.redirect("/student/registration");
 });
 
@@ -11933,7 +12270,7 @@ app.get("/student/transcript", requireAuth, requireRole("student"), (req, res) =
                 <td><strong>${escapeHtml(row.title)}</strong><br><span class="muted">Started ${date(row.start_date)}</span></td>
                 <td>${escapeHtml(row.category)}</td>
                 <td>${escapeHtml(row.hours)}</td>
-                <td>${escapeHtml(row.status)}<br><span class="muted">${row.completion_date ? `Completed ${date(row.completion_date)}` : `${escapeHtml(row.progress)}% complete`}</span></td>
+                <td>${escapeHtml(row.status)}<br><span class="muted">${row.status === "withdrawn" && row.withdrawal_effective_date ? `Withdrawn ${date(row.withdrawal_effective_date)}` : row.completion_date ? `Completed ${date(row.completion_date)}` : `${escapeHtml(row.progress)}% complete`}</span></td>
                 <td>${escapeHtml(row.final_grade || "In progress")}</td>
                 <td>${row.credential_id ? `<a href="/credentials/${row.credential_id}/print">${escapeHtml(row.credential_number)}</a>` : `<span class="muted">Not issued</span>`}</td>
               </tr>
@@ -11998,7 +12335,7 @@ app.get("/student/transcript/print", requireAuth, requireRole("student"), (req, 
               <td><strong>${escapeHtml(row.title)}</strong><br><span>Started ${date(row.start_date)}</span></td>
               <td>${escapeHtml(row.category)}</td>
               <td>${escapeHtml(row.hours)}</td>
-              <td>${escapeHtml(row.status)}${row.completion_date ? `<br><span>Completed ${date(row.completion_date)}</span>` : `<br><span>${escapeHtml(row.progress)}% complete</span>`}</td>
+              <td>${escapeHtml(row.status)}${row.status === "withdrawn" && row.withdrawal_effective_date ? `<br><span>Withdrawn ${date(row.withdrawal_effective_date)}</span>` : row.completion_date ? `<br><span>Completed ${date(row.completion_date)}</span>` : `<br><span>${escapeHtml(row.progress)}% complete</span>`}</td>
               <td>${escapeHtml(row.final_grade || "In progress")}</td>
               <td>${escapeHtml(row.credential_number || "Not issued")}</td>
             </tr>
@@ -12209,7 +12546,7 @@ app.post("/student/self-evaluations/:enrollmentId/:weekNumber", requireAuth, req
   const enrollment = db.prepare(`
     SELECT e.*, c.title AS course_title
     FROM enrollments e JOIN courses c ON c.id = e.course_id
-    WHERE e.id = ? AND e.user_id = ? AND e.status IN ('active', 'completed')
+    WHERE e.id = ? AND e.user_id = ? AND e.status IN ('active', 'completed') AND e.withdrawn_at IS NULL
   `).get(enrollmentId, req.user.id);
   if (!enrollment || !courseSurveyWeeks.includes(weekNumber)) return res.status(404).send("Student self-evaluation not found");
   const availableDate = courseSurveyAvailableDate(enrollment.start_date, weekNumber);
@@ -12341,7 +12678,7 @@ app.post("/student/evaluations/:enrollmentId/:weekNumber", requireAuth, requireR
   const enrollment = db.prepare(`
     SELECT e.*, c.title
     FROM enrollments e JOIN courses c ON c.id = e.course_id
-    WHERE e.id = ? AND e.user_id = ? AND e.status IN ('active', 'completed')
+    WHERE e.id = ? AND e.user_id = ? AND e.status IN ('active', 'completed') AND e.withdrawn_at IS NULL
   `).get(enrollmentId, req.user.id);
   if (!enrollment || !courseSurveyWeeks.includes(weekNumber)) return res.status(404).send("Course survey not found");
   const availableDate = courseSurveyAvailableDate(enrollment.start_date, weekNumber);
@@ -12427,9 +12764,10 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
   const releasedEvaluationByMilestone = new Map(releasedEvaluations.map((evaluation) => [`${evaluation.enrollment_id}-${evaluation.week_number}`, evaluation]));
 
   const name = `${req.user.first_name} ${req.user.last_name}`.trim();
-  const activeEnrollment = enrollments[0];
-  const averageProgress = enrollments.length
-    ? Math.round(enrollments.reduce((sum, row) => sum + Number(row.progress || 0), 0) / enrollments.length)
+  const currentEnrollments = enrollments.filter(enrollmentAccessAllowed);
+  const activeEnrollment = currentEnrollments.find((enrollment) => enrollment.status === "active") || currentEnrollments[0] || enrollments[0];
+  const averageProgress = currentEnrollments.length
+    ? Math.round(currentEnrollments.reduce((sum, row) => sum + Number(row.progress || 0), 0) / currentEnrollments.length)
     : 0;
   const completedCount = enrollments.filter((row) => row.status === "completed").length;
   const admissionsChecklist = admissionsDocumentChecklistForStudent(req.user.id);
@@ -12581,7 +12919,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
               <div><p class="eyebrow">Step 1 · Student</p><h3>My Self-Evaluations</h3></div>
               <span>${escapeHtml(selfEvaluations.length)} submitted</span>
             </div>
-            ${enrollments.map((enrollment) => courseSurveyWeeks.map((weekNumber) => renderStudentSelfEvaluationCard(
+            ${currentEnrollments.map((enrollment) => courseSurveyWeeks.map((weekNumber) => renderStudentSelfEvaluationCard(
               enrollment,
               weekNumber,
               selfEvaluationByMilestone.get(`${enrollment.id}-${weekNumber}`),
@@ -12625,7 +12963,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
             <span>${escapeHtml(surveyResponses.length)} submitted</span>
           </div>
           <div class="course-survey-list">
-            ${enrollments.map((enrollment) => courseSurveyWeeks.map((weekNumber) => renderCourseSurveyForm(
+            ${currentEnrollments.map((enrollment) => courseSurveyWeeks.map((weekNumber) => renderCourseSurveyForm(
               enrollment,
               weekNumber,
               surveyResponseByMilestone.get(`${enrollment.id}-${weekNumber}`)
@@ -12916,7 +13254,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     SELECT e.*, c.title, c.slug, c.category, c.description, c.hours, c.credential_type, c.delivery_mode, c.hidden_sections
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
-    WHERE e.id = ? AND e.user_id = ?
+    WHERE e.id = ? AND e.user_id = ? AND e.status IN ('active','completed') AND e.withdrawn_at IS NULL
   `).get(Number(req.params.id), req.user.id);
   if (!enrollment) return res.status(404).send("Enrollment not found");
   if (isClassLocked(req.user)) return renderClassLockPage(req, res);
@@ -13384,6 +13722,7 @@ app.get("/student/assignment-submissions/:id/file", requireAuth, requireRole("st
     FROM assignment_submissions
     JOIN enrollments ON enrollments.id = assignment_submissions.enrollment_id
     WHERE assignment_submissions.id = ? AND enrollments.user_id = ?
+      AND enrollments.status IN ('active','completed') AND enrollments.withdrawn_at IS NULL
   `).get(Number(req.params.id), req.user.id);
   if (!submission?.file_storage_name) return res.status(404).send("Assignment submission not found");
   const filePath = path.join(uploadDir, submission.file_storage_name);
@@ -13406,7 +13745,7 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     JOIN grade_items ON grade_items.course_id = enrollments.course_id
     JOIN courses ON courses.id = enrollments.course_id
     WHERE enrollments.id = ? AND enrollments.user_id = ?
-      AND enrollments.status IN ('active', 'completed') AND grade_items.id = ?
+      AND enrollments.status IN ('active', 'completed') AND enrollments.withdrawn_at IS NULL AND grade_items.id = ?
   `).get(enrollmentId, req.user.id, assignmentId);
   if (!assignment) {
     if (req.file?.path) fs.unlink(req.file.path, () => {});
@@ -13471,13 +13810,16 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
 
 app.get("/video-submissions/:id/media", requireAuth, (req, res) => {
   const submission = db.prepare(`
-    SELECT vs.*, e.user_id
+    SELECT vs.*, e.user_id, e.status AS enrollment_status, e.withdrawn_at AS enrollment_withdrawn_at
     FROM video_submissions vs
     JOIN enrollments e ON e.id = vs.enrollment_id
     WHERE vs.id = ?
   `).get(Number(req.params.id));
   if (!submission) return res.status(404).send("Video not found");
-  const authorized = req.user.role === "admin" || req.user.role === "instructor" || Number(submission.user_id) === Number(req.user.id);
+  const authorized = req.user.role === "admin" || req.user.role === "instructor" || (
+    Number(submission.user_id) === Number(req.user.id)
+      && enrollmentAccessAllowed({ status: submission.enrollment_status, withdrawn_at: submission.enrollment_withdrawn_at })
+  );
   if (!authorized) return res.status(403).send("Forbidden");
   const filePath = path.join(uploadDir, submission.file_storage_name);
   if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Video file not found");
@@ -13497,7 +13839,7 @@ app.post("/student/enrollments/:id/video-assignments/:assignmentId/submit", requ
     return res.redirect("/student");
   }
   const enrollment = db.prepare(`
-    SELECT id, course_id FROM enrollments WHERE id = ? AND user_id = ? AND status IN ('active', 'completed')
+    SELECT id, course_id FROM enrollments WHERE id = ? AND user_id = ? AND status IN ('active', 'completed') AND withdrawn_at IS NULL
   `).get(enrollmentId, req.user.id);
   const assignment = enrollment ? db.prepare(`
     SELECT va.*, l.id AS lesson_id
@@ -13560,7 +13902,8 @@ app.post("/student/enrollments/:id/progress", requireAuth, requireRole("student"
     return res.redirect("/student");
   }
   const progress = Math.max(0, Math.min(100, Number(req.body.progress || 0)));
-  db.prepare("UPDATE enrollments SET progress = ? WHERE id = ? AND user_id = ?").run(progress, Number(req.params.id), req.user.id);
+  const result = db.prepare("UPDATE enrollments SET progress = ? WHERE id = ? AND user_id = ? AND status IN ('active','completed') AND withdrawn_at IS NULL").run(progress, Number(req.params.id), req.user.id);
+  if (!result.changes) return res.status(404).send("Enrollment not found");
   flash(req, "Progress updated.");
   res.redirect(`/student/enrollments/${Number(req.params.id)}`);
 });
@@ -13574,7 +13917,7 @@ app.post("/student/enrollments/:id/lesson-complete", requireAuth, requireRole("s
   const lessonId = Number(req.body.lessonId);
   const enrollment = db.prepare(`
     SELECT id, course_id FROM enrollments
-    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed')
+    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed') AND withdrawn_at IS NULL
   `).get(enrollmentId, req.user.id);
   if (!enrollment) return res.status(404).send("Enrollment not found");
   const lesson = db.prepare(`
@@ -13608,7 +13951,7 @@ app.post("/student/enrollments/:id/quizzes/:lessonId/start", requireAuth, requir
   const lessonId = Number(req.params.lessonId);
   const enrollment = db.prepare(`
     SELECT id, course_id FROM enrollments
-    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed')
+    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed') AND withdrawn_at IS NULL
   `).get(enrollmentId, req.user.id);
   if (!enrollment) return res.status(404).send("Enrollment not found");
   const lesson = db.prepare(`
@@ -13646,7 +13989,7 @@ app.post("/student/enrollments/:id/exams/:lessonId/start", requireAuth, requireR
   const lessonId = Number(req.params.lessonId);
   const enrollment = db.prepare(`
     SELECT id, course_id FROM enrollments
-    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed')
+    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed') AND withdrawn_at IS NULL
   `).get(enrollmentId, req.user.id);
   if (!enrollment) return res.status(404).send("Enrollment not found");
   const lesson = db.prepare(`
@@ -13694,7 +14037,7 @@ app.post("/student/enrollments/:id/quiz-submit", requireAuth, requireRole("stude
   const lessonId = Number(req.body.lessonId);
   const enrollment = db.prepare(`
     SELECT id, course_id FROM enrollments
-    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed')
+    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed') AND withdrawn_at IS NULL
   `).get(enrollmentId, req.user.id);
   if (!enrollment) return res.status(404).send("Enrollment not found");
   const lesson = db.prepare(`
@@ -13777,7 +14120,7 @@ app.post("/student/enrollments/:id/discussions/:topicId/replies", requireAuth, r
   const enrollment = db.prepare(`
     SELECT id, course_id
     FROM enrollments
-    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed')
+    WHERE id = ? AND user_id = ? AND status IN ('active', 'completed') AND withdrawn_at IS NULL
   `).get(Number(req.params.id), req.user.id);
   if (!enrollment) return res.status(404).send("Enrollment not found");
   const topic = discussionTopicForCourse(req.params.topicId, enrollment.course_id);
@@ -13871,6 +14214,22 @@ app.post("/webhooks/ghl/purchase", (req, res) => {
         "Purchased through GHL; pending registrar organization and clearance."
       );
       user = db.prepare("SELECT * FROM users WHERE id = ?").get(result.lastInsertRowid);
+    }
+    if (user.status !== "active") {
+      throw new Error("This student account is not active. A school withdrawal must be reviewed by an administrator before enrollment.");
+    }
+    const priorCourseWithdrawal = db.prepare(`
+      SELECT 1 AS blocked
+      FROM enrollments
+      WHERE user_id = ? AND course_id = ? AND (status = 'withdrawn' OR withdrawn_at IS NOT NULL)
+      UNION ALL
+      SELECT 1 AS blocked
+      FROM student_withdrawal_events
+      WHERE student_id = ? AND course_id = ? AND scope = 'course'
+      LIMIT 1
+    `).get(user.id, course.id, user.id, course.id);
+    if (priorCourseWithdrawal) {
+      throw new Error("This student was previously withdrawn from the course. An administrator must review re-enrollment.");
     }
 
     const enrollment = db.prepare(`
