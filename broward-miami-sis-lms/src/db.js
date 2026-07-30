@@ -39,6 +39,11 @@ function migrate() {
       uniform_size TEXT,
       photo_storage_name TEXT,
       photo_original_name TEXT,
+      photo_review_status TEXT NOT NULL DEFAULT 'not_submitted' CHECK(photo_review_status IN ('not_submitted','approved','pending','denied')),
+      photo_review_note TEXT,
+      photo_submitted_at TEXT,
+      photo_reviewed_at TEXT,
+      photo_reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       notes TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -389,6 +394,22 @@ function migrate() {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS student_photo_review_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reviewer_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      status TEXT NOT NULL CHECK(status IN ('pending','approved','denied')),
+      note TEXT,
+      recipient_email TEXT,
+      portal_message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+      delivery_status TEXT NOT NULL DEFAULT 'not_applicable' CHECK(delivery_status IN ('not_applicable','pending','sent','failed','not_configured')),
+      delivery_error TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_student_photo_review_events_student
+      ON student_photo_review_events(student_id, created_at DESC, id DESC);
+
     CREATE TABLE IF NOT EXISTS announcements (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
@@ -693,6 +714,34 @@ function migrate() {
   if (!userColumns.includes("photo_original_name")) {
     db.exec("ALTER TABLE users ADD COLUMN photo_original_name TEXT;");
   }
+  if (!userColumns.includes("photo_review_status")) {
+    db.exec("ALTER TABLE users ADD COLUMN photo_review_status TEXT NOT NULL DEFAULT 'not_submitted' CHECK(photo_review_status IN ('not_submitted','approved','pending','denied'));");
+  }
+  if (!userColumns.includes("photo_review_note")) {
+    db.exec("ALTER TABLE users ADD COLUMN photo_review_note TEXT;");
+  }
+  if (!userColumns.includes("photo_submitted_at")) {
+    db.exec("ALTER TABLE users ADD COLUMN photo_submitted_at TEXT;");
+  }
+  if (!userColumns.includes("photo_reviewed_at")) {
+    db.exec("ALTER TABLE users ADD COLUMN photo_reviewed_at TEXT;");
+  }
+  if (!userColumns.includes("photo_reviewed_by")) {
+    db.exec("ALTER TABLE users ADD COLUMN photo_reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL;");
+  }
+  db.exec(`
+    UPDATE users
+    SET photo_review_status = 'approved'
+    WHERE photo_review_status = 'not_submitted'
+      AND photo_storage_name IS NOT NULL
+      AND photo_submitted_at IS NULL;
+  `);
+  db.exec(`
+    UPDATE users
+    SET photo_review_status = CASE WHEN photo_storage_name IS NULL THEN 'not_submitted' ELSE 'approved' END
+    WHERE photo_review_status IS NULL
+       OR photo_review_status NOT IN ('not_submitted','approved','pending','denied');
+  `);
   const messageColumns = db.prepare("PRAGMA table_info(messages)").all().map((column) => column.name);
   if (!messageColumns.includes("thread_id")) {
     db.exec("ALTER TABLE messages ADD COLUMN thread_id INTEGER;");

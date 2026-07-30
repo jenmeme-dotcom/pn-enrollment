@@ -393,13 +393,63 @@ app.use(
 
 function currentUser(req) {
   if (!req.session.userId) return null;
-  return db.prepare("SELECT id, role, first_name, last_name, email, personal_email, phone, status, organization_status, class_lock_reason, photo_storage_name, photo_original_name, created_at FROM users WHERE id = ?").get(req.session.userId);
+  return db.prepare("SELECT id, role, first_name, last_name, email, personal_email, phone, status, organization_status, class_lock_reason, photo_storage_name, photo_original_name, photo_review_status, photo_review_note, photo_submitted_at, photo_reviewed_at, photo_reviewed_by, created_at FROM users WHERE id = ?").get(req.session.userId);
+}
+
+function detectedImageMimeType(filePath) {
+  let fileDescriptor;
+  try {
+    fileDescriptor = fs.openSync(filePath, "r");
+    const signature = Buffer.alloc(16);
+    const bytesRead = fs.readSync(fileDescriptor, signature, 0, signature.length, 0);
+    if (bytesRead >= 8 && signature.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
+    if (bytesRead >= 3 && signature[0] === 0xff && signature[1] === 0xd8 && signature[2] === 0xff) return "image/jpeg";
+    if (bytesRead >= 12 && signature.subarray(0, 4).toString("ascii") === "RIFF" && signature.subarray(8, 12).toString("ascii") === "WEBP") return "image/webp";
+    return "";
+  } catch {
+    return "";
+  } finally {
+    if (fileDescriptor !== undefined) {
+      try { fs.closeSync(fileDescriptor); } catch {}
+    }
+  }
+}
+
+function validStoredImage(filePath, extension = path.extname(filePath).toLowerCase()) {
+  const detectedType = detectedImageMimeType(filePath);
+  const extensionsByType = {
+    "image/png": new Set([".png"]),
+    "image/jpeg": new Set([".jpg", ".jpeg"]),
+    "image/webp": new Set([".webp"])
+  };
+  return Boolean(detectedType && extensionsByType[detectedType]?.has(String(extension || "").toLowerCase()));
 }
 
 function studentHasUsablePhoto(user) {
   if (!user?.photo_storage_name) return false;
   const photoPath = path.join(uploadDir, user.photo_storage_name);
-  return isPathInside(uploadDir, photoPath) && fs.existsSync(photoPath);
+  return isPathInside(uploadDir, photoPath) && fs.existsSync(photoPath) && validStoredImage(photoPath);
+}
+
+function studentPhotoReviewState(user) {
+  const storedStatus = ["not_submitted", "approved", "pending", "denied"].includes(user?.photo_review_status)
+    ? user.photo_review_status
+    : "not_submitted";
+  if (storedStatus === "denied") return "denied";
+  if (!studentHasUsablePhoto(user)) return "not_submitted";
+  return storedStatus === "not_submitted" ? "pending" : storedStatus;
+}
+
+function studentPhotoAccessAllowed(user) {
+  return studentPhotoReviewState(user) === "approved" && studentHasUsablePhoto(user);
+}
+
+function studentPhotoReviewLabel(user) {
+  const state = studentPhotoReviewState(user);
+  if (state === "pending") return { state, label: "Pending review" };
+  if (state === "denied") return { state, label: "Access denied" };
+  if (state === "approved") return { state, label: "Photo approved" };
+  return { state, label: "Photo required" };
 }
 
 function flash(req, message) {
@@ -425,8 +475,9 @@ function requireAuth(req, res, next) {
   }
   req.user = user;
   const photoRequirementRoutes = new Set(["/student/photo-required", "/logout"]);
-  if (user.role === "student" && !studentHasUsablePhoto(user) && !photoRequirementRoutes.has(req.path)) {
-    return res.redirect("/student/photo-required");
+  const studentPhotoRoute = /^\/students\/\d+\/photo$/.test(req.path);
+  if (user.role === "student" && !studentPhotoAccessAllowed(user) && !photoRequirementRoutes.has(req.path) && !studentPhotoRoute) {
+    return res.redirect(req.method === "GET" || req.method === "HEAD" ? 302 : 303, "/student/photo-required");
   }
   next();
 }
@@ -459,10 +510,66 @@ function uniformSizeOptions(selectedSize = "") {
 
 function studentPhotoThumb(student, className = "student-thumb") {
   const name = `${student.first_name || ""} ${student.last_name || ""}`.trim() || "Student";
-  if (student.photo_storage_name) {
-    return `<img class="${escapeHtml(className)}" src="/students/${student.id}/photo" alt="${escapeHtml(name)} photo">`;
+  if (studentHasUsablePhoto(student)) {
+    const version = encodeURIComponent(student.photo_submitted_at || student.photo_reviewed_at || student.photo_storage_name || "photo");
+    return `<img class="${escapeHtml(className)}" src="/students/${student.id}/photo?v=${version}" alt="${escapeHtml(name)} photo">`;
   }
   return `<span class="${escapeHtml(className)} fallback" aria-label="${escapeHtml(name)} photo">${escapeHtml(initialsFor(student))}</span>`;
+}
+
+function photoReviewReturnPath(returnTo, studentId) {
+  if (returnTo === "students") return `/admin/students#student-${studentId}`;
+  if (returnTo === "detail") return `/admin/students/${studentId}/registrar-checklist#photo-review`;
+  return `/admin#student-${studentId}`;
+}
+
+function renderPhotoReviewBadge(student) {
+  const review = studentPhotoReviewLabel(student);
+  return `<span class="photo-review-badge ${escapeHtml(review.state)}">${escapeHtml(review.label)}</span>`;
+}
+
+function renderPhotoReviewControls(student, { returnTo = "dashboard", canReview = false } = {}) {
+  const review = studentPhotoReviewLabel(student);
+  const hasPhoto = studentHasUsablePhoto(student);
+  const controlId = `photo-note-${returnTo}-${student.id}`;
+  const defaultNote = hasPhoto
+    ? "This photo does not clearly show you. Please upload a current individual photo of yourself with your face visible and a plain white background."
+    : "No valid student photo is on file. Please upload a current individual photo of yourself with your face visible and a plain white background.";
+  return `
+    <div class="photo-review-control">
+      ${renderPhotoReviewBadge(student)}
+      ${review.state === "denied" && student.photo_review_note ? `<p class="photo-review-last-note"><strong>Last note:</strong> ${escapeHtml(student.photo_review_note)}</p>` : ""}
+      ${student.photo_submitted_at ? `<p class="photo-review-date">Submitted ${escapeHtml(date(student.photo_submitted_at))}</p>` : ""}
+      ${hasPhoto
+        ? canReview && returnTo !== "detail"
+          ? `<a class="photo-review-full-link" href="/admin/students/${student.id}/registrar-checklist#photo-review">Review full size</a>`
+          : `<a class="photo-review-full-link" href="/students/${student.id}/photo" target="_blank" rel="noopener">View full size</a>`
+        : `<p class="photo-review-date">Access is blocked until a photo is submitted and approved.</p>`}
+      ${canReview ? `
+        <div class="photo-review-actions">
+          ${!hasPhoto || review.state === "approved" ? "" : `
+            <form method="post" action="/admin/students/${student.id}/photo-review/approve">
+              <input type="hidden" name="returnTo" value="${escapeHtml(returnTo)}">
+              <input type="hidden" name="expectedPhoto" value="${escapeHtml(student.photo_storage_name || "")}">
+              <input type="hidden" name="expectedStatus" value="${escapeHtml(review.state)}">
+              <button class="small" type="submit">Approve photo</button>
+            </form>
+          `}
+          <details class="photo-review-deny">
+            <summary class="button small photo-deny-trigger">${review.state === "denied" ? "Deny again" : "Deny access"}</summary>
+            <form class="photo-review-deny-form" method="post" action="/admin/students/${student.id}/photo-review/deny">
+              <input type="hidden" name="returnTo" value="${escapeHtml(returnTo)}">
+              <input type="hidden" name="expectedPhoto" value="${escapeHtml(student.photo_storage_name || "")}">
+              <input type="hidden" name="expectedStatus" value="${escapeHtml(review.state)}">
+              <label for="${escapeHtml(controlId)}">Note emailed to student</label>
+              <textarea id="${escapeHtml(controlId)}" name="note" maxlength="2000" required>${escapeHtml(student.photo_review_note || defaultNote)}</textarea>
+              <button class="photo-deny-button" type="submit">Send note and deny access</button>
+            </form>
+          </details>
+        </div>
+      ` : ""}
+    </div>
+  `;
 }
 
 const registrarChecklistItems = [
@@ -4883,6 +4990,20 @@ function updateMessageDelivery(messageId, result) {
   `).run(result.sent ? "sent" : smtpReady() ? "failed" : "not_configured", result.reason || null, result.sent ? "sent" : "failed", messageId);
 }
 
+function updatePhotoReviewEventDelivery(eventId, result) {
+  db.prepare(`
+    UPDATE student_photo_review_events
+    SET delivery_status = ?, delivery_error = ?
+    WHERE id = ?
+  `).run(result.sent ? "sent" : smtpReady() ? "failed" : "not_configured", result.reason || null, eventId);
+}
+
+function photoReviewDeliveryFlash(action, delivery) {
+  if (delivery.sent) return `${action}; email sent to the student.`;
+  if (!smtpReady()) return `${action}; the portal notice was saved, but external email is not configured.`;
+  return `${action}; the portal notice was saved, but external email failed: ${delivery.reason || "unknown error"}`;
+}
+
 function splitName(payload) {
   const firstName = payload.firstName || payload.first_name || payload.contact?.firstName || "";
   const lastName = payload.lastName || payload.last_name || payload.contact?.lastName || "";
@@ -5469,7 +5590,7 @@ app.post("/login", (req, res) => {
     return res.redirect("/login");
   }
   req.session.userId = user.id;
-  res.redirect(user.role === "student" ? (studentHasUsablePhoto(user) ? "/student" : "/student/photo-required") : "/admin");
+  res.redirect(user.role === "student" ? (studentPhotoAccessAllowed(user) ? "/student" : "/student/photo-required") : "/admin");
 });
 
 app.post("/logout", (req, res) => {
@@ -5477,19 +5598,63 @@ app.post("/logout", (req, res) => {
 });
 
 app.get("/student/photo-required", requireAuth, requireRole("student"), (req, res) => {
-  if (studentHasUsablePhoto(req.user)) return res.redirect("/student");
+  if (studentPhotoAccessAllowed(req.user)) return res.redirect("/student");
+  const review = studentPhotoReviewLabel(req.user);
+  const hasPhoto = studentHasUsablePhoto(req.user);
+  const isDenied = review.state === "denied";
+  const isPending = review.state === "pending";
+  const previewSrc = hasPhoto ? `/students/${req.user.id}/photo` : "/assets/bmhi-favicon.png";
+  const eyebrow = isDenied ? "Action required" : isPending ? "Awaiting school review" : "Required account setup";
+  const heading = isDenied
+    ? "Your portal access is paused"
+    : isPending
+      ? "Your photo is pending review"
+      : `Welcome, ${escapeHtml(req.user.first_name || "Student")}`;
+  const lead = isDenied
+    ? "Your current profile photo was not approved. Read the school note below and upload a replacement."
+    : isPending
+      ? "Your replacement photo was received. Course access will resume after an administrator approves it."
+      : "Upload a clear, recent photo of yourself to finish setting up your student portal.";
+  const uploadFields = `
+    <form method="post" action="/student/photo-required" enctype="multipart/form-data" class="required-photo-form">
+      <label>
+        <span>${isDenied || isPending ? "Choose a replacement profile photo" : "Choose your profile photo"}</span>
+        <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required>
+      </label>
+      <label class="required-photo-confirmation">
+        <input type="checkbox" name="photoConfirmation" value="yes" required>
+        <span>I confirm this is a current photo of me, my face is clearly visible, and the photo has a plain white background.</span>
+      </label>
+      <button class="button" type="submit">Submit Photo for Review</button>
+    </form>
+  `;
+  const uploadForm = isPending
+    ? `<details class="required-photo-replace"><summary>Replace the submitted photo</summary>${uploadFields}</details>`
+    : uploadFields;
   const body = `
     <section class="required-photo-page">
       <article class="required-photo-card">
-        <div class="required-photo-preview" aria-hidden="true">
-          <img src="/assets/bmhi-favicon.png" alt="">
-          <span>Replace this school logo with your photo</span>
-          <strong class="required-photo-background-rule">Plain white photo background required</strong>
+        <div class="required-photo-preview ${escapeHtml(review.state)}">
+          <img src="${escapeHtml(previewSrc)}" alt="${hasPhoto ? "Submitted student profile photo" : "BMHI school logo placeholder"}">
+          <span>${isPending ? "Submitted photo" : isDenied ? "Photo not approved" : "Replace this school logo with your photo"}</span>
+          <strong class="required-photo-background-rule">${escapeHtml(review.label)}</strong>
         </div>
         <div class="required-photo-content">
-          <p class="eyebrow">Required account setup</p>
-          <h1>Welcome, ${escapeHtml(req.user.first_name || "Student")}</h1>
-          <p class="required-photo-lead">Upload a clear, recent photo of yourself to finish setting up your student portal.</p>
+          <p class="eyebrow">${escapeHtml(eyebrow)}</p>
+          <h1>${heading}</h1>
+          <p class="required-photo-lead">${escapeHtml(lead)}</p>
+          ${isDenied ? `
+            <div class="required-photo-denial-note" role="alert">
+              <strong>Note from the school</strong>
+              <p>${escapeHtml(req.user.photo_review_note || "Please upload a current individual photo that clearly shows your face against a plain white background.")}</p>
+            </div>
+          ` : ""}
+          ${isPending ? `
+            <div class="required-photo-pending-note" role="status">
+              <strong>Status: Pending Review</strong>
+              <p>An administrator must approve this photo before you can enter the student portal. Return to this page or sign in again to check the review status.</p>
+            </div>
+          ` : ""}
           <div class="required-photo-guidance">
             <strong>Photo requirements</strong>
             <ul>
@@ -5500,21 +5665,11 @@ app.get("/student/photo-required", requireAuth, requireRole("student"), (req, re
               <li>Maximum file size: 25 MB.</li>
             </ul>
           </div>
-          <form method="post" action="/student/photo-required" enctype="multipart/form-data" class="required-photo-form">
-            <label>
-              <span>Choose your profile photo</span>
-              <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required>
-            </label>
-            <label class="required-photo-confirmation">
-              <input type="checkbox" name="photoConfirmation" value="yes" required>
-              <span>I confirm this is a current photo of me, my face is clearly visible, and the photo has a plain white background.</span>
-            </label>
-            <button class="button" type="submit">Upload Photo and Enter Portal</button>
-          </form>
+          ${uploadForm}
           <form method="post" action="/logout" class="required-photo-signout">
             <button class="button ghost" type="submit">Sign Out</button>
           </form>
-          <p class="required-photo-note">A profile photo is required to continue using the student portal. Contact the school office if you need assistance.</p>
+          <p class="required-photo-note">Photo review is separate from other registrar or class-access requirements. Contact the school office if you need assistance.</p>
         </div>
       </article>
     </section>
@@ -5523,12 +5678,16 @@ app.get("/student/photo-required", requireAuth, requireRole("student"), (req, re
 });
 
 app.post("/student/photo-required", requireAuth, requireRole("student"), (req, res) => {
-  if (studentHasUsablePhoto(req.user)) return res.redirect("/student");
+  if (studentPhotoAccessAllowed(req.user)) return res.redirect("/student");
   upload.single("photo")(req, res, (error) => {
     const removeRejectedUpload = () => {
       if (!req.file?.filename) return;
       const rejectedPath = path.join(uploadDir, req.file.filename);
-      if (isPathInside(uploadDir, rejectedPath) && fs.existsSync(rejectedPath)) fs.unlinkSync(rejectedPath);
+      try {
+        if (isPathInside(uploadDir, rejectedPath) && fs.existsSync(rejectedPath)) fs.unlinkSync(rejectedPath);
+      } catch (cleanupError) {
+        console.error("Could not remove rejected student photo upload", cleanupError);
+      }
     };
     if (error) {
       flash(req, error.code === "LIMIT_FILE_SIZE" ? "Photo is too large. The maximum file size is 25 MB." : error.message || "Photo upload failed.");
@@ -5539,10 +5698,10 @@ app.post("/student/photo-required", requireAuth, requireRole("student"), (req, r
       return res.redirect("/student/photo-required");
     }
     const extension = path.extname(req.file.originalname || "").toLowerCase();
-    const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp"]);
-    if (!String(req.file.mimetype || "").startsWith("image/") || !imageExtensions.has(extension)) {
+    const uploadedPath = path.join(uploadDir, req.file.filename);
+    if (!isPathInside(uploadDir, uploadedPath) || !validStoredImage(uploadedPath, extension)) {
       removeRejectedUpload();
-      flash(req, "Profile photo must be a JPG, PNG, or WebP image.");
+      flash(req, "Profile photo must be a valid JPG, PNG, or WebP image whose file type matches its extension.");
       return res.redirect("/student/photo-required");
     }
     if (req.body.photoConfirmation !== "yes") {
@@ -5550,19 +5709,63 @@ app.post("/student/photo-required", requireAuth, requireRole("student"), (req, r
       flash(req, "Confirm that the uploaded image is a current photo of you with a plain white background.");
       return res.redirect("/student/photo-required");
     }
-    db.prepare("UPDATE users SET photo_storage_name = ?, photo_original_name = ? WHERE id = ? AND role = 'student'")
-      .run(req.file.filename, req.file.originalname, req.user.id);
-    flash(req, "Profile photo uploaded. Welcome to your student portal.");
-    res.redirect("/student");
+    const currentStudent = db.prepare("SELECT id, photo_storage_name FROM users WHERE id = ? AND role = 'student'").get(req.user.id);
+    if (!currentStudent) {
+      removeRejectedUpload();
+      flash(req, "Student account not found.");
+      return res.redirect(303, "/login");
+    }
+    const oldStorageName = currentStudent.photo_storage_name;
+    try {
+      db.exec("BEGIN IMMEDIATE");
+      db.prepare(`
+        UPDATE users
+        SET photo_storage_name = ?,
+          photo_original_name = ?,
+          photo_review_status = 'pending',
+          photo_review_note = NULL,
+          photo_submitted_at = CURRENT_TIMESTAMP,
+          photo_reviewed_at = NULL,
+          photo_reviewed_by = NULL
+        WHERE id = ? AND role = 'student'
+      `).run(req.file.filename, req.file.originalname, req.user.id);
+      db.prepare(`
+        INSERT INTO student_photo_review_events (student_id, status, note)
+        VALUES (?, 'pending', 'Student submitted a profile photo for review.')
+      `).run(req.user.id);
+      db.exec("COMMIT");
+    } catch (uploadError) {
+      try { db.exec("ROLLBACK"); } catch {}
+      removeRejectedUpload();
+      flash(req, `Photo could not be saved: ${uploadError.message}`);
+      return res.redirect("/student/photo-required");
+    }
+    if (oldStorageName && oldStorageName !== req.file.filename) {
+      const oldPath = path.join(uploadDir, oldStorageName);
+      try {
+        if (isPathInside(uploadDir, oldPath) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      } catch (cleanupError) {
+        console.error("Could not remove replaced student photo", cleanupError);
+      }
+    }
+    flash(req, "Photo submitted. Status: Pending Review. Your access will resume after an administrator approves it.");
+    res.redirect(303, "/student/photo-required");
   });
 });
 
 app.get("/students/:id/photo", requireAuth, (req, res) => {
   const student = db.prepare("SELECT id, photo_storage_name, photo_original_name FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
-  if (!student?.photo_storage_name) return res.status(404).send("Photo not found");
-  if (!["admin", "instructor"].includes(req.user.role) && req.user.id !== student.id) return res.status(403).send("Forbidden");
+  if (!student || (!["admin", "instructor"].includes(req.user.role) && req.user.id !== student.id)) return res.status(404).send("Photo not found");
+  if (!student.photo_storage_name) return res.status(404).send("Photo not found");
   const filePath = path.join(uploadDir, student.photo_storage_name);
   if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Photo not found");
+  const imageType = detectedImageMimeType(filePath);
+  if (!imageType || !validStoredImage(filePath)) return res.status(415).send("Stored photo is not a supported image");
+  res.set({
+    "Cache-Control": "private, no-store, max-age=0",
+    "Content-Type": imageType,
+    "X-Content-Type-Options": "nosniff"
+  });
   res.sendFile(filePath);
 });
 
@@ -6115,6 +6318,11 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
       u.email,
       u.cohort_name,
       u.photo_storage_name,
+      u.photo_original_name,
+      u.photo_review_status,
+      u.photo_review_note,
+      u.photo_submitted_at,
+      u.photo_reviewed_at,
       GROUP_CONCAT(DISTINCT c.title) AS course_titles,
       CASE
         WHEN SUM(CASE WHEN e.status = 'active' THEN 1 ELSE 0 END) > 0 THEN 'active'
@@ -6193,21 +6401,24 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
       ${stat("Published courses", stats.courses)}
       ${stat("Active enrollments", stats.active)}
     </section>
-    <section class="table-card" style="margin-top:18px">
-      <table>
-        <thead><tr><th>Photo</th><th>Student</th><th>Cohort</th><th>Courses</th><th>Status</th><th>Progress</th><th>Started</th></tr></thead>
+    <section class="table-card student-roster-table-card" style="margin-top:18px">
+      <table class="student-roster-table">
+        <thead><tr><th>Photo</th><th>Student</th><th>Photo review</th><th>Cohort</th><th>Courses</th><th>Status</th><th>Progress</th><th>Started</th></tr></thead>
         <tbody>
-          ${recent.map((row) => `
-            <tr>
-              <td>${studentPhotoThumb({ ...row, id: row.user_id }, "student-thumb")}</td>
+          ${recent.map((row) => {
+            const student = { ...row, id: row.user_id };
+            return `
+            <tr id="student-${row.user_id}">
+              <td>${studentPhotoThumb(student, "student-thumb")}</td>
               <td><strong>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</strong><br><span class="muted">${escapeHtml(row.email)}</span></td>
+              <td class="photo-review-cell">${renderPhotoReviewControls(student, { returnTo: "dashboard", canReview: req.user.role === "admin" })}</td>
               <td>${row.cohort_name ? `<span class="pill">${escapeHtml(row.cohort_name)}</span>` : `<span class="muted">Not assigned</span>`}</td>
               <td>${row.course_titles ? escapeHtml(String(row.course_titles).split(",").join(", ")) : `<span class="muted">No active course</span>`}</td>
               <td><span class="pill">${escapeHtml(row.student_status)}</span></td>
               <td>${progressBar(row.progress)}<span class="muted">${escapeHtml(row.progress)}%</span></td>
               <td>${date(row.start_date)}</td>
             </tr>
-          `).join("") || `<tr><td class="empty" colspan="7">No enrollments yet.</td></tr>`}
+          `; }).join("") || `<tr><td class="empty" colspan="8">No enrollments yet.</td></tr>`}
         </tbody>
       </table>
     </section>
@@ -8121,7 +8332,8 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 <td>
                   ${studentPhotoThumb(student, "student-thumb small")}
                   <strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br>
-                  <span class="muted">${escapeHtml(student.status)}</span>
+                  <span class="muted">${escapeHtml(student.status)}</span><br>
+                  ${renderPhotoReviewBadge(student)}
                 </td>
                 <td>${escapeHtml(student.email)}<br><span class="muted">${escapeHtml(student.phone || "")}</span></td>
                 <td>
@@ -8219,16 +8431,16 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
         </tbody>
       </table>
     </section>
-    <section class="table-card" style="margin-top:18px">
-      <table>
-        <thead><tr><th>Name</th><th>Contact</th><th>Class access</th><th>Registrar</th><th>Enrollments</th><th>Actions</th></tr></thead>
+    <section class="table-card student-roster-table-card" style="margin-top:18px">
+      <table class="student-roster-table">
+        <thead><tr><th>Name</th><th>Contact</th><th>Photo review</th><th>Class access</th><th>Registrar</th><th>Enrollments</th><th>Actions</th></tr></thead>
         <tbody>
           ${students.map((student) => {
             const admissionsComplete = Number(student.admissions_document_complete || 0);
             const admissionsTotal = admissionsDocumentChecklistItems.length;
             const admissionsReady = admissionsComplete === admissionsTotal;
             return `
-            <tr>
+            <tr id="student-${student.id}">
               <td>
                 <strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br>
                 ${studentPhotoThumb(student, "student-thumb small")}<br>
@@ -8238,6 +8450,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 ${student.cohort_start_date || student.cohort_end_date ? `<br><span class="muted">${escapeHtml(date(student.cohort_start_date))} - ${escapeHtml(date(student.cohort_end_date))}</span>` : ""}
               </td>
               <td>${escapeHtml(student.email)}<br><span class="muted">${escapeHtml(student.phone || "")}</span></td>
+              <td class="photo-review-cell">${renderPhotoReviewControls(student, { returnTo: "students", canReview: true })}</td>
               <td>
                 <span class="pill ${student.organization_status === "not_organized" ? "orange" : ""}">${escapeHtml(student.organization_status === "not_organized" ? "Locked" : "Organized")}</span>
                 ${student.class_lock_reason ? `<br><span class="muted">${escapeHtml(student.class_lock_reason)}</span>` : ""}
@@ -8278,7 +8491,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 </form>
               </td>
             </tr>
-          `; }).join("") || `<tr><td class="empty" colspan="6">No students yet.</td></tr>`}
+          `; }).join("") || `<tr><td class="empty" colspan="7">No students yet.</td></tr>`}
         </tbody>
       </table>
     </section>
@@ -8293,6 +8506,14 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
   const progress = registrarProgress(checklist);
   const admissionsChecklist = admissionsDocumentChecklistForStudent(student.id);
   const admissionsProgress = admissionsDocumentProgress(admissionsChecklist);
+  const photoReviewEvents = db.prepare(`
+    SELECT e.*, TRIM(COALESCE(r.first_name, '') || ' ' || COALESCE(r.last_name, '')) AS reviewer_name
+    FROM student_photo_review_events e
+    LEFT JOIN users r ON r.id = e.reviewer_id
+    WHERE e.student_id = ?
+    ORDER BY e.created_at DESC, e.id DESC
+    LIMIT 20
+  `).all(student.id);
   const enrollmentRows = db.prepare(`
     SELECT e.*, c.title, c.category
     FROM enrollments e
@@ -8327,6 +8548,7 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
         ${progressBar(progress.percent)}
         <p class="muted">Approved or waived items count toward readiness. Uploaded files stay attached to each checklist item for registrar review.</p>
         <div class="registrar-mini-list registrar-anchor-list">
+          <a href="#photo-review">Profile photo review</a>
           ${checklist.map((item) => `<a href="#${escapeHtml(item.item_key)}">${escapeHtml(item.title)}</a>`).join("")}
         </div>
         <div class="registrar-timeline">
@@ -8335,6 +8557,47 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
       </article>
 
       <div class="registrar-checklist-grid">
+        <article class="card photo-review-detail-card" id="photo-review">
+          <div class="registrar-item-head">
+            <div>
+              <h2>Profile photo review</h2>
+              <p>Approve the student's current photo or deny access and email instructions for a replacement.</p>
+            </div>
+            ${renderPhotoReviewBadge(student)}
+          </div>
+          <div class="photo-review-detail-layout">
+            <div class="photo-review-large-preview">
+              ${studentHasUsablePhoto(student)
+                ? `<img src="/students/${student.id}/photo?v=${encodeURIComponent(student.photo_submitted_at || student.photo_storage_name || "photo")}" alt="${escapeHtml(student.first_name)} ${escapeHtml(student.last_name)} submitted profile photo">`
+                : `<div class="photo-review-no-photo">No photo submitted</div>`}
+            </div>
+            <div>
+              ${renderPhotoReviewControls(student, { returnTo: "detail", canReview: true })}
+              <dl class="photo-review-metadata">
+                <div><dt>Submitted</dt><dd>${escapeHtml(student.photo_submitted_at ? formatMessageDate(student.photo_submitted_at) : "Not recorded")}</dd></div>
+                <div><dt>Last reviewed</dt><dd>${escapeHtml(student.photo_reviewed_at ? formatMessageDate(student.photo_reviewed_at) : "Not reviewed")}</dd></div>
+              </dl>
+            </div>
+          </div>
+          <details class="photo-review-history" ${photoReviewEvents.length ? "" : "hidden"}>
+            <summary>Review history (${photoReviewEvents.length})</summary>
+            <div>
+              ${photoReviewEvents.map((event) => `
+                <p>
+                  <strong>${escapeHtml(event.status)}</strong> · ${escapeHtml(formatMessageDate(event.created_at))}
+                  ${event.reviewer_name
+                    ? ` · ${escapeHtml(event.reviewer_name)}`
+                    : event.status === "pending"
+                      ? " · Student submission"
+                      : " · Staff review"}<br>
+                  ${event.note ? `<span>${escapeHtml(event.note)}</span><br>` : ""}
+                  ${event.delivery_status !== "not_applicable" ? `<small>Email: ${escapeHtml(event.delivery_status)}${event.recipient_email ? ` to ${escapeHtml(event.recipient_email)}` : ""}</small>` : ""}
+                </p>
+              `).join("")}
+            </div>
+          </details>
+        </article>
+
         <article class="card admissions-document-panel ${admissionsProgress.ready ? "complete" : ""}" id="admissions-document-checklist">
           <div class="registrar-item-head">
             <div>
@@ -8587,6 +8850,172 @@ app.post("/admin/students", requireAuth, requireRole("admin"), (req, res) => {
   res.redirect("/admin/students");
 });
 
+app.post("/admin/students/:id/photo-review/deny", requireAuth, requireRole("admin"), async (req, res) => {
+  const studentId = Number(req.params.id);
+  const redirectTo = photoReviewReturnPath(String(req.body.returnTo || ""), studentId);
+  const note = String(req.body.note || "").trim();
+  if (!note) {
+    flash(req, "Write a note explaining why the photo was denied.");
+    return res.redirect(303, redirectTo);
+  }
+  if (note.length > 2000) {
+    flash(req, "The photo-review note must be 2,000 characters or fewer.");
+    return res.redirect(303, redirectTo);
+  }
+  const student = db.prepare(`
+    SELECT u.*,
+      u.email AS portal_email,
+      COALESCE(NULLIF(TRIM(u.personal_email), ''), u.email) AS delivery_email
+    FROM users u
+    WHERE u.id = ? AND u.role = 'student'
+  `).get(studentId);
+  if (!student) return res.status(404).send("Student not found");
+  const currentState = studentPhotoReviewState(student);
+  const expectedPhoto = String(req.body.expectedPhoto || "");
+  const expectedStatus = String(req.body.expectedStatus || "");
+  if (expectedPhoto !== String(student.photo_storage_name || "") || expectedStatus !== currentState) {
+    flash(req, "The student photo changed after this page loaded. Review the current photo before taking action.");
+    return res.redirect(303, redirectTo);
+  }
+
+  const subject = "Action required: Update your BMHI profile photo";
+  const messageBody = [
+    `Hello ${student.first_name || "Student"},`,
+    "",
+    "Your BMHI student portal access has been temporarily paused because a valid profile photo is missing or could not be approved.",
+    "",
+    "Note from the school:",
+    note,
+    "",
+    "Sign in and upload a current individual photo of yourself. Your face must be clearly visible and the photo must have a plain white background. After you upload the replacement, the status will show Pending Review until an administrator approves it.",
+    "",
+    `Student portal: ${externalBaseUrl}/login`
+  ].join("\n");
+  let messageId;
+  let eventId;
+  try {
+    db.exec("BEGIN IMMEDIATE");
+    db.prepare(`
+      UPDATE users
+      SET photo_review_status = 'denied',
+        photo_review_note = ?,
+        photo_reviewed_at = CURRENT_TIMESTAMP,
+        photo_reviewed_by = ?
+      WHERE id = ? AND role = 'student'
+    `).run(note, req.user.id, student.id);
+    messageId = savePortalMessage({
+      senderId: req.user.id,
+      recipientId: student.id,
+      subject,
+      body: messageBody
+    });
+    const event = db.prepare(`
+      INSERT INTO student_photo_review_events (
+        student_id, reviewer_id, status, note, recipient_email, portal_message_id, delivery_status
+      ) VALUES (?, ?, 'denied', ?, ?, ?, 'pending')
+    `).run(student.id, req.user.id, note, student.delivery_email, messageId);
+    eventId = event.lastInsertRowid;
+    db.exec("COMMIT");
+  } catch (error) {
+    try { db.exec("ROLLBACK"); } catch {}
+    console.error("Could not deny student photo", error);
+    flash(req, `Photo review could not be saved: ${error.message}`);
+    return res.redirect(303, redirectTo);
+  }
+
+  const recipient = { ...student, email: student.delivery_email };
+  const delivery = await deliverExternalEmail({ sender: req.user, recipient, subject, body: messageBody });
+  try {
+    updateMessageDelivery(messageId, delivery);
+    updatePhotoReviewEventDelivery(eventId, delivery);
+  } catch (error) {
+    console.error("Could not record photo-denial email delivery", error);
+  }
+  flash(req, photoReviewDeliveryFlash("Student access denied for photo correction", delivery));
+  res.redirect(303, redirectTo);
+});
+
+app.post("/admin/students/:id/photo-review/approve", requireAuth, requireRole("admin"), async (req, res) => {
+  const studentId = Number(req.params.id);
+  const redirectTo = photoReviewReturnPath(String(req.body.returnTo || ""), studentId);
+  const student = db.prepare(`
+    SELECT u.*,
+      u.email AS portal_email,
+      COALESCE(NULLIF(TRIM(u.personal_email), ''), u.email) AS delivery_email
+    FROM users u
+    WHERE u.id = ? AND u.role = 'student'
+  `).get(studentId);
+  if (!student) return res.status(404).send("Student not found");
+  const currentState = studentPhotoReviewState(student);
+  const expectedPhoto = String(req.body.expectedPhoto || "");
+  const expectedStatus = String(req.body.expectedStatus || "");
+  if (expectedPhoto !== String(student.photo_storage_name || "") || expectedStatus !== currentState) {
+    flash(req, "The student photo changed after this page loaded. Review the current photo before taking action.");
+    return res.redirect(303, redirectTo);
+  }
+  if (!studentHasUsablePhoto(student)) {
+    flash(req, "This student does not have a photo available to approve.");
+    return res.redirect(303, redirectTo);
+  }
+  if (currentState === "approved") {
+    flash(req, "This student photo is already approved.");
+    return res.redirect(303, redirectTo);
+  }
+
+  const subject = "Your BMHI profile photo was approved";
+  const messageBody = [
+    `Hello ${student.first_name || "Student"},`,
+    "",
+    "Your BMHI profile photo has been approved. The photo-related portal restriction has been removed.",
+    "",
+    "Any separate registrar or class-access requirements still apply.",
+    "",
+    `Student portal: ${externalBaseUrl}/login`
+  ].join("\n");
+  let messageId;
+  let eventId;
+  try {
+    db.exec("BEGIN IMMEDIATE");
+    db.prepare(`
+      UPDATE users
+      SET photo_review_status = 'approved',
+        photo_review_note = NULL,
+        photo_reviewed_at = CURRENT_TIMESTAMP,
+        photo_reviewed_by = ?
+      WHERE id = ? AND role = 'student'
+    `).run(req.user.id, student.id);
+    messageId = savePortalMessage({
+      senderId: req.user.id,
+      recipientId: student.id,
+      subject,
+      body: messageBody
+    });
+    const event = db.prepare(`
+      INSERT INTO student_photo_review_events (
+        student_id, reviewer_id, status, note, recipient_email, portal_message_id, delivery_status
+      ) VALUES (?, ?, 'approved', 'Profile photo approved.', ?, ?, 'pending')
+    `).run(student.id, req.user.id, student.delivery_email, messageId);
+    eventId = event.lastInsertRowid;
+    db.exec("COMMIT");
+  } catch (error) {
+    try { db.exec("ROLLBACK"); } catch {}
+    console.error("Could not approve student photo", error);
+    flash(req, `Photo approval could not be saved: ${error.message}`);
+    return res.redirect(303, redirectTo);
+  }
+
+  const recipient = { ...student, email: student.delivery_email };
+  const delivery = await deliverExternalEmail({ sender: req.user, recipient, subject, body: messageBody });
+  try {
+    updateMessageDelivery(messageId, delivery);
+    updatePhotoReviewEventDelivery(eventId, delivery);
+  } catch (error) {
+    console.error("Could not record photo-approval email delivery", error);
+  }
+  flash(req, photoReviewDeliveryFlash("Student photo approved and photo access restored", delivery));
+  res.redirect(303, redirectTo);
+});
+
 app.post("/admin/students/:id/class-access", requireAuth, requireRole("admin"), (req, res) => {
   const organizationStatus = req.body.organizationStatus === "organized" ? "organized" : "not_organized";
   const classLockReason = organizationStatus === "not_organized"
@@ -8621,33 +9050,72 @@ app.post("/admin/students/:id/personal-email", requireAuth, requireRole("admin")
 });
 
 app.post("/admin/students/:id/photo", requireAuth, requireRole("admin"), (req, res) => {
-  const student = db.prepare("SELECT id, photo_storage_name FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
+  const student = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
   if (!student) return res.status(404).send("Student not found");
   upload.single("photo")(req, res, (error) => {
+    const removeNewUpload = () => {
+      if (!req.file?.filename) return;
+      const filePath = path.join(uploadDir, req.file.filename);
+      try {
+        if (isPathInside(uploadDir, filePath) && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      } catch (cleanupError) {
+        console.error("Could not remove rejected admin photo upload", cleanupError);
+      }
+    };
     if (error) {
       flash(req, error.message || "Photo upload failed.");
-      return res.redirect("/admin/students");
+      return res.redirect(303, "/admin/students");
     }
     if (!req.file) {
       flash(req, "Choose a student photo to upload.");
-      return res.redirect("/admin/students");
+      return res.redirect(303, "/admin/students");
     }
     const extension = path.extname(req.file.originalname || "").toLowerCase();
-    const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp"]);
-    if (!String(req.file.mimetype || "").startsWith("image/") || !imageExtensions.has(extension)) {
-      const rejectedPath = path.join(uploadDir, req.file.filename);
-      if (isPathInside(uploadDir, rejectedPath) && fs.existsSync(rejectedPath)) fs.unlinkSync(rejectedPath);
-      flash(req, "Student photo must be a JPG, PNG, or WebP image.");
-      return res.redirect("/admin/students");
+    const uploadedPath = path.join(uploadDir, req.file.filename);
+    if (!isPathInside(uploadDir, uploadedPath) || !validStoredImage(uploadedPath, extension)) {
+      removeNewUpload();
+      flash(req, "Student photo must be a valid JPG, PNG, or WebP image whose file type matches its extension.");
+      return res.redirect(303, "/admin/students");
     }
-    if (student.photo_storage_name) {
-      const oldPath = path.join(uploadDir, student.photo_storage_name);
-      if (isPathInside(uploadDir, oldPath) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    const currentStudent = db.prepare("SELECT id, photo_storage_name FROM users WHERE id = ? AND role = 'student'").get(student.id);
+    if (!currentStudent) {
+      removeNewUpload();
+      return res.status(404).send("Student not found");
     }
-    db.prepare("UPDATE users SET photo_storage_name = ?, photo_original_name = ? WHERE id = ? AND role = 'student'")
-      .run(req.file.filename, req.file.originalname, student.id);
-    flash(req, "Student photo uploaded.");
-    res.redirect("/admin/students");
+    try {
+      db.exec("BEGIN IMMEDIATE");
+      db.prepare(`
+        UPDATE users
+        SET photo_storage_name = ?,
+          photo_original_name = ?,
+          photo_review_status = 'approved',
+          photo_review_note = NULL,
+          photo_submitted_at = CURRENT_TIMESTAMP,
+          photo_reviewed_at = CURRENT_TIMESTAMP,
+          photo_reviewed_by = ?
+        WHERE id = ? AND role = 'student'
+      `).run(req.file.filename, req.file.originalname, req.user.id, student.id);
+      db.prepare(`
+        INSERT INTO student_photo_review_events (student_id, reviewer_id, status, note)
+        VALUES (?, ?, 'approved', 'Administrator uploaded and approved the profile photo.')
+      `).run(student.id, req.user.id);
+      db.exec("COMMIT");
+    } catch (uploadError) {
+      try { db.exec("ROLLBACK"); } catch {}
+      removeNewUpload();
+      flash(req, `Student photo could not be saved: ${uploadError.message}`);
+      return res.redirect(303, "/admin/students");
+    }
+    if (currentStudent.photo_storage_name && currentStudent.photo_storage_name !== req.file.filename) {
+      const oldPath = path.join(uploadDir, currentStudent.photo_storage_name);
+      try {
+        if (isPathInside(uploadDir, oldPath) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      } catch (cleanupError) {
+        console.error("Could not remove replaced admin photo", cleanupError);
+      }
+    }
+    flash(req, "Student photo uploaded and approved.");
+    res.redirect(303, `/admin/students#student-${student.id}`);
   });
 });
 
