@@ -1818,10 +1818,38 @@ function seed() {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const existingLessonByTitle = db.prepare("SELECT id FROM lessons WHERE module_id = ? AND title = ? ORDER BY position, id LIMIT 1");
+    const existingPowerPointByChapter = db.prepare(`
+      SELECT lessons.id, lessons.module_id, lessons.position
+      FROM lessons
+      JOIN modules ON modules.id = lessons.module_id
+      WHERE modules.course_id = ?
+        AND (lessons.title = ? OR lessons.title LIKE ?)
+      ORDER BY CASE WHEN lessons.title = ? THEN 0 ELSE 1 END, modules.position, lessons.position, lessons.id
+      LIMIT 1
+    `);
+    const moduleContainingChapter = db.prepare(`
+      SELECT modules.id, modules.title
+      FROM modules
+      JOIN lessons ON lessons.module_id = modules.id
+      WHERE modules.course_id = ?
+        AND (lessons.title = ? OR lessons.title LIKE ?)
+      ORDER BY modules.position, modules.id
+      LIMIT 1
+    `);
     const nextLessonPosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS position FROM lessons WHERE module_id = ?");
     const updateLessonDefinition = db.prepare(`
       UPDATE lessons
       SET content = ?, external_url = ?, duration_minutes = ?, published = ?, instructor_only = ?
+      WHERE id = ?
+    `);
+    const updateLessonMaterialContent = db.prepare(`
+      UPDATE lessons
+      SET content = ?, external_url = ?, duration_minutes = ?
+      WHERE id = ?
+    `);
+    const updatePowerPointDefinition = db.prepare(`
+      UPDATE lessons
+      SET module_id = ?, title = ?, content = ?, external_url = ?, duration_minutes = ?, position = ?, item_type = 'page'
       WHERE id = ?
     `);
 
@@ -1901,7 +1929,7 @@ function seed() {
         if (powerPointLesson) {
           const storedPowerPoint = existingLessonByTitle.get(storedModule.id, powerPointLesson.title);
           if (storedPowerPoint) {
-            updateLessonDefinition.run(powerPointLesson.content || "", null, powerPointLesson.durationMinutes || 30, 1, 0, storedPowerPoint.id);
+            updateLessonMaterialContent.run(powerPointLesson.content || "", null, powerPointLesson.durationMinutes || 30, storedPowerPoint.id);
           } else {
             appendLesson.run(storedModule.id, powerPointLesson.title, powerPointLesson.content || "", null, powerPointLesson.durationMinutes || 30, nextLessonPosition.get(storedModule.id).position, 1, 0);
           }
@@ -1942,24 +1970,44 @@ function seed() {
     );
     extensionModules.forEach((module) => {
       const weekNumber = module.title.match(/^Week (\d+):/)?.[1];
-      const storedModule = weekNumber ? existingModuleByWeek.get(introductionCourse.id, `Week ${weekNumber}:%`) : null;
+      const firstChapterLesson = (module.lessons || []).find((lesson) => /^Chapter \d+:/.test(lesson.title));
+      const storedWeekModule = weekNumber
+        ? existingModuleByWeek.get(introductionCourse.id, `Week ${weekNumber}:%`)
+        : null;
+      const storedModule = weekNumber
+        ? storedWeekModule || (firstChapterLesson ? moduleContainingChapter.get(
+            introductionCourse.id,
+            firstChapterLesson.title,
+            `[PN102 2026] Chapter ${firstChapterLesson.title.match(/^Chapter (\d+):/)?.[1]}:%`
+          ) : null)
+          || existingModuleByTitle.get(introductionCourse.id, module.title)
+        : null;
       const moduleId = storedModule?.id || appendModule.run(
         introductionCourse.id,
         module.title,
         nextModulePosition.get(introductionCourse.id).position
       ).lastInsertRowid;
-      if (storedModule && storedModule.title !== module.title) updateModuleTitle.run(module.title, moduleId);
+      if (storedWeekModule && storedWeekModule.title !== module.title) updateModuleTitle.run(module.title, moduleId);
       (module.lessons || []).forEach((lesson, index) => {
         const storedLesson = existingLessonByTitle.get(moduleId, lesson.title);
         if (storedLesson) {
-          updateLessonDefinition.run(
-            lesson.content || "",
-            lesson.externalUrl || null,
-            lesson.durationMinutes || 45,
-            lesson.published === false ? 0 : 1,
-            lesson.instructorOnly ? 1 : 0,
-            storedLesson.id
-          );
+          if (/^\[PN102 2026\] Chapter \d+ PowerPoint Review$/.test(lesson.title)) {
+            updateLessonMaterialContent.run(
+              lesson.content || "",
+              lesson.externalUrl || null,
+              lesson.durationMinutes || 30,
+              storedLesson.id
+            );
+          } else {
+            updateLessonDefinition.run(
+              lesson.content || "",
+              lesson.externalUrl || null,
+              lesson.durationMinutes || 45,
+              lesson.published === false ? 0 : 1,
+              lesson.instructorOnly ? 1 : 0,
+              storedLesson.id
+            );
+          }
         } else {
           appendLesson.run(
             moduleId,
@@ -1975,6 +2023,85 @@ function seed() {
       });
     });
 
+    // Keep all PN 102 chapter PowerPoints available without rebuilding the
+    // course or changing existing lesson IDs, completion history, or an
+    // instructor's publish/unpublish choice. This also finds instructor-
+    // renamed week modules by their chapter lesson.
+    (introductionCatalogCourse?.modules || [])
+      .filter((module) => /^Week (?:[1-9]|1[0-2]):/.test(module.title))
+      .forEach((module) => {
+        const weekNumber = module.title.match(/^Week (\d+):/)?.[1];
+        const powerPointLessons = (module.lessons || []).filter((lesson) => /^\[PN102 2026\] Chapter \d+ PowerPoint Review$/.test(lesson.title));
+        if (!weekNumber || !powerPointLessons.length) return;
+
+        powerPointLessons.forEach((powerPointLesson) => {
+          const chapterNumber = powerPointLesson.title.match(/Chapter (\d+) PowerPoint/)?.[1];
+          const chapterLesson = (module.lessons || []).find((lesson) => lesson.title.startsWith(`Chapter ${chapterNumber}:`));
+          if (!chapterNumber || !chapterLesson) return;
+
+          let storedModule = existingModuleByWeek.get(introductionCourse.id, `Week ${weekNumber}:%`)
+            || moduleContainingChapter.get(
+              introductionCourse.id,
+              chapterLesson.title,
+              `[PN102 2026] Chapter ${chapterNumber}:%`
+            )
+            || existingModuleByTitle.get(introductionCourse.id, module.title);
+
+          if (!storedModule) {
+            const moduleId = appendModule.run(
+              introductionCourse.id,
+              module.title,
+              nextModulePosition.get(introductionCourse.id).position
+            ).lastInsertRowid;
+            storedModule = { id: moduleId, title: module.title };
+            (module.lessons || []).forEach((lesson, index) => {
+              appendLesson.run(
+                moduleId,
+                lesson.title,
+                lesson.content || "",
+                lesson.externalUrl || null,
+                lesson.durationMinutes || 45,
+                index + 1,
+                lesson.published === false ? 0 : 1,
+                lesson.instructorOnly ? 1 : 0
+              );
+            });
+          }
+
+          const storedPowerPoint = existingPowerPointByChapter.get(
+            introductionCourse.id,
+            powerPointLesson.title,
+            `[PN102 2026] Chapter ${chapterNumber} PowerPoint%`,
+            powerPointLesson.title
+          );
+          if (storedPowerPoint) {
+            const position = Number(storedPowerPoint.module_id) === Number(storedModule.id)
+              ? storedPowerPoint.position
+              : nextLessonPosition.get(storedModule.id).position;
+            updatePowerPointDefinition.run(
+              storedModule.id,
+              powerPointLesson.title,
+              powerPointLesson.content || "",
+              powerPointLesson.externalUrl || null,
+              powerPointLesson.durationMinutes || 30,
+              position,
+              storedPowerPoint.id
+            );
+          } else {
+            appendLesson.run(
+              storedModule.id,
+              powerPointLesson.title,
+              powerPointLesson.content || "",
+              powerPointLesson.externalUrl || null,
+              powerPointLesson.durationMinutes || 30,
+              nextLessonPosition.get(storedModule.id).position,
+              1,
+              0
+            );
+          }
+        });
+      });
+
     // Remove chapter-reading links left in a prior week by earlier course
     // allocations. Each textbook chapter must appear in exactly one week.
     const removeMisallocatedChapter = db.prepare(`
@@ -1982,7 +2109,9 @@ function seed() {
       WHERE title GLOB ?
         AND module_id IN (
           SELECT id FROM modules
-          WHERE course_id = ? AND title NOT LIKE ?
+          WHERE course_id = ?
+            AND title LIKE 'Week %'
+            AND title NOT LIKE ?
         )
     `);
     for (let chapter = 7; chapter <= 13; chapter += 1) {

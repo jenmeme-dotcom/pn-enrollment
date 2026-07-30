@@ -1477,9 +1477,10 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
               `}
               ${instructor && courseId ? `
                 <details class="canvas-module-item-create">
-                  <summary>+ Add item</summary>
+                  <summary>+ Add page, assignment, link, or recording</summary>
                   <form method="post" action="/admin/courses/${courseId}/modules/${module.id}/items">
-                    <div><label>Item type</label><select name="itemType" data-module-item-type><option value="page">Page</option><option value="assignment">Assignment</option><option value="link">External link</option><option value="youtube">YouTube recording (embedded)</option></select></div>
+                    <p class="module-item-create-help">To add a class recording, choose <strong>YouTube recording link</strong>. Students will watch it in an embedded player inside the course.</p>
+                    <div><label>Item type</label><select name="itemType" data-module-item-type><option value="page">Page</option><option value="assignment">Assignment</option><option value="link">External link</option><option value="youtube">YouTube recording link (embedded)</option></select></div>
                     <div><label>Title</label><input name="title" required></div>
                     <div data-module-link-field hidden>
                       <label data-module-url-label>Web address</label>
@@ -1575,10 +1576,14 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
 function lessonMaterialLinks(lesson = {}) {
   const content = String(lesson.content || "");
   const links = new Map();
-  for (const match of content.matchAll(/- ([^:\n]+):\s*(\/course-materials\/[^\s]+)/g)) {
+  for (const match of content.matchAll(/<a[^>]+href=["'](\/course-materials\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+    const label = match[2].replace(/<[^>]+>/g, "").trim();
+    links.set(match[1], label || decodeURIComponent(path.basename(match[1].split("?")[0])));
+  }
+  for (const match of content.matchAll(/- ([^:\n]+):\s*(\/course-materials\/[^\s<)"']+)/g)) {
     links.set(match[2], match[1].trim());
   }
-  for (const match of content.matchAll(/\/course-materials\/[^\s<)]+/g)) {
+  for (const match of content.matchAll(/\/course-materials\/[^\s<)"']+/g)) {
     const href = match[0];
     if (!links.has(href)) links.set(href, decodeURIComponent(path.basename(href)));
   }

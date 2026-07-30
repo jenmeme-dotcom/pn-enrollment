@@ -16,6 +16,21 @@ const courseObjectives = [
 
 const textbookFileName = "Foundations-of-Nursing-9th-Edition-Cooper-Gosnell.pdf";
 const textbookHref = `/course-materials/introduction-to-nursing-practical-nursing/${textbookFileName}`;
+const powerPointFileNames = {
+  1: "PN102_Ch01_Evolution_of_Nursing.pptx",
+  2: "PN102_Ch02_Legal_Ethical_Aspects.pptx",
+  3: "PN102_Ch03_Documentation.pptx",
+  4: "PN102_Ch04_Communication.pptx",
+  5: "PN102_Ch05_Nursing_Process_Critical_Thinking.pptx",
+  6: "PN102_Ch06_Cultural_Ethnic_Considerations.pptx",
+  7: "PN102_Ch07_Asepsis_Infection_Control.pptx",
+  8: "PN102_Ch08_Body_Mechanics_Mobility.pptx",
+  9: "PN102_Ch09_Hygiene_Patient_Environment.pptx",
+  10: "PN102_Ch10_Safety.pptx",
+  11: "PN102_Ch11_Admission_Transfer_Discharge.pptx",
+  12: "PN102_Ch12_Vital_Signs.pptx",
+  13: "PN102_Ch13_Physical_Assessment.pptx"
+};
 
 const extendedWeekChapters = {
   1: [
@@ -210,14 +225,21 @@ const powerPointReviewNotes = {
 };
 
 function buildPowerPointReviewContent(chapter) {
-  const notes = powerPointReviewNotes[chapter.number];
-  if (!notes) return "";
+  const notes = powerPointReviewNotes[chapter.number]
+    || (readingFocusExplanations[chapter.number] || []).map((explanation) => {
+      const [topic, ...details] = explanation.split(" — ");
+      return [topic, details.join(" — ")];
+    });
+  const powerPointFileName = powerPointFileNames[chapter.number];
+  if (!notes.length || !powerPointFileName) return "";
+  const materialBaseHref = "/course-materials/introduction-to-nursing-practical-nursing";
   return [
-    `<h2>Chapter ${chapter.number} PowerPoint Review</h2>`,
-    "<p>Use these concise explanations to review the main ideas before completing the chapter quiz and applied activity.</p>",
+    `<h2>Chapter ${chapter.number}: ${chapter.title} PowerPoint</h2>`,
+    "<p>View the chapter slides in this lesson or download the editable PowerPoint for class review and note-taking.</p>",
+    `<p><a href="${materialBaseHref}/${powerPointFileName}">Chapter ${chapter.number} PowerPoint</a></p>`,
     "<h3>Study outline</h3>",
     `<ul>${notes.map(([topic, explanation]) => `<li><strong>${topic}</strong><br>${explanation}</li>`).join("")}</ul>`,
-    `<p>Instructor note: keep this review aligned with Chapter ${chapter.number} and attach supplementary slides only when they add value for the class.</p>`
+    `<p><strong>Before moving on:</strong> explain each focus area in your own words, connect it to a practical nursing action, and identify what you would observe, do, document, or report.</p>`
   ].join("\n");
 }
 
@@ -997,7 +1019,7 @@ const modules = [
         content: buildTextbookChapterContent(chapter),
         durationMinutes: 90
       })),
-      ...chapters.filter((chapter) => powerPointReviewNotes[chapter.number]).map((chapter) => ({
+      ...chapters.filter((chapter) => powerPointFileNames[chapter.number]).map((chapter) => ({
         title: `[PN102 2026] Chapter ${chapter.number} PowerPoint Review`,
         content: buildPowerPointReviewContent(chapter),
         durationMinutes: 30
