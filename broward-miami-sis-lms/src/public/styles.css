@@ -627,6 +627,190 @@ nav a {
   background: linear-gradient(135deg, #eaf3f6, #cfdfe7);
 }
 
+.student-roster-table-card {
+  overflow-x: auto;
+}
+
+.student-roster-table {
+  min-width: 1220px;
+}
+
+.photo-review-cell {
+  min-width: 280px;
+}
+
+.photo-review-control {
+  display: grid;
+  gap: 8px;
+}
+
+.photo-review-badge {
+  border: 1px solid;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 850;
+  justify-self: start;
+  padding: 5px 9px;
+}
+
+.photo-review-badge.approved {
+  background: #eaf7ef;
+  border-color: #a9d5b9;
+  color: #17653b;
+}
+
+.photo-review-badge.pending {
+  background: #fff7df;
+  border-color: #e7cd7f;
+  color: #765500;
+}
+
+.photo-review-badge.denied {
+  background: #fff0f0;
+  border-color: #e3aaaa;
+  color: #a12020;
+}
+
+.photo-review-badge.not_submitted {
+  background: #f0f3f5;
+  border-color: #cbd3d9;
+  color: #4c5964;
+}
+
+.photo-review-date,
+.photo-review-last-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.photo-review-last-note {
+  color: #7f2929;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.photo-review-full-link {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.photo-review-actions {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.photo-review-actions form {
+  margin: 0;
+}
+
+.photo-review-deny {
+  min-width: 0;
+  width: 100%;
+}
+
+.photo-review-deny > summary {
+  list-style: none;
+  width: max-content;
+}
+
+.photo-review-deny > summary::-webkit-details-marker {
+  display: none;
+}
+
+.photo-deny-trigger,
+.photo-deny-button {
+  background: #a52626 !important;
+  border-color: #a52626 !important;
+  color: white !important;
+}
+
+.photo-review-deny-form {
+  background: #fff7f7;
+  border: 1px solid #e8bcbc;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  margin-top: 8px !important;
+  padding: 12px;
+  width: min(360px, 100%);
+}
+
+.photo-review-deny-form textarea {
+  font-size: 13px;
+  min-height: 112px;
+}
+
+.photo-review-detail-layout {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(220px, 0.72fr) minmax(260px, 1.28fr);
+}
+
+.photo-review-large-preview img,
+.photo-review-no-photo {
+  background: #eef3f5;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  height: 280px;
+  object-fit: contain;
+  width: 100%;
+}
+
+.photo-review-no-photo {
+  align-items: center;
+  color: var(--muted);
+  font-weight: 800;
+  justify-content: center;
+}
+
+.photo-review-metadata {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 0;
+}
+
+.photo-review-metadata div {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  grid-template-columns: 110px 1fr;
+  padding-top: 8px;
+}
+
+.photo-review-metadata dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.photo-review-metadata dd {
+  margin: 0;
+}
+
+.photo-review-history {
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  padding-top: 14px;
+}
+
+.photo-review-history summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.photo-review-history p {
+  border-bottom: 1px solid var(--line);
+  line-height: 1.45;
+  margin: 0;
+  padding: 12px 0;
+}
+
 .student-signout {
   background: #123f52;
   border-color: #2c7583;
@@ -1335,6 +1519,56 @@ nav a {
   font-size: 13px;
   line-height: 1.45;
   margin: 18px 0 0;
+}
+
+.required-photo-preview.denied {
+  background: linear-gradient(155deg, #5d1c22, #9b2e38);
+}
+
+.required-photo-preview.pending {
+  background: linear-gradient(155deg, #5a4715, #8f6f18);
+}
+
+.required-photo-denial-note,
+.required-photo-pending-note {
+  border-left: 4px solid;
+  border-radius: 6px;
+  margin: 0 0 18px;
+  padding: 15px 17px;
+}
+
+.required-photo-denial-note {
+  background: #fff2f2;
+  border-color: #b92d37;
+  color: #742027;
+}
+
+.required-photo-pending-note {
+  background: #fff8e6;
+  border-color: #c28a12;
+  color: #644a12;
+}
+
+.required-photo-denial-note p,
+.required-photo-pending-note p {
+  line-height: 1.5;
+  margin: 7px 0 0;
+}
+
+.required-photo-denial-note p {
+  white-space: pre-wrap;
+}
+
+.required-photo-replace {
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  padding-top: 14px;
+}
+
+.required-photo-replace summary {
+  color: var(--brand-dark);
+  cursor: pointer;
+  font-weight: 800;
 }
 
 .profile-tabs {
@@ -10485,6 +10719,23 @@ button.small {
 
   .required-photo-content {
     padding: 28px 22px;
+  }
+
+  .photo-review-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .photo-review-actions,
+  .photo-review-actions > form,
+  .photo-review-actions button,
+  .photo-review-deny,
+  .photo-review-deny > summary,
+  .photo-review-deny-form {
+    width: 100%;
+  }
+
+  .photo-review-metadata div {
+    grid-template-columns: 1fr;
   }
 
   .registration-documents-head,
