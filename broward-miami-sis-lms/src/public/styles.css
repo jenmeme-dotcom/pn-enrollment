@@ -639,6 +639,230 @@ nav a {
   min-width: 280px;
 }
 
+.withdrawal-cell {
+  min-width: 300px;
+  vertical-align: top;
+}
+
+.student-record-link {
+  color: var(--ink);
+}
+
+.student-withdrawal-control {
+  margin-bottom: 12px;
+  min-width: 0;
+  position: relative;
+}
+
+.student-withdrawal-control > summary {
+  list-style: none;
+  width: max-content;
+}
+
+.student-withdrawal-control > summary::-webkit-details-marker {
+  display: none;
+}
+
+.withdrawal-trigger,
+.withdrawal-submit {
+  background: #a52626 !important;
+  border-color: #a52626 !important;
+  color: #fff !important;
+}
+
+.student-withdrawal-form {
+  background: #fff8f7;
+  border: 1px solid #e5b8b3;
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 14px;
+  width: min(440px, 100%);
+}
+
+.student-withdrawal-form > p {
+  margin: 0;
+}
+
+.student-withdrawal-form > label:not(.withdrawal-scope-option):not(.withdrawal-confirmation) {
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: -5px;
+}
+
+.student-withdrawal-form textarea {
+  font-size: 13px;
+  min-height: 92px;
+}
+
+.withdrawal-scope-option,
+.withdrawal-confirmation,
+.withdrawal-course-list label {
+  align-items: flex-start;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: auto 1fr;
+  margin: 0;
+}
+
+.withdrawal-scope-option {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.withdrawal-scope-option.school {
+  border-color: #d59e98;
+}
+
+.withdrawal-scope-option input,
+.withdrawal-confirmation input,
+.withdrawal-course-list input {
+  margin-top: 3px;
+}
+
+.withdrawal-scope-option strong,
+.withdrawal-scope-option small,
+.withdrawal-course-list strong,
+.withdrawal-course-list small {
+  display: block;
+}
+
+.withdrawal-scope-option small,
+.withdrawal-course-list small,
+.withdrawal-confirmation,
+.withdrawal-no-courses {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.withdrawal-course-list {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  max-height: 230px;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.withdrawal-course-list legend {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 5px;
+}
+
+.withdrawal-course-list label + label {
+  border-top: 1px solid var(--line);
+  padding-top: 9px;
+}
+
+.withdrawal-status {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.withdrawal-status p,
+.withdrawal-status small {
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.withdrawal-status.withdrawn p {
+  color: #7f2929;
+}
+
+.withdrawal-badge {
+  background: #fff0f0;
+  border: 1px solid #dfa8a8;
+  border-radius: 999px;
+  color: #9f2222;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 5px 9px;
+}
+
+.withdrawal-badge.active {
+  background: #eaf7ef;
+  border-color: #a9d5b9;
+  color: #17653b;
+}
+
+.withdrawal-badge.muted {
+  background: #f0f3f5;
+  border-color: #cbd3d9;
+  color: #4c5964;
+}
+
+.withdrawal-detail-layout {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: minmax(300px, 0.9fr) minmax(280px, 1.1fr);
+}
+
+.withdrawal-management-card {
+  scroll-margin-top: 180px;
+}
+
+.withdrawal-enrollment-list h3 {
+  margin-top: 0;
+}
+
+.withdrawal-enrollment-list p {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 10px 0;
+}
+
+.withdrawal-enrollment-list p.withdrawn strong,
+.withdrawal-enrollment-list p.withdrawn span {
+  color: #8f2929;
+}
+
+.withdrawal-enrollment-list span,
+.withdrawal-history span,
+.withdrawal-history small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.withdrawal-history {
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  padding-top: 14px;
+}
+
+.withdrawal-history summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.withdrawal-history p {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 12px 0;
+}
+
+.student-course-withdrawal-note {
+  color: #8f2929;
+  font-size: 13px;
+  margin: 12px 0 0;
+}
+
 .photo-review-control {
   display: grid;
   gap: 8px;
@@ -10736,6 +10960,17 @@ button.small {
 
   .photo-review-metadata div {
     grid-template-columns: 1fr;
+  }
+
+  .withdrawal-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .student-withdrawal-control,
+  .student-withdrawal-control > summary,
+  .student-withdrawal-form,
+  .student-withdrawal-form button {
+    width: 100%;
   }
 
   .registration-documents-head,
