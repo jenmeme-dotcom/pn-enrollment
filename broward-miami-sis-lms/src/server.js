@@ -1406,6 +1406,36 @@ function renderStudentCanvasRail(active = "courses") {
   `;
 }
 
+function renderInstructorCanvasRail(user, active = "courses") {
+  const items = [
+    { key: "dashboard", label: "Dashboard", href: "/admin", icon: "⌂" },
+    { key: "courses", label: "Courses", href: "/admin/courses", icon: "▤" },
+    { key: "schedule", label: "Schedule", href: "/admin/schedule", icon: "▦" },
+    { key: "inbox", label: "Inbox", href: "/admin/messages", icon: "▧" },
+    { key: "help", label: "Help", href: "/admin/help", icon: "?" }
+  ];
+  return `
+    <aside class="canvas-global-rail student-canvas-rail instructor-canvas-rail">
+      <img src="/assets/bmhi-favicon.png" alt="BMHI">
+      <span class="instructor-rail-avatar" aria-label="Signed in as ${escapeHtml(initialsFor(user))}">${escapeHtml(initialsFor(user))}</span>
+      <nav aria-label="Instructor global navigation">
+        ${items.map((item) => `
+          <a class="${item.key === active ? "active" : ""}" href="${escapeHtml(item.href)}">
+            <span aria-hidden="true">${escapeHtml(item.icon)}</span>
+            <strong>${escapeHtml(item.label)}</strong>
+          </a>
+        `).join("")}
+        <form class="canvas-rail-signout" method="post" action="/logout">
+          <button type="submit">
+            <span aria-hidden="true">↪</span>
+            <strong>Sign Out</strong>
+          </button>
+        </form>
+      </nav>
+    </aside>
+  `;
+}
+
 function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = []) {
   const crumbTrail = breadcrumbs.length ? breadcrumbs : [{ label: courseCode, href: baseHref }];
   const courseMenuItems = [
@@ -10037,11 +10067,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   const selectedAssignmentNav = selectedAssignment && assignmentTypeLabel(selectedAssignment) === "Quiz" ? "Quizzes" : "Assignments";
   const body = selectedAssignment ? `
     <section class="canvas-course-shell instructor-preview">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
         { label: courseCode, href: adminCourseBaseHref },
@@ -10065,11 +10091,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : activeView === "modules" ? `
     <section class="canvas-course-shell canvas-modules-shell instructor-preview">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
         { label: courseCode, href: adminCourseBaseHref },
@@ -10091,11 +10113,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : activeView === "assignments" || activeView === "quizzes" ? `
     <section class="canvas-course-shell instructor-preview">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
         { label: courseCode, href: adminCourseBaseHref },
@@ -10119,7 +10137,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : activeView === "rubrics" ? `
     <section class="canvas-course-shell instructor-preview">
-      <aside class="canvas-global-rail"><img src="/assets/bmhi-favicon.png" alt="BMHI"><span>${escapeHtml(initialsFor(req.user))}</span><i></i><i></i><i></i><i></i><i></i></aside>
+      ${renderInstructorCanvasRail(req.user)}
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [{ label: courseCode, href: adminCourseBaseHref }, { label: "Rubrics" }])}
       <aside class="canvas-course-nav" id="canvas-course-navigation">${renderCourseNav(navItems, adminCourseBaseHref, "Rubrics", firstLesson?.id)}</aside>
       <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
@@ -10127,11 +10145,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : activeView === "announcements" ? `
     <section class="canvas-course-shell instructor-preview">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
         { label: courseCode, href: adminCourseBaseHref },
@@ -10153,11 +10167,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : activeView === "discussions" ? `
     <section class="canvas-course-shell instructor-preview">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
         { label: courseCode, href: adminCourseBaseHref },
@@ -10182,11 +10192,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : activeView === "calendar" ? `
     <section class="canvas-course-shell instructor-preview">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
         { label: courseCode, href: adminCourseBaseHref },
@@ -10208,11 +10214,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : activeView === "conferences" ? `
     <section class="canvas-course-shell instructor-preview">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
         { label: courseCode, href: adminCourseBaseHref },
@@ -10233,11 +10235,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : activeView === "files" ? `
     <section class="canvas-course-shell instructor-preview">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
         { label: courseCode, href: adminCourseBaseHref },
@@ -10257,11 +10255,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : activeView === "grades" ? `
     <section class="canvas-course-shell instructor-gradebook-shell">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
         { label: courseCode, href: adminCourseBaseHref },
@@ -10279,11 +10273,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : activeView === "people" ? `
     <section class="canvas-course-shell instructor-preview">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
         { label: courseCode, href: adminCourseBaseHref },
@@ -10305,11 +10295,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : activeView === "settings" || activeView === "details" ? `
     <section class="canvas-course-shell instructor-preview">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
         { label: courseCode, href: adminCourseBaseHref },
@@ -10335,11 +10321,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : activeView === "syllabus" ? `
     <section class="canvas-course-shell canvas-syllabus-shell instructor-preview">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       <header class="canvas-populi-bar">
         <a href="/admin/courses/${course.id}/student-view">${escapeHtml(courseCode)}</a>
@@ -10369,11 +10351,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : req.query.lesson ? `
     <section class="canvas-course-shell canvas-lesson-shell instructor-preview">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
         { label: courseCode, href: adminCourseBaseHref },
@@ -10399,11 +10377,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     </section>
   ` : `
     <section class="canvas-course-shell instructor-preview">
-      <aside class="canvas-global-rail">
-        <img src="/assets/bmhi-favicon.png" alt="BMHI">
-        <span>${escapeHtml(initialsFor(req.user))}</span>
-        <i></i><i></i><i></i><i></i><i></i>
-      </aside>
+      ${renderInstructorCanvasRail(req.user)}
 
       <header class="canvas-populi-bar">
         <a href="/admin/courses/${course.id}/student-view">${escapeHtml(courseCode)}</a>
