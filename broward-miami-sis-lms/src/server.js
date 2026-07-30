@@ -1629,6 +1629,43 @@ function moduleItemMeta(lesson) {
   return pieces.join(" | ");
 }
 
+const introNursingChapterTitles = {
+  1: "The Evolution of Nursing",
+  2: "Legal and Ethical Aspects of Nursing",
+  3: "Documentation",
+  4: "Communication",
+  5: "Nursing Process and Critical Thinking",
+  6: "Cultural and Ethnic Considerations",
+  7: "Asepsis and Infection Control",
+  8: "Body Mechanics and Patient Mobility",
+  9: "Hygiene and Care of the Patient's Environment",
+  10: "Safety",
+  11: "Admission, Transfer, and Discharge",
+  12: "Vital Signs",
+  13: "Physical Assessment"
+};
+
+function courseLessonDisplayTitle(courseSlug = "", lessonTitle = "") {
+  const title = String(lessonTitle || "");
+  if (courseSlug !== "introduction-to-nursing-practical-nursing") return title;
+
+  const powerPointMatch = title.match(/^\[PN102 2026\]\s+Chapter\s+(\d+)\s+PowerPoint Review$/i);
+  if (powerPointMatch) {
+    const chapterNumber = Number(powerPointMatch[1]);
+    const chapterTitle = introNursingChapterTitles[chapterNumber];
+    return chapterTitle
+      ? `Chapter ${chapterNumber} PowerPoint: ${chapterTitle}`
+      : `Chapter ${chapterNumber} PowerPoint`;
+  }
+
+  const textbookMatch = title.match(/^Chapter\s+(\d+):\s*(.+)$/i);
+  if (textbookMatch) {
+    return `Chapter ${textbookMatch[1]} Textbook Reading: ${textbookMatch[2]}`;
+  }
+
+  return title.replace(/^\[PN102 2026\]\s+/, "");
+}
+
 function renderWeeklyLearningPattern({ compact = false } = {}) {
   const steps = [
     { number: "1", title: "Preview", description: "Read the weekly overview, objectives, and due dates." },
@@ -1655,7 +1692,7 @@ function renderWeeklyLearningPattern({ compact = false } = {}) {
   `;
 }
 
-function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups = [], instructor = false }) {
+function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, courseId, moduleGroups = [], instructor = false }) {
   return `
     <main class="canvas-course-main canvas-modules-main">
       <div class="canvas-modules-toolbar">
@@ -1712,7 +1749,7 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
                     <span class="module-drag">⁝</span>
                     <span class="module-type ${escapeHtml(kind)}">${escapeHtml(moduleItemIcon(kind))}</span>
                     <span class="module-title">
-                      <strong>${escapeHtml(lesson.title)}</strong>
+                      <strong>${escapeHtml(courseLessonDisplayTitle(courseSlug, lesson.title))}</strong>
                       ${moduleItemMeta(lesson) ? `<small>${escapeHtml(moduleItemMeta(lesson))}</small>` : ""}
                     </span>
                     <span class="${isPublished ? "canvas-published-dot" : "canvas-unpublished-dot"}"></span>
@@ -2471,7 +2508,7 @@ function renderIntroNursingNclexHint(lesson = {}) {
   `;
 }
 
-function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false, gradeItems = [], grades = [], completedLessonIds = new Set(), courseId = null }) {
+function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false, gradeItems = [], grades = [], completedLessonIds = new Set(), courseId = null }) {
   const firstLesson = lessons[0];
   const selectedLesson = lessons.find((lesson) => lesson.id === Number(lessonId)) || firstLesson;
   if (!selectedLesson) return `<main class="canvas-course-main canvas-page-main"><p class="empty">No lesson was found.</p></main>`;
@@ -2491,7 +2528,8 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
     : null;
   const lessonIsComplete = completedLessonIds.has(selectedLesson.id) || Boolean(quizGrade);
   const selectedLessonIsQuiz = moduleItemKind(selectedLesson.title) === "quiz";
-  const selectedCourseSlug = courseId ? db.prepare("SELECT slug FROM courses WHERE id = ?").get(Number(courseId))?.slug : null;
+  const selectedCourseSlug = courseSlug || (courseId ? db.prepare("SELECT slug FROM courses WHERE id = ?").get(Number(courseId))?.slug : null);
+  const selectedLessonDisplayTitle = courseLessonDisplayTitle(selectedCourseSlug, selectedLesson.title);
   const showIntroNursingNclexHint = selectedCourseSlug === "introduction-to-nursing-practical-nursing" && !selectedLessonIsQuiz;
   // The encoded quiz bank belongs to the interactive quiz engine. Showing the
   // source content on a student page exposes every question before Start Now.
@@ -2512,14 +2550,14 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
           <a href="${escapeHtml(baseHref)}?view=modules">Modules</a>
           ${selectedModule ? `<span>/</span><span>${escapeHtml(selectedModule.title)}</span>` : ""}
         </p>
-        <h1>${escapeHtml(selectedLesson.title)}</h1>
+        <h1>${escapeHtml(selectedLessonDisplayTitle)}</h1>
         <div class="canvas-page-copy">
           ${selectedLessonYouTubeEmbed ? `
             <section class="youtube-recording" aria-label="YouTube recording">
               <div class="youtube-recording-frame">
                 <iframe
                   src="${escapeHtml(selectedLessonYouTubeEmbed)}"
-                  title="${escapeHtml(selectedLesson.title)} video recording"
+                  title="${escapeHtml(selectedLessonDisplayTitle)} video recording"
                   loading="lazy"
                   referrerpolicy="strict-origin-when-cross-origin"
                   allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -2531,7 +2569,7 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
             <div class="external-lesson-callout">
               <strong>This item opens outside the portal.</strong>
               <p>Use the button below to open the course resource directly.</p>
-              <a class="button" href="${escapeHtml(selectedLesson.external_url)}">Open ${escapeHtml(selectedLesson.title)}</a>
+              <a class="button" href="${escapeHtml(selectedLesson.external_url)}">Open ${escapeHtml(selectedLessonDisplayTitle)}</a>
             </div>
           ` : ""}
           ${showLessonSourceContent ? renderCanvasLessonContent(lessonContentForViewer, selectedLesson.title) : ""}
@@ -2629,7 +2667,7 @@ function renderCourseToDo(gradeItems = [], baseHref = "#", { limit = 3, courseTi
   `;
 }
 
-function renderComingUp(lessons = [], baseHref = "#") {
+function renderComingUp(lessons = [], baseHref = "#", courseSlug = "") {
   return `
     <section class="canvas-task-panel">
       <div class="task-panel-head">
@@ -2640,7 +2678,7 @@ function renderComingUp(lessons = [], baseHref = "#") {
         <article class="canvas-upcoming-item">
           <span>${escapeHtml(index + 1)}</span>
           <div>
-            <a href="${escapeHtml(baseHref)}?lesson=${lesson.id}">${escapeHtml(lesson.title)}</a>
+            <a href="${escapeHtml(baseHref)}?lesson=${lesson.id}">${escapeHtml(courseLessonDisplayTitle(courseSlug, lesson.title))}</a>
             <small>${escapeHtml(lesson.duration_minutes)} minutes</small>
           </div>
         </article>
@@ -10418,6 +10456,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
 
       ${renderCanvasModulesPage({
         courseCode,
+        courseSlug: course.slug,
         baseHref: adminCourseBaseHref,
         courseId: course.id,
         moduleGroups,
@@ -10679,6 +10718,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
 
       ${renderCourseLessonPage({
         courseCode,
+        courseSlug: course.slug,
         baseHref: adminCourseBaseHref,
         courseId: course.id,
         lessons,
@@ -10749,7 +10789,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
       <aside class="canvas-rightbar">
         ${renderInstructorCourseActions(course.id)}
         ${renderCourseToDo(gradeItems, adminCourseBaseHref)}
-        ${renderComingUp(lessons.slice(1), adminCourseBaseHref)}
+        ${renderComingUp(lessons.slice(1), adminCourseBaseHref, course.slug)}
       </aside>
     </section>
   `;
@@ -13362,7 +13402,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
             ${module.lessons.map((lesson) => `
               <a class="${lesson.id === currentLessonId ? "active" : ""}" href="/student/enrollments/${enrollment.id}?lesson=${lesson.id}">
                 <span class="outline-dot"></span>
-                <span>${escapeHtml(lesson.title)}</span>
+                <span>${escapeHtml(courseLessonDisplayTitle(enrollment.slug, lesson.title))}</span>
               </a>
             `).join("")}
           </section>
@@ -13418,6 +13458,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
 
       ${renderCanvasModulesPage({
         courseCode,
+        courseSlug: enrollment.slug,
         baseHref: courseBaseHref,
         moduleGroups,
         instructor: false
@@ -13621,6 +13662,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
 
       ${renderCourseLessonPage({
         courseCode,
+        courseSlug: enrollment.slug,
         baseHref: courseBaseHref,
         courseId: enrollment.course_id,
         lessons,
