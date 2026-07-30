@@ -3596,8 +3596,7 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
   return `
     <main class="canvas-course-main canvas-syllabus-main">
       <div class="canvas-mini-head">
-        <span></span>
-        <strong>${escapeHtml(courseCode)} &gt; Syllabus</strong>
+        <h1>${escapeHtml(courseCode)} &gt; Syllabus</h1>
         <button class="immersive-reader" type="button">Immersive Reader</button>
       </div>
       <div class="syllabus-layout">

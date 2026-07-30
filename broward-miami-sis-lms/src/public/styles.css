@@ -5589,9 +5589,13 @@ button.small {
   width: 22px;
 }
 
-.canvas-mini-head strong {
+.canvas-mini-head strong,
+.canvas-mini-head h1 {
   color: #2d3742;
-  font-size: 18px;
+  font-size: clamp(24px, 2.5vw, 32px);
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0;
 }
 
 .canvas-course-main > h1 {
