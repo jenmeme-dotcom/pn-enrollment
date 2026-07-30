@@ -1361,6 +1361,7 @@ function moduleItemIcon(kind) {
   if (kind === "discussion") return "▱";
   if (kind === "file") return "⌕";
   if (kind === "assignment") return "▧";
+  if (kind === "video") return "▶";
   return "▤";
 }
 
@@ -1370,6 +1371,7 @@ function moduleItemMeta(lesson) {
   const pieces = [];
   if (Number(lesson.instructor_only || 0) === 1) pieces.push("Instructor only");
   if (Number(lesson.published ?? 1) === 0) pieces.push("Unpublished");
+  if (youtubeVideoId(lesson.external_url)) pieces.push("Embedded YouTube recording");
   const dateMatch = title.match(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/i);
   if (dateMatch) pieces.push(dateMatch[0]);
   if (lower.includes("discussion")) pieces.push("10 pts");
@@ -1450,7 +1452,11 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
             </header>
             <div class="canvas-module-items" id="module-items-${module.id}">
               ${module.lessons.map((lesson) => {
-                const kind = moduleItemKind(lesson.title);
+                const inferredKind = moduleItemKind(lesson.title);
+                const kind = (lesson.item_type === "youtube"
+                  || (youtubeVideoId(lesson.external_url) && inferredKind === "page"))
+                  ? "video"
+                  : inferredKind;
                 const isPublished = Number(lesson.published ?? 1) !== 0 && Number(lesson.instructor_only || 0) !== 1;
                 return `
                   <a class="canvas-module-row ${isPublished ? "" : "is-unpublished"}" href="${escapeHtml(baseHref)}?lesson=${lesson.id}">
@@ -1473,9 +1479,13 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
                 <details class="canvas-module-item-create">
                   <summary>+ Add item</summary>
                   <form method="post" action="/admin/courses/${courseId}/modules/${module.id}/items">
-                    <div><label>Item type</label><select name="itemType" data-module-item-type><option value="page">Page</option><option value="assignment">Assignment</option><option value="link">External link</option></select></div>
+                    <div><label>Item type</label><select name="itemType" data-module-item-type><option value="page">Page</option><option value="assignment">Assignment</option><option value="link">External link</option><option value="youtube">YouTube recording (embedded)</option></select></div>
                     <div><label>Title</label><input name="title" required></div>
-                    <div data-module-link-field hidden><label>Web address</label><input name="externalUrl" type="url" placeholder="https://example.com"></div>
+                    <div data-module-link-field hidden>
+                      <label data-module-url-label>Web address</label>
+                      <input name="externalUrl" type="url" placeholder="https://example.com">
+                      <small data-module-url-help>Paste the full address for the external resource.</small>
+                    </div>
                     <div><label>Content or instructions</label><textarea name="content" placeholder="Add page content or assignment instructions"></textarea></div>
                     <div data-module-assignment-fields hidden>
                       <label>Points</label><input name="points" type="number" min="0" step="0.01" value="100">
@@ -1537,7 +1547,16 @@ function renderCanvasModulesPage({ courseCode, baseHref, courseId, moduleGroups 
           page.querySelectorAll('[data-module-item-type]').forEach((select) => {
             const form = select.closest('form');
             const updateFields = () => {
-              form.querySelector('[data-module-link-field]').hidden = select.value !== 'link';
+              const isYouTube = select.value === 'youtube';
+              const linkField = form.querySelector('[data-module-link-field]');
+              const urlInput = linkField.querySelector('input[name="externalUrl"]');
+              linkField.hidden = !['link', 'youtube'].includes(select.value);
+              linkField.querySelector('[data-module-url-label]').textContent = isYouTube ? 'YouTube recording link' : 'Web address';
+              linkField.querySelector('[data-module-url-help]').textContent = isYouTube
+                ? 'Paste a YouTube watch, share, Shorts, Live, or embed link. Students will watch it inside the lesson.'
+                : 'Paste the full address for the external resource.';
+              urlInput.placeholder = isYouTube ? 'https://www.youtube.com/watch?v=...' : 'https://example.com';
+              urlInput.required = !linkField.hidden;
               form.querySelector('[data-module-assignment-fields]').hidden = select.value !== 'assignment';
             };
             select.addEventListener('change', updateFields);
@@ -2224,6 +2243,8 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
   // source content on a student page exposes every question before Start Now.
   const showLessonSourceContent = instructor || !selectedLessonIsQuiz;
   const lessonContentForViewer = instructor ? selectedLesson.content : studentFacingLessonContent(selectedLesson.content);
+  const selectedLessonYouTubeEmbed = youtubeEmbedUrl(selectedLesson.external_url);
+  const selectedLessonYouTubeWatch = youtubeWatchUrl(selectedLesson.external_url);
   return `
     <main class="canvas-course-main canvas-page-main">
       <div class="canvas-mini-head">
@@ -2239,7 +2260,20 @@ function renderCourseLessonPage({ courseCode, baseHref, lessons = [], moduleGrou
         </p>
         <h1>${escapeHtml(selectedLesson.title)}</h1>
         <div class="canvas-page-copy">
-          ${selectedLesson.external_url ? `
+          ${selectedLessonYouTubeEmbed ? `
+            <section class="youtube-recording" aria-label="YouTube recording">
+              <div class="youtube-recording-frame">
+                <iframe
+                  src="${escapeHtml(selectedLessonYouTubeEmbed)}"
+                  title="${escapeHtml(selectedLesson.title)} video recording"
+                  loading="lazy"
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowfullscreen></iframe>
+              </div>
+              <p class="youtube-recording-fallback">If the player does not load, <a href="${escapeHtml(selectedLessonYouTubeWatch)}" target="_blank" rel="noopener noreferrer">open the recording on YouTube</a>.</p>
+            </section>
+          ` : selectedLesson.external_url ? `
             <div class="external-lesson-callout">
               <strong>This item opens outside the portal.</strong>
               <p>Use the button below to open the course resource directly.</p>
@@ -4207,14 +4241,50 @@ function normalizeExternalUrl(value = "") {
   try {
     const parsed = new URL(withProtocol);
     if (!["http:", "https:"].includes(parsed.protocol)) return null;
-    if (parsed.hostname === "youtu.be") {
-      const videoId = parsed.pathname.replace(/^\/+/, "");
-      if (videoId) return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+    if (parsed.hostname.toLowerCase().replace(/^www\./, "") === "youtu.be") {
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      const videoId = segments.length === 1 && /^[A-Za-z0-9_-]{11}$/.test(segments[0]) ? segments[0] : null;
+      if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
     }
     return parsed.toString();
   } catch {
     return null;
   }
+}
+
+function youtubeVideoId(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const parsed = new URL(withProtocol);
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return null;
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    let videoId = "";
+    if (host === "youtu.be" && segments.length === 1) {
+      videoId = segments[0];
+    } else if (["youtube.com", "m.youtube.com", "youtube-nocookie.com"].includes(host)) {
+      if (parsed.pathname === "/watch") {
+        videoId = parsed.searchParams.get("v") || "";
+      } else if (segments.length === 2 && ["embed", "shorts", "live"].includes(segments[0])) {
+        videoId = segments[1];
+      }
+    }
+    return /^[A-Za-z0-9_-]{11}$/.test(videoId) ? videoId : null;
+  } catch {
+    return null;
+  }
+}
+
+function youtubeEmbedUrl(value = "") {
+  const videoId = youtubeVideoId(value);
+  return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}` : null;
+}
+
+function youtubeWatchUrl(value = "") {
+  const videoId = youtubeVideoId(value);
+  return videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
 }
 
 function renderTextWithLinks(value = "") {
@@ -10239,9 +10309,13 @@ app.post("/admin/courses/:courseId/video-submissions/:submissionId/review", requ
 });
 
 app.post("/admin/courses/:id/lessons", requireAuth, requireRole("admin", "instructor"), (req, res) => {
-  const nextPosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(Number(req.body.moduleId)).next;
+  const courseId = Number(req.params.id);
+  const moduleId = Number(req.body.moduleId);
+  const module = db.prepare("SELECT id FROM modules WHERE id = ? AND course_id = ?").get(moduleId, courseId);
+  if (!module) return res.status(404).send("Module not found");
+  const nextPosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(moduleId).next;
   db.prepare("INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
-    Number(req.body.moduleId),
+    moduleId,
     String(req.body.title || "").trim(),
     stripCanvasSource(req.body.content),
     normalizeExternalUrl(req.body.externalUrl),
@@ -10297,12 +10371,21 @@ app.post("/admin/courses/:courseId/modules/:moduleId/items", requireAuth, requir
   const courseId = Number(req.params.courseId);
   const moduleId = Number(req.params.moduleId);
   const module = db.prepare("SELECT id FROM modules WHERE id = ? AND course_id = ?").get(moduleId, courseId);
-  const itemType = ["page", "assignment", "link"].includes(req.body.itemType) ? req.body.itemType : "page";
+  if (!module) return res.status(404).send("Module not found");
+  const itemType = ["page", "assignment", "link", "youtube"].includes(req.body.itemType) ? req.body.itemType : "page";
   const title = String(req.body.title || "").trim();
-  const content = stripCanvasSource(req.body.content) || (itemType === "link" ? "Open the external resource using the link below." : "");
-  const externalUrl = itemType === "link" ? normalizeExternalUrl(req.body.externalUrl) : null;
-  if (!module || !title || (itemType === "link" && !externalUrl)) {
-    flash(req, "Enter a title and a valid web address for external links.");
+  const hasExternalUrl = ["link", "youtube"].includes(itemType);
+  const submittedExternalUrl = hasExternalUrl ? req.body.externalUrl : null;
+  const youtubeUrl = itemType === "youtube" ? youtubeWatchUrl(submittedExternalUrl) : null;
+  const externalUrl = itemType === "youtube" ? youtubeUrl : itemType === "link" ? normalizeExternalUrl(submittedExternalUrl) : null;
+  const content = stripCanvasSource(req.body.content)
+    || (itemType === "youtube" ? "Watch the embedded recording, then complete the lesson instructions." : itemType === "link" ? "Open the external resource using the link below." : "");
+  if (!title) {
+    flash(req, "Enter a title for the module item.");
+    return res.redirect(`/admin/courses/${courseId}/student-view?view=modules`);
+  }
+  if (hasExternalUrl && !externalUrl) {
+    flash(req, itemType === "youtube" ? "Enter a valid YouTube recording link." : "Enter a valid web address for the external link.");
     return res.redirect(`/admin/courses/${courseId}/student-view?view=modules`);
   }
   const nextPosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(moduleId).next;
@@ -10315,7 +10398,7 @@ app.post("/admin/courses/:courseId/modules/:moduleId/items", requireAuth, requir
     INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only, item_type, grade_item_id)
     VALUES (?, ?, ?, ?, 30, ?, ?, 0, ?, ?)
   `).run(moduleId, title, content, externalUrl, nextPosition, req.body.published ? 1 : 0, itemType, gradeItemId);
-  flash(req, `${itemType === "assignment" ? "Assignment" : itemType === "link" ? "External link" : "Page"} added to the module.`);
+  flash(req, `${itemType === "assignment" ? "Assignment" : itemType === "youtube" ? "YouTube recording" : itemType === "link" ? "External link" : "Page"} added to the module.`);
   res.redirect(`/admin/courses/${courseId}/student-view?view=modules#module-${moduleId}`);
 });
 

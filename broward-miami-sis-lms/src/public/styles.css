@@ -9297,6 +9297,32 @@ button.small {
   margin: 0 0 14px;
 }
 
+.youtube-recording {
+  margin: 0 0 24px;
+  max-width: 920px;
+}
+
+.youtube-recording-frame {
+  aspect-ratio: 16 / 9;
+  background: #111;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(28, 47, 58, 0.16);
+  overflow: hidden;
+}
+
+.youtube-recording-frame iframe {
+  border: 0;
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.canvas-page-copy .youtube-recording-fallback {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 10px 0 0;
+}
+
 .post-side {
   display: grid;
   gap: 18px;
