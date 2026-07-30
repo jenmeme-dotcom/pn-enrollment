@@ -859,10 +859,21 @@ function formatBytes(value = 0) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function courseMaterialStorageSlug(courseSlug = "") {
+  const slug = String(courseSlug || "");
+  return slug === "anatomy-and-physiology" ? "anatomy-and-physiology-pn104" : slug;
+}
+
+function courseSlugForMaterialStorage(storageSlug = "") {
+  const slug = String(storageSlug || "");
+  return slug === "anatomy-and-physiology-pn104" ? "anatomy-and-physiology" : slug;
+}
+
 function courseMaterialFiles(courseSlug = "") {
   const slug = String(courseSlug || "");
   if (!slug) return [];
-  const materialDir = path.join(courseMaterialsDir, slug);
+  const materialSlug = courseMaterialStorageSlug(slug);
+  const materialDir = path.join(courseMaterialsDir, materialSlug);
   if (!fs.existsSync(materialDir)) return [];
   return fs.readdirSync(materialDir, { withFileTypes: true })
     .filter((entry) => entry.isFile() && !entry.name.startsWith("."))
@@ -873,7 +884,7 @@ function courseMaterialFiles(courseSlug = "") {
         name: entry.name,
         size: stats.size,
         updatedAt: stats.mtime.toISOString().slice(0, 10),
-        href: `/course-materials/${encodeURIComponent(slug)}/${encodeURIComponent(entry.name)}`
+        href: `/course-materials/${encodeURIComponent(materialSlug)}/${encodeURIComponent(entry.name)}`
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -885,23 +896,26 @@ function isPathInside(parent, child) {
 }
 
 app.get("/course-materials/:courseSlug/:fileName", requireAuth, (req, res) => {
-  const courseSlug = String(req.params.courseSlug || "");
+  const materialSlug = String(req.params.courseSlug || "");
   const fileName = path.basename(String(req.params.fileName || ""));
-  if (!courseSlug || !fileName) return res.status(404).send("Course material not found");
+  if (!materialSlug || !fileName) return res.status(404).send("Course material not found");
 
+  const courseSlug = courseSlugForMaterialStorage(materialSlug);
   const course = db.prepare("SELECT id, slug FROM courses WHERE slug = ?").get(courseSlug);
-  if (!course) return res.status(404).send("Course material not found");
+  if (!course || courseMaterialStorageSlug(course.slug) !== materialSlug) {
+    return res.status(404).send("Course material not found");
+  }
 
   const canAccess = req.user.role === "admin" || req.user.role === "instructor" || Boolean(db.prepare(`
     SELECT e.id
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     WHERE e.user_id = ? AND c.slug = ? AND e.status = 'active'
-  `).get(req.user.id, courseSlug));
+  `).get(req.user.id, course.slug));
   if (!canAccess) return res.status(403).send("Forbidden");
   if (isClassLocked(req.user)) return res.status(403).send(classLockMessage(req.user));
 
-  const materialDir = path.join(courseMaterialsDir, course.slug);
+  const materialDir = path.join(courseMaterialsDir, materialSlug);
   const filePath = path.join(materialDir, fileName);
   if (!isPathInside(materialDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Course material not found");
   if (req.query.inline === "1" && path.extname(fileName).toLowerCase() === ".pdf") {
