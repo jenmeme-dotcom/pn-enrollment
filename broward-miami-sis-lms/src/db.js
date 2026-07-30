@@ -940,6 +940,136 @@ function seed() {
     }
   }
 
+  // Keep PN 104's four scheduled discussions synchronized without refreshing
+  // the entire course shell. Updating the matching weekly rows preserves the
+  // selected lesson and grade-item IDs; only obsolete discussion placeholders
+  // from the other eight weeks are removed.
+  const pn104CourseDefinition = courses.find((course) => course.slug === "anatomy-and-physiology");
+  const pn104CourseRow = db.prepare("SELECT id FROM courses WHERE slug = 'anatomy-and-physiology'").get();
+  const pn104Discussions = pn104CourseDefinition?.discussions || [];
+  if (pn104CourseRow && pn104Discussions.length) {
+    const pn104ModuleByWeek = new Map(
+      db.prepare("SELECT id, title FROM modules WHERE course_id = ?").all(pn104CourseRow.id)
+        .map((module) => [Number(String(module.title).match(/^Week (\d+):/)?.[1]), module])
+        .filter(([week]) => Number.isInteger(week))
+    );
+    const selectWeeklyDiscussionLesson = db.prepare(`
+      SELECT id FROM lessons
+      WHERE module_id = ? AND title LIKE ?
+      ORDER BY id
+      LIMIT 1
+    `);
+    const updateWeeklyDiscussionLesson = db.prepare(`
+      UPDATE lessons
+      SET title = ?, content = ?, duration_minutes = ?, published = 1, instructor_only = 0
+      WHERE id = ?
+    `);
+    const selectWeeklyDiscussionGradeItem = db.prepare(`
+      SELECT id FROM grade_items
+      WHERE course_id = ? AND title LIKE ?
+      ORDER BY id
+      LIMIT 1
+    `);
+    const updateWeeklyDiscussionGradeItem = db.prepare(`
+      UPDATE grade_items SET title = ?, points_possible = ?, due_date = ? WHERE id = ?
+    `);
+    const insertScheduledDiscussionLesson = db.prepare(`
+      INSERT INTO lessons (module_id, title, content, duration_minutes, position, published, instructor_only)
+      VALUES (?, ?, ?, ?, ?, 1, 0)
+    `);
+    const lessonDefinitions = pn104CourseDefinition.modules
+      .flatMap((module) => module.lessons || []);
+
+    pn104Discussions.forEach((discussion) => {
+      const module = pn104ModuleByWeek.get(Number(discussion.week));
+      const lessonDefinition = lessonDefinitions.find((lesson) => lesson.title === discussion.title);
+      if (!module || !lessonDefinition) return;
+      const titlePattern = `[PN104 2026] Week ${discussion.week} Discussion:%`;
+      const existingLesson = selectWeeklyDiscussionLesson.get(module.id, titlePattern);
+      if (existingLesson) {
+        updateWeeklyDiscussionLesson.run(
+          discussion.title,
+          lessonDefinition.content,
+          lessonDefinition.durationMinutes || 30,
+          existingLesson.id
+        );
+      } else {
+        const assignmentPosition = db.prepare(`
+          SELECT position FROM lessons
+          WHERE module_id = ? AND title = ?
+          ORDER BY id LIMIT 1
+        `).get(module.id, `[PN104 2026] Week ${discussion.week} Applied A&P Assignment`)?.position;
+        const position = assignmentPosition
+          || db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(module.id).next;
+        if (assignmentPosition) {
+          db.prepare("UPDATE lessons SET position = position + 1 WHERE module_id = ? AND position >= ?").run(module.id, assignmentPosition);
+        }
+        insertScheduledDiscussionLesson.run(
+          module.id,
+          discussion.title,
+          lessonDefinition.content,
+          lessonDefinition.durationMinutes || 30,
+          position
+        );
+      }
+
+      const existingGradeItem = selectWeeklyDiscussionGradeItem.get(pn104CourseRow.id, titlePattern);
+      if (existingGradeItem) {
+        updateWeeklyDiscussionGradeItem.run(
+          discussion.title,
+          discussion.pointsPossible,
+          discussion.dueDate,
+          existingGradeItem.id
+        );
+      } else {
+        insertGradeItem.run(
+          pn104CourseRow.id,
+          discussion.title,
+          discussion.pointsPossible,
+          discussion.dueDate
+        );
+      }
+    });
+
+    const scheduledDiscussionTitles = new Set(pn104Discussions.map((discussion) => discussion.title));
+    const discussionLessons = db.prepare(`
+      SELECT lessons.id, lessons.title
+      FROM lessons
+      JOIN modules ON modules.id = lessons.module_id
+      WHERE modules.course_id = ?
+        AND lessons.title LIKE '[PN104 2026] Week % Discussion:%'
+    `).all(pn104CourseRow.id);
+    const deleteDiscussionLesson = db.prepare("DELETE FROM lessons WHERE id = ?");
+    discussionLessons.forEach((lesson) => {
+      if (!scheduledDiscussionTitles.has(lesson.title)) deleteDiscussionLesson.run(lesson.id);
+    });
+
+    const discussionGradeItems = db.prepare(`
+      SELECT id, title FROM grade_items
+      WHERE course_id = ? AND title LIKE '[PN104 2026] Week % Discussion:%'
+    `).all(pn104CourseRow.id);
+    const deleteDiscussionGradeItem = db.prepare("DELETE FROM grade_items WHERE id = ?");
+    discussionGradeItems.forEach((item) => {
+      if (!scheduledDiscussionTitles.has(item.title)) deleteDiscussionGradeItem.run(item.id);
+    });
+
+    const updatePn104ReferenceLesson = db.prepare(`
+      UPDATE lessons SET content = ?, duration_minutes = ?
+      WHERE title = ? AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
+    `);
+    ["Course Welcome and Expectations", "PN 104 Syllabus"].forEach((title) => {
+      const definition = lessonDefinitions.find((lesson) => lesson.title === title);
+      if (definition) {
+        updatePn104ReferenceLesson.run(
+          definition.content,
+          definition.durationMinutes || 30,
+          title,
+          pn104CourseRow.id
+        );
+      }
+    });
+  }
+
   // Update every live PN101 assessment in place. This preserves lesson IDs,
   // enrollments, completion links, submissions, and existing gradebook history.
   const pn101CourseDefinition = courses.find((course) => course.slug === "medical-terminology");
@@ -1546,6 +1676,46 @@ function seed() {
       );
     });
   });
+
+  if (pn104CourseRow && pn104Discussions.length) {
+    const upsertPn104DiscussionTopic = db.prepare(`
+      INSERT INTO discussion_topics (
+        course_id, title, prompt, points_possible, due_at, status,
+        posted_by, posted_at, source_external_id
+      )
+      VALUES (?, ?, ?, ?, ?, 'published', ?, ?, ?)
+      ON CONFLICT(course_id, title) DO UPDATE SET
+        prompt = excluded.prompt,
+        points_possible = excluded.points_possible,
+        due_at = excluded.due_at,
+        status = 'published',
+        posted_by = COALESCE(discussion_topics.posted_by, excluded.posted_by),
+        source_external_id = excluded.source_external_id
+    `);
+    pn104Discussions.forEach((discussion) => {
+      upsertPn104DiscussionTopic.run(
+        pn104CourseRow.id,
+        discussion.title,
+        discussion.prompt,
+        discussion.pointsPossible,
+        `${discussion.dueDate} 23:59:00`,
+        instructorUser?.id || adminUser.id,
+        "2026-07-29 08:00:00",
+        `anatomy-and-physiology:discussion:${discussion.week}`
+      );
+    });
+
+    const scheduledDiscussionTitles = new Set(pn104Discussions.map((discussion) => discussion.title));
+    const seededPn104Topics = db.prepare(`
+      SELECT id, title FROM discussion_topics
+      WHERE course_id = ?
+        AND source_external_id LIKE 'anatomy-and-physiology:discussion:%'
+    `).all(pn104CourseRow.id);
+    const deleteSeededPn104Topic = db.prepare("DELETE FROM discussion_topics WHERE id = ?");
+    seededPn104Topics.forEach((topic) => {
+      if (!scheduledDiscussionTitles.has(topic.title)) deleteSeededPn104Topic.run(topic.id);
+    });
+  }
 
   const calendarCount = db.prepare("SELECT COUNT(*) AS count FROM calendar_events");
   if (calendarCount.get().count === 0) {

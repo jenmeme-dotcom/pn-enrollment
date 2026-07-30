@@ -358,7 +358,7 @@ const facultyLessons = chapters.map((chapter) => ({
 
 const gradeItems = [
   { title: "[PN104 2026] Syllabus and Course Orientation Acknowledgment", pointsPossible: 0, dueDate: dueDates[0] },
-  ...weekPlan.flatMap(([week, , title]) => {
+  ...weekPlan.flatMap(([week]) => {
     const items = [
       { title: `[PN104 2026] Week ${week} Applied A&P Assignment`, pointsPossible: 25, dueDate: dueDates[week - 1] }
     ];

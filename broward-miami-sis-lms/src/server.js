@@ -3011,6 +3011,7 @@ function renderInstructorCourseActions(courseId) {
 
 function gradeItemType(title = "") {
   const lower = String(title).toLowerCase();
+  if (lower.includes("discussion")) return "Discussion";
   if (lower.includes("quiz")) return "Quiz";
   if (lower.includes("exam") || lower.includes("final assessment") || lower.includes("test")) return "Exam";
   if (lower.includes("skill") || lower.includes("competency") || lower.includes("lab")) return "Skills competency";
