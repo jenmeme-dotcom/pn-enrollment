@@ -65,6 +65,26 @@
   width: 100%;
 }
 
+.assignment-submission-form textarea {
+  min-height: 180px;
+  resize: vertical;
+}
+
+.assignment-written-response {
+  border-top: 1px solid #cce4e2;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.assignment-written-response p,
+.assignment-student-note p {
+  white-space: pre-wrap;
+}
+
+.assignment-written-response p {
+  margin-bottom: 0;
+}
+
 .assignment-submission-form .button {
   justify-self: start;
 }

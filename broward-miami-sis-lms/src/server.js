@@ -2394,12 +2394,16 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
   }
 
   if (kind === "assignment") {
+    const assignmentGradeItem = gradeItemForLesson(lesson, gradeItems);
+    const assignmentHref = assignmentGradeItem?.id
+      ? `${baseHref}?assignment=${assignmentGradeItem.id}`
+      : `${baseHref}?view=assignments`;
     return `
       ${fileButtons}
       <div class="lesson-action-card">
         <h2>Assignment</h2>
-        <p>Review the instructions and attached files for this assignment. Upload and grading workflows are tracked by the instructor.</p>
-        <a class="button" href="${escapeHtml(baseHref)}?view=grades">View Assignment in Grades</a>
+        <p>Review the instructions, then open the assignment to type your response directly or attach a completed file. Your submission and grade will be saved in the portal.</p>
+        <a class="button" href="${escapeHtml(assignmentHref)}">${instructor ? "View Assignment Setup" : "Complete Assignment"}</a>
       </div>
     `;
   }
@@ -2516,12 +2520,7 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
   const previousLesson = selectedIndex > 0 ? lessons[selectedIndex - 1] : null;
   const nextLesson = selectedIndex >= 0 && selectedIndex < lessons.length - 1 ? lessons[selectedIndex + 1] : null;
   const selectedModule = moduleGroups.find((module) => module.id === selectedLesson.module_id) || moduleGroups[0];
-  const selectedLessonTitle = normalizedTitle(selectedLesson.title);
-  const selectedGradeItem = gradeItems.find((item) => normalizedTitle(item.title) === selectedLessonTitle)
-    || gradeItems.find((item) => {
-      const itemTitle = normalizedTitle(item.title);
-      return itemTitle && selectedLessonTitle && (itemTitle.includes(selectedLessonTitle) || selectedLessonTitle.includes(itemTitle));
-    });
+  const selectedGradeItem = gradeItemForLesson(selectedLesson, gradeItems);
   const quizGrade = selectedGradeItem ? grades.find((grade) => grade.grade_item_id === selectedGradeItem.id) : null;
   const examAttempt = !instructor && enrollmentId && moduleItemKind(selectedLesson.title) === "quiz"
     ? db.prepare("SELECT * FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollmentId, selectedLesson.id)
@@ -4050,6 +4049,21 @@ function normalizedTitle(value = "") {
     .trim();
 }
 
+function gradeItemForLesson(lesson = {}, gradeItems = []) {
+  const lessonTitle = normalizedTitle(lesson.title);
+  const directMatch = gradeItems.find((item) => {
+    const itemTitle = normalizedTitle(item.title);
+    return itemTitle && lessonTitle && (itemTitle.includes(lessonTitle) || lessonTitle.includes(itemTitle));
+  });
+  if (directMatch) return directMatch;
+
+  const lessonContent = String(lesson.content || "").toLowerCase();
+  return gradeItems.find((item) => {
+    const itemTitle = String(item.title || "").trim().toLowerCase();
+    return itemTitle.length >= 4 && lessonContent.includes(itemTitle);
+  }) || null;
+}
+
 function assignmentTypeLabel(item = {}) {
   const title = String(item.title || "").toLowerCase();
   if (title.includes("quiz")) return "Quiz";
@@ -4061,10 +4075,16 @@ function assignmentTypeLabel(item = {}) {
 }
 
 function assignmentItemHref(item = {}, lessons = [], baseHref = "#") {
+  if (assignmentTypeLabel(item) === "Assignment" && item.id) {
+    return `${baseHref}?assignment=${item.id}`;
+  }
   const itemTitle = normalizedTitle(item.title);
   const match = lessons.find((lesson) => {
     const lessonTitle = normalizedTitle(lesson.title);
-    return lessonTitle && itemTitle && (lessonTitle.includes(itemTitle) || itemTitle.includes(lessonTitle));
+    const directMatch = lessonTitle && itemTitle && (lessonTitle.includes(itemTitle) || itemTitle.includes(lessonTitle));
+    const rawItemTitle = String(item.title || "").trim().toLowerCase();
+    const contentMatch = rawItemTitle.length >= 4 && String(lesson.content || "").toLowerCase().includes(rawItemTitle);
+    return directMatch || contentMatch;
   });
   if (match) return `${baseHref}?lesson=${match.id}`;
   return item.id ? `${baseHref}?assignment=${item.id}` : `${baseHref}?view=assignments`;
@@ -4289,20 +4309,20 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
               <div class="assignment-submission-receipt">
                 <p><strong>${escapeHtml(submission.file_original_name)}</strong></p>
                 <p class="muted">Submitted ${escapeHtml(date(submission.submitted_at))} · ${escapeHtml(formatBytes(submission.file_size))}</p>
-                ${submission.student_note ? `<p><strong>Your note:</strong> ${escapeHtml(submission.student_note)}</p>` : ""}
-                <a class="button ghost small" href="/student/assignment-submissions/${submission.id}/file">Download submitted file</a>
+                ${submission.student_note ? `<div class="assignment-written-response"><strong>Your written response</strong><p>${escapeHtml(submission.student_note)}</p></div>` : ""}
+                <a class="button ghost small" href="/student/assignment-submissions/${submission.id}/file">Download submitted work</a>
               </div>
-            ` : `<p>Upload your completed work for your instructor to review and grade.</p>`}
+            ` : `<p>Type your answer below, attach a completed file, or use both options. Your instructor will receive the work in the grading queue.</p>`}
             <form class="assignment-submission-form" method="post" enctype="multipart/form-data" action="/student/enrollments/${enrollmentId}/assignments/${item.id}/submit">
               <label>
-                ${submission ? "Replace submitted file" : "Assignment file"}
-                <input type="file" name="assignmentFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.webp,.zip" required>
+                Write your response
+                <textarea name="studentResponse" rows="9" maxlength="12000" placeholder="Answer the assignment prompt in complete sentences. Support your response with this week's course material and do not include real patient-identifying information.">${escapeHtml(submission?.student_note || "")}</textarea>
               </label>
               <label>
-                Note for your instructor (optional)
-                <textarea name="studentNote" rows="3" maxlength="2000" placeholder="Add context or a message about your submission">${escapeHtml(submission?.student_note || "")}</textarea>
+                ${submission ? "Replace or add an attachment (optional)" : "Attach a completed file (optional)"}
+                <input type="file" name="assignmentFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.webp,.zip">
               </label>
-              <p class="muted">Accepted: PDF, Office documents, text, CSV, images, and ZIP files up to 25 MB.</p>
+              <p class="muted">Enter a written response, attach a file, or do both. Accepted files: PDF, Office documents, text, CSV, images, and ZIP files up to 25 MB.</p>
               <button class="button" type="submit">${submission ? "Replace Submission" : "Submit Assignment"}</button>
             </form>
           </section>
@@ -8194,7 +8214,7 @@ app.get("/admin/assignment-submissions", requireAuth, requireRole("admin", "inst
       <div>
         <p class="eyebrow">Grading Queue</p>
         <h1>Assignment Inbox</h1>
-        <p>Review all student file submissions, download their work, and post grades and feedback from one place.</p>
+        <p>Review students' written responses and attached files, then post grades and feedback from one place.</p>
       </div>
       <div class="actions"><a class="button ghost" href="/admin/students">Students</a><a class="button ghost" href="/admin/courses">Courses</a></div>
     </div>
@@ -8224,7 +8244,7 @@ app.get("/admin/assignment-submissions", requireAuth, requireRole("admin", "inst
             <div><span>Submitted</span><strong>${escapeHtml(formatMessageDate(submission.submitted_at))}</strong><small>${escapeHtml(formatBytes(submission.file_size))}</small></div>
             <div><span>File</span><strong>${escapeHtml(submission.file_original_name)}</strong><a class="button small ghost" href="/admin/assignment-submissions/${submission.id}/file">Download</a></div>
           </div>
-          ${submission.student_note ? `<div class="assignment-student-note"><strong>Student note</strong><p>${escapeHtml(submission.student_note)}</p></div>` : ""}
+          ${submission.student_note ? `<div class="assignment-student-note"><strong>Written response</strong><p>${escapeHtml(submission.student_note)}</p></div>` : ""}
           <form class="assignment-grade-form" method="post" action="/admin/assignment-submissions/${submission.id}/grade">
             <label>Score
               <span><input type="number" name="score" min="0" max="${escapeHtml(submission.points_possible)}" step="0.01" value="${escapeHtml(submission.score ?? "")}" required> / ${escapeHtml(submission.points_possible)}</span>
@@ -13783,9 +13803,33 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     flash(req, "This assessment must be completed in the portal and does not accept file uploads.");
     return res.redirect(redirectToAssignment);
   }
-  if (!req.file) {
-    flash(req, "Choose an assignment file before submitting.");
+  const studentResponse = String(req.body.studentResponse || "").trim().slice(0, 12000);
+  if (!req.file && !studentResponse) {
+    flash(req, "Write your response or attach an assignment file before submitting.");
     return res.redirect(redirectToAssignment);
+  }
+  let submittedFile = req.file ? {
+    path: req.file.path,
+    filename: req.file.filename,
+    originalname: req.file.originalname,
+    mimetype: req.file.mimetype,
+    size: req.file.size
+  } : null;
+  if (!submittedFile) {
+    const filename = `${crypto.randomUUID()}.txt`;
+    const safeBase = String(assignment.title || "assignment")
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "assignment";
+    const filePath = path.join(uploadDir, filename);
+    fs.writeFileSync(filePath, `${assignment.title}\n\n${studentResponse}\n`, "utf8");
+    submittedFile = {
+      path: filePath,
+      filename,
+      originalname: `${safeBase}-written-response.txt`,
+      mimetype: "text/plain",
+      size: fs.statSync(filePath).size
+    };
   }
   const previous = db.prepare(`
     SELECT file_storage_name FROM assignment_submissions WHERE grade_item_id = ? AND enrollment_id = ?
@@ -13807,17 +13851,17 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     `).run(
       assignmentId,
       enrollmentId,
-      req.file.filename,
-      req.file.originalname,
-      req.file.mimetype,
-      req.file.size,
-      String(req.body.studentNote || "").trim().slice(0, 2000)
+      submittedFile.filename,
+      submittedFile.originalname,
+      submittedFile.mimetype,
+      submittedFile.size,
+      studentResponse
     );
   } catch (error) {
-    fs.unlink(req.file.path, () => {});
+    if (submittedFile?.path && isPathInside(uploadDir, submittedFile.path)) fs.unlink(submittedFile.path, () => {});
     throw error;
   }
-  if (previous?.file_storage_name && previous.file_storage_name !== req.file.filename) {
+  if (previous?.file_storage_name && previous.file_storage_name !== submittedFile.filename) {
     const previousPath = path.join(uploadDir, previous.file_storage_name);
     if (isPathInside(uploadDir, previousPath)) fs.unlink(previousPath, () => {});
   }
@@ -13828,7 +13872,7 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     recipientId: staff.id,
     courseId: assignment.course_id,
     subject: `${previous ? "Assignment resubmitted" : "Assignment submitted"}: ${assignment.title}`,
-    body: `${studentName} ${previous ? "replaced the submission for" : "submitted"} ${assignment.title} in ${assignment.course_title}. Open Assignment Inbox to download and grade the work.`
+    body: `${studentName} ${previous ? "replaced the submission for" : "submitted"} ${assignment.title} in ${assignment.course_title}. Open Assignment Inbox to review and grade the work.`
   }));
   flash(req, "Assignment submitted successfully. Staff were notified and the work was added to the grading queue.");
   res.redirect(redirectToAssignment);
