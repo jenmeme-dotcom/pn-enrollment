@@ -10724,14 +10724,13 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
       <main class="canvas-course-main">
         <div class="canvas-mini-head">
           <span></span>
-          <strong>${escapeHtml(courseCode)}</strong>
+          <h1>${escapeHtml(courseCode)} — ${escapeHtml(course.title)}</h1>
         </div>
         <div class="preview-ribbon">
           <strong>Student View Preview</strong>
           <span>Use Instructor View to edit course details, lessons, enrollments, and credentials.</span>
           <a class="button small" href="/admin/courses/${course.id}">Instructor View</a>
         </div>
-        <h1>${escapeHtml(course.title)}</h1>
         <div class="canvas-rule"></div>
         <section class="canvas-home-card">
           <h2>${escapeHtml(course.title)}</h2>
