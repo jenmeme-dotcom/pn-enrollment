@@ -10749,7 +10749,6 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
 
       <main class="canvas-course-main">
         <div class="canvas-mini-head">
-          <span></span>
           <h1>${escapeHtml(courseCode)} — ${escapeHtml(course.title)}</h1>
         </div>
         <div class="preview-ribbon">
