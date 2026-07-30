@@ -237,7 +237,7 @@ function buildPowerPointReviewContent(chapter) {
     `<h2>Chapter ${chapter.number}: ${chapter.title} PowerPoint</h2>`,
     "<p>View the chapter slides in this lesson or download the editable PowerPoint for class review and note-taking.</p>",
     `<p><a href="${materialBaseHref}/${powerPointFileName}">Chapter ${chapter.number} PowerPoint</a></p>`,
-    "<h3>Study outline</h3>",
+    "<h2>Study outline</h2>",
     `<ul>${notes.map(([topic, explanation]) => `<li><strong>${topic}</strong><br>${explanation}</li>`).join("")}</ul>`,
     `<p><strong>Before moving on:</strong> explain each focus area in your own words, connect it to a practical nursing action, and identify what you would observe, do, document, or report.</p>`
   ].join("\n");

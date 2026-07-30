@@ -1645,9 +1645,16 @@ const introNursingChapterTitles = {
   13: "Physical Assessment"
 };
 
-function courseLessonDisplayTitle(courseSlug = "", lessonTitle = "") {
+function isStructuredCoursePageLesson(lesson = {}) {
+  const itemType = String(lesson.item_type || "page").toLowerCase();
+  return itemType === "page" && !String(lesson.external_url || "").trim();
+}
+
+function courseLessonDisplayTitle(courseSlug = "", lessonTitle = "", lesson = {}) {
   const title = String(lessonTitle || "");
   if (courseSlug !== "introduction-to-nursing-practical-nursing") return title;
+  const cleanTitle = title.replace(/^\[PN102 2026\]\s+/, "");
+  if (!isStructuredCoursePageLesson(lesson)) return cleanTitle;
 
   const powerPointMatch = title.match(/^\[PN102 2026\]\s+Chapter\s+(\d+)\s+PowerPoint Review$/i);
   if (powerPointMatch) {
@@ -1659,11 +1666,56 @@ function courseLessonDisplayTitle(courseSlug = "", lessonTitle = "") {
   }
 
   const textbookMatch = title.match(/^Chapter\s+(\d+):\s*(.+)$/i);
-  if (textbookMatch) {
+  if (textbookMatch && normalizedTitle(textbookMatch[2]) === normalizedTitle(introNursingChapterTitles[Number(textbookMatch[1])])) {
     return `Chapter ${textbookMatch[1]} Textbook Reading: ${textbookMatch[2]}`;
   }
 
-  return title.replace(/^\[PN102 2026\]\s+/, "");
+  return cleanTitle;
+}
+
+function courseLessonPageHeading(courseSlug = "", lesson = {}) {
+  const rawTitle = String(lesson.title || "");
+  const details = [];
+  let title = courseLessonDisplayTitle(courseSlug, rawTitle, lesson);
+
+  if (courseSlug === "introduction-to-nursing-practical-nursing" && isStructuredCoursePageLesson(lesson)) {
+    const powerPointMatch = rawTitle.match(/^\[PN102 2026\]\s+Chapter\s+(\d+)\s+PowerPoint Review$/i);
+    const textbookMatch = rawTitle.match(/^Chapter\s+(\d+):\s*(.+)$/i);
+    if (powerPointMatch) {
+      const chapterNumber = Number(powerPointMatch[1]);
+      title = introNursingChapterTitles[chapterNumber] || `Chapter ${chapterNumber}`;
+      details.push(`Chapter ${chapterNumber}`, "PowerPoint");
+    } else if (textbookMatch && normalizedTitle(textbookMatch[2]) === normalizedTitle(introNursingChapterTitles[Number(textbookMatch[1])])) {
+      title = textbookMatch[2];
+      details.push(`Chapter ${textbookMatch[1]}`, "Textbook reading");
+    }
+  }
+
+  if (!details.length) {
+    const itemType = String(lesson.item_type || "").toLowerCase();
+    const inferredKind = moduleItemKind(rawTitle);
+    const explicitItemTypeLabel = ({ assignment: "Assignment", link: "External link", youtube: "Recording" })[itemType];
+    const resourceLabel = explicitItemTypeLabel
+      || (youtubeVideoId(lesson.external_url)
+        ? "Recording"
+        : lesson.external_url
+          ? "External link"
+          : ({ quiz: "Quiz", discussion: "Discussion", assignment: "Assignment", file: "File", page: "Lesson" })[inferredKind] || "Lesson");
+    details.push(resourceLabel);
+  }
+
+  const durationMinutes = Number(lesson.duration_minutes);
+  if (Number.isFinite(durationMinutes) && durationMinutes > 0) {
+    details.push(`${durationMinutes} min`);
+  }
+
+  return { title, details };
+}
+
+function lessonModuleBreadcrumbLabel(moduleTitle = "") {
+  const title = String(moduleTitle || "").trim();
+  const weekMatch = title.match(/\bWeek\s+(\d+)\b/i);
+  return weekMatch ? `Week ${weekMatch[1]}` : title;
 }
 
 function renderWeeklyLearningPattern({ compact = false } = {}) {
@@ -1749,7 +1801,7 @@ function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, course
                     <span class="module-drag">⁝</span>
                     <span class="module-type ${escapeHtml(kind)}">${escapeHtml(moduleItemIcon(kind))}</span>
                     <span class="module-title">
-                      <strong>${escapeHtml(courseLessonDisplayTitle(courseSlug, lesson.title))}</strong>
+                      <strong>${escapeHtml(courseLessonDisplayTitle(courseSlug, lesson.title, lesson))}</strong>
                       ${moduleItemMeta(lesson) ? `<small>${escapeHtml(moduleItemMeta(lesson))}</small>` : ""}
                     </span>
                     <span class="${isPublished ? "canvas-published-dot" : "canvas-unpublished-dot"}"></span>
@@ -2528,7 +2580,8 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
   const lessonIsComplete = completedLessonIds.has(selectedLesson.id) || Boolean(quizGrade);
   const selectedLessonIsQuiz = moduleItemKind(selectedLesson.title) === "quiz";
   const selectedCourseSlug = courseSlug || (courseId ? db.prepare("SELECT slug FROM courses WHERE id = ?").get(Number(courseId))?.slug : null);
-  const selectedLessonDisplayTitle = courseLessonDisplayTitle(selectedCourseSlug, selectedLesson.title);
+  const selectedLessonDisplayTitle = courseLessonDisplayTitle(selectedCourseSlug, selectedLesson.title, selectedLesson);
+  const selectedLessonHeading = courseLessonPageHeading(selectedCourseSlug, selectedLesson);
   const showIntroNursingNclexHint = selectedCourseSlug === "introduction-to-nursing-practical-nursing" && !selectedLessonIsQuiz;
   // The encoded quiz bank belongs to the interactive quiz engine. Showing the
   // source content on a student page exposes every question before Start Now.
@@ -2547,9 +2600,12 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
           <a href="${escapeHtml(baseHref)}">Home</a>
           <span>/</span>
           <a href="${escapeHtml(baseHref)}?view=modules">Modules</a>
-          ${selectedModule ? `<span>/</span><span>${escapeHtml(selectedModule.title)}</span>` : ""}
+          ${selectedModule ? `<span>/</span><span>${escapeHtml(lessonModuleBreadcrumbLabel(selectedModule.title))}</span>` : ""}
         </p>
-        <h1>${escapeHtml(selectedLessonDisplayTitle)}</h1>
+        <p class="canvas-lesson-meta">
+          ${selectedLessonHeading.details.map((detail, index) => `${index ? `<span aria-hidden="true">·</span>` : ""}<span>${escapeHtml(detail)}</span>`).join("")}
+        </p>
+        <h1>${escapeHtml(selectedLessonHeading.title)}</h1>
         <div class="canvas-page-copy">
           ${selectedLessonYouTubeEmbed ? `
             <section class="youtube-recording" aria-label="YouTube recording">
@@ -2571,7 +2627,7 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
               <a class="button" href="${escapeHtml(selectedLesson.external_url)}">Open ${escapeHtml(selectedLessonDisplayTitle)}</a>
             </div>
           ` : ""}
-          ${showLessonSourceContent ? renderCanvasLessonContent(lessonContentForViewer, selectedLesson.title) : ""}
+          ${showLessonSourceContent ? renderCanvasLessonContent(lessonContentForViewer, [selectedLesson.title, selectedLessonDisplayTitle, selectedLessonHeading.title]) : ""}
         </div>
         ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId, examAttempt })}
         ${selectedGradeItem && rubricEligible(selectedGradeItem)
@@ -2677,7 +2733,7 @@ function renderComingUp(lessons = [], baseHref = "#", courseSlug = "") {
         <article class="canvas-upcoming-item">
           <span>${escapeHtml(index + 1)}</span>
           <div>
-            <a href="${escapeHtml(baseHref)}?lesson=${lesson.id}">${escapeHtml(courseLessonDisplayTitle(courseSlug, lesson.title))}</a>
+            <a href="${escapeHtml(baseHref)}?lesson=${lesson.id}">${escapeHtml(courseLessonDisplayTitle(courseSlug, lesson.title, lesson))}</a>
             <small>${escapeHtml(lesson.duration_minutes)} minutes</small>
           </div>
         </article>
@@ -4644,14 +4700,76 @@ function looksLikeHtml(value = "") {
   return /<\/?(?:div|p|h[1-6]|ul|ol|li|table|thead|tbody|tr|th|td|img|figure|section|article|span|strong|em|a)\b/i.test(value);
 }
 
-function normalizeLessonLines(value = "", lessonTitle = "") {
-  const title = String(lessonTitle || "").trim().toLowerCase();
+function lessonTitleCandidates(value = []) {
+  return (Array.isArray(value) ? value : [value])
+    .map((title) => String(title || "").trim())
+    .filter(Boolean);
+}
+
+function semanticLessonHeadingWords(value = "") {
+  const words = String(value || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&(?:amp|#0*38);/gi, " and ")
+    .replace(/&(?:nbsp|#0*160);/gi, " ")
+    .replace(/&(?:quot|ldquo|rdquo|#0*34);/gi, '"')
+    .replace(/&(?:apos|lsquo|rsquo|#0*39);/gi, "'")
+    .replace(/&(?:ndash|mdash|minus|hellip);/gi, " ")
+    .replace(/&([a-z])(acute|grave|circ|tilde|uml|cedil|ring);/gi, "$1")
+    .replace(/&aelig;/gi, "ae")
+    .replace(/&oelig;/gi, "oe")
+    .replace(/&(?:szlig);/gi, "ss")
+    .replace(/&(?:oslash);/gi, "o")
+    .replace(/&(?:eth);/gi, "d")
+    .replace(/&(?:thorn);/gi, "th")
+    .replace(/&#x([0-9a-f]+);/gi, (entity, code) => {
+      const point = Number.parseInt(code, 16);
+      return Number.isInteger(point) && point >= 0 && point <= 0x10ffff ? String.fromCodePoint(point) : " ";
+    })
+    .replace(/&#([0-9]+);/g, (entity, code) => {
+      const point = Number.parseInt(code, 10);
+      return Number.isInteger(point) && point >= 0 && point <= 0x10ffff ? String.fromCodePoint(point) : " ";
+    })
+    .replace(/&/g, " and ")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .match(/[\p{L}\p{N}]+/gu) || [];
+  return words;
+}
+
+function semanticLessonHeadingKeys(value = "") {
+  const words = semanticLessonHeadingWords(value);
+  if (!words.length) return [];
+  const keys = [`exact:${words.join(" ")}`];
+  if (words.includes("powerpoint")) {
+    keys.push(`powerpoint:${words.filter((word) => word !== "powerpoint").join(" ")}`);
+  }
+  return keys;
+}
+
+function lessonHeadingMatchesTitleKeys(value = "", titleKeys = new Set()) {
+  return semanticLessonHeadingKeys(value).some((key) => titleKeys.has(key));
+}
+
+function stripDuplicateHtmlLessonHeading(value = "", lessonTitles = []) {
+  const html = String(value || "");
+  const openingHeading = html.match(/^(\s*(?:<(?:div|section|article)\b[^>]*>\s*)*)<h([1-3])\b([^>]*)>([\s\S]*?)<\/h\2>\s*/i);
+  if (!openingHeading) return html;
+  if (/\bid\s*=/i.test(openingHeading[3])) return html;
+  const titleKeys = new Set(lessonTitleCandidates(lessonTitles).flatMap(semanticLessonHeadingKeys));
+  return lessonHeadingMatchesTitleKeys(openingHeading[4], titleKeys)
+    ? `${openingHeading[1]}${html.slice(openingHeading[0].length)}`
+    : html;
+}
+
+function normalizeLessonLines(value = "", lessonTitles = []) {
+  const titleKeys = new Set(lessonTitleCandidates(lessonTitles).flatMap(semanticLessonHeadingKeys));
   const lines = stripCanvasSource(value)
     .replace(/\r\n?/g, "\n")
     .split("\n")
     .map((line) => line.trimEnd());
   while (lines.length && !lines[0].trim()) lines.shift();
-  while (lines.length && title && lines[0].trim().toLowerCase() === title) {
+  while (lines.length && lessonHeadingMatchesTitleKeys(lines[0], titleKeys)) {
     lines.shift();
     while (lines.length && !lines[0].trim()) lines.shift();
   }
@@ -4819,14 +4937,15 @@ function renderLineRun(lines = []) {
   return output.join("");
 }
 
-function renderCanvasLessonContent(value = "", lessonTitle = "") {
+function renderCanvasLessonContent(value = "", lessonTitles = []) {
   const raw = stripCanvasSource(value).replace(/\n*QUIZ_DATA_BASE64:[A-Za-z0-9+/=]+\s*/g, "\n").trim();
   if (!raw) return `<p class="empty">No page content has been added yet.</p>`;
   if (looksLikeHtml(raw)) {
-    return `<div class="canvas-source-html">${sanitizeCanvasHtml(raw)}</div>`;
+    const cleanedHtml = stripDuplicateHtmlLessonHeading(sanitizeCanvasHtml(raw), lessonTitles).trim();
+    return cleanedHtml ? `<div class="canvas-source-html">${cleanedHtml}</div>` : "";
   }
 
-  const lines = normalizeLessonLines(raw, lessonTitle);
+  const lines = normalizeLessonLines(raw, lessonTitles);
   const html = [];
   let paragraphRun = [];
 
@@ -13421,7 +13540,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
             ${module.lessons.map((lesson) => `
               <a class="${lesson.id === currentLessonId ? "active" : ""}" href="/student/enrollments/${enrollment.id}?lesson=${lesson.id}">
                 <span class="outline-dot"></span>
-                <span>${escapeHtml(courseLessonDisplayTitle(enrollment.slug, lesson.title))}</span>
+                <span>${escapeHtml(courseLessonDisplayTitle(enrollment.slug, lesson.title, lesson))}</span>
               </a>
             `).join("")}
           </section>
