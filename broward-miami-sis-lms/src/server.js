@@ -2742,11 +2742,39 @@ function renderComingUp(lessons = [], baseHref = "#", courseSlug = "") {
   `;
 }
 
+function gradeDueDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  let parsed;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    parsed = new Date(`${raw}T23:59:00`);
+  } else if (/^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}(?::\d{2})?$/.test(raw)) {
+    parsed = new Date(raw.replace(/\s+/, "T"));
+  } else {
+    parsed = new Date(raw.replace(/\s+at\s+/i, " "));
+    if (!/\d{1,2}:\d{2}|\b(?:am|pm)\b/i.test(raw) && !Number.isNaN(parsed.getTime())) {
+      parsed.setHours(23, 59, 0, 0);
+    }
+  }
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function formatGradeDue(value) {
   if (!value) return "";
-  const parsed = new Date(`${value}T23:59:00`);
-  if (Number.isNaN(parsed.getTime())) return String(value);
-  return `${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(parsed)} by 11:59pm`;
+  const parsed = gradeDueDate(value);
+  if (!parsed) return String(value);
+  const dateLabel = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  }).format(parsed);
+  const timeLabel = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(parsed);
+  return `${dateLabel} at ${timeLabel}`;
 }
 
 function pnDiscussionGradeRows() {
@@ -4120,6 +4148,19 @@ function gradeItemForLesson(lesson = {}, gradeItems = []) {
   }) || null;
 }
 
+function lessonIndexForGradeItem(item = {}, lessons = []) {
+  const itemTitle = normalizedTitle(item.title);
+  const directIndex = lessons.findIndex((lesson) => {
+    const lessonTitle = normalizedTitle(lesson.title);
+    return itemTitle && lessonTitle && (itemTitle.includes(lessonTitle) || lessonTitle.includes(itemTitle));
+  });
+  if (directIndex >= 0) return directIndex;
+
+  const rawItemTitle = String(item.title || "").trim().toLowerCase();
+  if (rawItemTitle.length < 4) return -1;
+  return lessons.findIndex((lesson) => String(lesson.content || "").toLowerCase().includes(rawItemTitle));
+}
+
 function assignmentTypeLabel(item = {}) {
   const title = String(item.title || "").toLowerCase();
   if (title.includes("quiz")) return "Quiz";
@@ -4421,7 +4462,21 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
       group: assignmentTypeLabel(lesson),
       lesson_id: lesson.id
     }));
-  const rows = filteredItems.length ? filteredItems : fallbackItems;
+  const sourceRows = filteredItems.length ? filteredItems : fallbackItems;
+  const rows = [...sourceRows].sort((left, right) => {
+    const leftLessonIndex = lessonIndexForGradeItem(left, lessons);
+    const rightLessonIndex = lessonIndexForGradeItem(right, lessons);
+    if (leftLessonIndex >= 0 && rightLessonIndex >= 0 && leftLessonIndex !== rightLessonIndex) {
+      return leftLessonIndex - rightLessonIndex;
+    }
+    if (leftLessonIndex >= 0 && rightLessonIndex < 0) return -1;
+    if (leftLessonIndex < 0 && rightLessonIndex >= 0) return 1;
+
+    const leftDue = gradeDueDate(left.due_date)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    const rightDue = gradeDueDate(right.due_date)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    if (leftDue !== rightDue) return leftDue - rightDue;
+    return String(left.title || "").localeCompare(String(right.title || ""));
+  });
   const title = quizzesOnly ? "Quizzes" : "Assignments";
   const description = quizzesOnly
     ? "Course quizzes are listed here with due dates, points, and module links."
