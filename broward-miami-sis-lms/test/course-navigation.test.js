@@ -363,6 +363,59 @@ test("student evaluations have a dedicated page and compact profile entry", asyn
   assert.match(evaluationsHtml, /Back to My Profile/);
 });
 
+test("student profile keeps long account values in dedicated wrapping containers", async () => {
+  const profileHtml = await getHtml("/student/profile", studentCookie);
+  const profileGrid = profileHtml.match(/<section class="profile-grid">([\s\S]*?)<\/section>\s*<\/section>/);
+  assert.ok(profileGrid, "Expected the student profile grid");
+  assert.match(profileGrid[1], /<article class="student-panel profile-card" id="profile">/);
+  assert.match(profileGrid[1], /<article class="student-panel profile-summary">/);
+
+  const profileTable = profileGrid[1].match(/<div class="profile-table">([\s\S]*?)<\/div>\s*<form class="profile-reminder-email"/);
+  assert.ok(profileTable, "Expected the profile details table");
+  assert.match(profileTable[1], /<strong>Email<\/strong><span>[^<]+<\/span>/);
+  assert.match(profileTable[1], /<strong>Personal reminder email<\/strong><span>[^<]+<\/span>/);
+
+  const summary = profileGrid[1].match(/<div class="summary-stats">([\s\S]*?)<\/div>\s*<\/article>/);
+  assert.ok(summary, "Expected the student summary statistics");
+  assert.equal([...summary[1].matchAll(/class="stat"/g)].length, 3, "Expected three separate summary boxes");
+});
+
+test("student profile CSS stacks constrained panels and safely wraps long words", () => {
+  const styles = fs.readFileSync(path.join(projectRoot, "src", "public", "styles.css"), "utf8");
+  assert.match(
+    styles,
+    /@media \(max-width: 1400px\) and \(min-width: 821px\)[\s\S]*?\.profile-card,\s*\.profile-summary\s*\{[\s\S]*?grid-column:\s*span 12;/,
+    "Expected the two profile panels to stack while the persistent student sidebar constrains the content area"
+  );
+  assert.match(
+    styles,
+    /\.profile-table div\s*\{[\s\S]*?min-width:\s*0;/,
+    "Expected profile detail cells to be allowed to shrink inside the grid"
+  );
+  assert.match(
+    styles,
+    /\.profile-table span\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/,
+    "Expected long email addresses and program names to wrap instead of overlapping adjacent cells"
+  );
+  assert.match(
+    styles,
+    /\.profile-reminder-email input\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?width:\s*100%;/,
+    "Expected the personal email input to stay inside the profile card"
+  );
+  assert.match(
+    styles,
+    /\.summary-stats\s*\{[\s\S]*?grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(144px,\s*1fr\)\);/,
+    "Expected summary boxes to reflow before their labels become too narrow"
+  );
+  assert.match(
+    styles,
+    /\.summary-stats \.stat span,[\s\S]*?overflow-wrap:\s*normal;[\s\S]*?word-break:\s*normal;/,
+    "Expected summary labels to wrap between words rather than splitting words"
+  );
+  assert.match(styles, /\.stat\s*\{[\s\S]*?min-width:\s*0;/);
+  assert.match(styles, /\.stat span\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/);
+});
+
 test("evaluation submissions return to the dedicated sections", async () => {
   const enrollment = database.prepare(`
     SELECT e.id
