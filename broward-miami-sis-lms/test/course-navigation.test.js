@@ -181,6 +181,16 @@ function assertNavigation(html, expectedLabels, activeLabel) {
   return navigation;
 }
 
+function studentPortalNavigation(html) {
+  const sidebar = html.match(/<aside class="student-sidebar">([\s\S]*?)<\/aside>/);
+  assert.ok(sidebar, "Expected the student portal sidebar");
+  return [...sidebar[1].matchAll(/<a class="([^"]*)" href="([^"]*)">([\s\S]*?)<\/a>/g)].map((match) => ({
+    active: match[1].split(/\s+/).includes("active"),
+    href: match[2],
+    label: decodeText(match[3])
+  }));
+}
+
 before(async () => {
   temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "bmhi-course-navigation-"));
   const databaseFile = path.join(temporaryDirectory, "navigation.sqlite");
@@ -189,6 +199,7 @@ before(async () => {
   await startServer(port, databaseFile);
 
   database = new DatabaseSync(databaseFile);
+  database.exec("PRAGMA busy_timeout = 5000;");
   const photoStorageName = "test-student.png";
   fs.writeFileSync(
     path.join(temporaryDirectory, "uploads", photoStorageName),
@@ -267,7 +278,7 @@ test("student course menus keep identical labels and order on home, modules, and
   }
 });
 
-test("student course menus stay fixed when courses configure opposite hidden sections", async (t) => {
+test("student course menus stay fixed after customization requests", async (t) => {
   const enrollments = database.prepare(`
     SELECT e.id, e.course_id, c.slug, c.hidden_sections, MIN(l.id) AS lesson_id
     FROM enrollments e
@@ -305,11 +316,63 @@ test("student course menus stay fixed when courses configure opposite hidden sec
     }
   } finally {
     for (const enrollment of enrollments) {
-      const originallyHidden = new Set(JSON.parse(enrollment.hidden_sections || "[]"));
-      await setVisibleCourseSections(
-        enrollment.course_id,
-        configurableCourseSections.filter((label) => !originallyHidden.has(label))
-      );
+      await setVisibleCourseSections(enrollment.course_id, configurableCourseSections);
     }
   }
+});
+
+test("course navigation settings endpoint resets legacy customization", async () => {
+  const course = database.prepare("SELECT id FROM courses ORDER BY id LIMIT 1").get();
+  await setVisibleCourseSections(course.id, ["Home"]);
+  assert.equal(database.prepare("SELECT hidden_sections FROM courses WHERE id = ?").get(course.id).hidden_sections, "[]");
+});
+
+test("student evaluations have a dedicated page and compact profile entry", async () => {
+  const profileHtml = await getHtml("/student/profile", studentCookie);
+  const profileNavigation = studentPortalNavigation(profileHtml);
+  assert.ok(profileNavigation.some((item) => item.label === "Student Evaluations" && item.href === "/student/evaluations"));
+  assert.deepEqual(profileNavigation.filter((item) => item.active).map((item) => item.label), ["My Profile"]);
+  assert.match(profileHtml, /href="\/student\/evaluations">Open Student Evaluations<\/a>/);
+  assert.doesNotMatch(profileHtml, /class="student-self-eval-card/);
+  assert.doesNotMatch(profileHtml, /class="course-survey-card/);
+
+  const evaluationsHtml = await getHtml("/student/evaluations", studentCookie);
+  const evaluationsNavigation = studentPortalNavigation(evaluationsHtml);
+  assert.deepEqual(evaluationsNavigation.filter((item) => item.active).map((item) => item.label), ["Student Evaluations"]);
+  assert.match(evaluationsHtml, /<h1>Student Evaluations and Surveys<\/h1>/);
+  assert.match(evaluationsHtml, /id="self-evaluations"/);
+  assert.match(evaluationsHtml, /id="course-surveys"/);
+  assert.match(evaluationsHtml, /Back to My Profile/);
+});
+
+test("evaluation submissions return to the dedicated sections", async () => {
+  const enrollment = database.prepare(`
+    SELECT e.id
+    FROM enrollments e
+    JOIN users u ON u.id = e.user_id
+    WHERE u.email = 'student@browardmiamihi.com'
+      AND e.status IN ('active', 'completed')
+      AND e.withdrawn_at IS NULL
+    ORDER BY e.id
+    LIMIT 1
+  `).get();
+  assert.ok(enrollment, "Expected an evaluation-eligible enrollment");
+
+  const selfResponse = await fetch(`${baseUrl}/student/self-evaluations/${enrollment.id}/4`, {
+    body: new URLSearchParams(),
+    headers: { "content-type": "application/x-www-form-urlencoded", cookie: studentCookie },
+    method: "POST",
+    redirect: "manual"
+  });
+  assert.equal(selfResponse.status, 302);
+  assert.equal(selfResponse.headers.get("location"), "/student/evaluations#self-evaluations");
+
+  const surveyResponse = await fetch(`${baseUrl}/student/evaluations/${enrollment.id}/4`, {
+    body: new URLSearchParams(),
+    headers: { "content-type": "application/x-www-form-urlencoded", cookie: studentCookie },
+    method: "POST",
+    redirect: "manual"
+  });
+  assert.equal(surveyResponse.status, 302);
+  assert.equal(surveyResponse.headers.get("location"), "/student/evaluations#course-surveys");
 });
