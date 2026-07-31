@@ -141,7 +141,21 @@ const courseNavItems = [
   "External Apps",
   "Settings"
 ];
-const hideableCourseSections = courseNavItems.filter((item) => item !== "Home");
+const studentCourseNavItems = [
+  "Home",
+  "Announcements",
+  "Modules",
+  "Assignments",
+  "Discussions",
+  "Grades",
+  "Files",
+  "Syllabus",
+  "Rubrics",
+  "Quizzes",
+  "Conferences",
+  "Calendar"
+];
+const instructorCourseNavItems = [...courseNavItems.slice(0, -1), "Course Details", "Settings"];
 const lmsToolGroups = [
   {
     title: "Course content",
@@ -1348,20 +1362,6 @@ function renderCatalogDefinitionList(items = []) {
   `;
 }
 
-function parseHiddenSections(course = {}) {
-  try {
-    const parsed = JSON.parse(course.hidden_sections || "[]");
-    return new Set(Array.isArray(parsed) ? parsed : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function visibleCourseNavItems(course = {}) {
-  const hidden = parseHiddenSections(course);
-  return courseNavItems.filter((item) => item === "Home" || !hidden.has(item));
-}
-
 function canvasCourseCode(course = {}) {
   if (course.slug === "home-health-aide") return "HHA 75";
   if (course.slug === "home-health-aide-creole") return "HHA 75 Kreyol";
@@ -1428,10 +1428,7 @@ function courseLiveClassConfig(course = {}) {
 
 function toolStatus(course = {}, tool = {}) {
   if (tool.adminOnly) return { label: "Admin tool", className: "neutral" };
-  if (!tool.section) return { label: "Enabled", className: "enabled" };
-  return parseHiddenSections(course).has(tool.section)
-    ? { label: "Hidden from students", className: "hidden" }
-    : { label: "Visible to students", className: "enabled" };
+  return { label: "Available", className: "enabled" };
 }
 
 function renderLmsToolkit(course = {}, { compact = false } = {}) {
@@ -1550,19 +1547,10 @@ function renderInstructorCanvasRail(user, active = "courses") {
 
 function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = []) {
   const crumbTrail = breadcrumbs.length ? breadcrumbs : [{ label: courseCode, href: baseHref }];
-  const courseMenuItems = [
-    { label: "Home", href: baseHref },
-    { label: "Announcements", href: `${baseHref}?view=announcements` },
-    { label: "Modules", href: `${baseHref}?view=modules` },
-    { label: "Assignments", href: `${baseHref}?view=assignments` },
-    { label: "Discussions", href: `${baseHref}?view=discussions` },
-    { label: "Grades", href: `${baseHref}?view=grades` },
-    { label: "Files", href: `${baseHref}?view=files` },
-    { label: "Syllabus", href: `${baseHref}?view=syllabus` },
-    { label: "Quizzes", href: `${baseHref}?view=quizzes` },
-    { label: "Conferences", href: `${baseHref}?view=conferences` },
-    { label: "Calendar", href: `${baseHref}?view=calendar` }
-  ];
+  const courseMenuItems = studentCourseNavItems.map((label) => ({
+    label,
+    href: courseNavHref(baseHref, label)
+  }));
   return `
     <header class="canvas-populi-bar student-canvas-topbar">
       <button class="canvas-menu-button" type="button" aria-label="Open course menu" aria-expanded="false" aria-controls="canvas-course-submenu" data-course-menu-toggle>☰</button>
@@ -3176,7 +3164,6 @@ function renderInstructorPeoplePage({ course, courseCode, baseHref, enrollments 
 }
 
 function renderInstructorSettingsPage({ course, courseCode, baseHref, enrollments = [], instructor, modules = [], lessons = [], gradeItems = [], activeView = "settings" }) {
-  const hiddenSections = parseHiddenSections(course);
   const studentCount = enrollments.length;
   const activeStudents = enrollments.filter((enrollment) => enrollment.status === "active").length;
   const detailsView = activeView === "details" ? "details" : "settings";
@@ -3350,25 +3337,10 @@ function renderInstructorSettingsPage({ course, courseCode, baseHref, enrollment
 
         <section class="settings-section-panel" id="navigation">
           <h2>Navigation</h2>
-          <p>Choose which course navigation sections students can see. Home is always visible.</p>
-          <form method="post" action="/admin/courses/${course.id}/sections">
-            <input type="hidden" name="redirectTo" value="${escapeHtml(baseHref)}?view=settings#navigation">
-            <div class="settings-navigation-grid">
-              <label class="section-toggle locked">
-                <input type="checkbox" checked disabled>
-                <span>Home</span>
-                <small>Always visible</small>
-              </label>
-              ${hideableCourseSections.map((section) => `
-                <label class="section-toggle">
-                  <input type="checkbox" name="visibleSections" value="${escapeHtml(section)}" ${hiddenSections.has(section) ? "" : "checked"}>
-                  <span>${escapeHtml(section)}</span>
-                  <small>${hiddenSections.has(section) ? "Hidden from students" : "Visible to students"}</small>
-                </label>
-              `).join("")}
-            </div>
-            <button type="submit">Save Navigation</button>
-          </form>
+          <div class="settings-section-card">
+            <strong>Standard course menu</strong>
+            <span>Every course uses the same student navigation in the same order. Course content can still be published or unpublished inside Modules.</span>
+          </div>
         </section>
 
         <section class="settings-section-panel" id="feature-options">
@@ -8666,7 +8638,7 @@ app.post("/admin/student-evaluations/:enrollmentId/:weekNumber", requireAuth, re
       recipientId: enrollment.user_id,
       courseId: enrollment.course_id,
       subject: `Student evaluation completed: Week ${weekNumber} ${enrollment.course_title}`,
-      body: `Your instructor completed and released your Week ${weekNumber} evaluation for ${enrollment.course_title}. Open Student Evaluation and Surveys in your profile to review the scores, feedback, and action plan.`
+      body: `Your instructor completed and released your Week ${weekNumber} evaluation for ${enrollment.course_title}. Open Student Evaluations in the student portal to review the scores, feedback, and action plan.`
     });
   }
   flash(req, `Week ${weekNumber} evaluation saved for ${enrollment.first_name} ${enrollment.last_name}.`);
@@ -10215,7 +10187,6 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
       AND id NOT IN (SELECT user_id FROM enrollments WHERE course_id = ?)
     ORDER BY last_name, first_name
   `).all(course.id);
-  const hiddenSections = parseHiddenSections(course);
   const liveClass = courseLiveClassConfig(course);
   const childCourses = course.slug === "practical-nursing"
     ? db.prepare(`
@@ -10317,25 +10288,8 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
       </form>
     </section>
     <section class="card" style="margin-top:18px">
-      <h2>Course section visibility</h2>
-      <p class="muted">Choose which course navigation sections students can see. Home is always visible.</p>
-      <form method="post" action="/admin/courses/${course.id}/sections">
-        <div class="section-visibility-grid">
-          <label class="section-toggle locked">
-            <input type="checkbox" checked disabled>
-            <span>Home</span>
-            <small>Always visible</small>
-          </label>
-          ${hideableCourseSections.map((section) => `
-            <label class="section-toggle">
-              <input type="checkbox" name="visibleSections" value="${escapeHtml(section)}" ${hiddenSections.has(section) ? "" : "checked"}>
-              <span>${escapeHtml(section)}</span>
-              <small>${hiddenSections.has(section) ? "Hidden from students" : "Visible to students"}</small>
-            </label>
-          `).join("")}
-        </div>
-        <button type="submit">Save section visibility</button>
-      </form>
+      <h2>Course navigation</h2>
+      <p class="muted">This course uses the same standard left menu as every other course. Publish or unpublish modules and learning items to control student access to course content.</p>
     </section>
     <section class="grid cols-2" style="margin-top:18px">
       <div class="card">
@@ -10443,7 +10397,6 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
 app.get("/admin/courses/:id/tools", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(req.params.id));
   if (!course) return res.status(404).send("Course not found");
-  const hiddenSections = parseHiddenSections(course);
   const imports = db.prepare(`
     SELECT ci.*, u.first_name, u.last_name
     FROM course_imports ci
@@ -10489,25 +10442,7 @@ app.get("/admin/courses/:id/tools", requireAuth, requireRole("admin", "instructo
 
     <section class="card" style="margin-top:18px">
       <h2>Student course navigation</h2>
-      <p class="muted">Home is always visible. These settings customize what students can access in this course shell.</p>
-      <form method="post" action="/admin/courses/${course.id}/sections">
-        <input type="hidden" name="redirectTo" value="/admin/courses/${course.id}/tools">
-        <div class="section-visibility-grid tool-customize-grid">
-          <label class="section-toggle locked">
-            <input type="checkbox" checked disabled>
-            <span>Home</span>
-            <small>Always visible</small>
-          </label>
-          ${hideableCourseSections.map((section) => `
-            <label class="section-toggle">
-              <input type="checkbox" name="visibleSections" value="${escapeHtml(section)}" ${hiddenSections.has(section) ? "" : "checked"}>
-              <span>${escapeHtml(section)}</span>
-              <small>${hiddenSections.has(section) ? "Hidden from students" : "Visible to students"}</small>
-            </label>
-          `).join("")}
-        </div>
-        <button type="submit">Save LMS tool visibility</button>
-      </form>
+      <p class="muted">Students see one consistent menu in every course. Course-specific access is controlled by publishing modules, lessons, assignments, discussions, and other learning items.</p>
     </section>
 
     <section class="grid cols-2" style="margin-top:18px" id="course-import-tool">
@@ -10595,7 +10530,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   }));
 
   const firstLesson = lessons[0];
-  const navItems = [...courseNavItems.slice(0, -1), "Course Details", "Settings"];
+  const navItems = instructorCourseNavItems;
   const adminCourseBaseHref = `/admin/courses/${course.id}/student-view`;
   const courseCode = canvasCourseCode(course);
   const startTiles = [
@@ -11150,15 +11085,8 @@ app.post("/admin/courses/:id/live-class", requireAuth, requireRole("admin", "ins
 app.post("/admin/courses/:id/sections", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const course = db.prepare("SELECT id FROM courses WHERE id = ?").get(Number(req.params.id));
   if (!course) return res.status(404).send("Course not found");
-  const selected = req.body.visibleSections
-    ? Array.isArray(req.body.visibleSections)
-      ? req.body.visibleSections
-      : [req.body.visibleSections]
-    : [];
-  const visible = new Set(selected.map((section) => String(section)));
-  const hidden = hideableCourseSections.filter((section) => !visible.has(section));
-  db.prepare("UPDATE courses SET hidden_sections = ? WHERE id = ?").run(JSON.stringify(hidden), course.id);
-  flash(req, "Course section visibility updated.");
+  db.prepare("UPDATE courses SET hidden_sections = '[]' WHERE id = ?").run(course.id);
+  flash(req, "Course navigation is standardized and remains the same for every course.");
   const redirectTo = String(req.body.redirectTo || "");
   res.redirect(redirectTo.startsWith(`/admin/courses/${course.id}`) ? redirectTo : `/admin/courses/${course.id}`);
 });
@@ -12770,12 +12698,12 @@ app.post("/student/self-evaluations/:enrollmentId/:weekNumber", requireAuth, req
   const availableDate = courseSurveyAvailableDate(enrollment.start_date, weekNumber);
   if (enrollment.status !== "completed" && availableDate.getTime() > Date.now()) {
     flash(req, `The Week ${weekNumber} self-evaluation is not available yet.`);
-    return res.redirect("/student/profile#evals");
+    return res.redirect("/student/evaluations#self-evaluations");
   }
   const existing = db.prepare("SELECT id FROM student_self_evaluations WHERE enrollment_id = ? AND week_number = ?").get(enrollmentId, weekNumber);
   if (existing) {
     flash(req, `Your Week ${weekNumber} self-evaluation has already been sent to your instructor.`);
-    return res.redirect("/student/profile#evals");
+    return res.redirect("/student/evaluations#self-evaluations");
   }
   const ratings = ["academicProgress", "attendancePunctuality", "professionalism", "communicationTeamwork", "clinicalSkills"].map((field) => Number(req.body[field]));
   const accomplishments = String(req.body.accomplishments || "").trim().slice(0, 3000);
@@ -12785,7 +12713,7 @@ app.post("/student/self-evaluations/:enrollmentId/:weekNumber", requireAuth, req
   const additionalNotes = String(req.body.additionalNotes || "").trim().slice(0, 3000);
   if (ratings.some((value) => !Number.isInteger(value) || value < 1 || value > 5) || !accomplishments || !challenges || !goals) {
     flash(req, "Complete all required self-evaluation questions.");
-    return res.redirect("/student/profile#evals");
+    return res.redirect("/student/evaluations#self-evaluations");
   }
   db.prepare(`
     INSERT INTO student_self_evaluations (
@@ -12803,7 +12731,7 @@ app.post("/student/self-evaluations/:enrollmentId/:weekNumber", requireAuth, req
     body: `${studentName} submitted the Week ${weekNumber} self-evaluation for ${enrollment.course_title}. Open Student Evals to review the student's reflection and complete the instructor evaluation.`
   }));
   flash(req, `Your Week ${weekNumber} self-evaluation was sent to your instructor for completion.`);
-  res.redirect("/student/profile#evals");
+  res.redirect("/student/evaluations#self-evaluations");
 });
 
 function renderCourseSurveyForm(enrollment, weekNumber, response) {
@@ -12890,6 +12818,140 @@ function renderCourseSurveyForm(enrollment, weekNumber, response) {
   `;
 }
 
+function loadStudentEvaluationData(userId) {
+  const enrollments = db.prepare(`
+    SELECT e.*, c.title, c.category, c.hours, c.credential_type, c.delivery_mode
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    WHERE e.user_id = ?
+    ORDER BY e.created_at DESC
+  `).all(userId);
+  const surveyResponses = db.prepare(`
+    SELECT csr.*
+    FROM course_survey_responses csr
+    JOIN enrollments e ON e.id = csr.enrollment_id
+    WHERE e.user_id = ?
+    ORDER BY csr.submitted_at DESC
+  `).all(userId);
+  const releasedEvaluations = db.prepare(`
+    SELECT sce.*, c.title AS course_title, u.first_name AS evaluator_first_name, u.last_name AS evaluator_last_name
+    FROM student_course_evaluations sce
+    JOIN enrollments e ON e.id = sce.enrollment_id
+    JOIN courses c ON c.id = e.course_id
+    LEFT JOIN users u ON u.id = sce.evaluator_id
+    WHERE e.user_id = ? AND sce.released_to_student = 1
+    ORDER BY sce.evaluated_at DESC
+  `).all(userId);
+  const selfEvaluations = db.prepare(`
+    SELECT sse.*
+    FROM student_self_evaluations sse
+    JOIN enrollments e ON e.id = sse.enrollment_id
+    WHERE e.user_id = ?
+    ORDER BY sse.submitted_at DESC
+  `).all(userId);
+  return {
+    currentEnrollments: enrollments.filter(enrollmentAccessAllowed),
+    releasedEvaluations,
+    selfEvaluations,
+    surveyResponses,
+    surveyResponseByMilestone: new Map(surveyResponses.map((response) => [`${response.enrollment_id}-${response.week_number}`, response])),
+    selfEvaluationByMilestone: new Map(selfEvaluations.map((evaluation) => [`${evaluation.enrollment_id}-${evaluation.week_number}`, evaluation])),
+    releasedEvaluationByMilestone: new Map(releasedEvaluations.map((evaluation) => [`${evaluation.enrollment_id}-${evaluation.week_number}`, evaluation]))
+  };
+}
+
+function renderStudentEvaluationsContent({
+  currentEnrollments,
+  releasedEvaluations,
+  selfEvaluations,
+  surveyResponses,
+  surveyResponseByMilestone,
+  selfEvaluationByMilestone,
+  releasedEvaluationByMilestone
+}) {
+  return `
+    <div class="course-survey-intro">
+      <p>Complete your self-evaluation first at Weeks 4, 8, and 12. It is sent to your instructor, who completes and releases the final evaluation. Course surveys remain separate below.</p>
+      <span>${escapeHtml(releasedEvaluations.length)} evaluation${releasedEvaluations.length === 1 ? "" : "s"}</span>
+    </div>
+    <section class="student-self-evaluation-list" id="self-evaluations">
+      <div class="evaluation-section-heading">
+        <div><p class="eyebrow">Step 1 · Student</p><h3>My Self-Evaluations</h3></div>
+        <span>${escapeHtml(selfEvaluations.length)} submitted</span>
+      </div>
+      ${currentEnrollments.map((enrollment) => courseSurveyWeeks.map((weekNumber) => renderStudentSelfEvaluationCard(
+        enrollment,
+        weekNumber,
+        selfEvaluationByMilestone.get(`${enrollment.id}-${weekNumber}`),
+        releasedEvaluationByMilestone.get(`${enrollment.id}-${weekNumber}`)
+      )).join("")).join("") || `<p class="profile-note">Self-evaluations will appear after you enroll in a course.</p>`}
+    </section>
+    <section class="student-evaluation-results">
+      <div class="evaluation-section-heading">
+        <div><p class="eyebrow">Step 2 · Instructor</p><h3>Completed Instructor Evaluations</h3></div>
+        <span>Weeks 4, 8, and 12</span>
+      </div>
+      ${releasedEvaluations.map((evaluation) => {
+        const average = Math.round((evaluation.academic_progress + evaluation.attendance_punctuality + evaluation.professionalism + evaluation.communication_teamwork + evaluation.clinical_skills) / 5 * 10) / 10;
+        return `
+          <article class="student-evaluation-result ${escapeHtml(evaluation.overall_status)}">
+            <header>
+              <div><span>Week ${escapeHtml(evaluation.week_number)} Evaluation</span><h4>${escapeHtml(evaluation.course_title)}</h4></div>
+              <strong>${escapeHtml(String(evaluation.overall_status).replaceAll("_", " "))}</strong>
+            </header>
+            <div class="student-evaluation-scores">
+              <div><span>Academic progress</span><strong>${escapeHtml(evaluation.academic_progress)} / 5</strong></div>
+              <div><span>Attendance</span><strong>${escapeHtml(evaluation.attendance_punctuality)} / 5</strong></div>
+              <div><span>Professionalism</span><strong>${escapeHtml(evaluation.professionalism)} / 5</strong></div>
+              <div><span>Communication</span><strong>${escapeHtml(evaluation.communication_teamwork)} / 5</strong></div>
+              <div><span>Skills</span><strong>${escapeHtml(evaluation.clinical_skills)} / 5</strong></div>
+              <div><span>Average</span><strong>${escapeHtml(average)} / 5</strong></div>
+            </div>
+            <div class="student-evaluation-feedback">
+              <section><h5>Strengths</h5><p>${escapeHtml(evaluation.strengths || "No comments provided.")}</p></section>
+              <section><h5>Areas for improvement</h5><p>${escapeHtml(evaluation.improvement_areas || "No comments provided.")}</p></section>
+              <section><h5>Action plan</h5><p>${escapeHtml(evaluation.action_plan || "Continue working toward course objectives.")}</p></section>
+              <section><h5>Additional notes</h5><p>${escapeHtml(evaluation.additional_notes || "No additional notes provided.")}</p></section>
+            </div>
+            <footer>Evaluated ${escapeHtml(date(evaluation.evaluated_at.slice(0, 10)))} by ${escapeHtml(`${evaluation.evaluator_first_name || "BMHI"} ${evaluation.evaluator_last_name || "Staff"}`.trim())}</footer>
+          </article>
+        `;
+      }).join("") || `<p class="profile-note">No instructor evaluations have been released yet. Your Week 4, 8, and 12 evaluations will appear here after staff completes them.</p>`}
+    </section>
+    <div class="evaluation-section-heading student-survey-heading" id="course-surveys">
+      <div><p class="eyebrow">Your feedback</p><h3>Course Surveys</h3></div>
+      <span>${escapeHtml(surveyResponses.length)} submitted</span>
+    </div>
+    <div class="course-survey-list">
+      ${currentEnrollments.map((enrollment) => courseSurveyWeeks.map((weekNumber) => renderCourseSurveyForm(
+        enrollment,
+        weekNumber,
+        surveyResponseByMilestone.get(`${enrollment.id}-${weekNumber}`)
+      )).join("")).join("") || `<p class="profile-note">Course surveys will appear after you enroll in a course.</p>`}
+    </div>
+  `;
+}
+
+app.get("/student/evaluations", requireAuth, requireRole("student"), (req, res) => {
+  const evaluationData = loadStudentEvaluationData(req.user.id);
+  const body = `
+    <section class="student-evaluations-page">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Weeks 4, 8, and 12</p>
+          <h1>Student Evaluations and Surveys</h1>
+          <p>Complete your self-evaluations, review released instructor feedback, and submit course surveys in one dedicated area.</p>
+        </div>
+        <a class="button ghost" href="/student/profile">Back to My Profile</a>
+      </div>
+      <article class="student-panel student-evaluations-panel">
+        ${renderStudentEvaluationsContent(evaluationData)}
+      </article>
+    </section>
+  `;
+  render(req, res, "Student Evaluations", body, { studentPortal: true, activeStudentNav: "evaluations" });
+});
+
 app.post("/student/evaluations/:enrollmentId/:weekNumber", requireAuth, requireRole("student"), (req, res) => {
   const enrollmentId = Number(req.params.enrollmentId);
   const weekNumber = Number(req.params.weekNumber);
@@ -12902,19 +12964,19 @@ app.post("/student/evaluations/:enrollmentId/:weekNumber", requireAuth, requireR
   const availableDate = courseSurveyAvailableDate(enrollment.start_date, weekNumber);
   if (enrollment.status !== "completed" && availableDate.getTime() > Date.now()) {
     flash(req, `The Week ${weekNumber} survey is not available yet.`);
-    return res.redirect("/student/profile#evals");
+    return res.redirect("/student/evaluations#course-surveys");
   }
   const existing = db.prepare("SELECT id FROM course_survey_responses WHERE enrollment_id = ? AND week_number = ?").get(enrollmentId, weekNumber);
   if (existing) {
     flash(req, `Your Week ${weekNumber} survey has already been submitted.`);
-    return res.redirect("/student/profile#evals");
+    return res.redirect("/student/evaluations#course-surveys");
   }
   const ratings = ["overallRating", "instructorRating", "contentRating", "supportRating"].map((field) => Number(req.body[field]));
   const pace = String(req.body.pace || "");
   const wouldRecommend = Number(req.body.wouldRecommend);
   if (ratings.some((value) => !Number.isInteger(value) || value < 1 || value > 5) || !["too_fast", "about_right", "too_slow"].includes(pace) || ![0, 1].includes(wouldRecommend)) {
     flash(req, "Complete every required survey question before submitting.");
-    return res.redirect("/student/profile#evals");
+    return res.redirect("/student/evaluations#course-surveys");
   }
   db.prepare(`
     INSERT INTO course_survey_responses (
@@ -12932,7 +12994,7 @@ app.post("/student/evaluations/:enrollmentId/:weekNumber", requireAuth, requireR
     String(req.body.additionalComments || "").trim().slice(0, 2000)
   );
   flash(req, `Thank you. Your Week ${weekNumber} ${enrollment.title} survey was submitted.`);
-  res.redirect("/student/profile#evals");
+  res.redirect("/student/evaluations#course-surveys");
 });
 
 app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
@@ -12954,32 +13016,6 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
     ORDER BY a.meeting_date DESC
     LIMIT 6
   `).all(req.user.id);
-  const surveyResponses = db.prepare(`
-    SELECT csr.*
-    FROM course_survey_responses csr
-    JOIN enrollments e ON e.id = csr.enrollment_id
-    WHERE e.user_id = ?
-    ORDER BY csr.submitted_at DESC
-  `).all(req.user.id);
-  const surveyResponseByMilestone = new Map(surveyResponses.map((response) => [`${response.enrollment_id}-${response.week_number}`, response]));
-  const releasedEvaluations = db.prepare(`
-    SELECT sce.*, c.title AS course_title, u.first_name AS evaluator_first_name, u.last_name AS evaluator_last_name
-    FROM student_course_evaluations sce
-    JOIN enrollments e ON e.id = sce.enrollment_id
-    JOIN courses c ON c.id = e.course_id
-    LEFT JOIN users u ON u.id = sce.evaluator_id
-    WHERE e.user_id = ? AND sce.released_to_student = 1
-    ORDER BY sce.evaluated_at DESC
-  `).all(req.user.id);
-  const selfEvaluations = db.prepare(`
-    SELECT sse.*
-    FROM student_self_evaluations sse
-    JOIN enrollments e ON e.id = sse.enrollment_id
-    WHERE e.user_id = ?
-    ORDER BY sse.submitted_at DESC
-  `).all(req.user.id);
-  const selfEvaluationByMilestone = new Map(selfEvaluations.map((evaluation) => [`${evaluation.enrollment_id}-${evaluation.week_number}`, evaluation]));
-  const releasedEvaluationByMilestone = new Map(releasedEvaluations.map((evaluation) => [`${evaluation.enrollment_id}-${evaluation.week_number}`, evaluation]));
 
   const name = `${req.user.first_name} ${req.user.last_name}`.trim();
   const currentEnrollments = enrollments.filter(enrollmentAccessAllowed);
@@ -13024,7 +13060,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
         <a href="#attendance">Attendance</a>
         <a href="#documents">Documents</a>
         <a href="#timeline">Timeline</a>
-        <a href="#evals">Student Evaluation and Surveys</a>
+        <a href="/student/evaluations">Student Evaluations</a>
       </nav>
 
       <section class="profile-grid">
@@ -13126,67 +13162,13 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
           </div>
         </article>
 
-        <article class="student-panel profile-wide" id="evals">
-          <h2>Student Evaluation and Surveys</h2>
-          <div class="course-survey-intro">
-            <p>Complete your self-evaluation first at Weeks 4, 8, and 12. It is sent to your instructor, who completes and releases the final evaluation. Course surveys remain separate below.</p>
-            <span>${escapeHtml(releasedEvaluations.length)} evaluation${releasedEvaluations.length === 1 ? "" : "s"}</span>
+        <article class="student-panel profile-wide profile-evaluations-cta" id="evals">
+          <div>
+            <p class="eyebrow">Weeks 4, 8, and 12</p>
+            <h2>Student Evaluations and Surveys</h2>
+            <p>Self-evaluations, instructor feedback, and course surveys now have their own dedicated area.</p>
           </div>
-          <section class="student-self-evaluation-list">
-            <div class="evaluation-section-heading">
-              <div><p class="eyebrow">Step 1 · Student</p><h3>My Self-Evaluations</h3></div>
-              <span>${escapeHtml(selfEvaluations.length)} submitted</span>
-            </div>
-            ${currentEnrollments.map((enrollment) => courseSurveyWeeks.map((weekNumber) => renderStudentSelfEvaluationCard(
-              enrollment,
-              weekNumber,
-              selfEvaluationByMilestone.get(`${enrollment.id}-${weekNumber}`),
-              releasedEvaluationByMilestone.get(`${enrollment.id}-${weekNumber}`)
-            )).join("")).join("") || `<p class="profile-note">Self-evaluations will appear after you enroll in a course.</p>`}
-          </section>
-          <section class="student-evaluation-results">
-            <div class="evaluation-section-heading">
-              <div><p class="eyebrow">Step 2 · Instructor</p><h3>Completed Instructor Evaluations</h3></div>
-              <span>Weeks 4, 8, and 12</span>
-            </div>
-            ${releasedEvaluations.map((evaluation) => {
-              const average = Math.round((evaluation.academic_progress + evaluation.attendance_punctuality + evaluation.professionalism + evaluation.communication_teamwork + evaluation.clinical_skills) / 5 * 10) / 10;
-              return `
-                <article class="student-evaluation-result ${escapeHtml(evaluation.overall_status)}">
-                  <header>
-                    <div><span>Week ${escapeHtml(evaluation.week_number)} Evaluation</span><h4>${escapeHtml(evaluation.course_title)}</h4></div>
-                    <strong>${escapeHtml(String(evaluation.overall_status).replaceAll("_", " "))}</strong>
-                  </header>
-                  <div class="student-evaluation-scores">
-                    <div><span>Academic progress</span><strong>${escapeHtml(evaluation.academic_progress)} / 5</strong></div>
-                    <div><span>Attendance</span><strong>${escapeHtml(evaluation.attendance_punctuality)} / 5</strong></div>
-                    <div><span>Professionalism</span><strong>${escapeHtml(evaluation.professionalism)} / 5</strong></div>
-                    <div><span>Communication</span><strong>${escapeHtml(evaluation.communication_teamwork)} / 5</strong></div>
-                    <div><span>Skills</span><strong>${escapeHtml(evaluation.clinical_skills)} / 5</strong></div>
-                    <div><span>Average</span><strong>${escapeHtml(average)} / 5</strong></div>
-                  </div>
-                  <div class="student-evaluation-feedback">
-                    <section><h5>Strengths</h5><p>${escapeHtml(evaluation.strengths || "No comments provided.")}</p></section>
-                    <section><h5>Areas for improvement</h5><p>${escapeHtml(evaluation.improvement_areas || "No comments provided.")}</p></section>
-                    <section><h5>Action plan</h5><p>${escapeHtml(evaluation.action_plan || "Continue working toward course objectives.")}</p></section>
-                    <section><h5>Additional notes</h5><p>${escapeHtml(evaluation.additional_notes || "No additional notes provided.")}</p></section>
-                  </div>
-                  <footer>Evaluated ${escapeHtml(date(evaluation.evaluated_at.slice(0, 10)))} by ${escapeHtml(`${evaluation.evaluator_first_name || "BMHI"} ${evaluation.evaluator_last_name || "Staff"}`.trim())}</footer>
-                </article>
-              `;
-            }).join("") || `<p class="profile-note">No instructor evaluations have been released yet. Your Week 4, 8, and 12 evaluations will appear here after staff completes them.</p>`}
-          </section>
-          <div class="evaluation-section-heading student-survey-heading">
-            <div><p class="eyebrow">Your feedback</p><h3>Course Surveys</h3></div>
-            <span>${escapeHtml(surveyResponses.length)} submitted</span>
-          </div>
-          <div class="course-survey-list">
-            ${currentEnrollments.map((enrollment) => courseSurveyWeeks.map((weekNumber) => renderCourseSurveyForm(
-              enrollment,
-              weekNumber,
-              surveyResponseByMilestone.get(`${enrollment.id}-${weekNumber}`)
-            )).join("")).join("") || `<p class="profile-note">Course surveys will appear after you enroll in a course.</p>`}
-          </div>
+          <a class="button" href="/student/evaluations">Open Student Evaluations</a>
         </article>
       </section>
     </section>
@@ -13565,10 +13547,8 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   const firstLesson = lessons[0];
   const continueLesson = lessons.find((lesson) => !completedLessonIds.has(lesson.id)) || firstLesson;
   const upcomingLessons = lessons.slice(0, 3);
-  const navItems = visibleCourseNavItems(enrollment);
   const courseBaseHref = `/student/enrollments/${enrollment.id}`;
   const activeView = String(req.query.view || "");
-  const studentCourseNavItems = navItems.filter((item) => ["Home", "Announcements", "Modules", "Assignments", "Discussions", "Files", "Grades", "Syllabus", "Rubrics", "Quizzes", "Calendar", "Conferences"].includes(item));
   const startTiles = [
     { icon: "book", label: "Course Syllabus", href: `${courseBaseHref}?view=syllabus`, image: "/assets/start-tile-syllabus.svg" },
     { icon: "brain", label: "Learning Modules", href: `${courseBaseHref}?view=modules`, image: "/assets/start-tile-modules.svg" },
