@@ -191,6 +191,24 @@ function studentPortalNavigation(html) {
   }));
 }
 
+function assertCalendarStructure(html) {
+  assert.match(html, /<main class="canvas-course-main calendar-main">/, "Expected the calendar main region");
+  assert.match(html, /<div class="calendar-toolbar">/, "Expected the calendar toolbar");
+  assert.match(html, /<div class="calendar-month-scroll">/, "Expected the local month-grid scroll region");
+  assert.match(html, /<aside class="canvas-rightbar calendar-sidebar">/, "Expected the calendar sidebar");
+
+  const grid = html.match(/<section class="calendar-month-grid"[^>]*>([\s\S]*?)<\/section>/);
+  assert.ok(grid, "Expected the month grid");
+  const weekdays = [...grid[1].matchAll(/<strong>(SUN|MON|TUE|WED|THU|FRI|SAT)<\/strong>/g)].map((match) => match[1]);
+  const dayBoxes = [...grid[1].matchAll(/<article class="calendar-day(?: [^"]*)?">/g)];
+  const dayNumbers = [...grid[1].matchAll(/<article class="calendar-day(?: [^"]*)?">\s*<b>\d+<\/b>/g)];
+
+  assert.deepEqual(weekdays, ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]);
+  assert.equal(dayBoxes.length, 42, "Expected six complete seven-day rows");
+  assert.equal(dayBoxes.length % 7, 0, "Calendar weeks must contain seven equal day boxes");
+  assert.equal(dayNumbers.length, dayBoxes.length, "Every day box must show one date number");
+}
+
 before(async () => {
   temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "bmhi-course-navigation-"));
   const databaseFile = path.join(temporaryDirectory, "navigation.sqlite");
@@ -375,4 +393,54 @@ test("evaluation submissions return to the dedicated sections", async () => {
   });
   assert.equal(surveyResponse.status, 302);
   assert.equal(surveyResponse.headers.get("location"), "/student/evaluations#course-surveys");
+});
+
+test("course calendar routes render complete month grids in the responsive course shell", async () => {
+  const course = database.prepare(`
+    SELECT c.id
+    FROM courses c
+    JOIN modules m ON m.course_id = c.id AND m.published = 1
+    JOIN lessons l ON l.module_id = m.id AND l.published = 1
+    WHERE c.published = 1
+    ORDER BY c.id
+    LIMIT 1
+  `).get();
+  const enrollment = database.prepare(`
+    SELECT e.id
+    FROM enrollments e
+    JOIN users u ON u.id = e.user_id
+    JOIN courses c ON c.id = e.course_id AND c.published = 1
+    WHERE u.email = 'student@browardmiamihi.com' AND e.status = 'active'
+    ORDER BY e.id
+    LIMIT 1
+  `).get();
+  assert.ok(course && enrollment, "Expected seeded calendar fixtures");
+
+  const adminHtml = await getHtml(`/admin/courses/${course.id}/student-view?view=calendar`, adminCookie);
+  assert.match(adminHtml, /<section class="canvas-course-shell canvas-course-calendar-shell instructor-preview">/);
+  assertNavigation(adminHtml, expectedAdminLabels, "Calendar");
+  assertCalendarStructure(adminHtml);
+  assert.match(adminHtml, /<form class="calendar-event-form" id="add-calendar-event"/);
+
+  const studentHtml = await getHtml(`/student/enrollments/${enrollment.id}?view=calendar`, studentCookie);
+  assert.match(studentHtml, /<section class="canvas-course-shell canvas-course-calendar-shell student-course-shell">/);
+  assertNavigation(studentHtml, expectedStudentLabels, "Calendar");
+  assertCalendarStructure(studentHtml);
+  assert.doesNotMatch(studentHtml, /<form class="calendar-event-form" id="add-calendar-event"/);
+});
+
+test("global student calendar retains a complete month grid", async () => {
+  const html = await getHtml("/student/calendar", studentCookie);
+  assert.match(html, /<section class="canvas-course-shell canvas-global-calendar-shell">/);
+  assertCalendarStructure(html);
+});
+
+test("calendar CSS scopes global placement and preserves seven equal columns", () => {
+  const styles = fs.readFileSync(path.join(projectRoot, "src", "public", "styles.css"), "utf8");
+  assert.match(styles, /\.canvas-global-calendar-shell > \.calendar-main\s*\{[\s\S]*?grid-column:\s*2;/);
+  assert.match(styles, /\.canvas-global-calendar-shell > \.calendar-sidebar\s*\{[\s\S]*?grid-column:\s*3;/);
+  assert.match(styles, /\.canvas-course-calendar-shell > \.calendar-main\s*\{[\s\S]*?grid-column:\s*3 \/ 5;/);
+  assert.match(styles, /\.calendar-month-scroll\s*\{[\s\S]*?overflow-x:\s*auto;/);
+  assert.match(styles, /\.calendar-month-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(7, minmax\(0, 1fr\)\);[\s\S]*?width:\s*100%;/);
+  assert.match(styles, /@media \(max-width: 820px\)[\s\S]*?\.calendar-month-grid\s*\{\s*min-width:\s*760px;/);
 });

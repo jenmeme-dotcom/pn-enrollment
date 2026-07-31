@@ -3929,20 +3929,22 @@ function renderMonthCalendarPage({ events = [], courses = [], currentCourseId = 
           <button type="submit">Add Event</button>
         </form>
       ` : ""}
-      <section class="calendar-month-grid" aria-label="${escapeHtml(monthName)} calendar">
-        ${["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day) => `<strong>${escapeHtml(day)}</strong>`).join("")}
-        ${cells.map((cell) => `
-          <article class="calendar-day ${cell.muted ? "muted" : ""}">
-            <b>${escapeHtml(cell.label)}</b>
-            ${cell.events.slice(0, 4).map((event) => `
-              <a class="calendar-event ${escapeHtml(event.event_type || "event")}" href="#">
-                ${calendarTimeLabel(event.start_at) ? `<span>${escapeHtml(calendarTimeLabel(event.start_at))}</span>` : ""}
-                ${escapeHtml(event.title)}
-              </a>
-            `).join("")}
-          </article>
-        `).join("")}
-      </section>
+      <div class="calendar-month-scroll">
+        <section class="calendar-month-grid" aria-label="${escapeHtml(monthName)} calendar">
+          ${["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day) => `<strong>${escapeHtml(day)}</strong>`).join("")}
+          ${cells.map((cell) => `
+            <article class="calendar-day ${cell.muted ? "muted" : ""}">
+              <b>${escapeHtml(cell.label)}</b>
+              ${cell.events.slice(0, 4).map((event) => `
+                <a class="calendar-event ${escapeHtml(event.event_type || "event")}" href="#">
+                  ${calendarTimeLabel(event.start_at) ? `<span>${escapeHtml(calendarTimeLabel(event.start_at))}</span>` : ""}
+                  ${escapeHtml(event.title)}
+                </a>
+              `).join("")}
+            </article>
+          `).join("")}
+        </section>
+      </div>
     </main>
     <aside class="canvas-rightbar calendar-sidebar">
       ${renderMiniCalendar({ year, monthIndex })}
@@ -10672,7 +10674,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
       })}
     </section>
   ` : activeView === "calendar" ? `
-    <section class="canvas-course-shell instructor-preview">
+    <section class="canvas-course-shell canvas-course-calendar-shell instructor-preview">
       ${renderInstructorCanvasRail(req.user)}
 
       ${renderStudentCanvasHeader(courseCode, adminCourseBaseHref, [
@@ -13715,7 +13717,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       })}
     </section>
   ` : activeView === "calendar" ? `
-    <section class="canvas-course-shell student-course-shell">
+    <section class="canvas-course-shell canvas-course-calendar-shell student-course-shell">
       ${renderStudentCanvasRail("calendar")}
       ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
         { label: courseCode, href: courseBaseHref },
