@@ -1993,8 +1993,11 @@ nav a {
 }
 
 .survey-rating label input {
+  height: 1px;
+  margin: 0;
   position: absolute;
   opacity: 0;
+  width: 1px;
 }
 
 .survey-rating label span {
