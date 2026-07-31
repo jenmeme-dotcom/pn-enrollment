@@ -7544,7 +7544,6 @@ button.small {
 
 .canvas-syllabus-main {
   grid-column: 3 / 5;
-  padding-right: clamp(28px, 4vw, 52px);
 }
 
 .canvas-syllabus-main .canvas-mini-head {
