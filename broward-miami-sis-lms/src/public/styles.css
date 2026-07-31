@@ -1852,6 +1852,40 @@ nav a {
   grid-column: span 12;
 }
 
+.profile-evaluations-cta {
+  align-items: center;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+}
+
+.profile-evaluations-cta h2,
+.profile-evaluations-cta p {
+  margin: 0;
+}
+
+.profile-evaluations-cta .eyebrow {
+  margin-bottom: 4px;
+}
+
+.profile-evaluations-cta .button {
+  flex: 0 0 auto;
+}
+
+.student-evaluations-page {
+  display: grid;
+  gap: 18px;
+}
+
+.student-evaluations-page .page-head {
+  margin-bottom: 0;
+}
+
+.student-evaluations-panel {
+  overflow: hidden;
+  padding: 0;
+}
+
 .course-survey-intro {
   align-items: center;
   background: #f4f9fa;
@@ -2435,6 +2469,20 @@ nav a {
   .self-evaluation-scores,
   .self-evaluation-reflections {
     grid-template-columns: 1fr;
+  }
+
+  .course-survey-intro,
+  .evaluation-section-heading,
+  .student-self-eval-card > header,
+  .student-evaluation-result > header,
+  .course-survey-card-head,
+  .profile-evaluations-cta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .profile-evaluations-cta .button {
+    width: 100%;
   }
 }
 
@@ -7520,6 +7568,7 @@ button.small {
 .syllabus-content {
   display: grid;
   gap: 22px;
+  min-width: 0;
 }
 
 .syllabus-title-row {
@@ -7542,6 +7591,7 @@ button.small {
   border-radius: 8px;
   display: grid;
   gap: 16px;
+  min-width: 0;
   padding: 24px 26px;
 }
 
@@ -7610,6 +7660,7 @@ button.small {
 .syllabus-side {
   display: grid;
   gap: 24px;
+  min-width: 0;
   padding-top: 50px;
 }
 
@@ -7803,6 +7854,27 @@ button.small {
   .student-course-home .student-actions,
   .student-course-home .canvas-task-panel {
     margin-top: 0;
+  }
+}
+
+/* The fixed global and course rails leave too little room for the syllabus'
+   nested calendar column in a minimized desktop window. Stack that secondary
+   column before the content can spill underneath it. */
+@media (max-width: 1300px) and (min-width: 821px) {
+  .canvas-syllabus-shell .syllabus-layout {
+    gap: 22px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .canvas-syllabus-shell .syllabus-side {
+    grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+    padding-top: 0;
+  }
+
+  .canvas-syllabus-shell .syllabus-table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
   }
 }
 

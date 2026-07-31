@@ -83,6 +83,7 @@ const studentNavItems = [
   { key: "calendar", href: "/student/calendar", label: "Calendar" },
   { key: "email", href: "/student/email", label: "Inbox" },
   { key: "profile", href: "/student/profile", label: "My Profile" },
+  { key: "evaluations", href: "/student/evaluations", label: "Student Evaluations" },
   { key: "fees", href: "/student/financial", label: "Fees" },
   { key: "registration", href: "/student/registration", label: "Registration" },
   { key: "transcript", href: "/student/transcript", label: "Transcript" },
