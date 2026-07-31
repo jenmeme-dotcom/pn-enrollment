@@ -130,8 +130,24 @@ async function getHtml(route, cookie) {
     headers: { cookie },
     redirect: "manual"
   });
-  assert.equal(response.status, 200, `Expected ${route} to render successfully`);
-  return response.text();
+  const html = await response.text();
+  assert.equal(response.status, 200, `Expected ${route} to render successfully.\n${html.slice(0, 800)}`);
+  return html;
+}
+
+async function setVisibleCourseSections(courseId, visibleSections) {
+  const body = new URLSearchParams({ redirectTo: `/admin/courses/${courseId}` });
+  visibleSections.forEach((section) => body.append("visibleSections", section));
+  const response = await fetch(`${baseUrl}/admin/courses/${courseId}/sections`, {
+    body,
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      cookie: adminCookie
+    },
+    method: "POST",
+    redirect: "manual"
+  });
+  assert.equal(response.status, 302, `Expected course ${courseId} section visibility to update`);
 }
 
 function decodeText(value) {
@@ -248,5 +264,52 @@ test("student course menus keep identical labels and order on home, modules, and
       assertNavigation(await getHtml(`${baseRoute}?view=modules`, studentCookie), expectedStudentLabels, "Modules");
       assertNavigation(await getHtml(`${baseRoute}?lesson=${enrollment.lesson_id}`, studentCookie), expectedStudentLabels, "Modules");
     });
+  }
+});
+
+test("student course menus stay fixed when courses configure opposite hidden sections", async (t) => {
+  const enrollments = database.prepare(`
+    SELECT e.id, e.course_id, c.slug, c.hidden_sections, MIN(l.id) AS lesson_id
+    FROM enrollments e
+    JOIN users u ON u.id = e.user_id
+    JOIN courses c ON c.id = e.course_id AND c.published = 1
+    JOIN modules m ON m.course_id = c.id AND m.published = 1
+    JOIN lessons l ON l.module_id = m.id AND l.published = 1 AND l.instructor_only = 0
+    WHERE u.email = 'student@browardmiamihi.com' AND e.status = 'active'
+    GROUP BY e.id, e.course_id, c.slug, c.hidden_sections
+    ORDER BY e.id
+    LIMIT 2
+  `).all();
+  assert.equal(enrollments.length, 2, "Expected two seeded enrollments for the opposite-configuration check");
+
+  const hideAlternatingItems = expectedStudentLabels.filter((label, index) => label !== "Home" && index % 2 === 0);
+  const hideOppositeItems = expectedStudentLabels.filter((label, index) => label !== "Home" && index % 2 === 1);
+  const configurableCourseSections = expectedAdminLabels.filter((label) => label !== "Home" && label !== "Course Details");
+  await setVisibleCourseSections(
+    enrollments[0].course_id,
+    configurableCourseSections.filter((label) => !hideAlternatingItems.includes(label))
+  );
+  await setVisibleCourseSections(
+    enrollments[1].course_id,
+    configurableCourseSections.filter((label) => !hideOppositeItems.includes(label))
+  );
+
+  try {
+    for (const enrollment of enrollments) {
+      await t.test(enrollment.slug, async () => {
+        const baseRoute = `/student/enrollments/${enrollment.id}`;
+        assertNavigation(await getHtml(baseRoute, studentCookie), expectedStudentLabels, "Home");
+        assertNavigation(await getHtml(`${baseRoute}?view=modules`, studentCookie), expectedStudentLabels, "Modules");
+        assertNavigation(await getHtml(`${baseRoute}?lesson=${enrollment.lesson_id}`, studentCookie), expectedStudentLabels, "Modules");
+      });
+    }
+  } finally {
+    for (const enrollment of enrollments) {
+      const originallyHidden = new Set(JSON.parse(enrollment.hidden_sections || "[]"));
+      await setVisibleCourseSections(
+        enrollment.course_id,
+        configurableCourseSections.filter((label) => !originallyHidden.has(label))
+      );
+    }
   }
 });
