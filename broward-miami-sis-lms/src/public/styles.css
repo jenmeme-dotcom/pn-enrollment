@@ -490,6 +490,7 @@ nav a {
   box-shadow: 0 2px 8px rgba(11, 65, 74, 0.24);
   color: white;
   display: flex;
+  flex-wrap: wrap;
   gap: 18px;
   min-height: 52px;
   padding: 0 14px;
@@ -581,15 +582,20 @@ nav a {
 
 .student-topbar > strong {
   color: #ffffff;
-  flex: 1;
+  flex: 1 1 220px;
   font-size: 20px;
   letter-spacing: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .student-top-actions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 14px;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .student-top-actions a,
@@ -1131,6 +1137,10 @@ nav a {
   grid-template-columns: repeat(12, minmax(0, 1fr));
 }
 
+.student-dashboard > * {
+  min-width: 0;
+}
+
 .student-welcome,
 .student-panel {
   background: white;
@@ -1142,10 +1152,16 @@ nav a {
 .student-welcome {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 22px;
   grid-column: span 5;
   min-height: 196px;
   padding: 16px 20px;
+}
+
+.student-welcome > div {
+  flex: 1 1 220px;
+  min-width: 0;
 }
 
 .student-photo {
@@ -1175,12 +1191,14 @@ nav a {
   font-size: 20px;
   font-weight: 500;
   margin: 0 0 10px;
+  overflow-wrap: anywhere;
 }
 
 .student-welcome p {
   color: var(--muted);
   line-height: 1.55;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .student-panel {
@@ -1202,10 +1220,16 @@ nav a {
   border: 1px solid #efcf9c;
   border-radius: 4px;
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   grid-column: span 12;
   justify-content: space-between;
   padding: 14px 16px;
+}
+
+.student-alert-panel > div:first-child {
+  flex: 1 1 320px;
+  min-width: 0;
 }
 
 .student-alert-panel strong {
@@ -1229,6 +1253,7 @@ nav a {
   border-bottom: 1px solid #edf0f2;
   color: #566371;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   min-height: 38px;
   padding: 8px 12px;
@@ -1251,6 +1276,7 @@ nav a {
 .notice-panel small {
   color: #3580bd;
   margin-left: auto;
+  white-space: nowrap;
 }
 
 .subject-panel,
@@ -1262,6 +1288,8 @@ nav a {
 
 .subject-panel table {
   font-size: 13px;
+  table-layout: fixed;
+  width: 100%;
 }
 
 .subject-panel th,
@@ -1273,8 +1301,9 @@ nav a {
   display: inline-block;
   height: 5px;
   margin-left: 10px;
+  max-width: 100%;
   vertical-align: middle;
-  width: 104px;
+  width: clamp(48px, 42%, 104px);
 }
 
 .class-row {
@@ -1283,7 +1312,7 @@ nav a {
   border-radius: 5px;
   display: grid;
   gap: 12px;
-  grid-template-columns: 38px minmax(0, 1fr) minmax(110px, 0.8fr);
+  grid-template-columns: 38px minmax(0, 1fr) minmax(118px, 0.8fr);
   margin: 10px 10px;
   padding: 10px;
 }
@@ -1304,6 +1333,7 @@ nav a {
 .class-row strong,
 .class-row small {
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .class-row small {
@@ -1321,6 +1351,7 @@ nav a {
   font-size: 16px;
   font-weight: 500;
   margin: 0 0 5px;
+  overflow-wrap: anywhere;
 }
 
 .homework-row p {
@@ -1328,6 +1359,7 @@ nav a {
   font-size: 13px;
   line-height: 1.45;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .homework-row span {
@@ -1422,6 +1454,46 @@ nav a {
 .student-course-card:hover {
   box-shadow: 0 12px 30px rgba(22, 53, 65, 0.15);
   transform: translateY(-3px);
+}
+
+@media (max-width: 1180px) {
+  .student-welcome,
+  .notice-panel {
+    grid-column: span 12;
+  }
+
+  .subject-panel,
+  .class-panel,
+  .homework-panel,
+  .compact-panel {
+    grid-column: span 6;
+  }
+
+  .student-welcome {
+    align-items: center;
+  }
+}
+
+@media (max-width: 980px) {
+  .student-welcome,
+  .notice-panel,
+  .subject-panel,
+  .class-panel,
+  .homework-panel,
+  .compact-panel,
+  .courses-panel,
+  .student-alert-panel {
+    grid-column: 1 / -1;
+  }
+
+  .class-row {
+    align-items: start;
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .class-row > div:last-child {
+    grid-column: 2;
+  }
 }
 
 .student-course-card-banner {
@@ -11274,10 +11346,12 @@ button.small {
   }
 
   .student-topbar > strong {
+    flex: 0 1 auto;
     font-size: 18px;
   }
 
   .student-top-actions {
+    justify-content: flex-start;
     flex-wrap: wrap;
   }
 
@@ -11331,6 +11405,10 @@ button.small {
   .grid.cols-4,
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .student-dashboard > * {
+    grid-column: 1 / -1;
   }
 
   .registrar-overview {
