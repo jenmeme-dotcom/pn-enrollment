@@ -1171,7 +1171,7 @@ function seed() {
     });
 
     const chapter16LessonDefinition = lessonDefinitions.find((lesson) =>
-      lesson.title === "Chapter 16: Neurological Assessment — PowerPoint"
+      lesson.title === "Chapter 16: The Neurological Examination — PowerPoint"
     );
     if (chapter16LessonDefinition) {
       db.prepare(`
@@ -1183,7 +1183,7 @@ function seed() {
               AND title LIKE 'Week 6:%'
           )
           AND (
-            title IN (?, ?, ?, ?)
+            title IN (?, ?, ?, ?, ?)
             OR title LIKE 'Chapter 16:%Neurological%'
             OR content LIKE '%PN104_Ch16_Neurological_Exam%'
             OR external_url LIKE '%PN104_Ch16_Neurological_Exam%'
@@ -1196,6 +1196,7 @@ function seed() {
         chapter16LessonDefinition.durationMinutes || 75,
         pn104CourseRow.id,
         "Chapter 16: The Neurological Examination — Student Slide Review",
+        "Chapter 16: Neurological Assessment — PowerPoint",
         "Chapter 16: The Neurological Examination — PowerPoint",
         "Chapter 16: The Neurological Exam — PowerPoint",
         chapter16LessonDefinition.title
