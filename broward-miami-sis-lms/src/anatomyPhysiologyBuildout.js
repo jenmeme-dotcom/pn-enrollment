@@ -330,7 +330,7 @@ function weekModule([week, chapterNumbers, title]) {
       ...selected.map((chapter) => ({
         title: `Chapter ${chapter.number}: ${chapter.title} — PowerPoint`,
         durationMinutes: 75,
-        externalUrl: chapterMaterialUrl(chapter),
+        externalUrl: null,
         content: chapterLessonContent(chapter)
       })),
       ...(discussion ? [{
