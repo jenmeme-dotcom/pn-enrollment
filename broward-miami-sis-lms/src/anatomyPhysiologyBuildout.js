@@ -182,13 +182,10 @@ function weekModule([week, chapterNumbers, title]) {
         durationMinutes: 30,
         content: `This week, you will study ${selected.map((chapter) => `Chapter ${chapter.number}: ${chapter.title}`).join(", ")}. Focus on normal structure, normal function, how the systems work together, and the changes you would recognize and report in practical nursing care.`
       },
-      ...selected.map((chapter) => {
+      ...selected.flatMap((chapter) => {
         const studentFileUrl = `${materialBase}/${chapter.studentFile}`;
         const isChapter16 = chapter.number === 16;
-        const videoLine = isChapter16
-          ? `\n\nNeurological exam video:\n- Watch: ${neurologicalExamVideoUrl}`
-          : "";
-        return {
+        const lesson = {
           title: isChapter16
             ? "Chapter 16: The Neurological Examination — PowerPoint"
             : `Chapter ${chapter.number}: ${chapter.title} — Student Slide Review`,
@@ -197,6 +194,16 @@ function weekModule([week, chapterNumbers, title]) {
             ? `Study this Chapter 16 PowerPoint before completing this week's assignment and quiz.\n\nChapter 16 PowerPoint:\n- Open or download: ${studentFileUrl}\n\nAdditional reference:\n- Neurological exam video: ${neurologicalExamVideoUrl}\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`
             : `Study the chapter presentation before completing this week's assignment and, when scheduled, discussion.\n\nStudent presentation (instructor notes removed):\n- Open Chapter ${chapter.number} slides: ${studentFileUrl}?inline=1\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`
         };
+        if (!isChapter16) return [lesson];
+        return [
+          lesson,
+          {
+            title: "Chapter 16 Additional Reference: Neurological Exam Video",
+            durationMinutes: 20,
+            externalUrl: neurologicalExamVideoUrl,
+            content: `Additional reference for Chapter 16.\n\nNeurological exam video:\n- Watch: ${neurologicalExamVideoUrl}\n\nUse this video after reviewing the Chapter 16 PowerPoint.`
+          }
+        ];
       }),
       ...(discussion ? [{
         title: discussion.title,
