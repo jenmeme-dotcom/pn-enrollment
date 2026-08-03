@@ -1,6 +1,7 @@
 const { quizContent } = require("./nursingCourseQuizzes");
 
 const materialBase = "/course-materials/anatomy-and-physiology-pn104";
+const neurologicalExamVideoUrl = "https://ecu.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955";
 
 const chapters = [
   [1, "Introduction to the Human Body", "PN104_Ch01_Intro_Human_Body"],
@@ -18,7 +19,7 @@ const chapters = [
   [13, "Anatomy of the Nervous System", "PN104_Ch13_Nervous_System_Anatomy"],
   [14, "The Somatic Nervous System", "PN104_Ch14_Somatic_Nervous_System"],
   [15, "The Autonomic Nervous System", "PN104_Ch15_Autonomic_Nervous_System"],
-  [16, "The Neurological Examination", "PN104_Ch16_Neurological_Exam"],
+  [16, "Neurological Assessment", "PN104_Ch16_Neurological_Exam"],
   [17, "The Endocrine System", "PN104_Ch17_Endocrine_System"],
   [18, "Blood", "PN104_Ch18_Blood"],
   [19, "The Heart", "PN104_Ch19_The_Heart"],
@@ -34,7 +35,7 @@ const chapters = [
 ].map(([number, title, stem]) => ({
   number,
   title,
-  studentFile: `${stem}.pdf`,
+  studentFile: number === 16 ? `${stem}.pptx` : `${stem}.pdf`,
   facultyFile: number === 11 ? `${stem}.pptx` : `${stem}_FACULTY.pptx`
 }));
 
@@ -181,11 +182,20 @@ function weekModule([week, chapterNumbers, title]) {
         durationMinutes: 30,
         content: `This week, you will study ${selected.map((chapter) => `Chapter ${chapter.number}: ${chapter.title}`).join(", ")}. Focus on normal structure, normal function, how the systems work together, and the changes you would recognize and report in practical nursing care.`
       },
-      ...selected.map((chapter) => ({
-        title: `Chapter ${chapter.number}: ${chapter.title} — Student Slide Review`,
-        durationMinutes: 75,
-        content: `Study the chapter presentation before completing this week's assignment and, when scheduled, discussion.\n\nStudent presentation (instructor notes removed):\n- Open Chapter ${chapter.number} slides: ${materialBase}/${chapter.studentFile}?inline=1\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`
-      })),
+      ...selected.map((chapter) => {
+        const studentFileUrl = `${materialBase}/${chapter.studentFile}`;
+        const isChapter16 = chapter.number === 16;
+        const videoLine = isChapter16
+          ? `\n\nNeurological exam video:\n- Watch: ${neurologicalExamVideoUrl}`
+          : "";
+        return {
+          title: isChapter16
+            ? "Chapter 16: Neurological Assessment — PowerPoint"
+            : `Chapter ${chapter.number}: ${chapter.title} — Student Slide Review`,
+          durationMinutes: 75,
+          content: `Study the chapter presentation before completing this week's assignment and, when scheduled, discussion.\n\nStudent presentation (instructor notes removed):\n- Open Chapter ${chapter.number} slides: ${studentFileUrl}${isChapter16 ? "" : "?inline=1"}${videoLine}\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`
+        };
+      }),
       ...(discussion ? [{
         title: discussion.title,
         durationMinutes: 30,
