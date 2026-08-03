@@ -2,6 +2,7 @@ const { quizContent } = require("./nursingCourseQuizzes");
 
 const materialBase = "/course-materials/anatomy-and-physiology-pn104";
 const neurologicalExamVideoUrl = "https://ecu.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955";
+const chapterMaterialUrl = (chapter) => `${materialBase}/${chapter.studentFile}`;
 
 const chapters = [
   [1, "Introduction to the Human Body", "PN104_Ch01_Intro_Human_Body"],
@@ -310,7 +311,7 @@ function chapterLessonContent(chapter) {
   const videoLine = chapter.number === 16
     ? `\n\nNeurological exam video:\n- Watch: ${neurologicalExamVideoUrl}`
     : "";
-  return `Study this chapter PowerPoint before completing this week's assignment and, when scheduled, discussion.\n\nChapter ${chapter.number} PowerPoint:\n- Open or download: ${materialBase}/${chapter.studentFile}${videoLine}\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`;
+  return `Study this chapter PowerPoint before completing this week's assignment and, when scheduled, discussion.\n\nChapter ${chapter.number} PowerPoint:\n- Open or download: ${chapterMaterialUrl(chapter)}${videoLine}\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`;
 }
 
 function weekModule([week, chapterNumbers, title]) {
@@ -329,7 +330,7 @@ function weekModule([week, chapterNumbers, title]) {
       ...selected.map((chapter) => ({
         title: `Chapter ${chapter.number}: ${chapter.title} — PowerPoint`,
         durationMinutes: 75,
-        externalUrl: chapter.number === 16 ? neurologicalExamVideoUrl : null,
+        externalUrl: chapterMaterialUrl(chapter),
         content: chapterLessonContent(chapter)
       })),
       ...(discussion ? [{
