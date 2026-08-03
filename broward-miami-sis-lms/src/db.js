@@ -1171,24 +1171,96 @@ function seed() {
     });
 
     const chapter16LessonDefinition = lessonDefinitions.find((lesson) =>
-      lesson.title === "Chapter 16: Neurological Assessment — PowerPoint"
+      lesson.title === "Chapter 16: The Neurological Examination — PowerPoint"
     );
     if (chapter16LessonDefinition) {
       db.prepare(`
         UPDATE lessons
-        SET title = ?, content = ?, external_url = ?, duration_minutes = ?, published = 1, instructor_only = 0
-        WHERE title IN (?, ?, ?)
-          AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
+        SET title = ?, content = ?, external_url = ?, duration_minutes = ?, published = 1, instructor_only = 0, item_type = 'page'
+        WHERE module_id IN (
+            SELECT id FROM modules
+            WHERE course_id = ?
+              AND title LIKE 'Week 6:%'
+          )
+          AND (
+            title IN (?, ?, ?, ?)
+            OR title LIKE 'Chapter 16:%Neurological%'
+            OR content LIKE '%PN104_Ch16_Neurological_Exam%'
+            OR external_url LIKE '%PN104_Ch16_Neurological_Exam%'
+            OR external_url LIKE '%Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955%'
+          )
       `).run(
         chapter16LessonDefinition.title,
         chapter16LessonDefinition.content,
         chapter16LessonDefinition.externalUrl || null,
         chapter16LessonDefinition.durationMinutes || 75,
+        pn104CourseRow.id,
         "Chapter 16: The Neurological Examination — PowerPoint",
         "Chapter 16: The Neurological Exam — PowerPoint",
-        chapter16LessonDefinition.title,
-        pn104CourseRow.id
+        "Chapter 16: Neurological Assessment — PowerPoint",
+        chapter16LessonDefinition.title
       );
+    }
+
+    const chapter16VideoDefinition = lessonDefinitions.find((lesson) =>
+      lesson.title === "Chapter 16 Additional Reference: Neurological Exam Video"
+    );
+    if (chapter16VideoDefinition) {
+      const week6Module = db.prepare(`
+        SELECT id FROM modules
+        WHERE course_id = ? AND title LIKE 'Week 6:%'
+        ORDER BY position, id
+        LIMIT 1
+      `).get(pn104CourseRow.id);
+      if (week6Module) {
+        const existingVideoLesson = db.prepare(`
+          SELECT id FROM lessons
+          WHERE module_id = ?
+            AND (
+              title = ?
+              OR external_url LIKE '%Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955%'
+            )
+          ORDER BY id
+          LIMIT 1
+        `).get(week6Module.id, chapter16VideoDefinition.title);
+        if (existingVideoLesson) {
+          db.prepare(`
+            UPDATE lessons
+            SET title = ?, content = ?, external_url = ?, duration_minutes = ?, published = 1, instructor_only = 0, item_type = 'link'
+            WHERE id = ?
+          `).run(
+            chapter16VideoDefinition.title,
+            chapter16VideoDefinition.content,
+            chapter16VideoDefinition.externalUrl || null,
+            chapter16VideoDefinition.durationMinutes || 20,
+            existingVideoLesson.id
+          );
+        } else {
+          const chapter16Position = db.prepare(`
+            SELECT position FROM lessons
+            WHERE module_id = ?
+              AND title = 'Chapter 16: The Neurological Examination — PowerPoint'
+            ORDER BY id
+            LIMIT 1
+          `).get(week6Module.id)?.position || 3;
+          db.prepare(`
+            UPDATE lessons
+            SET position = position + 1
+            WHERE module_id = ? AND position > ?
+          `).run(week6Module.id, chapter16Position);
+          db.prepare(`
+            INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only, item_type)
+            VALUES (?, ?, ?, ?, ?, ?, 1, 0, 'link')
+          `).run(
+            week6Module.id,
+            chapter16VideoDefinition.title,
+            chapter16VideoDefinition.content,
+            chapter16VideoDefinition.externalUrl || null,
+            chapter16VideoDefinition.durationMinutes || 20,
+            chapter16Position + 1
+          );
+        }
+      }
     }
   }
 

@@ -1524,6 +1524,12 @@ function renderStudentCanvasRail(active = "courses") {
             <strong>${escapeHtml(item.label)}</strong>
           </a>
         `).join("")}
+        <form class="canvas-rail-signout" method="post" action="/logout">
+          <button type="submit">
+            <span aria-hidden="true">↪</span>
+            <strong>Sign Out</strong>
+          </button>
+        </form>
       </nav>
     </aside>
   `;
@@ -1600,6 +1606,7 @@ function renderStartTiles(tiles = []) {
 
 function moduleItemKind(title = "") {
   const lower = String(title).toLowerCase();
+  if (lower.includes("powerpoint") || lower.includes("slide review")) return "page";
   if (
     /\bquiz\b/.test(lower) ||
     /\btest\b/.test(lower) ||
@@ -1611,6 +1618,13 @@ function moduleItemKind(title = "") {
   if (lower.endsWith(".pdf") || lower.endsWith(".ppt") || lower.endsWith(".pptx") || lower.endsWith(".doc") || lower.endsWith(".docx") || lower.endsWith(".xls") || lower.endsWith(".xlsx")) return "file";
   if (lower.includes("syllabus") || lower.includes("acknowledgement") || lower.includes("worksheet") || lower.includes("exercise") || lower.includes("assignment")) return "assignment";
   return "page";
+}
+
+function lessonItemKind(lesson = {}) {
+  const itemType = String(lesson.item_type || "").toLowerCase();
+  if (itemType === "assignment" || itemType === "discussion" || itemType === "quiz" || itemType === "file") return itemType;
+  if (itemType === "youtube") return "video";
+  return moduleItemKind(lesson.title);
 }
 
 function moduleItemIcon(kind) {
@@ -1701,7 +1715,7 @@ function courseLessonPageHeading(courseSlug = "", lesson = {}) {
 
   if (!details.length) {
     const itemType = String(lesson.item_type || "").toLowerCase();
-    const inferredKind = moduleItemKind(rawTitle);
+    const inferredKind = lessonItemKind(lesson);
     const explicitItemTypeLabel = ({ assignment: "Assignment", link: "External link", youtube: "Recording" })[itemType];
     const resourceLabel = explicitItemTypeLabel
       || (youtubeVideoId(lesson.external_url)
@@ -1798,7 +1812,7 @@ function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, course
             </header>
             <div class="canvas-module-items" id="module-items-${module.id}">
               ${module.lessons.map((lesson) => {
-                const inferredKind = moduleItemKind(lesson.title);
+                const inferredKind = lessonItemKind(lesson);
                 const kind = (lesson.item_type === "youtube"
                   || (youtubeVideoId(lesson.external_url) && inferredKind === "page"))
                   ? "video"
@@ -2387,7 +2401,7 @@ function renderVideoAssignmentPanel({ lesson, enrollmentId = null, instructor = 
 function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false, gradeItems = [], quizGrade = null, courseId = null, examAttempt = null }) {
   const title = String(lesson.title || "");
   const lower = title.toLowerCase();
-  const kind = moduleItemKind(title);
+  const kind = lessonItemKind(lesson);
   const materialLinks = lessonMaterialLinks(lesson);
   const inlinePdfs = materialLinks.map(inlinePdfForMaterial).filter(Boolean).filter((file, index, files) => files.findIndex((candidate) => candidate.viewerHref === file.viewerHref) === index);
   const fileButtons = materialLinks.length ? `
@@ -2582,11 +2596,12 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
   const selectedModule = moduleGroups.find((module) => module.id === selectedLesson.module_id) || moduleGroups[0];
   const selectedGradeItem = gradeItemForLesson(selectedLesson, gradeItems);
   const quizGrade = selectedGradeItem ? grades.find((grade) => grade.grade_item_id === selectedGradeItem.id) : null;
-  const examAttempt = !instructor && enrollmentId && moduleItemKind(selectedLesson.title) === "quiz"
+  const selectedLessonKind = lessonItemKind(selectedLesson);
+  const examAttempt = !instructor && enrollmentId && selectedLessonKind === "quiz"
     ? db.prepare("SELECT * FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollmentId, selectedLesson.id)
     : null;
   const lessonIsComplete = completedLessonIds.has(selectedLesson.id) || Boolean(quizGrade);
-  const selectedLessonIsQuiz = moduleItemKind(selectedLesson.title) === "quiz";
+  const selectedLessonIsQuiz = selectedLessonKind === "quiz";
   const selectedCourseSlug = courseSlug || (courseId ? db.prepare("SELECT slug FROM courses WHERE id = ?").get(Number(courseId))?.slug : null);
   const selectedLessonDisplayTitle = courseLessonDisplayTitle(selectedCourseSlug, selectedLesson.title, selectedLesson);
   const selectedLessonHeading = courseLessonPageHeading(selectedCourseSlug, selectedLesson);
@@ -2642,7 +2657,7 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
           ? renderAssignmentRubric({ item: selectedGradeItem, instructor, courseId })
           : ""}
         ${showIntroNursingNclexHint ? renderIntroNursingNclexHint(selectedLesson) : ""}
-        ${!instructor && enrollmentId && moduleItemKind(selectedLesson.title) !== "quiz" && !db.prepare("SELECT id FROM video_assignments WHERE lesson_id = ?").get(selectedLesson.id) ? `
+        ${!instructor && enrollmentId && selectedLessonKind !== "quiz" && !db.prepare("SELECT id FROM video_assignments WHERE lesson_id = ?").get(selectedLesson.id) ? `
           <form method="post" action="/student/enrollments/${enrollmentId}/lesson-complete" class="canvas-complete-action">
             <input type="hidden" name="lessonId" value="${selectedLesson.id}">
             <button class="button ghost" type="submit" ${lessonIsComplete ? "disabled" : ""}>${lessonIsComplete ? "Completed" : "Mark As Complete"}</button>
@@ -4440,7 +4455,7 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
     return quizzesOnly ? isQuiz : true;
   });
   const fallbackItems = quizzesOnly
-    ? lessons.filter((lesson) => moduleItemKind(lesson.title) === "quiz").map((lesson) => ({
+    ? lessons.filter((lesson) => lessonItemKind(lesson) === "quiz").map((lesson) => ({
       id: lesson.id,
       title: lesson.title,
       points_possible: 10,
@@ -4448,10 +4463,10 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
       group: "Quiz",
       lesson_id: lesson.id
     }))
-    : lessons.filter((lesson) => ["assignment", "discussion", "quiz"].includes(moduleItemKind(lesson.title))).map((lesson) => ({
+    : lessons.filter((lesson) => ["assignment", "discussion", "quiz"].includes(lessonItemKind(lesson))).map((lesson) => ({
       id: lesson.id,
       title: lesson.title,
-      points_possible: moduleItemKind(lesson.title) === "assignment" ? 15 : 10,
+      points_possible: lessonItemKind(lesson) === "assignment" ? 15 : 10,
       due_date: lesson.due_date || null,
       group: assignmentTypeLabel(lesson),
       lesson_id: lesson.id

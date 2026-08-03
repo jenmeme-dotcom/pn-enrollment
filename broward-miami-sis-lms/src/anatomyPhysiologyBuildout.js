@@ -20,7 +20,7 @@ const chapters = [
   [13, "Anatomy of the Nervous System", "PN104_Ch13_Nervous_System_Anatomy"],
   [14, "The Somatic Nervous System", "PN104_Ch14_Somatic_Nervous_System"],
   [15, "The Autonomic Nervous System", "PN104_Ch15_Autonomic_Nervous_System"],
-  [16, "Neurological Assessment", "PN104_Ch16_Neurological_Exam"],
+  [16, "The Neurological Examination", "PN104_Ch16_Neurological_Exam"],
   [17, "The Endocrine System", "PN104_Ch17_Endocrine_System"],
   [18, "Blood", "PN104_Ch18_Blood"],
   [19, "The Heart", "PN104_Ch19_The_Heart"],
@@ -309,7 +309,7 @@ const discussionByWeek = new Map(discussions.map((discussion) => [discussion.wee
 
 function chapterLessonContent(chapter) {
   const videoLine = chapter.number === 16
-    ? `\n\nNeurological exam video:\n- Watch: ${neurologicalExamVideoUrl}`
+    ? `\n\nAdditional reference:\n- Neurological exam video: ${neurologicalExamVideoUrl}`
     : "";
   return `Study this chapter PowerPoint before completing this week's assignment and, when scheduled, discussion.\n\nChapter ${chapter.number} PowerPoint:\n- Open or download: ${chapterMaterialUrl(chapter)}${videoLine}\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`;
 }
@@ -327,12 +327,24 @@ function weekModule([week, chapterNumbers, title]) {
         durationMinutes: 30,
         content: `This week, you will study ${selected.map((chapter) => `Chapter ${chapter.number}: ${chapter.title}`).join(", ")}. Focus on normal structure, normal function, how the systems work together, and the changes you would recognize and report in practical nursing care.`
       },
-      ...selected.map((chapter) => ({
-        title: `Chapter ${chapter.number}: ${chapter.title} — PowerPoint`,
-        durationMinutes: 75,
-        externalUrl: null,
-        content: chapterLessonContent(chapter)
-      })),
+      ...selected.flatMap((chapter) => {
+        const lesson = {
+          title: `Chapter ${chapter.number}: ${chapter.title} — PowerPoint`,
+          durationMinutes: 75,
+          externalUrl: null,
+          content: chapterLessonContent(chapter)
+        };
+        if (chapter.number !== 16) return [lesson];
+        return [
+          lesson,
+          {
+            title: "Chapter 16 Additional Reference: Neurological Exam Video",
+            durationMinutes: 20,
+            externalUrl: neurologicalExamVideoUrl,
+            content: `Additional reference for Chapter 16.\n\nNeurological exam video:\n- Watch: ${neurologicalExamVideoUrl}\n\nUse this video after reviewing the Chapter 16 PowerPoint.`
+          }
+        ];
+      }),
       ...(discussion ? [{
         title: discussion.title,
         durationMinutes: 30,
