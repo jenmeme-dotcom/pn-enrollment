@@ -1176,19 +1176,29 @@ function seed() {
     if (chapter16LessonDefinition) {
       db.prepare(`
         UPDATE lessons
-        SET title = ?, content = ?, external_url = ?, duration_minutes = ?, published = 1, instructor_only = 0
-        WHERE title IN (?, ?, ?, ?)
-          AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
+        SET title = ?, content = ?, external_url = ?, duration_minutes = ?, published = 1, instructor_only = 0, item_type = 'page'
+        WHERE module_id IN (
+            SELECT id FROM modules
+            WHERE course_id = ?
+              AND title LIKE 'Week 6:%'
+          )
+          AND (
+            title IN (?, ?, ?, ?)
+            OR title LIKE 'Chapter 16:%Neurological%'
+            OR content LIKE '%PN104_Ch16_Neurological_Exam%'
+            OR external_url LIKE '%PN104_Ch16_Neurological_Exam%'
+            OR external_url LIKE '%Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955%'
+          )
       `).run(
         chapter16LessonDefinition.title,
         chapter16LessonDefinition.content,
         chapter16LessonDefinition.externalUrl || null,
         chapter16LessonDefinition.durationMinutes || 75,
+        pn104CourseRow.id,
         "Chapter 16: The Neurological Examination — Student Slide Review",
         "Chapter 16: The Neurological Examination — PowerPoint",
         "Chapter 16: The Neurological Exam — PowerPoint",
-        chapter16LessonDefinition.title,
-        pn104CourseRow.id
+        chapter16LessonDefinition.title
       );
     }
   }

@@ -193,7 +193,9 @@ function weekModule([week, chapterNumbers, title]) {
             ? "Chapter 16: Neurological Assessment — PowerPoint"
             : `Chapter ${chapter.number}: ${chapter.title} — Student Slide Review`,
           durationMinutes: 75,
-          content: `Study the chapter presentation before completing this week's assignment and, when scheduled, discussion.\n\nStudent presentation (instructor notes removed):\n- Open Chapter ${chapter.number} slides: ${studentFileUrl}${isChapter16 ? "" : "?inline=1"}${videoLine}\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`
+          content: isChapter16
+            ? `Study this Chapter 16 PowerPoint before completing this week's assignment and quiz.\n\nChapter 16 PowerPoint:\n- Open or download: ${studentFileUrl}\n\nAdditional reference:\n- Neurological exam video: ${neurologicalExamVideoUrl}\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`
+            : `Study the chapter presentation before completing this week's assignment and, when scheduled, discussion.\n\nStudent presentation (instructor notes removed):\n- Open Chapter ${chapter.number} slides: ${studentFileUrl}?inline=1\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`
         };
       }),
       ...(discussion ? [{

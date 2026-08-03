@@ -1586,7 +1586,13 @@ function renderStartTiles(tiles = []) {
 
 function moduleItemKind(title = "") {
   const lower = String(title).toLowerCase();
-  if (lower.includes("quiz") || lower.includes("exam") || lower.includes("test")) return "quiz";
+  if (
+    /\bquiz\b/.test(lower) ||
+    /\btest\b/.test(lower) ||
+    /\bexam\b/.test(lower) ||
+    /\bmidterm\b/.test(lower) ||
+    /\bfinal\s+examination\b/.test(lower)
+  ) return "quiz";
   if (lower.includes("discussion")) return "discussion";
   if (lower.endsWith(".pdf") || lower.endsWith(".ppt") || lower.endsWith(".pptx") || lower.endsWith(".doc") || lower.endsWith(".docx") || lower.endsWith(".xls") || lower.endsWith(".xlsx")) return "file";
   if (lower.includes("syllabus") || lower.includes("acknowledgement") || lower.includes("worksheet") || lower.includes("exercise") || lower.includes("assignment")) return "assignment";
