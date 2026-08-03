@@ -1169,6 +1169,23 @@ function seed() {
         );
       }
     });
+
+    const chapter16LessonDefinition = lessonDefinitions.find((lesson) =>
+      lesson.title === "Chapter 16: The Neurological Examination — PowerPoint"
+    );
+    if (chapter16LessonDefinition) {
+      db.prepare(`
+        UPDATE lessons
+        SET content = ?, external_url = ?, duration_minutes = ?, published = 1, instructor_only = 0
+        WHERE title = ? AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
+      `).run(
+        chapter16LessonDefinition.content,
+        chapter16LessonDefinition.externalUrl || null,
+        chapter16LessonDefinition.durationMinutes || 75,
+        chapter16LessonDefinition.title,
+        pn104CourseRow.id
+      );
+    }
   }
 
   // Update every live PN101 assessment in place. This preserves lesson IDs,
