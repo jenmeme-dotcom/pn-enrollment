@@ -1171,17 +1171,21 @@ function seed() {
     });
 
     const chapter16LessonDefinition = lessonDefinitions.find((lesson) =>
-      lesson.title === "Chapter 16: The Neurological Examination — PowerPoint"
+      lesson.title === "Chapter 16: Neurological Assessment — PowerPoint"
     );
     if (chapter16LessonDefinition) {
       db.prepare(`
         UPDATE lessons
-        SET content = ?, external_url = ?, duration_minutes = ?, published = 1, instructor_only = 0
-        WHERE title = ? AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
+        SET title = ?, content = ?, external_url = ?, duration_minutes = ?, published = 1, instructor_only = 0
+        WHERE title IN (?, ?, ?)
+          AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
       `).run(
+        chapter16LessonDefinition.title,
         chapter16LessonDefinition.content,
         chapter16LessonDefinition.externalUrl || null,
         chapter16LessonDefinition.durationMinutes || 75,
+        "Chapter 16: The Neurological Examination — PowerPoint",
+        "Chapter 16: The Neurological Exam — PowerPoint",
         chapter16LessonDefinition.title,
         pn104CourseRow.id
       );

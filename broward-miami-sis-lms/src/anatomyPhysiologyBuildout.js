@@ -19,7 +19,7 @@ const chapters = [
   [13, "Anatomy of the Nervous System", "PN104_Ch13_Nervous_System_Anatomy"],
   [14, "The Somatic Nervous System", "PN104_Ch14_Somatic_Nervous_System"],
   [15, "The Autonomic Nervous System", "PN104_Ch15_Autonomic_Nervous_System"],
-  [16, "The Neurological Examination", "PN104_Ch16_Neurological_Exam"],
+  [16, "Neurological Assessment", "PN104_Ch16_Neurological_Exam"],
   [17, "The Endocrine System", "PN104_Ch17_Endocrine_System"],
   [18, "Blood", "PN104_Ch18_Blood"],
   [19, "The Heart", "PN104_Ch19_The_Heart"],
