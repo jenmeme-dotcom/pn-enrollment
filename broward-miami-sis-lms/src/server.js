@@ -1592,6 +1592,7 @@ function renderStartTiles(tiles = []) {
 
 function moduleItemKind(title = "") {
   const lower = String(title).toLowerCase();
+  if (/^chapter\s+16:\s+the\s+neurological\s+examination\s+[-–—]\s*powerpoint$/i.test(String(title || "").trim())) return "page";
   if (
     /\bquiz\b/.test(lower) ||
     /\btest\b/.test(lower) ||
