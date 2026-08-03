@@ -1510,6 +1510,12 @@ function renderStudentCanvasRail(active = "courses") {
             <strong>${escapeHtml(item.label)}</strong>
           </a>
         `).join("")}
+        <form class="canvas-rail-signout" method="post" action="/logout">
+          <button type="submit">
+            <span aria-hidden="true">↪</span>
+            <strong>Sign Out</strong>
+          </button>
+        </form>
       </nav>
     </aside>
   `;

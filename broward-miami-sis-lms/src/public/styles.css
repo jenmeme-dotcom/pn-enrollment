@@ -5696,8 +5696,9 @@ button.small {
 
 .student-canvas-rail nav {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   flex-direction: column;
+  min-height: 0;
   width: 100%;
 }
 
@@ -5759,12 +5760,12 @@ button.small {
   flex: 0 0 auto;
 }
 
-.instructor-canvas-rail .canvas-rail-signout {
-  margin: 0;
+.student-canvas-rail .canvas-rail-signout {
+  margin: auto 0 0;
   width: 100%;
 }
 
-.instructor-canvas-rail .canvas-rail-signout button {
+.student-canvas-rail .canvas-rail-signout button {
   align-items: center;
   appearance: none;
   background: transparent;
@@ -5781,12 +5782,12 @@ button.small {
   width: 100%;
 }
 
-.instructor-canvas-rail .canvas-rail-signout button:hover,
-.instructor-canvas-rail .canvas-rail-signout button:focus-visible {
+.student-canvas-rail .canvas-rail-signout button:hover,
+.student-canvas-rail .canvas-rail-signout button:focus-visible {
   background: rgba(255, 255, 255, 0.12);
 }
 
-.instructor-canvas-rail .canvas-rail-signout button span {
+.student-canvas-rail .canvas-rail-signout button span {
   background: transparent;
   border: 2px solid currentColor;
   color: inherit;
@@ -5795,7 +5796,7 @@ button.small {
   width: 20px;
 }
 
-.instructor-canvas-rail .canvas-rail-signout button strong {
+.student-canvas-rail .canvas-rail-signout button strong {
   color: inherit;
   font-size: 10px;
   font-weight: 500;
@@ -11394,6 +11395,18 @@ button.small {
     flex-direction: row;
     overflow-x: auto;
     padding: 8px 12px;
+  }
+
+  .student-canvas-rail nav {
+    flex: 1 0 auto;
+    flex-direction: row;
+    min-width: max-content;
+    width: auto;
+  }
+
+  .student-canvas-rail .canvas-rail-signout {
+    margin: 0;
+    width: auto;
   }
 
   .canvas-populi-bar {
