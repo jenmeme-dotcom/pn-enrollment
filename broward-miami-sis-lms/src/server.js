@@ -2635,6 +2635,22 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
   const firstLesson = lessons[0];
   const selectedLesson = lessons.find((lesson) => lesson.id === Number(lessonId)) || firstLesson;
   if (!selectedLesson) return `<main class="canvas-course-main canvas-page-main"><p class="empty">No lesson was found.</p></main>`;
+  if (/^PN 104 Syllabus$/i.test(String(selectedLesson.title || "")) && courseId) {
+    const syllabusCourse = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(courseId));
+    if (syllabusCourse) {
+      return renderCourseSyllabus({
+        courseTitle: syllabusCourse.title,
+        courseDescription: syllabusCourse.description,
+        courseCode,
+        courseHours: syllabusCourse.hours,
+        courseCategory: syllabusCourse.category,
+        courseSlug: syllabusCourse.slug,
+        gradeItems,
+        lessons,
+        baseHref
+      });
+    }
+  }
   const selectedIndex = lessons.findIndex((lesson) => lesson.id === selectedLesson.id);
   const previousLesson = selectedIndex > 0 ? lessons[selectedIndex - 1] : null;
   const nextLesson = selectedIndex >= 0 && selectedIndex < lessons.length - 1 ? lessons[selectedIndex + 1] : null;
@@ -4061,6 +4077,8 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
   const requiredTitles = courseDefinition?.requiredTitles || [];
   const policies = Object.entries(courseDefinition?.policies || {});
   const weeklySchedule = courseDefinition?.weeks || [];
+  const discussions = courseDefinition?.discussions || [];
+  const syllabusDetails = courseDefinition?.syllabus || {};
   const tallyRows = gradeTallyRows(gradeItems);
   const totalPoints = gradeItems.reduce((sum, item) => sum + Number(item.points_possible || 0), 0);
   const assignmentRows = gradeItems.length ? gradeItems : [
@@ -4119,6 +4137,8 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
               <p><strong>Course code</strong><span>${escapeHtml(courseCode)}</span></p>
               <p><strong>Clock hours</strong><span>${escapeHtml(courseHours)}</span></p>
               <p><strong>Program area</strong><span>${escapeHtml(courseCategory)}</span></p>
+              ${syllabusDetails.length ? `<p><strong>Course length</strong><span>${escapeHtml(syllabusDetails.length)}</span></p>` : ""}
+              ${syllabusDetails.delivery ? `<p><strong>Delivery</strong><span>${escapeHtml(syllabusDetails.delivery)}</span></p>` : ""}
             </div>
           </section>
 
@@ -4141,12 +4161,31 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
             <section class="syllabus-card">
               <h2>Weekly Course Schedule</h2>
               <table class="syllabus-table">
-                <thead><tr><th>Week</th><th>Topic and Required Reading</th><th>Assessment</th></tr></thead>
+                <thead><tr><th>Week</th><th>Topic and Required Reading</th><th>Assessment</th><th>Due Date</th></tr></thead>
                 <tbody>${weeklySchedule.map((week) => `
                   <tr>
                     <td>Week ${escapeHtml(week.week)}</td>
                     <td><strong>${escapeHtml(week.title)}</strong>${week.chapters ? `<br>${escapeHtml(week.chapters)}` : ""}</td>
                     <td>${escapeHtml(week.assessment || week.assignmentTitle || "Module activities")}</td>
+                    <td>${week.dueDate ? date(week.dueDate) : "See course calendar"}</td>
+                  </tr>
+                `).join("")}</tbody>
+              </table>
+            </section>
+          ` : ""}
+
+          ${discussions.length ? `
+            <section class="syllabus-card">
+              <h2>Discussion Schedule</h2>
+              <p>Complete the initial response and required classmate reply by the posted deadline. Use professional language and protect patient confidentiality.</p>
+              <table class="syllabus-table">
+                <thead><tr><th>Week</th><th>Discussion</th><th>Due Date</th><th>Points</th></tr></thead>
+                <tbody>${discussions.map((discussion) => `
+                  <tr>
+                    <td>Week ${escapeHtml(discussion.week)}</td>
+                    <td>${escapeHtml(discussion.title.replace(/^\[[^\]]+\]\s*/, ""))}</td>
+                    <td>${discussion.dueDate ? date(discussion.dueDate) : "See course calendar"}</td>
+                    <td>${escapeHtml(discussion.pointsPossible || 0)}</td>
                   </tr>
                 `).join("")}</tbody>
               </table>

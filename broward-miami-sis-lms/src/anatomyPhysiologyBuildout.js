@@ -410,10 +410,22 @@ const anatomyPhysiologyCourse = {
     "Recognize how body systems maintain homeostasis and respond to change.",
     "Communicate anatomical and physiological information clearly using professional language."
   ],
+  requiredTitles: [
+    "BMHI PN 104 chapter PowerPoints for Chapters 1-28",
+    "Instructor-provided anatomy and physiology readings and diagrams",
+    "Current student handbook and practical nursing program policies",
+    "Computer or tablet with reliable internet access for modules, discussions, assignments, and quizzes"
+  ],
   policies: {
     attendance: "You are expected to participate in all scheduled learning activities and complete each week in sequence.",
     assessment: "Four graded discussions in Weeks 3, 5, 8, and 11 and weekly applied assignments prepare you for four 45-question quizzes covering three weeks each, a midterm, and a comprehensive final examination.",
-    materials: "Each chapter PowerPoint is attached individually in its assigned week. Student copies do not contain faculty notes; the original faculty versions remain available only on the instructor side."
+    materials: "Each chapter PowerPoint is attached individually in its assigned week. Student copies do not contain faculty notes; the original faculty versions remain available only on the instructor side.",
+    submissions: "Submit each applied assignment through its LMS submission area by 11:59 PM on the listed due date. Confirm that the portal displays a submission receipt. Contact the instructor promptly if a technical problem prevents submission.",
+    discussions: "Post an original response that addresses the complete prompt and reply meaningfully to at least one classmate. Maintain professional communication, use course terminology, and never include identifiable patient information.",
+    quizzesAndExams: "Complete quizzes and examinations independently during their posted availability. Select the one best answer for each item. Scores are recorded in the LMS gradebook after submission.",
+    lateWork: "Late or missed work is handled according to the BMHI student handbook and instructor direction. Students are responsible for communicating before a deadline whenever possible.",
+    academicIntegrity: "Submit your own work, cite assigned materials when required, protect assessment content, and follow all BMHI academic-integrity and confidentiality expectations.",
+    grading: "The course uses points rather than weighted categories: 12 applied assignments total 300 points, four discussions total 40 points, four quizzes total 200 points, the midterm is 150 points, and the final examination is 200 points, for 890 graded points."
   },
   syllabus: {
     courseCode: "PN 104",
