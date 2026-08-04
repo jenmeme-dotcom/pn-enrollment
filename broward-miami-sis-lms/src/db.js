@@ -379,6 +379,47 @@ function migrate() {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS quickbooks_connections (
+      id INTEGER PRIMARY KEY CHECK(id = 1),
+      realm_id TEXT NOT NULL,
+      company_name TEXT,
+      access_token_encrypted TEXT NOT NULL,
+      refresh_token_encrypted TEXT NOT NULL,
+      access_token_expires_at TEXT NOT NULL,
+      refresh_token_expires_at TEXT,
+      connected_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      connected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_synced_at TEXT,
+      last_error TEXT,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS quickbooks_entity_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      local_type TEXT NOT NULL,
+      local_id INTEGER NOT NULL,
+      quickbooks_type TEXT NOT NULL,
+      quickbooks_id TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'synced' CHECK(sync_status IN ('pending','synced','error')),
+      last_error TEXT,
+      last_synced_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(local_type, local_id, quickbooks_type),
+      UNIQUE(quickbooks_type, quickbooks_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS quickbooks_sync_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      direction TEXT NOT NULL,
+      action TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('started','success','error')),
+      records_processed INTEGER NOT NULL DEFAULT 0,
+      message TEXT,
+      started_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS webhook_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       source TEXT NOT NULL,

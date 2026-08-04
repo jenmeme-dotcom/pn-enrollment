@@ -8,6 +8,7 @@ const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const nodemailer = require("nodemailer");
+const quickbooks = require("./quickbooks");
 const { adminAccessAccounts, adminAccessDefaultPassword } = require("./adminAccess");
 const { db, initialize, databaseFile } = require("./db");
 const {
@@ -381,7 +382,12 @@ function receiveAssignment(req, res, next) {
 
 app.set("trust proxy", 1);
 app.use(express.urlencoded({ extended: false }));
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({
+  limit: "1mb",
+  verify: (req, _res, buffer) => {
+    if (req.path === "/webhooks/quickbooks") req.rawBody = Buffer.from(buffer);
+  }
+}));
 app.use((req, res, next) => {
   if (/\.(css|js)$/i.test(req.path)) {
     res.set("Cache-Control", "no-cache, must-revalidate");
@@ -9932,6 +9938,16 @@ app.get("/admin/billing", requireAuth, requireRole("admin"), (req, res) => {
   const policy = db.prepare("SELECT * FROM billing_refund_policies WHERE active = 1 ORDER BY id DESC LIMIT 1").get();
   const totalCharges = db.prepare("SELECT COALESCE(SUM(amount_cents), 0) AS total FROM billing_charges WHERE status = 'posted'").get().total;
   const totalPayments = db.prepare("SELECT COALESCE(SUM(amount_cents), 0) AS total FROM billing_payments").get().total;
+  const quickbooksConnection = quickbooks.connection(db);
+  const quickbooksConfigured = quickbooks.isConfigured();
+  const quickbooksStats = db.prepare(`
+    SELECT
+      SUM(CASE WHEN quickbooks_type = 'Customer' THEN 1 ELSE 0 END) AS customers,
+      SUM(CASE WHEN quickbooks_type = 'Invoice' THEN 1 ELSE 0 END) AS invoices,
+      SUM(CASE WHEN quickbooks_type = 'Payment' THEN 1 ELSE 0 END) AS payments
+    FROM quickbooks_entity_links
+  `).get();
+  const quickbooksLogs = db.prepare("SELECT * FROM quickbooks_sync_log ORDER BY id DESC LIMIT 5").all();
 
   const studentOptions = students.map((student) => `<option value="${student.id}">${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)} · ${escapeHtml(student.email)}</option>`).join("");
   const body = `
@@ -9948,6 +9964,41 @@ app.get("/admin/billing", requireAuth, requireRole("admin"), (req, res) => {
       ${stat("Payments", money(totalPayments))}
       ${stat("Receivable", money(Math.max(0, totalCharges - totalPayments)))}
       ${stat("Payment plans", String(plans.length))}
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <div class="page-head compact">
+        <div>
+          <p class="eyebrow">Accounting integration</p>
+          <h2>QuickBooks Online</h2>
+          ${quickbooksConnection
+            ? `<p><strong>Connected to ${escapeHtml(quickbooksConnection.company_name || `company ${quickbooksConnection.realm_id}`)}</strong><br><span class="muted">Last sync: ${quickbooksConnection.last_synced_at ? date(quickbooksConnection.last_synced_at) : "Not synced yet"}</span></p>`
+            : `<p class="muted">Connect the institute's QuickBooks company to synchronize students, invoices, and payments.</p>`}
+        </div>
+        <div class="actions">
+          ${quickbooksConnection ? `
+            <form method="post" action="/admin/integrations/quickbooks/sync"><button type="submit">Sync now</button></form>
+            <form method="post" action="/admin/integrations/quickbooks/disconnect" onsubmit="return confirm('Disconnect QuickBooks from the LMS? Existing accounting records will remain in both systems.');"><button class="button ghost" type="submit">Disconnect</button></form>
+          ` : quickbooksConfigured
+            ? `<a class="button" href="/admin/integrations/quickbooks/connect">Connect QuickBooks</a>`
+            : `<span class="status warning">Developer credentials required</span>`}
+        </div>
+      </div>
+      <div class="grid cols-3 integration-path">
+        ${stat("Students linked", String(quickbooksStats.customers || 0))}
+        ${stat("Invoices linked", String(quickbooksStats.invoices || 0))}
+        ${stat("Payments linked", String(quickbooksStats.payments || 0))}
+      </div>
+      ${quickbooksConnection?.last_error ? `<div class="notice error"><strong>Last sync error:</strong> ${escapeHtml(quickbooksConnection.last_error)}</div>` : ""}
+      ${!quickbooksConfigured ? `<div class="notice"><strong>Finish setup:</strong> add <code>QUICKBOOKS_CLIENT_ID</code>, <code>QUICKBOOKS_CLIENT_SECRET</code>, and the production callback URL <code>${escapeHtml(quickbooks.configuration().redirectUri)}</code> in the Intuit Developer app and Render environment.</div>` : ""}
+      ${quickbooksLogs.length ? `
+        <details>
+          <summary>Recent synchronization activity</summary>
+          <div class="table-wrap"><table><thead><tr><th>When</th><th>Direction</th><th>Status</th><th>Records</th><th>Details</th></tr></thead><tbody>
+            ${quickbooksLogs.map((log) => `<tr><td>${date(log.created_at)}</td><td>${escapeHtml(log.direction)}</td><td>${escapeHtml(log.status)}</td><td>${log.records_processed}</td><td>${escapeHtml(log.message || log.action)}</td></tr>`).join("")}
+          </tbody></table></div>
+        </details>
+      ` : ""}
     </section>
 
     <section class="grid cols-3 billing-workbench" style="margin-top:18px">
@@ -10062,6 +10113,71 @@ app.post("/admin/billing/payment-plans", requireAuth, requireRole("admin"), (req
   `).run(Number(req.body.userId), String(req.body.term || "").trim(), String(req.body.name || "Payment plan").trim(), dollarsToCents(req.body.total), dollarsToCents(req.body.installment), String(req.body.nextDueDate || ""));
   flash(req, "Payment plan created.");
   res.redirect("/admin/billing");
+});
+
+app.get("/admin/integrations/quickbooks/connect", requireAuth, requireRole("admin"), (req, res) => {
+  if (!quickbooks.isConfigured()) {
+    flash(req, "QuickBooks developer credentials must be added before connecting.");
+    return res.redirect("/admin/billing");
+  }
+  const state = crypto.randomBytes(32).toString("hex");
+  req.session.quickbooksOAuthState = state;
+  res.redirect(quickbooks.authorizationUrl(state));
+});
+
+app.get("/admin/integrations/quickbooks/callback", requireAuth, requireRole("admin"), async (req, res) => {
+  const expectedState = String(req.session.quickbooksOAuthState || "");
+  delete req.session.quickbooksOAuthState;
+  if (!expectedState || String(req.query.state || "") !== expectedState) {
+    flash(req, "QuickBooks authorization could not be verified. Please try connecting again.");
+    return res.redirect("/admin/billing");
+  }
+  if (req.query.error) {
+    flash(req, `QuickBooks connection was not completed: ${String(req.query.error_description || req.query.error)}`);
+    return res.redirect("/admin/billing");
+  }
+  try {
+    const companyName = await quickbooks.exchangeAuthorizationCode(db, {
+      code: String(req.query.code || ""),
+      realmId: String(req.query.realmId || ""),
+      userId: req.user.id
+    });
+    flash(req, `QuickBooks connected${companyName ? ` to ${companyName}` : ""}. Select Sync now to exchange billing records.`);
+  } catch (error) {
+    console.error("QuickBooks callback failed.", error);
+    flash(req, `QuickBooks connection failed: ${error.message}`);
+  }
+  res.redirect("/admin/billing");
+});
+
+app.post("/admin/integrations/quickbooks/sync", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const result = await quickbooks.syncAll(db, req.user.id);
+    flash(req, result.message);
+  } catch (error) {
+    console.error("QuickBooks synchronization failed.", error);
+    flash(req, `QuickBooks sync failed: ${error.message}`);
+  }
+  res.redirect("/admin/billing");
+});
+
+app.post("/admin/integrations/quickbooks/disconnect", requireAuth, requireRole("admin"), async (req, res) => {
+  await quickbooks.disconnect(db);
+  flash(req, "QuickBooks disconnected. Existing records and synchronization history were preserved.");
+  res.redirect("/admin/billing");
+});
+
+app.post("/webhooks/quickbooks", async (req, res) => {
+  if (!quickbooks.verifyWebhookSignature(req.rawBody || Buffer.alloc(0), req.get("intuit-signature"))) return res.sendStatus(401);
+  res.sendStatus(200);
+  const realms = Array.isArray(req.body?.eventNotifications) ? req.body.eventNotifications.map((event) => String(event.realmId || "")) : [];
+  const connectedRealm = quickbooks.connection(db)?.realm_id;
+  if (!connectedRealm || !realms.includes(String(connectedRealm))) return;
+  try {
+    await quickbooks.syncAll(db, null);
+  } catch (error) {
+    console.error("QuickBooks webhook synchronization failed.", error);
+  }
 });
 
 app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req, res) => {
