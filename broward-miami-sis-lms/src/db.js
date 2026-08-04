@@ -2143,21 +2143,25 @@ function seed() {
         }
 
         const assignmentLesson = module.lessons.find((lesson) =>
-          String(lesson.content || "").startsWith("Canvas item type: Assignment.")
+          /^\[PN102 2026\] Chapter [1-6] Applied Nursing Assignment$/.test(lesson.title)
         );
         if (assignmentLesson) {
+          const assignmentItemType = String(assignmentLesson.content || "").includes("QUIZ_DATA_BASE64:")
+            ? "quiz"
+            : "assignment";
           const storedAssignment = existingLessonByTitle.get(storedModule.id, assignmentLesson.title)
             || existingLessonByTitle.get(storedModule.id, `Week ${weekNumber} Applied Assignment`);
           if (storedAssignment) {
             db.prepare(`
               UPDATE lessons
               SET title = ?, content = ?, duration_minutes = ?, published = 1,
-                instructor_only = 0, item_type = 'assignment'
+                instructor_only = 0, item_type = ?
               WHERE id = ?
             `).run(
               assignmentLesson.title,
               assignmentLesson.content || "",
               assignmentLesson.durationMinutes || 60,
+              assignmentItemType,
               storedAssignment.id
             );
           } else {
@@ -2171,7 +2175,7 @@ function seed() {
               1,
               0
             ).lastInsertRowid;
-            db.prepare("UPDATE lessons SET item_type = 'assignment' WHERE id = ?").run(assignmentId);
+            db.prepare("UPDATE lessons SET item_type = ? WHERE id = ?").run(assignmentItemType, assignmentId);
           }
         }
 
