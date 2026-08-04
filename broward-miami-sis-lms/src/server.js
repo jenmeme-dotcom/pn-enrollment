@@ -2398,7 +2398,7 @@ function renderVideoAssignmentPanel({ lesson, enrollmentId = null, instructor = 
   `;
 }
 
-function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false, gradeItems = [], quizGrade = null, courseId = null, examAttempt = null }) {
+function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false, gradeItems = [], quizGrade = null, courseId = null, examAttempt = null, assignmentSubmission = null }) {
   const title = String(lesson.title || "");
   const lower = title.toLowerCase();
   const kind = lessonItemKind(lesson);
@@ -2472,13 +2472,17 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
     const assignmentHref = assignmentGradeItem?.id
       ? `${baseHref}?assignment=${assignmentGradeItem.id}`
       : `${baseHref}?view=assignments`;
+    const assignmentSubmissionCard = !instructor && enrollmentId && assignmentGradeItem
+      ? renderAssignmentSubmissionCard({ item: assignmentGradeItem, enrollmentId, submission: assignmentSubmission })
+      : "";
     return `
       ${fileButtons}
       <div class="lesson-action-card">
         <h2>Assignment</h2>
-        <p>Review the instructions, then open the assignment to type your response directly or attach a completed file. Your submission and grade will be saved in the portal.</p>
+        <p>Review the instructions, then type your response directly or attach a completed file. Your submission and grade will be saved in the portal.</p>
         <a class="button" href="${escapeHtml(assignmentHref)}">${instructor ? "View Assignment Setup" : "Complete Assignment"}</a>
       </div>
+      ${assignmentSubmissionCard}
     `;
   }
 
@@ -2597,6 +2601,9 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
   const selectedGradeItem = gradeItemForLesson(selectedLesson, gradeItems);
   const quizGrade = selectedGradeItem ? grades.find((grade) => grade.grade_item_id === selectedGradeItem.id) : null;
   const selectedLessonKind = lessonItemKind(selectedLesson);
+  const selectedAssignmentSubmission = !instructor && enrollmentId && selectedLessonKind === "assignment" && selectedGradeItem
+    ? db.prepare("SELECT * FROM assignment_submissions WHERE grade_item_id = ? AND enrollment_id = ?").get(selectedGradeItem.id, enrollmentId)
+    : null;
   const examAttempt = !instructor && enrollmentId && selectedLessonKind === "quiz"
     ? db.prepare("SELECT * FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollmentId, selectedLesson.id)
     : null;
@@ -2652,7 +2659,7 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
           ` : ""}
           ${showLessonSourceContent ? renderCanvasLessonContent(lessonContentForViewer, [selectedLesson.title, selectedLessonDisplayTitle, selectedLessonHeading.title]) : ""}
         </div>
-        ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId, examAttempt })}
+        ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId, examAttempt, assignmentSubmission: selectedAssignmentSubmission })}
         ${selectedGradeItem && rubricEligible(selectedGradeItem)
           ? renderAssignmentRubric({ item: selectedGradeItem, instructor, courseId })
           : ""}
@@ -4344,6 +4351,41 @@ function renderAssignmentRubric({ item, instructor = false, courseId = null, com
   `;
 }
 
+function renderAssignmentSubmissionCard({ item, enrollmentId, submission = null }) {
+  if (!item?.id || !enrollmentId) return "";
+  return `
+    <section class="lesson-action-card assignment-submission-card">
+      <div class="assignment-submission-heading">
+        <div>
+          <p class="eyebrow">Your work</p>
+          <h2>${submission ? "Assignment submitted" : "Submit assignment"}</h2>
+        </div>
+        ${submission ? `<span class="pill">Submitted</span>` : ""}
+      </div>
+      ${submission ? `
+        <div class="assignment-submission-receipt">
+          <p><strong>${escapeHtml(submission.file_original_name)}</strong></p>
+          <p class="muted">Submitted ${escapeHtml(date(submission.submitted_at))} · ${escapeHtml(formatBytes(submission.file_size))}</p>
+          ${submission.student_note ? `<div class="assignment-written-response"><strong>Your written response</strong><p>${escapeHtml(submission.student_note)}</p></div>` : ""}
+          <a class="button ghost small" href="/student/assignment-submissions/${submission.id}/file">Download submitted work</a>
+        </div>
+      ` : `<p>Type your answer below, attach a completed file, or use both options. Your instructor will receive the work in the grading queue.</p>`}
+      <form class="assignment-submission-form" method="post" enctype="multipart/form-data" action="/student/enrollments/${enrollmentId}/assignments/${item.id}/submit">
+        <label>
+          Write your response
+          <textarea name="studentResponse" rows="9" maxlength="12000" placeholder="Answer the assignment prompt in complete sentences. Support your response with this week's course material and do not include real patient-identifying information.">${escapeHtml(submission?.student_note || "")}</textarea>
+        </label>
+        <label>
+          ${submission ? "Replace or add an attachment (optional)" : "Attach a completed file (optional)"}
+          <input type="file" name="assignmentFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.webp,.zip">
+        </label>
+        <p class="muted">Enter a written response, attach a file, or do both. Accepted files: PDF, Office documents, text, CSV, images, and ZIP files up to 25 MB.</p>
+        <button class="button" type="submit">${submission ? "Replace Submission" : "Submit Assignment"}</button>
+      </form>
+    </section>
+  `;
+}
+
 function renderCourseRubricsPage({ courseCode, baseHref, gradeItems = [], instructor = false, courseId = null }) {
   const items = gradeItems.filter(rubricEligible);
   return `
@@ -4402,37 +4444,9 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
           </div>
         </section>
         ${renderAssignmentRubric({ item, instructor, courseId })}
-        ${!instructor && enrollmentId && type !== "Quiz" && type !== "Exam" ? `
-          <section class="lesson-action-card assignment-submission-card">
-            <div class="assignment-submission-heading">
-              <div>
-                <p class="eyebrow">Your work</p>
-                <h2>${submission ? "Assignment submitted" : "Submit assignment"}</h2>
-              </div>
-              ${submission ? `<span class="pill">Submitted</span>` : ""}
-            </div>
-            ${submission ? `
-              <div class="assignment-submission-receipt">
-                <p><strong>${escapeHtml(submission.file_original_name)}</strong></p>
-                <p class="muted">Submitted ${escapeHtml(date(submission.submitted_at))} · ${escapeHtml(formatBytes(submission.file_size))}</p>
-                ${submission.student_note ? `<div class="assignment-written-response"><strong>Your written response</strong><p>${escapeHtml(submission.student_note)}</p></div>` : ""}
-                <a class="button ghost small" href="/student/assignment-submissions/${submission.id}/file">Download submitted work</a>
-              </div>
-            ` : `<p>Type your answer below, attach a completed file, or use both options. Your instructor will receive the work in the grading queue.</p>`}
-            <form class="assignment-submission-form" method="post" enctype="multipart/form-data" action="/student/enrollments/${enrollmentId}/assignments/${item.id}/submit">
-              <label>
-                Write your response
-                <textarea name="studentResponse" rows="9" maxlength="12000" placeholder="Answer the assignment prompt in complete sentences. Support your response with this week's course material and do not include real patient-identifying information.">${escapeHtml(submission?.student_note || "")}</textarea>
-              </label>
-              <label>
-                ${submission ? "Replace or add an attachment (optional)" : "Attach a completed file (optional)"}
-                <input type="file" name="assignmentFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.webp,.zip">
-              </label>
-              <p class="muted">Enter a written response, attach a file, or do both. Accepted files: PDF, Office documents, text, CSV, images, and ZIP files up to 25 MB.</p>
-              <button class="button" type="submit">${submission ? "Replace Submission" : "Submit Assignment"}</button>
-            </form>
-          </section>
-        ` : ""}
+        ${!instructor && enrollmentId && type !== "Quiz" && type !== "Exam"
+          ? renderAssignmentSubmissionCard({ item, enrollmentId, submission })
+          : ""}
         ${type === "Quiz" || type === "Exam" ? `
           <section class="lesson-action-card">
             <h2>${escapeHtml(type)}</h2>
