@@ -3001,6 +3001,75 @@ nav a {
   margin-top: 18px;
 }
 
+.osv-standards-nav {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.osv-standards-nav-head {
+  align-items: end;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.osv-standards-nav-head h2,
+.osv-standards-nav-head p {
+  margin: 0;
+}
+
+.osv-standards-nav-head span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.osv-standard-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.osv-standard-link {
+  background: #f8fbfc;
+  border: 1px solid #dce8ed;
+  border-radius: 8px;
+  color: #17313b;
+  display: grid;
+  gap: 5px;
+  min-height: 92px;
+  padding: 12px 14px;
+}
+
+.osv-standard-link:hover {
+  background: #eef7f8;
+  border-color: #b9d5dc;
+  text-decoration: none;
+}
+
+.osv-standard-link strong,
+.osv-standard-link span,
+.osv-standard-link small {
+  display: block;
+}
+
+.osv-standard-link strong {
+  color: #0b414a;
+  line-height: 1.25;
+}
+
+.osv-standard-link span {
+  color: #22313c;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.osv-standard-link small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .osv-overview,
 .osv-request-panel {
   display: grid;
@@ -11432,6 +11501,7 @@ button.small {
 
   .osv-item-head,
   .osv-section-head,
+  .osv-standards-nav-head,
   .osv-file {
     align-items: flex-start;
     flex-direction: column;

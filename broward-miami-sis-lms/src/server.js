@@ -967,6 +967,33 @@ function groupOnsiteVisitRows(rows = []) {
   }, new Map());
 }
 
+function renderOnsiteVisitStandardsNav(rows = []) {
+  const grouped = groupOnsiteVisitRows(rows);
+  return `
+    <section class="card osv-standards-nav" aria-label="OSV standards quick navigation">
+      <div class="osv-standards-nav-head">
+        <div>
+          <p class="eyebrow">Quick navigation</p>
+          <h2>Standards</h2>
+        </div>
+        <span>${escapeHtml(grouped.size)} section${grouped.size === 1 ? "" : "s"}</span>
+      </div>
+      <div class="osv-standard-grid">
+        ${[...grouped.entries()].map(([section, items]) => {
+          const progress = onsiteVisitProgress(items);
+          return `
+            <a class="osv-standard-link" href="#${escapeHtml(featureSlug(section))}">
+              <strong>${escapeHtml(section)}</strong>
+              <span>${escapeHtml(progress.total)} item${progress.total === 1 ? "" : "s"}</span>
+              <small>${escapeHtml(progress.missing)} missing · ${escapeHtml(progress.received)} received · ${escapeHtml(progress.approved)} approved</small>
+            </a>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function onsiteRequestText(rows = []) {
   const needed = rows.filter((row) => !["approved", "not_applicable"].includes(row.status));
   if (!needed.length) return "All OSV checklist items are approved or marked not applicable.";
@@ -8042,14 +8069,13 @@ app.get("/admin/onsite-visit", requireAuth, requireRole("admin"), (req, res) => 
       ${stat("Still missing", String(progress.missing))}
     </section>
 
+    ${renderOnsiteVisitStandardsNav(rows)}
+
     <section class="grid cols-2 osv-workspace">
       <article class="card osv-overview">
         <h2>Binder readiness</h2>
         ${progressBar(progress.percent)}
         <p class="muted">Approved and not-applicable items count toward binder readiness. Uploaded files remain attached to each evidence item.</p>
-        <div class="registrar-mini-list registrar-anchor-list">
-          ${[...groupOnsiteVisitRows(rows).keys()].map((section) => `<a href="#${escapeHtml(featureSlug(section))}">${escapeHtml(section)}</a>`).join("")}
-        </div>
       </article>
       <article class="card osv-request-panel">
         <div class="actions" style="justify-content:space-between">
