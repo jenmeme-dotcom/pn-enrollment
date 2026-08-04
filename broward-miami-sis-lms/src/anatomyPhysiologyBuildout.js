@@ -37,7 +37,9 @@ const chapters = [
   number,
   title,
   studentFile: `${stem}.pptx`,
-  facultyFile: `${stem}_FACULTY.pptx`
+  facultyFile: [6, 7, 8].includes(number)
+    ? `${stem}_FACULTY_with_word_for_word_script_notes.pptx`
+    : `${stem}_FACULTY.pptx`
 }));
 
 const weekPlan = [
