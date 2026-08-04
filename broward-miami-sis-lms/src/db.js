@@ -1082,6 +1082,22 @@ function seed() {
     }
   }
 
+  // Older catalog seeds stored the Canvas item type only in lesson content.
+  // Promote those markers without replacing rows so existing progress, grades,
+  // and submissions continue to reference the same lesson IDs.
+  db.prepare(`
+    UPDATE lessons
+    SET item_type = CASE
+      WHEN content LIKE 'Canvas item type: Assignment.%' THEN 'assignment'
+      WHEN content LIKE 'Canvas item type: Discussion.%' THEN 'discussion'
+      WHEN content LIKE 'Canvas item type: Quiz.%' OR content LIKE 'Canvas item type: Exam.%' THEN 'quiz'
+      WHEN content LIKE 'Canvas item type: Attachment.%' THEN 'file'
+      ELSE item_type
+    END
+    WHERE item_type = 'page'
+      AND content LIKE 'Canvas item type: %'
+  `).run();
+
   // Keep PN 104's four scheduled discussions synchronized without refreshing
   // the entire course shell. Updating the matching weekly rows preserves the
   // selected lesson and grade-item IDs; only obsolete discussion placeholders
