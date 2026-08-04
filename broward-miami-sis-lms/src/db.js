@@ -2142,6 +2142,39 @@ function seed() {
           }
         }
 
+        const assignmentLesson = module.lessons.find((lesson) =>
+          String(lesson.content || "").startsWith("Canvas item type: Assignment.")
+        );
+        if (assignmentLesson) {
+          const storedAssignment = existingLessonByTitle.get(storedModule.id, assignmentLesson.title)
+            || existingLessonByTitle.get(storedModule.id, `Week ${weekNumber} Applied Assignment`);
+          if (storedAssignment) {
+            db.prepare(`
+              UPDATE lessons
+              SET title = ?, content = ?, duration_minutes = ?, published = 1,
+                instructor_only = 0, item_type = 'assignment'
+              WHERE id = ?
+            `).run(
+              assignmentLesson.title,
+              assignmentLesson.content || "",
+              assignmentLesson.durationMinutes || 60,
+              storedAssignment.id
+            );
+          } else {
+            const assignmentId = appendLesson.run(
+              storedModule.id,
+              assignmentLesson.title,
+              assignmentLesson.content || "",
+              null,
+              assignmentLesson.durationMinutes || 60,
+              nextLessonPosition.get(storedModule.id).position,
+              1,
+              0
+            ).lastInsertRowid;
+            db.prepare("UPDATE lessons SET item_type = 'assignment' WHERE id = ?").run(assignmentId);
+          }
+        }
+
         // Replace the legacy preview-style five-question quiz with the
         // interactive 15-question assessment while preserving its lesson ID.
         const quizLesson = module.lessons.find((lesson) => lesson.title === `[PN102 2026] Quiz ${weekNumber} - Chapter ${weekNumber}`);

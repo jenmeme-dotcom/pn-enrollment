@@ -179,6 +179,15 @@ const introQuizByWeek = {
   12: { title: "[PN102 2026] Quiz - Chapters 10-13", questions: quizBanks.introChapters10to13 }
 };
 
+const chapterAssignments = {
+  1: { title: "[PN102 2026] Chapter 1 Applied Nursing Assignment", dueDate: "2026-07-05 23:59:00" },
+  2: { title: "[PN102 2026] Chapter 2 Applied Nursing Assignment", dueDate: "2026-07-12 23:59:00" },
+  3: { title: "[PN102 2026] Chapter 3 Applied Nursing Assignment", dueDate: "2026-07-19 23:59:00" },
+  4: { title: "[PN102 2026] Chapter 4 Applied Nursing Assignment", dueDate: "2026-07-26 23:59:00" },
+  5: { title: "[PN102 2026] Chapter 5 Applied Nursing Assignment", dueDate: "2026-08-02 23:59:00" },
+  6: { title: "[PN102 2026] Chapter 6 Applied Nursing Assignment", dueDate: "2026-08-09 23:59:00" }
+};
+
 const powerPointReviewNotes = {
   1: [
     ["What is nursing?", "As a student nurse, you are learning to combine scientific knowledge, clinical skills, observation, communication, compassion, and advocacy so you can help people maintain health, recover from illness, manage chronic conditions, and experience comfort and dignity."],
@@ -872,6 +881,8 @@ function buildWeeklyActivityContent(week) {
 function buildWeeklyAssignmentContent(week) {
   const details = weeklyStudyDetails[week.week] || {};
   return [
+    "Canvas item type: Assignment.",
+    "",
     `Week ${week.week} Applied Assignment`,
     details.practice || week.activities,
     "",
@@ -923,7 +934,12 @@ const gradeItems = [
   { title: "[PN102 2026] Quiz - Chapters 10-13", pointsPossible: 50, dueDate: "2026-09-13 23:59:00" },
   { title: "Professional Development Plan", pointsPossible: 50, dueDate: "2026-09-06 23:59:00" },
   { title: "Final Impact Presentation", pointsPossible: 50, dueDate: "2026-09-13 23:59:00" },
-  { title: "Cumulative Final Exam", pointsPossible: 200, dueDate: "2026-09-13 23:59:00" }
+  { title: "Cumulative Final Exam", pointsPossible: 200, dueDate: "2026-09-13 23:59:00" },
+  ...Object.values(chapterAssignments).map((assignment) => ({
+    title: assignment.title,
+    pointsPossible: 25,
+    dueDate: assignment.dueDate
+  }))
 ];
 
 const policies = {
@@ -1029,7 +1045,7 @@ const modules = [
         content: buildWeeklyActivityContent(week)
       },
       {
-        title: `Week ${week.week} Applied Assignment`,
+        title: chapterAssignments[week.week]?.title || `Week ${week.week} Applied Assignment`,
         content: buildWeeklyAssignmentContent(week),
         durationMinutes: 60
       },
