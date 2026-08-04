@@ -5929,6 +5929,62 @@ app.get("/admissions/apply/submitted", (req, res) => {
   render(req, res, "Application Submitted", body);
 });
 
+app.get("/legal/privacy", (req, res) => {
+  const body = `
+    <div class="page-head"><div><p class="eyebrow">Legal</p><h1>Privacy Policy</h1><p>Effective August 4, 2026</p></div></div>
+    <article class="card prose legal-document">
+      <h2>Information we collect</h2>
+      <p>Broward-Miami Health Institute collects account, enrollment, academic, attendance, billing, contact, and support information needed to operate its student information and learning management system. When an authorized administrator connects QuickBooks Online, the portal exchanges student customer records, billing charges, invoices, payment records, transaction identifiers, and synchronization status with the institute's QuickBooks company.</p>
+      <h2>How information is used</h2>
+      <p>Information is used to deliver instruction, administer enrollment, maintain student accounts, reconcile tuition and fee payments, provide support, meet institutional obligations, prevent fraud, and maintain accurate business records. QuickBooks data is used only for the institute's accounting and student billing workflows.</p>
+      <h2>Sharing and service providers</h2>
+      <p>Information is shared only with authorized institute personnel and service providers that support portal hosting, communications, course delivery, and accounting. QuickBooks data is not sold or used for advertising. Intuit processes connected accounting data under its own privacy and platform terms.</p>
+      <h2>Security and retention</h2>
+      <p>Access is role restricted. QuickBooks authorization tokens are encrypted at rest, connections use HTTPS, and synchronization activity is logged. Records are retained for the period required for educational, accounting, legal, and audit purposes. Access tokens are removed when the QuickBooks connection is disconnected; accounting and audit records already created remain subject to institutional retention requirements.</p>
+      <h2>Your choices</h2>
+      <p>Authorized administrators may disconnect QuickBooks from the Billing page. Students may contact the institute to request access to or correction of their information, subject to applicable record-retention requirements.</p>
+      <h2>Contact</h2>
+      <p>Questions may be directed to <a href="mailto:${escapeHtml(instituteEmail)}">${escapeHtml(instituteEmail)}</a>, ${escapeHtml(institutePhone)}, or ${escapeHtml(instituteAddress)}.</p>
+    </article>
+  `;
+  render(req, res, "Privacy Policy", body);
+});
+
+app.get("/legal/terms", (req, res) => {
+  const body = `
+    <div class="page-head"><div><p class="eyebrow">Legal</p><h1>Portal and QuickBooks Integration Terms</h1><p>Effective August 4, 2026</p></div></div>
+    <article class="card prose legal-document">
+      <h2>Authorized use</h2>
+      <p>This portal is provided by Broward-Miami Health Institute for authorized students, faculty, staff, and administrators. Users must protect their credentials, provide accurate information, and use the service only for legitimate institutional purposes.</p>
+      <h2>QuickBooks connection</h2>
+      <p>Only an authorized institute administrator may connect the portal to the institute's QuickBooks Online company. The connection may create or synchronize customers, invoices, and payments. QuickBooks remains the institute's accounting system of record, while the portal provides the student-facing billing view.</p>
+      <h2>Data accuracy</h2>
+      <p>Staff must review synchronized records and promptly correct discrepancies. Service availability and synchronization timing may be affected by Intuit, hosting providers, network conditions, or maintenance. No accounting entry should be treated as final until it has been reviewed by authorized staff.</p>
+      <h2>Acceptable use</h2>
+      <p>Users may not attempt unauthorized access, interfere with the service, upload malicious content, misrepresent payments, or use student or accounting information outside their assigned responsibilities.</p>
+      <h2>Suspension and termination</h2>
+      <p>The institute may restrict access to protect students, institutional records, or service integrity. Administrators may disconnect QuickBooks at any time. Disconnection stops future synchronization but does not delete valid accounting or educational records already created.</p>
+      <h2>Contact</h2>
+      <p>Questions may be directed to <a href="mailto:${escapeHtml(instituteEmail)}">${escapeHtml(instituteEmail)}</a>, ${escapeHtml(institutePhone)}, or ${escapeHtml(instituteAddress)}.</p>
+    </article>
+  `;
+  render(req, res, "Portal Terms", body);
+});
+
+app.get("/quickbooks/connect", (req, res) => res.redirect("/admin/integrations/quickbooks/connect"));
+
+app.get("/quickbooks/disconnect", (req, res) => {
+  const body = `
+    <section class="card prose legal-document">
+      <p class="eyebrow">QuickBooks Online</p>
+      <h1>Manage the accounting connection</h1>
+      <p>An authorized institute administrator can disconnect QuickBooks from <strong>Admin → Billing → QuickBooks Online</strong>. Disconnection revokes the portal's current Intuit authorization and stops future synchronization. Existing accounting and audit records remain available.</p>
+      <div class="actions"><a class="button" href="/admin/billing">Sign in to manage QuickBooks</a><a class="button ghost" href="/legal/privacy">Privacy policy</a></div>
+    </section>
+  `;
+  render(req, res, "QuickBooks Connection", body);
+});
+
 app.get("/login", (req, res) => {
   const body = `
     <section class="login-wrap">
