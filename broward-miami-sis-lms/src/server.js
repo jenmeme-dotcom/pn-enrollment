@@ -2511,9 +2511,11 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
     const assignmentHref = assignmentGradeItem?.id
       ? `${baseHref}?assignment=${assignmentGradeItem.id}`
       : `${baseHref}?view=assignments`;
-    const assignmentSubmissionCard = !instructor && enrollmentId && assignmentGradeItem
-      ? renderAssignmentSubmissionCard({ item: assignmentGradeItem, enrollmentId, submission: assignmentSubmission })
-      : "";
+    const assignmentSubmissionCard = instructor && assignmentGradeItem
+      ? renderAssignmentSubmissionCard({ item: assignmentGradeItem, preview: true })
+      : enrollmentId && assignmentGradeItem
+        ? renderAssignmentSubmissionCard({ item: assignmentGradeItem, enrollmentId, submission: assignmentSubmission })
+        : "";
     return `
       ${fileButtons}
       <div class="lesson-action-card">
@@ -4399,8 +4401,34 @@ function renderAssignmentRubric({ item, instructor = false, courseId = null, com
   `;
 }
 
-function renderAssignmentSubmissionCard({ item, enrollmentId, submission = null }) {
-  if (!item?.id || !enrollmentId) return "";
+function renderAssignmentSubmissionCard({ item, enrollmentId = null, submission = null, preview = false }) {
+  if (!item?.id || (!enrollmentId && !preview)) return "";
+  if (preview) {
+    return `
+      <section class="lesson-action-card assignment-submission-card">
+        <div class="assignment-submission-heading">
+          <div>
+            <p class="eyebrow">Student submission preview</p>
+            <h2>Submit assignment</h2>
+          </div>
+          <span class="pill">Preview only</span>
+        </div>
+        <p>Students can type an answer, attach a completed file, or use both options.</p>
+        <div class="assignment-submission-form" aria-label="Student assignment submission preview">
+          <label>
+            Write your response
+            <textarea rows="9" placeholder="Students type their assignment response here." disabled></textarea>
+          </label>
+          <label>
+            Attach a completed file (optional)
+            <input type="file" disabled>
+          </label>
+          <p class="muted">These controls are active when an enrolled student opens this assignment.</p>
+          <button class="button" type="button" disabled>Submit Assignment</button>
+        </div>
+      </section>
+    `;
+  }
   return `
     <section class="lesson-action-card assignment-submission-card">
       <div class="assignment-submission-heading">
