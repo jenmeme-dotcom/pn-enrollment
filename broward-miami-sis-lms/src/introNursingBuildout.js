@@ -188,64 +188,22 @@ const chapterAssignments = {
   6: { title: "[PN102 2026] Chapter 6 Applied Nursing Assignment", dueDate: "2026-08-09 23:59:00" }
 };
 
-const trueFalseQuestion = (prompt, answer) => ({
-  prompt,
-  options: ["True", "False"],
-  answer: answer ? 0 : 1
-});
-
-const chapterTrueFalseQuestions = {
-  1: [
-    trueFalseQuestion("Florence Nightingale used sanitation, observation, and data to improve nursing care.", true),
-    trueFalseQuestion("A practical nurse may work outside the legal scope of practice whenever a unit is busy.", false),
-    trueFalseQuestion("Patient advocacy includes reporting an unresolved safety concern through the proper chain of command.", true),
-    trueFalseQuestion("Professional nursing education requires knowledge, clinical skills, ethics, and safety.", true),
-    trueFalseQuestion("A student who is unsure how to perform a skill should guess and continue without assistance.", false)
-  ],
-  2: [
-    trueFalseQuestion("A nurse practice act helps define and regulate nursing practice.", true),
-    trueFalseQuestion("Patient autonomy includes the right to make informed decisions about care.", true),
-    trueFalseQuestion("Beneficence means intentionally avoiding every helpful nursing action.", false),
-    trueFalseQuestion("Confidential patient information may be discussed publicly when names are omitted but details identify the patient.", false),
-    trueFalseQuestion("An unsafe order should be clarified before it is carried out.", true)
-  ],
-  3: [
-    trueFalseQuestion("Nursing documentation should be timely, factual, objective, accurate, and complete.", true),
-    trueFalseQuestion("A nurse may document care before providing it when the unit is busy.", false),
-    trueFalseQuestion("Electronic health record passwords should be kept private.", true),
-    trueFalseQuestion("A change in patient condition should be assessed, reported promptly, and documented.", true),
-    trueFalseQuestion("The patient record is public information that any staff member may review out of curiosity.", false)
-  ],
-  4: [
-    trueFalseQuestion("Therapeutic communication begins with attentive listening and respect.", true),
-    trueFalseQuestion("A qualified medical interpreter should be used according to policy when important language assistance is needed.", true),
-    trueFalseQuestion("Closed-loop communication includes confirming that a message was received and understood.", true),
-    trueFalseQuestion("Medical jargon is the best way to improve every patient's understanding.", false),
-    trueFalseQuestion("Teach-back asks the patient to explain information in their own words.", true)
-  ],
-  5: [
-    trueFalseQuestion("Assessment is the first step of the nursing process.", true),
-    trueFalseQuestion("Subjective data include information reported by the patient.", true),
-    trueFalseQuestion("A patient with new difficulty breathing should be assessed before a stable patient requesting a blanket.", true),
-    trueFalseQuestion("Evaluation determines whether expected outcomes were met and whether the plan needs revision.", true),
-    trueFalseQuestion("Clinical judgment means following routines without considering patient findings.", false)
-  ],
-  6: [
-    trueFalseQuestion("Cultural humility includes respectful curiosity, self-awareness, and learning from the patient.", true),
-    trueFalseQuestion("Every patient from the same cultural group has identical beliefs and preferences.", false),
-    trueFalseQuestion("A qualified interpreter supports accurate and confidential communication.", true),
-    trueFalseQuestion("Health equity means working so each person has a fair opportunity to attain health.", true),
-    trueFalseQuestion("The nurse should assume that avoiding eye contact always means disrespect.", false)
-  ]
+const chapterAssignmentQuestions = {
+  1: quizBanks.introChapter1.slice(0, 5),
+  2: quizBanks.introChapter2.slice(0, 5),
+  3: quizBanks.introChapter3.slice(0, 5),
+  4: quizBanks.introChapter4.slice(0, 5),
+  5: quizBanks.introChapter5.slice(0, 5),
+  6: quizBanks.introChapter6.slice(0, 5)
 };
 
-function buildChapterTrueFalseContent(week) {
-  const questions = chapterTrueFalseQuestions[week.week] || [];
+function buildChapterNursingAssignmentContent(week) {
+  const questions = chapterAssignmentQuestions[week.week] || [];
   return [
     "Canvas item type: Quiz.",
     "",
-    `Chapter ${week.week} True or False Assignment`,
-    `Select True or False for each of the ${questions.length} statements. No written response or file upload is required.`,
+    `Chapter ${week.week} Nursing Assignment`,
+    `Select the one best nursing response for each of the ${questions.length} questions. Each question has four answer choices. No written response or file upload is required.`,
     "",
     `QUIZ_DATA_BASE64:${Buffer.from(JSON.stringify(questions), "utf8").toString("base64")}`
   ].join("\n");
@@ -1110,7 +1068,7 @@ const modules = [
       {
         title: chapterAssignments[week.week]?.title || `Week ${week.week} Applied Assignment`,
         content: chapterAssignments[week.week]
-          ? buildChapterTrueFalseContent(week)
+          ? buildChapterNursingAssignmentContent(week)
           : buildWeeklyAssignmentContent(week),
         durationMinutes: 60
       },
