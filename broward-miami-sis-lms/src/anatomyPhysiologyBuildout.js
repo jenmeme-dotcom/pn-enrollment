@@ -3,6 +3,7 @@ const { quizContent } = require("./nursingCourseQuizzes");
 const materialBase = "/course-materials/anatomy-and-physiology-pn104";
 const neurologicalExamVideoUrl = "https://ecu.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955";
 const chapterMaterialUrl = (chapter) => `${materialBase}/${chapter.studentFile}`;
+const openStaxAnatomyPhysiologyPdfUrl = "https://assets.openstax.org/oscms-prodcms/media/documents/anatomy-and-physiology-2e_-_WEB.pdf";
 
 const chapters = [
   [1, "Introduction to the Human Body", "PN104_Ch01_Intro_Human_Body"],
@@ -686,9 +687,11 @@ const anatomyPhysiologyCourse = {
             "",
             "OpenStax textbook link",
             `- OpenStax Anatomy and Physiology 2e: ${openStaxAnatomyPhysiologyUrl}`,
+            `- Download the OpenStax Anatomy and Physiology 2e PDF: ${openStaxAnatomyPhysiologyPdfUrl}`,
             "",
             "How to use this textbook",
             "- Use the online textbook for chapter reading, diagrams, vocabulary review, and study questions.",
+            "- Use the PDF download when you need an offline copy or want to print selected pages for study.",
             "- Match each weekly module topic to the related OpenStax chapters and body-system sections.",
             "- Use the chapter PowerPoints and OpenStax textbook together when preparing assignments, discussions, quizzes, the midterm, and the final examination."
           ].join("\n")
