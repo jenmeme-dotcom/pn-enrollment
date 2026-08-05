@@ -1265,7 +1265,6 @@ function seed() {
             OR title LIKE 'Chapter 16:%Neurological%'
             OR content LIKE '%PN104_Ch16_Neurological_Exam%'
             OR external_url LIKE '%PN104_Ch16_Neurological_Exam%'
-            OR external_url LIKE '%Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955%'
           )
       `).run(
         chapter16LessonDefinition.title,
@@ -1338,6 +1337,67 @@ function seed() {
             chapter16Position + 1
           );
         }
+
+        const chapter16PowerPointRows = db.prepare(`
+          SELECT id
+          FROM lessons
+          WHERE module_id = ?
+            AND title = 'Chapter 16: The Neurological Examination — PowerPoint'
+          ORDER BY position, id
+        `).all(week6Module.id);
+        const chapter16PowerPointKeeper = chapter16PowerPointRows[0]?.id;
+        if (chapter16PowerPointKeeper) {
+          const moveCompletion = db.prepare(`
+            INSERT OR IGNORE INTO lesson_completions (enrollment_id, lesson_id, completed_at)
+            SELECT enrollment_id, ?, completed_at
+            FROM lesson_completions
+            WHERE lesson_id = ?
+          `);
+          const deleteLesson = db.prepare("DELETE FROM lessons WHERE id = ?");
+          chapter16PowerPointRows.slice(1).forEach((row) => {
+            moveCompletion.run(chapter16PowerPointKeeper, row.id);
+            deleteLesson.run(row.id);
+          });
+        }
+
+        const chapter16VideoRows = db.prepare(`
+          SELECT id
+          FROM lessons
+          WHERE module_id = ?
+            AND (
+              title = 'Chapter 16 Additional Reference: Neurological Exam Video'
+              OR external_url LIKE '%Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955%'
+            )
+          ORDER BY position, id
+        `).all(week6Module.id);
+        const chapter16VideoKeeper = chapter16VideoRows[0]?.id;
+        if (chapter16VideoKeeper) {
+          const moveCompletion = db.prepare(`
+            INSERT OR IGNORE INTO lesson_completions (enrollment_id, lesson_id, completed_at)
+            SELECT enrollment_id, ?, completed_at
+            FROM lesson_completions
+            WHERE lesson_id = ?
+          `);
+          const deleteLesson = db.prepare("DELETE FROM lessons WHERE id = ?");
+          chapter16VideoRows.slice(1).forEach((row) => {
+            moveCompletion.run(chapter16VideoKeeper, row.id);
+            deleteLesson.run(row.id);
+          });
+        }
+
+        db.prepare(`
+          UPDATE lessons
+          SET position = (
+            SELECT ordered.new_position
+            FROM (
+              SELECT id, ROW_NUMBER() OVER (ORDER BY position, id) AS new_position
+              FROM lessons
+              WHERE module_id = ?
+            ) AS ordered
+            WHERE ordered.id = lessons.id
+          )
+          WHERE module_id = ?
+        `).run(week6Module.id, week6Module.id);
       }
     }
   }
