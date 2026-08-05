@@ -2703,7 +2703,7 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
       ? `${baseHref}?assignment=${assignmentGradeItem.id}`
       : `${baseHref}?view=assignments`;
     const assignmentSubmissionCard = instructor && assignmentGradeItem
-      ? renderAssignmentSubmissionCard({ item: assignmentGradeItem, preview: true })
+      ? renderAssignmentSubmissionCard({ item: assignmentGradeItem, preview: true, autoGradeConfig: writtenAutogradeConfig })
       : enrollmentId && assignmentGradeItem
         ? renderAssignmentSubmissionCard({ item: assignmentGradeItem, enrollmentId, submission: assignmentSubmission, autoGradeConfig: writtenAutogradeConfig, grade: quizGrade })
         : "";
@@ -4660,26 +4660,39 @@ function renderAssignmentSubmissionCard({ item, enrollmentId = null, submission 
     </div>
   ` : "";
   if (preview) {
+    const previewFields = responseSections.length ? `
+      <div class="assignment-response-fields">
+        ${responseSections.map((section, index) => `
+          <label>
+            ${escapeHtml(section.title)}
+            <span>${escapeHtml(section.prompt)}</span>
+            <textarea rows="5" maxlength="4000" placeholder="Student response section ${index + 1}"></textarea>
+          </label>
+        `).join("")}
+      </div>
+    ` : `
+      <label>
+        Write your response
+        <textarea rows="9" maxlength="12000" placeholder="Student response section"></textarea>
+      </label>
+    `;
     return `
       <section class="lesson-action-card assignment-submission-card">
         <div class="assignment-submission-heading">
           <div>
-            <p class="eyebrow">Student submission preview</p>
+            <p class="eyebrow">Student submission form</p>
             <h2>Submit assignment</h2>
           </div>
-          <span class="pill">Preview only</span>
+          <span class="pill">Instructor preview</span>
         </div>
-        <p>Students complete each written part in a separate response section.</p>
+        <p>Students complete each written part in a separate response section. These boxes are typeable so instructors can inspect the student workflow; enrolled students see the active submission button in their portal.</p>
         <div class="assignment-submission-form" aria-label="Student assignment submission preview">
-          <label>
-            Part 1: Required Structures
-            <textarea rows="5" placeholder="Student response section" disabled></textarea>
-          </label>
+          ${previewFields}
           <label>
             Attach a completed file (optional)
             <input type="file" disabled>
           </label>
-          <p class="muted">These controls are active when an enrolled student opens this assignment.</p>
+          <p class="muted">File upload and final submission are active for enrolled students.</p>
           <button class="button" type="button" disabled>Submit Assignment</button>
         </div>
       </section>
