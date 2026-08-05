@@ -415,7 +415,11 @@ app.use(
 
 function currentUser(req) {
   if (!req.session.userId) return null;
-  return db.prepare("SELECT id, role, first_name, last_name, email, personal_email, phone, status, withdrawal_effective_date, withdrawal_reason, withdrawn_at, withdrawn_by, organization_status, class_lock_reason, photo_storage_name, photo_original_name, photo_review_status, photo_review_note, photo_submitted_at, photo_reviewed_at, photo_reviewed_by, created_at FROM users WHERE id = ?").get(req.session.userId);
+  return db.prepare("SELECT id, role, student_number, first_name, last_name, email, personal_email, phone, status, withdrawal_effective_date, withdrawal_reason, withdrawn_at, withdrawn_by, organization_status, class_lock_reason, photo_storage_name, photo_original_name, photo_review_status, photo_review_note, photo_submitted_at, photo_reviewed_at, photo_reviewed_by, created_at FROM users WHERE id = ?").get(req.session.userId);
+}
+
+function displayStudentNumber(student = {}) {
+  return student.student_number || `BMHI-${String(student.id || 0).padStart(5, "0")}`;
 }
 
 function detectedImageMimeType(filePath) {
@@ -9203,7 +9207,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
       </div>
       <section class="table-card" style="margin-top:18px">
         <table>
-          <thead><tr><th>Student</th><th>Contact</th><th>Cohort</th><th>Enrollments</th></tr></thead>
+          <thead><tr><th>Student</th><th>Student ID</th><th>Contact</th><th>Cohort</th><th>Enrollments</th></tr></thead>
           <tbody>
             ${students.map((student) => `
               <tr>
@@ -9213,6 +9217,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                   <span class="muted">${escapeHtml(student.status)}</span><br>
                   ${renderPhotoReviewBadge(student)}
                 </td>
+                <td><strong>${escapeHtml(displayStudentNumber(student))}</strong></td>
                 <td>${escapeHtml(student.email)}<br><span class="muted">${escapeHtml(student.phone || "")}</span></td>
                 <td>
                   ${student.cohort_name ? `<span class="pill">${escapeHtml(student.cohort_name)}</span>` : `<span class="muted">No cohort listed</span>`}
@@ -9220,7 +9225,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 </td>
                 <td>${student.enrollment_count || 0} total<br><span class="muted">${student.completed_count || 0} completed</span></td>
               </tr>
-            `).join("") || `<tr><td class="empty" colspan="4">No students yet.</td></tr>`}
+            `).join("") || `<tr><td class="empty" colspan="5">No students yet.</td></tr>`}
           </tbody>
         </table>
       </section>
@@ -9291,7 +9296,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
             const admissionsReady = admissionsComplete === admissionsTotal;
             return `
             <tr>
-              <td><strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br><span class="muted">${escapeHtml(student.email)}</span></td>
+              <td><strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br><span class="muted">${escapeHtml(displayStudentNumber(student))}</span><br><span class="muted">${escapeHtml(student.email)}</span></td>
               <td>
                 <strong>${escapeHtml(student.checklist_complete || 0)}/${escapeHtml(registrarChecklistItems.length)}</strong> ready<br>
                 <span class="muted">${escapeHtml(student.checklist_uploads || 0)} uploaded</span><br>
@@ -9311,7 +9316,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
     </section>
     <section class="table-card student-roster-table-card" style="margin-top:18px">
       <table class="student-roster-table">
-        <thead><tr><th>Name</th><th>Contact</th><th>Photo review</th><th>Class access</th><th>Registrar</th><th>Enrollments</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Student ID</th><th>Contact</th><th>Photo review</th><th>Class access</th><th>Registrar</th><th>Enrollments</th><th>Actions</th></tr></thead>
         <tbody>
           ${students.map((student) => {
             const admissionsComplete = Number(student.admissions_document_complete || 0);
@@ -9327,6 +9332,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 ${student.uniform_size ? `<br><span class="pill">Uniform: ${escapeHtml(student.uniform_size)}</span>` : ""}
                 ${student.cohort_start_date || student.cohort_end_date ? `<br><span class="muted">${escapeHtml(date(student.cohort_start_date))} - ${escapeHtml(date(student.cohort_end_date))}</span>` : ""}
               </td>
+              <td><strong>${escapeHtml(displayStudentNumber(student))}</strong></td>
               <td>${escapeHtml(student.email)}<br><span class="muted">${escapeHtml(student.phone || "")}</span></td>
               <td class="photo-review-cell">${renderPhotoReviewControls(student, { returnTo: "students", canReview: true })}</td>
               <td>
@@ -9370,7 +9376,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 </form>
               </td>
             </tr>
-          `; }).join("") || `<tr><td class="empty" colspan="7">No students yet.</td></tr>`}
+          `; }).join("") || `<tr><td class="empty" colspan="8">No students yet.</td></tr>`}
         </tbody>
       </table>
     </section>
@@ -9414,7 +9420,7 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
       <div>
         <p class="eyebrow">Registrar Checklist</p>
         <h1>${escapeHtml(student.first_name)} ${escapeHtml(student.last_name)}</h1>
-        <p>${escapeHtml(student.email)} · BMHI-${escapeHtml(String(student.id).padStart(5, "0"))}</p>
+        <p>${escapeHtml(student.email)} · Student ID ${escapeHtml(displayStudentNumber(student))}</p>
       </div>
       <div class="actions">
         <a class="button ghost" href="/admin/students">Students</a>
@@ -13068,7 +13074,7 @@ app.get("/student/transcript/print", requireAuth, requireRole("student"), (req, 
   `).all(req.user.id);
   const totalHours = records.reduce((sum, row) => sum + Number(row.hours || 0), 0);
   const completedHours = records.filter((row) => row.status === "completed").reduce((sum, row) => sum + Number(row.hours || 0), 0);
-  const studentId = `BMHI-${String(req.user.id).padStart(5, "0")}`;
+  const studentId = displayStudentNumber(req.user);
   const body = `
     <section class="print-document transcript-print">
       <div class="print-actions no-print">
@@ -13654,8 +13660,9 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
   const completedCount = enrollments.filter((row) => row.status === "completed").length;
   const admissionsChecklist = admissionsDocumentChecklistForStudent(req.user.id);
   const admissionsProgress = admissionsDocumentProgress(admissionsChecklist);
+  const studentNumber = displayStudentNumber(req.user);
   const statusRows = [
-    ["Admission No.", `BMHI-${String(req.user.id).padStart(5, "0")}`],
+    ["Student ID", studentNumber],
     ["Student Name", name],
     ["Email", req.user.email],
     ["Personal reminder email", req.user.personal_email || "Not set"],
@@ -13674,7 +13681,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
           <h1>${escapeHtml(name || "Student")}</h1>
           <p>${escapeHtml(activeEnrollment?.title || "Broward-Miami Health Institute student")}</p>
           <div class="profile-badges">
-            <span>Admission No. BMHI-${escapeHtml(String(req.user.id).padStart(5, "0"))}</span>
+            <span>Student ID ${escapeHtml(studentNumber)}</span>
             <span>${escapeHtml(req.user.status)}</span>
             <span>${escapeHtml(enrollments.length)} course${enrollments.length === 1 ? "" : "s"}</span>
           </div>

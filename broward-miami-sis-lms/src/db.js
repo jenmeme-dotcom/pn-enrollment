@@ -80,6 +80,7 @@ function migrate() {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       role TEXT NOT NULL CHECK(role IN ('admin','instructor','student')),
+      student_number TEXT,
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
@@ -811,6 +812,9 @@ function migrate() {
     db.exec("ALTER TABLE student_self_evaluations ADD COLUMN additional_notes TEXT;");
   }
   const userColumns = db.prepare("PRAGMA table_info(users)").all().map((column) => column.name);
+  if (!userColumns.includes("student_number")) {
+    db.exec("ALTER TABLE users ADD COLUMN student_number TEXT;");
+  }
   if (!userColumns.includes("personal_email")) {
     db.exec("ALTER TABLE users ADD COLUMN personal_email TEXT;");
   }
@@ -865,6 +869,34 @@ function migrate() {
   if (!userColumns.includes("photo_reviewed_by")) {
     db.exec("ALTER TABLE users ADD COLUMN photo_reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL;");
   }
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_student_number
+    ON users(student_number)
+    WHERE student_number IS NOT NULL AND student_number <> '';
+
+    UPDATE users
+    SET student_number = 'BMHI-' || printf('%05d', id)
+    WHERE role = 'student'
+      AND (student_number IS NULL OR trim(student_number) = '');
+
+    CREATE TRIGGER IF NOT EXISTS trg_users_assign_student_number_after_insert
+    AFTER INSERT ON users
+    WHEN NEW.role = 'student' AND (NEW.student_number IS NULL OR trim(NEW.student_number) = '')
+    BEGIN
+      UPDATE users
+      SET student_number = 'BMHI-' || printf('%05d', NEW.id)
+      WHERE id = NEW.id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_users_assign_student_number_after_update
+    AFTER UPDATE OF role, student_number ON users
+    WHEN NEW.role = 'student' AND (NEW.student_number IS NULL OR trim(NEW.student_number) = '')
+    BEGIN
+      UPDATE users
+      SET student_number = 'BMHI-' || printf('%05d', NEW.id)
+      WHERE id = NEW.id;
+    END;
+  `);
   const enrollmentColumns = db.prepare("PRAGMA table_info(enrollments)").all().map((column) => column.name);
   if (!enrollmentColumns.includes("withdrawal_effective_date")) {
     db.exec("ALTER TABLE enrollments ADD COLUMN withdrawal_effective_date TEXT;");
