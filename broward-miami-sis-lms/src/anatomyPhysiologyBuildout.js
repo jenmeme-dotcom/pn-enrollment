@@ -265,6 +265,7 @@ const expandedQuizBanks = Object.fromEntries(
 );
 const quizNumberByWeek = { 3: 1, 6: 2, 9: 3, 12: 4 };
 const quizRangeLabel = (week) => `Weeks ${week - 2}-${week}`;
+const openStaxAnatomyPhysiologyUrl = "https://openstax.org/details/books/anatomy-and-physiology-2e";
 
 const assignmentRubric = [
   "Assignment rubric (25 points)",
@@ -566,6 +567,7 @@ const anatomyPhysiologyCourse = {
     "Communicate anatomical and physiological information clearly using professional language."
   ],
   requiredTitles: [
+    "OpenStax Anatomy and Physiology 2e free online textbook",
     "BMHI PN 104 chapter PowerPoints for Chapters 1-28",
     "Instructor-provided anatomy and physiology readings and diagrams",
     "Current student handbook and practical nursing program policies",
@@ -631,6 +633,7 @@ const anatomyPhysiologyCourse = {
             "",
             "What You Should Do First",
             "- Read the PN 104 syllabus and review the course calendar, grading plan, attendance expectations, and due dates.",
+            "- Open the required OpenStax Anatomy and Physiology 2e textbook link and keep it available while studying.",
             "- Open the Modules page and complete each week in order, beginning with the weekly overview.",
             "- Download and study every chapter PowerPoint assigned for the week.",
             "- Confirm that you can open Discussions, Assignments, Quizzes, Grades, Files, Inbox, and Calendar.",
@@ -674,9 +677,26 @@ const anatomyPhysiologyCourse = {
           ].join("\n")
         },
         {
+          title: "Required Textbook: OpenStax Anatomy and Physiology 2e",
+          durationMinutes: 15,
+          externalUrl: openStaxAnatomyPhysiologyUrl,
+          content: [
+            "Required Textbook",
+            "OpenStax Anatomy and Physiology 2e is the free online textbook for PN 104 Anatomy and Physiology.",
+            "",
+            "OpenStax textbook link",
+            `- OpenStax Anatomy and Physiology 2e: ${openStaxAnatomyPhysiologyUrl}`,
+            "",
+            "How to use this textbook",
+            "- Use the online textbook for chapter reading, diagrams, vocabulary review, and study questions.",
+            "- Match each weekly module topic to the related OpenStax chapters and body-system sections.",
+            "- Use the chapter PowerPoints and OpenStax textbook together when preparing assignments, discussions, quizzes, the midterm, and the final examination."
+          ].join("\n")
+        },
+        {
           title: "PN 104 Syllabus",
           durationMinutes: 30,
-          content: "Course code: PN 104\nLength: 12 weeks\nClock hours: 90\nDelivery: Campus / blended\n\nWeekly structure: chapter slide review, student-directed lesson, applied assignment with rubric, four scheduled discussions, and scheduled assessments.\n\nDiscussions: Week 3 — Movement, Stability, and Musculoskeletal Safety (due August 2); Week 5 — Nervous-System Changes — Recognize and Report (due August 16); Week 8 — Defense and Oxygenation Working Together (due September 6); Week 11 — Reproductive Anatomy and Respectful Patient Education (due September 27). All discussion deadlines are 11:59 PM in 2026 and each discussion is worth 10 points.\n\nGrading: Four discussions total 40 points; applied assignments 25 points each; quizzes 50 points each; midterm 150 points; final 200 points."
+          content: `Course code: PN 104\nLength: 12 weeks\nClock hours: 90\nDelivery: Campus / blended\n\nRequired textbook: OpenStax Anatomy and Physiology 2e — ${openStaxAnatomyPhysiologyUrl}\n\nWeekly structure: chapter slide review, student-directed lesson, applied assignment with rubric, four scheduled discussions, and scheduled assessments.\n\nDiscussions: Week 3 — Movement, Stability, and Musculoskeletal Safety (due August 2); Week 5 — Nervous-System Changes — Recognize and Report (due August 16); Week 8 — Defense and Oxygenation Working Together (due September 6); Week 11 — Reproductive Anatomy and Respectful Patient Education (due September 27). All discussion deadlines are 11:59 PM in 2026 and each discussion is worth 10 points.\n\nGrading: Four discussions total 40 points; applied assignments 25 points each; quizzes 50 points each; midterm 150 points; final 200 points.`
         }
       ]
     },

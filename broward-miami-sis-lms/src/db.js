@@ -1288,6 +1288,59 @@ function seed() {
       }
     });
 
+    const pn104OrientationModule = db.prepare(`
+      SELECT id FROM modules
+      WHERE course_id = ?
+        AND title = 'Orientation and Course Resources'
+      ORDER BY position, id LIMIT 1
+    `).get(pn104CourseRow.id);
+    const openStaxTextbookDefinition = lessonDefinitions.find((lesson) =>
+      lesson.title === "Required Textbook: OpenStax Anatomy and Physiology 2e"
+    );
+    if (pn104OrientationModule && openStaxTextbookDefinition) {
+      const existingOpenStaxLesson = db.prepare(`
+        SELECT id FROM lessons
+        WHERE module_id = ?
+          AND (title = ? OR lower(title) LIKE '%openstax%')
+        ORDER BY position, id LIMIT 1
+      `).get(pn104OrientationModule.id, openStaxTextbookDefinition.title);
+      if (existingOpenStaxLesson) {
+        db.prepare(`
+          UPDATE lessons
+          SET title = ?, content = ?, external_url = ?, duration_minutes = ?, published = 1, instructor_only = 0, item_type = 'page'
+          WHERE id = ?
+        `).run(
+          openStaxTextbookDefinition.title,
+          openStaxTextbookDefinition.content || "",
+          openStaxTextbookDefinition.externalUrl || null,
+          openStaxTextbookDefinition.durationMinutes || 15,
+          existingOpenStaxLesson.id
+        );
+      } else {
+        const syllabusPosition = db.prepare(`
+          SELECT position FROM lessons
+          WHERE module_id = ? AND title = 'PN 104 Syllabus'
+          ORDER BY id LIMIT 1
+        `).get(pn104OrientationModule.id)?.position;
+        const position = syllabusPosition
+          || db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(pn104OrientationModule.id).next;
+        if (syllabusPosition) {
+          db.prepare("UPDATE lessons SET position = position + 1 WHERE module_id = ? AND position >= ?").run(pn104OrientationModule.id, syllabusPosition);
+        }
+        db.prepare(`
+          INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only, item_type)
+          VALUES (?, ?, ?, ?, ?, ?, 1, 0, 'page')
+        `).run(
+          pn104OrientationModule.id,
+          openStaxTextbookDefinition.title,
+          openStaxTextbookDefinition.content || "",
+          openStaxTextbookDefinition.externalUrl || null,
+          openStaxTextbookDefinition.durationMinutes || 15,
+          position
+        );
+      }
+    }
+
     const updatePn104AssignmentLesson = db.prepare(`
       UPDATE lessons
       SET content = ?, duration_minutes = ?, published = 1, instructor_only = 0, item_type = 'assignment'
