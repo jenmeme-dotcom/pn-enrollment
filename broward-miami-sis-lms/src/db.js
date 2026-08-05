@@ -1453,6 +1453,44 @@ function seed() {
         "Chapter 16: Neurological Assessment — PowerPoint",
         chapter16LessonDefinition.title
       );
+
+      const week6Module = db.prepare(`
+        SELECT id FROM modules
+        WHERE course_id = ? AND title LIKE 'Week 6:%'
+        ORDER BY position, id
+        LIMIT 1
+      `).get(pn104CourseRow.id);
+      if (week6Module) {
+        const chapter16PowerPointRows = db.prepare(`
+          SELECT id
+          FROM lessons
+          WHERE module_id = ?
+            AND (
+              title = 'Chapter 16: The Neurological Examination — PowerPoint'
+              OR title = 'Chapter 16: The Neurological Exam — PowerPoint'
+              OR title = 'Chapter 16: Neurological Assessment — PowerPoint'
+              OR title LIKE 'Chapter 16:%Neurological%PowerPoint%'
+              OR content LIKE '%PN104_Ch16_Neurological_Exam.pptx%'
+              OR external_url LIKE '%PN104_Ch16_Neurological_Exam.pptx%'
+            )
+            AND COALESCE(external_url, '') NOT LIKE '%Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955%'
+          ORDER BY CASE WHEN title = 'Chapter 16: The Neurological Examination — PowerPoint' THEN 0 ELSE 1 END, position, id
+        `).all(week6Module.id);
+        const chapter16PowerPointKeeper = chapter16PowerPointRows[0]?.id;
+        if (chapter16PowerPointKeeper) {
+          const moveCompletion = db.prepare(`
+            INSERT OR IGNORE INTO lesson_completions (enrollment_id, lesson_id, completed_at)
+            SELECT enrollment_id, ?, completed_at
+            FROM lesson_completions
+            WHERE lesson_id = ?
+          `);
+          const deleteLesson = db.prepare("DELETE FROM lessons WHERE id = ?");
+          chapter16PowerPointRows.slice(1).forEach((row) => {
+            moveCompletion.run(chapter16PowerPointKeeper, row.id);
+            deleteLesson.run(row.id);
+          });
+        }
+      }
     }
 
     const chapter16VideoDefinition = lessonDefinitions.find((lesson) =>
@@ -1512,28 +1550,6 @@ function seed() {
             chapter16VideoDefinition.durationMinutes || 20,
             chapter16Position + 1
           );
-        }
-
-        const chapter16PowerPointRows = db.prepare(`
-          SELECT id
-          FROM lessons
-          WHERE module_id = ?
-            AND title = 'Chapter 16: The Neurological Examination — PowerPoint'
-          ORDER BY position, id
-        `).all(week6Module.id);
-        const chapter16PowerPointKeeper = chapter16PowerPointRows[0]?.id;
-        if (chapter16PowerPointKeeper) {
-          const moveCompletion = db.prepare(`
-            INSERT OR IGNORE INTO lesson_completions (enrollment_id, lesson_id, completed_at)
-            SELECT enrollment_id, ?, completed_at
-            FROM lesson_completions
-            WHERE lesson_id = ?
-          `);
-          const deleteLesson = db.prepare("DELETE FROM lessons WHERE id = ?");
-          chapter16PowerPointRows.slice(1).forEach((row) => {
-            moveCompletion.run(chapter16PowerPointKeeper, row.id);
-            deleteLesson.run(row.id);
-          });
         }
 
         const chapter16VideoRows = db.prepare(`
