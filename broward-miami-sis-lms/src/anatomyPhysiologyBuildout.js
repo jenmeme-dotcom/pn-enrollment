@@ -4,6 +4,7 @@ const materialBase = "/course-materials/anatomy-and-physiology-pn104";
 const neurologicalExamVideoUrl = "https://ecu.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955";
 const chapterMaterialUrl = (chapter) => `${materialBase}/${chapter.studentFile}`;
 const openStaxAnatomyPhysiologyPdfUrl = "https://assets.openstax.org/oscms-prodcms/media/documents/anatomy-and-physiology-2e_-_WEB.pdf";
+const supplementalResourceBase = "https://raw.githubusercontent.com/jenmeme-dotcom/pn-enrollment/codex/pn104-resource-files/broward-miami-sis-lms/course_materials/anatomy-and-physiology-pn104";
 
 const chapters = [
   [1, "Introduction to the Human Body", "PN104_Ch01_Intro_Human_Body"],
@@ -527,6 +528,35 @@ function weekModule([week, chapterNumbers, title]) {
 }
 
 const studentModules = weekPlan.map(weekModule);
+const supplementalResourceLessons = [
+  {
+    title: "Resource: Nursing Workbook Sample",
+    url: `${supplementalResourceBase}/PN104_Nursing_Workbook_Sample.pdf`
+  },
+  {
+    title: "Resource: Basics of Nursing - September 21, 2025",
+    url: `${supplementalResourceBase}/PN104_Basics_of_Nursing_2025-09-21.pdf`
+  },
+  {
+    title: "Resource: Basics of Nursing - October 6, 2025",
+    url: `${supplementalResourceBase}/PN104_Basics_of_Nursing_2025-10-06.pdf`
+  },
+  {
+    title: "Resource: Basics of Nursing - October 12, 2025",
+    url: `${supplementalResourceBase}/PN104_Basics_of_Nursing_2025-10-12.pdf`
+  }
+].map((resource) => ({
+  title: resource.title,
+  durationMinutes: 15,
+  externalUrl: resource.url,
+  content: [
+    "Supplemental Resource",
+    "Use this resource for additional study and review alongside the assigned Anatomy and Physiology modules.",
+    "",
+    "Resource file",
+    `- Open or download: ${resource.url}`
+  ].join("\n")
+}));
 const facultyLessons = chapters.map((chapter) => ({
   title: `Faculty PowerPoint — Chapter ${chapter.number}: ${chapter.title}`,
   durationMinutes: 0,
@@ -704,6 +734,7 @@ const anatomyPhysiologyCourse = {
       ]
     },
     ...studentModules,
+    { title: "Resources", lessons: supplementalResourceLessons },
     { title: "PN104 Faculty Instructor Resources", lessons: facultyLessons }
   ],
   gradeItems

@@ -1341,6 +1341,73 @@ function seed() {
       }
     }
 
+    const pn104ResourceModuleDefinition = pn104CourseDefinition.modules.find((module) => module.title === "Resources");
+    if (pn104ResourceModuleDefinition) {
+      let pn104ResourceModule = db.prepare(`
+        SELECT id, position FROM modules
+        WHERE course_id = ? AND title = 'Resources'
+        ORDER BY position, id
+        LIMIT 1
+      `).get(pn104CourseRow.id);
+      if (!pn104ResourceModule) {
+        const facultyModulePosition = db.prepare(`
+          SELECT position FROM modules
+          WHERE course_id = ? AND title = 'PN104 Faculty Instructor Resources'
+          ORDER BY position, id
+          LIMIT 1
+        `).get(pn104CourseRow.id)?.position;
+        const resourcePosition = facultyModulePosition
+          || db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM modules WHERE course_id = ?").get(pn104CourseRow.id).next;
+        if (facultyModulePosition) {
+          db.prepare("UPDATE modules SET position = position + 1 WHERE course_id = ? AND position >= ?").run(pn104CourseRow.id, resourcePosition);
+        }
+        const resourceModuleId = db.prepare("INSERT INTO modules (course_id, title, position) VALUES (?, 'Resources', ?)").run(
+          pn104CourseRow.id,
+          resourcePosition
+        ).lastInsertRowid;
+        pn104ResourceModule = { id: resourceModuleId, position: resourcePosition };
+      }
+
+      const resourceLessonByTitle = db.prepare(`
+        SELECT id FROM lessons
+        WHERE module_id = ? AND title = ?
+        ORDER BY position, id
+        LIMIT 1
+      `);
+      const resourceMaxPosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?");
+      const updateResourceLesson = db.prepare(`
+        UPDATE lessons
+        SET content = ?, external_url = ?, duration_minutes = ?, position = ?, published = 1, instructor_only = 0, item_type = 'page'
+        WHERE id = ?
+      `);
+      const insertResourceLesson = db.prepare(`
+        INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only, item_type)
+        VALUES (?, ?, ?, ?, ?, ?, 1, 0, 'page')
+      `);
+      pn104ResourceModuleDefinition.lessons.forEach((lesson, index) => {
+        const position = index + 1;
+        const existingLesson = resourceLessonByTitle.get(pn104ResourceModule.id, lesson.title);
+        if (existingLesson) {
+          updateResourceLesson.run(
+            lesson.content || "",
+            lesson.externalUrl || null,
+            lesson.durationMinutes || 15,
+            position,
+            existingLesson.id
+          );
+        } else {
+          insertResourceLesson.run(
+            pn104ResourceModule.id,
+            lesson.title,
+            lesson.content || "",
+            lesson.externalUrl || null,
+            lesson.durationMinutes || 15,
+            position || resourceMaxPosition.get(pn104ResourceModule.id).next
+          );
+        }
+      });
+    }
+
     const updatePn104AssignmentLesson = db.prepare(`
       UPDATE lessons
       SET content = ?, duration_minutes = ?, published = 1, instructor_only = 0, item_type = 'assignment'
