@@ -6739,15 +6739,371 @@ app.get("/help/browser-cache", requireAuth, (req, res) => {
   render(req, res, "Browser Cache Help", body, req.user.role === "student" ? { studentPortal: true, activeStudentNav: "help" } : {});
 });
 
+const staffPortalSops = [
+  {
+    id: "SOP-000",
+    slug: "how-to-find-sops",
+    title: "How to Find and Use Staff SOPs",
+    audience: "All staff",
+    frequency: "Use at the start of training and whenever a process is unclear.",
+    purpose: "Show staff how to open this SOP library, find the correct procedure, and follow the same portal process each time.",
+    links: [{ label: "Open SOP Library", href: "/admin/help" }],
+    steps: [
+      "Sign in using Faculty Login.",
+      "Use the staff navigation bar and select SOPs. The same page is also available from the Help button in the top-right staff toolbar.",
+      "Review the SOP cards and choose the procedure that matches the task you need to complete.",
+      "Open the SOP and follow the steps in order. Use the linked portal buttons in the SOP when available.",
+      "If a screen looks different from the SOP, refresh the page first, then open Browser Troubleshooting from the SOP Library.",
+      "If the SOP does not cover the task, notify the administrator so the SOP library can be updated."
+    ],
+    quality: [
+      "Staff should not rely on memory when completing high-risk tasks such as grading, student access, registrar records, billing, or withdrawals.",
+      "Use the SOP title and SOP number when asking for help so another staff member can find the same procedure."
+    ],
+    records: "No separate record is required. The portal records the actual task completed, such as messages, grades, student access updates, uploads, and checklist notes."
+  },
+  {
+    id: "SOP-001",
+    slug: "staff-sign-in-navigation",
+    title: "Staff Sign-In and Portal Navigation",
+    audience: "All staff",
+    frequency: "Every work session.",
+    purpose: "Provide a consistent login and navigation process for staff using the student portal and LMS.",
+    links: [
+      { label: "Dashboard", href: "/admin" },
+      { label: "Courses", href: "/admin/courses" },
+      { label: "Inbox", href: "/admin/messages" }
+    ],
+    steps: [
+      "Open the portal website and choose Faculty Login.",
+      "Enter the assigned staff email username and password.",
+      "Start on Dashboard to review new activity, alerts, and upcoming work.",
+      "Use Students for student records, class access, registrar checklist, photos, and passwords.",
+      "Use Courses for LMS modules, assignments, syllabus, gradebook, people, and student view.",
+      "Use Assignment Inbox for written submissions that need grading or approval.",
+      "Use Inbox for staff-to-student messages.",
+      "Use SOPs whenever a procedure needs to be checked before action."
+    ],
+    quality: [
+      "Do not share staff login credentials.",
+      "Sign out at the end of the work session, especially on shared computers."
+    ],
+    records: "Portal activity is saved in the related module, message thread, grade item, or student record."
+  },
+  {
+    id: "SOP-002",
+    slug: "student-records-id-numbers",
+    title: "Create Student Records and Verify Student ID Numbers",
+    audience: "Administrators and registrar staff",
+    frequency: "Whenever a student account is created or reviewed.",
+    purpose: "Create complete student accounts and confirm each student has an official six-digit student ID number.",
+    adminOnly: true,
+    links: [{ label: "Students", href: "/admin/students" }],
+    steps: [
+      "Open Students.",
+      "Use New student to enter legal first name, legal last name, portal login email, personal reminder email, phone, cohort, cohort dates, and uniform size.",
+      "Keep Class access set to Locked until registrar and payment requirements are complete.",
+      "Select the initial course only after confirming the program or class.",
+      "Submit the form to create the student account.",
+      "Confirm the Student ID column shows a six-digit number with no letters and no leading zero.",
+      "Use the student ID when identifying the student in staff notes, registrar files, transcripts, and support requests."
+    ],
+    quality: [
+      "Do not create a duplicate student if the email already exists.",
+      "Student IDs are generated automatically and should not be manually invented."
+    ],
+    records: "The official ID is stored on the student record and appears on the roster, registrar page, student profile, financial page, and transcript."
+  },
+  {
+    id: "SOP-003",
+    slug: "student-access-photo-review",
+    title: "Manage Student Access and Photo Review",
+    audience: "Administrators and registrar staff",
+    frequency: "Before students begin coursework and whenever access is questioned.",
+    purpose: "Control when students can enter courses and verify profile photo requirements.",
+    adminOnly: true,
+    links: [{ label: "Students", href: "/admin/students" }],
+    steps: [
+      "Open Students.",
+      "Find the student by name, email, cohort, or student ID.",
+      "Review Class access. Locked means the student cannot fully proceed; Organized means the student is cleared for class access.",
+      "Before unlocking, confirm admissions documents, payment plan, registrar notes, and any required photo review.",
+      "If the student submitted a photo, approve or deny it using the Photo review controls.",
+      "If denying a photo, enter a clear note explaining what must be corrected.",
+      "Change Class access to Organized only after the student is cleared.",
+      "Save access and confirm the status changed on the roster."
+    ],
+    quality: [
+      "Do not unlock students with missing admissions or payment requirements unless an administrator approves the exception.",
+      "Use notes that are professional and clear enough for another staff member to understand."
+    ],
+    records: "Photo review events, access status, and class lock reasons are stored on the student record."
+  },
+  {
+    id: "SOP-004",
+    slug: "course-modules-student-view",
+    title: "Review Courses, Modules, and Student View",
+    audience: "Administrators and instructors",
+    frequency: "Before students begin a week, after course edits, and before announcements.",
+    purpose: "Confirm course content appears correctly to students before directing them to complete work.",
+    links: [{ label: "Courses", href: "/admin/courses" }],
+    steps: [
+      "Open Courses.",
+      "Select the correct course, such as PN 101, PN 102, PN 103, or PN 104.",
+      "Open Modules to review weekly order, page titles, assignments, quizzes, discussions, PowerPoints, videos, and resources.",
+      "Open each recently edited item and confirm the content matches the intended student view.",
+      "Use Student View when available to confirm students can see the item and use the correct buttons.",
+      "Check that files open as files, lessons open as lessons, assignments open as assignments, and quizzes open as quizzes.",
+      "If an item is incorrect, correct the course item before telling students to begin."
+    ],
+    quality: [
+      "Keep module titles and chapter titles consistent.",
+      "Do not leave duplicate module items visible to students."
+    ],
+    records: "Course modules, lessons, grade items, and student progress remain in the LMS."
+  },
+  {
+    id: "SOP-005",
+    slug: "written-assignments-autograde",
+    title: "Review Written Assignments and Auto-Graded Work",
+    audience: "Administrators and instructors",
+    frequency: "After students submit written assignments.",
+    purpose: "Review student-written responses, approve or adjust automatic grades, and keep grading transparent.",
+    links: [
+      { label: "Assignment Inbox", href: "/admin/assignment-submissions" },
+      { label: "Courses", href: "/admin/courses" }
+    ],
+    steps: [
+      "Open Assignment Inbox.",
+      "Keep the status filter on Needs review to see new submissions and auto-graded items waiting for approval.",
+      "Open the submission card and read each written response section.",
+      "Review any downloaded attachment if one is present.",
+      "Compare the response against the assignment directions, required structures, rubric, and professional writing expectations.",
+      "Use the suggested score only as a starting point. The instructor is responsible for approving or changing the grade.",
+      "Enter or revise instructor feedback.",
+      "Select Approve Grade, Update Grade, or Post Grade.",
+      "Confirm the student receives the grading notification."
+    ],
+    quality: [
+      "Automatic scores are provisional until instructor approval.",
+      "Do not approve a grade without reviewing the student's written work.",
+      "Adjust the grade when the response is inaccurate, incomplete, copied, unsafe, or missing required parts."
+    ],
+    records: "The submission, score, feedback, and notification are stored in the Assignment Inbox and gradebook."
+  },
+  {
+    id: "SOP-006",
+    slug: "gradebook-review",
+    title: "Use the Gradebook and Check Student Progress",
+    audience: "Administrators and instructors",
+    frequency: "Weekly and before progress meetings.",
+    purpose: "Review grades, identify missing work, and confirm the gradebook matches the course requirements.",
+    links: [{ label: "Courses", href: "/admin/courses" }],
+    steps: [
+      "Open Courses and choose the correct course.",
+      "Open Grades or Gradebook.",
+      "Review each student row and each assignment column.",
+      "Look for missing scores, unusually low scores, or provisional auto-scores that still require instructor review.",
+      "Use Assignment Inbox to review written work before approving provisional grades.",
+      "Check Discussions, Quizzes, and Assignments separately when a grade seems incorrect.",
+      "Document follow-up through Inbox when a student needs to complete missing work."
+    ],
+    quality: [
+      "The gradebook shows academic progress, but written assignment work must still be reviewed in Assignment Inbox.",
+      "Do not change grades without checking the related submission or assessment record."
+    ],
+    records: "Grade entries are stored in the LMS gradebook and connected to student enrollment records."
+  },
+  {
+    id: "SOP-007",
+    slug: "student-messaging",
+    title: "Message Students Through the Portal",
+    audience: "Administrators and instructors",
+    frequency: "Whenever course, registrar, billing, or support communication is needed.",
+    purpose: "Keep student communication documented inside the portal.",
+    links: [{ label: "Inbox", href: "/admin/messages" }],
+    steps: [
+      "Open Inbox.",
+      "Choose the student recipient and the related course when the message is course-specific.",
+      "Use a clear subject line, such as Missing Week 2 Assignment or Registrar Document Needed.",
+      "Write the message in professional language.",
+      "Include the action the student must take and the due date when applicable.",
+      "Send the message and verify it appears in the message thread.",
+      "Use the same thread for follow-up when the topic continues."
+    ],
+    quality: [
+      "Do not include private information that does not belong in a student message.",
+      "Use portal messages for decisions that need a record."
+    ],
+    records: "Sent and received messages remain in the portal Inbox."
+  },
+  {
+    id: "SOP-008",
+    slug: "registrar-documents",
+    title: "Upload and Review Registrar Documents",
+    audience: "Administrators and registrar staff",
+    frequency: "When admissions, enrollment, or graduation documents are received.",
+    purpose: "Keep student files organized and ready for audit or graduation review.",
+    adminOnly: true,
+    links: [{ label: "Registrar Checklist", href: "/admin/students#registrar-upload-matrix" }],
+    steps: [
+      "Open Students.",
+      "Find the student and select Upload documents or the specific registrar checklist item.",
+      "Upload the document under the matching checklist item.",
+      "Set the item status to Pending, Received, Approved, Missing, or Waived.",
+      "Enter a short note when a document is missing, unclear, waived, or approved with conditions.",
+      "Use the Admissions document checklist to confirm all required admissions items are complete.",
+      "Verify the student file shows complete readiness before graduation approval."
+    ],
+    quality: [
+      "Upload documents to the correct student only.",
+      "Use Waived only when the school has approved that exception.",
+      "Do not delete or overwrite student records to correct a document error; add a note and upload the correct file."
+    ],
+    records: "Uploaded files, status changes, and registrar notes remain attached to the student checklist."
+  },
+  {
+    id: "SOP-009",
+    slug: "student-profile-support",
+    title: "Help Students Use Their Portal",
+    audience: "Administrators, instructors, and support staff",
+    frequency: "When a student asks for help with the portal.",
+    purpose: "Guide students to the correct portal area without completing coursework for them.",
+    links: [
+      { label: "Students", href: "/admin/students" },
+      { label: "Browser Troubleshooting", href: "/help/browser-cache" }
+    ],
+    steps: [
+      "Confirm the student's name, email, and six-digit student ID.",
+      "Confirm the student is using Student Login, not Faculty Login.",
+      "Direct the student to Dashboard for course cards and reminders.",
+      "Direct the student to My Courses for modules, PowerPoints, assignments, quizzes, and discussions.",
+      "Direct the student to Calendar for due dates.",
+      "Direct the student to Inbox for school messages.",
+      "Direct the student to My Profile for student ID, contact information, attendance, documents, evaluations, transcript, and fees.",
+      "If the portal shows old information, have the student refresh the page and then use Browser Troubleshooting."
+    ],
+    quality: [
+      "Staff may explain where to find items, but should not type assignment answers for students.",
+      "If a student cannot see a course, verify enrollment and class access before troubleshooting the browser."
+    ],
+    records: "Support messages and enrollment/access changes should be documented in the portal."
+  },
+  {
+    id: "SOP-010",
+    slug: "browser-troubleshooting",
+    title: "Browser Troubleshooting and Cache Reset",
+    audience: "All staff",
+    frequency: "When the portal shows outdated pages, missing buttons, or old course content.",
+    purpose: "Resolve common browser display issues without changing student records.",
+    links: [{ label: "Browser Troubleshooting", href: "/help/browser-cache" }],
+    steps: [
+      "Refresh the page.",
+      "Sign out and sign back in.",
+      "Open Browser Troubleshooting from Staff SOPs or Help.",
+      "Use Clear Local Portal Cache.",
+      "Refresh the page again.",
+      "If the issue remains, try a private browser window or a different browser.",
+      "If the issue still remains, report the exact page, student, course, and screenshot to the administrator."
+    ],
+    quality: [
+      "Clearing browser cache does not delete grades, submissions, documents, messages, or student records.",
+      "Do not make duplicate course items because one browser is showing an outdated view."
+    ],
+    records: "No record is required unless the issue affects student access, grades, or official records."
+  }
+];
+
+function visibleStaffSops(user) {
+  return staffPortalSops.filter((sop) => !sop.adminOnly || user.role === "admin");
+}
+
+function staffSopBySlug(slug, user) {
+  return visibleStaffSops(user).find((sop) => sop.slug === slug) || null;
+}
+
+function renderSopLinks(links = []) {
+  return links.length ? `
+    <div class="sop-link-row">
+      ${links.map((link) => `<a class="button small ghost" href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`).join("")}
+    </div>
+  ` : "";
+}
+
+function renderStaffSopCard(sop) {
+  return `
+    <article class="help-card staff-sop-card">
+      <span class="sop-step">${escapeHtml(sop.id.replace("SOP-", ""))}</span>
+      <h2>${escapeHtml(sop.title)}</h2>
+      <p>${escapeHtml(sop.purpose)}</p>
+      <dl class="sop-card-meta">
+        <div><dt>Audience</dt><dd>${escapeHtml(sop.audience)}</dd></div>
+        <div><dt>When</dt><dd>${escapeHtml(sop.frequency)}</dd></div>
+      </dl>
+      <a class="button small" href="/admin/help/sops/${escapeHtml(sop.slug)}">Open SOP</a>
+    </article>
+  `;
+}
+
+function renderStaffSopDetail(sop, user) {
+  const otherSops = visibleStaffSops(user).filter((item) => item.slug !== sop.slug).slice(0, 6);
+  return `
+    <section class="staff-help-page sop-detail-page">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">${escapeHtml(sop.id)} · Staff SOP</p>
+          <h1>${escapeHtml(sop.title)}</h1>
+          <p>${escapeHtml(sop.purpose)}</p>
+        </div>
+        <div class="actions">
+          <a class="button ghost" href="/admin/help">All SOPs</a>
+          <button class="button" type="button" onclick="window.print()">Print SOP</button>
+        </div>
+      </div>
+
+      <section class="sop-summary-card">
+        <div><strong>Audience</strong><span>${escapeHtml(sop.audience)}</span></div>
+        <div><strong>Frequency</strong><span>${escapeHtml(sop.frequency)}</span></div>
+        <div><strong>Location</strong><span>Staff Portal / SOPs</span></div>
+      </section>
+
+      ${renderSopLinks(sop.links)}
+
+      <section class="sop-document-grid">
+        <article class="card sop-document-section">
+          <h2>Procedure</h2>
+          <ol>${sop.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>
+        </article>
+        <article class="card sop-document-section">
+          <h2>Quality Checks</h2>
+          <ul>${sop.quality.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </article>
+        <article class="card sop-document-section">
+          <h2>Records</h2>
+          <p>${escapeHtml(sop.records)}</p>
+        </article>
+      </section>
+
+      <section class="card sop-related-list">
+        <h2>Other SOPs</h2>
+        <div class="feature-quick-list">
+          ${otherSops.map((item) => `<a href="/admin/help/sops/${escapeHtml(item.slug)}">${escapeHtml(item.id)} · ${escapeHtml(item.title)}</a>`).join("")}
+        </div>
+      </section>
+    </section>
+  `;
+}
+
 app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const isAdmin = req.user.role === "admin";
+  const sops = visibleStaffSops(req.user);
   const body = `
     <section class="staff-help-page">
       <div class="page-head">
         <div>
-          <p class="eyebrow">Staff Help</p>
-          <h1>Standard of Practice</h1>
-          <p>Use this page as the staff reference for completing common SIS and LMS tasks the same way every time.</p>
+          <p class="eyebrow">Staff SOP Library</p>
+          <h1>Student Portal Standard Operating Procedures</h1>
+          <p>Use these procedures to complete student portal, LMS, registrar, grading, messaging, and support tasks the same way every time.</p>
         </div>
         <div class="actions">
           <a class="button ghost" href="/help/browser-cache">Browser troubleshooting</a>
@@ -6757,157 +7113,24 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
 
       <section class="staff-help-hero">
         <div>
-          <h2>Daily staff checklist</h2>
-          <p>${isAdmin ? "Start each work session by checking new applications, student file completion, unread messages, course activity, and any OSV evidence requests." : "Start each instructional session by checking course activity, unread student messages, HESI follow-up needs, and upcoming class items."}</p>
+          <h2>Start Here</h2>
+          <p>${isAdmin ? "Open SOP-000 first when training staff. Then use the matching SOP for admissions, student records, courses, grading, messaging, documents, billing, or troubleshooting." : "Open SOP-000 first when learning the staff portal. Then use the matching SOP for courses, grading, messaging, student support, or troubleshooting."}</p>
         </div>
         <ol>
-          <li>Sign in through Faculty Login.</li>
-          <li>Review Dashboard alerts and new activity.</li>
-          <li>${isAdmin ? "Open Students to confirm class access and admissions files." : "Open Students to view enrolled students and cohort placement."}</li>
-          <li>Open Inbox before the end of each work session.</li>
+          <li>Open SOP-000: How to Find and Use Staff SOPs.</li>
+          <li>Choose the SOP that matches the work being completed.</li>
+          <li>Follow the steps in order and use the linked portal pages.</li>
+          <li>Document completed work in the related student, course, message, or grade record.</li>
         </ol>
       </section>
 
       <section class="help-grid staff-sop-grid">
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">01</span>
-          <h2>Create or review an applicant</h2>
-          <ol>
-            <li>Open Admissions from the staff navigation.</li>
-            <li>Review the applicant's program, contact details, education history, and notes.</li>
-            <li>Set the application status to New, Reviewing, Accepted, Waitlisted, Declined, or Converted.</li>
-            <li>When accepted, create the student account and leave class access locked until the file is organized.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/admissions">Open admissions</a>
-        </article>
-        ` : ""}
-
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">02</span>
-          <h2>Create a student record</h2>
-          <ol>
-            <li>Open Students and use New student.</li>
-            <li>Enter the student's legal name, email, phone, cohort, cohort dates, and uniform size.</li>
-            <li>Keep class access locked until registrar requirements are complete.</li>
-            <li>Enroll the student in the correct course only after confirming the program.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/students">Open students</a>
-        </article>
-        ` : ""}
-
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">03</span>
-          <h2>Complete student files</h2>
-          <ol>
-            <li>Open the student's Registrar Checklist.</li>
-            <li>Upload documents to the matching checklist item.</li>
-            <li>Use the Admissions documents checklist to mark each required item Complete or Waived.</li>
-            <li>When every admissions item is complete, confirm the green Complete badge appears.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/students#registrar-upload-matrix">Open registrar files</a>
-        </article>
-        ` : ""}
-
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">04</span>
-          <h2>Unlock class access</h2>
-          <ol>
-            <li>Verify admissions documents, payment plan, and registrar notes.</li>
-            <li>On the Students page, change Class access to Organized.</li>
-            <li>Save access and confirm the student is no longer marked Locked.</li>
-            <li>Use Lock access again if the student becomes out of compliance.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/students">Manage access</a>
-        </article>
-        ` : ""}
-
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">05</span>
-          <h2>Add or reset instructor login</h2>
-          <ol>
-            <li>Open Instructor Roles from the staff navigation.</li>
-            <li>Use Create instructor login to enter the faculty member's name, email username, and optional phone number.</li>
-            <li>Use Refresh approved instructors to restore approved faculty accounts such as Dayana Diaz and Roney Hernandez.</li>
-            <li>Give the instructor their email username and the temporary password shown on the page.</li>
-            <li>If the login fails, use Reset to temporary password and have the instructor try Faculty Login again.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/instructor-roles">Open instructor roles</a>
-        </article>
-        ` : ""}
-
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">${isAdmin ? "06" : "05"}</span>
-          <h2>Manage courses and LMS content</h2>
-          <ol>
-            <li>Open Courses and select the program or class.</li>
-            <li>Use the Canvas-style course tools for modules, syllabus, assignments, grades, people, and settings.</li>
-            <li>Keep Practical Nursing courses separate from Home Health Aide and American Heart Association courses.</li>
-            <li>Review student view before announcing new course content.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/courses">Open courses</a>
-        </article>
-
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">${isAdmin ? "07" : "06"}</span>
-          <h2>Communicate with students</h2>
-          <ol>
-            <li>Open Inbox to view incoming student messages.</li>
-            <li>Choose a course when the message is course-specific.</li>
-            <li>Use clear subject lines and document important decisions in the thread.</li>
-            <li>Check external email delivery status if SMTP is enabled.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/messages">Open inbox</a>
-        </article>
-
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">${isAdmin ? "08" : "07"}</span>
-          <h2>Track HESI and cohort records</h2>
-          <ol>
-            <li>Open HESI Scores and choose the correct cohort.</li>
-            <li>Enter scores by subject and compare them against acceptable scores.</li>
-            <li>Use remediation status to identify students needing follow-up.</li>
-            <li>Keep cohort names consistent, such as Cohort 1 or Cohort 2.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/hesi">Open HESI scores</a>
-        </article>
-
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">09</span>
-          <h2>Prepare OSV visit evidence</h2>
-          <ol>
-            <li>Open OSV Visit from the staff navigation.</li>
-            <li>Upload evidence under the matching standard or checklist item.</li>
-            <li>Use notes to explain where each document belongs in the visit packet.</li>
-            <li>Open the presentation view when preparing the organized evidence packet.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/onsite-visit">Open OSV visit</a>
-        </article>
-        ` : ""}
-
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">10</span>
-          <h2>Billing and financial aid</h2>
-          <ol>
-            <li>Open Billing for tuition balances, payment plans, and account clearance.</li>
-            <li>Open Financial Aid for aid records and student funding notes.</li>
-            <li>Confirm payment plan status before unlocking class access.</li>
-            <li>Record notes before graduation approval.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/billing">Open billing</a>
-        </article>
-        ` : ""}
+        ${sops.map(renderStaffSopCard).join("")}
       </section>
 
       <section class="card staff-help-reference">
-        <h2>When something does not look right</h2>
-        <p>First refresh the page. If the portal still shows old wording, old buttons, or broken formatting, use the browser troubleshooting page to clear local portal cache. This does not delete school records.</p>
+        <h2>Daily Staff Start-Up</h2>
+        <p>Sign in, review Dashboard activity, open Assignment Inbox for pending grading, check Inbox messages, and use the relevant SOP before changing student access, grades, registrar documents, or billing records.</p>
         <div class="actions">
           <a class="button ghost" href="/help/browser-cache">Open browser troubleshooting</a>
           ${isAdmin ? `<a class="button ghost" href="/admin/admin-roles">Admin roles</a>` : ""}
@@ -6917,6 +7140,12 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
     </section>
   `;
   render(req, res, "Staff Help", body);
+});
+
+app.get("/admin/help/sops/:slug", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const sop = staffSopBySlug(String(req.params.slug || ""), req.user);
+  if (!sop) return res.status(404).send("SOP not found");
+  render(req, res, sop.title, renderStaffSopDetail(sop, req.user));
 });
 
 function ticketUrgencyLabel(value = "") {

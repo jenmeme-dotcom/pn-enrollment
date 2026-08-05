@@ -34,6 +34,7 @@ function navFor(user) {
     <a href="/admin/students">Students</a>
     <a href="/admin/student-evaluations">Student Evals</a>
     <a href="/admin/assignment-submissions">Assignment Inbox</a>
+    <a href="/admin/help">SOPs</a>
     <a href="/admin/schedule">Schedule</a>
     <a href="/admin/hesi">HESI Scores</a>
     <a href="/admin/courses">Courses</a>
@@ -51,6 +52,7 @@ function navFor(user) {
     <a href="/admin/students">Students</a>
     <a href="/admin/student-evaluations">Student Evals</a>
     <a href="/admin/assignment-submissions">Assignment Inbox</a>
+    <a href="/admin/help">SOPs</a>
     <a href="/admin/schedule">Schedule</a>
     <a href="/admin/hesi">HESI Scores</a>
     <a href="/admin/courses">Courses</a>

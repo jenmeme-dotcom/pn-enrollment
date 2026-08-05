@@ -8862,6 +8862,12 @@ button.small {
   gap: 12px;
 }
 
+.staff-sop-card p {
+  color: #4d5d6b;
+  line-height: 1.45;
+  margin: 0;
+}
+
 .staff-sop-card .sop-step {
   align-items: center;
   background: #eef6f7;
@@ -8874,6 +8880,31 @@ button.small {
   height: 34px;
   justify-content: center;
   width: 44px;
+}
+
+.sop-card-meta {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.sop-card-meta div {
+  display: grid;
+  gap: 2px;
+}
+
+.sop-card-meta dt {
+  color: #6b7884;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.sop-card-meta dd {
+  color: #24323f;
+  font-weight: 650;
+  margin: 0;
 }
 
 .staff-sop-card .button {
@@ -8889,6 +8920,83 @@ button.small {
 .staff-help-reference h2,
 .staff-help-reference p {
   margin: 0;
+}
+
+.sop-detail-page {
+  max-width: 1120px;
+}
+
+.sop-summary-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+.sop-summary-card div {
+  background: #f8fafb;
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+}
+
+.sop-summary-card strong {
+  color: #687786;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.sop-summary-card span {
+  color: #1f2d3a;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.sop-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sop-document-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, .9fr);
+}
+
+.sop-document-section {
+  display: grid;
+  gap: 12px;
+}
+
+.sop-document-section:first-child {
+  grid-row: span 2;
+}
+
+.sop-document-section h2,
+.sop-document-section p,
+.sop-related-list h2 {
+  margin: 0;
+}
+
+.sop-document-section ol,
+.sop-document-section ul {
+  color: #273745;
+  line-height: 1.6;
+  margin: 0 0 0 20px;
+  padding: 0;
+}
+
+.sop-document-section li {
+  margin: 7px 0;
+}
+
+.sop-related-list {
+  display: grid;
+  gap: 12px;
 }
 
 .task-panel-head {
@@ -11714,6 +11822,8 @@ button.small {
   .discussion-layout,
   .form-row,
   .staff-help-hero,
+  .sop-document-grid,
+  .sop-summary-card,
   .help-reset-panel,
   .help-grid {
     grid-template-columns: 1fr;
