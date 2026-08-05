@@ -18,6 +18,81 @@ const sourceText = "Cooper and Gosnell, Foundations of Nursing, 9th Edition";
 const materialBase = "/course-materials/long-term-care-nursing-pn103";
 const textbookFileName = "Foundations-of-Nursing-9th-Edition-Cooper-Gosnell.pdf";
 
+const writtenAssignmentMarker = (config) =>
+  `WRITTEN_ASSIGNMENT_DATA_BASE64:${Buffer.from(JSON.stringify(config), "utf8").toString("base64")}`;
+
+function longTermConceptGroups(week) {
+  const text = `${week.title || ""} ${week.focus || ""} ${week.assignmentDescription || ""}`.toLowerCase();
+  const groups = [["resident"], ["safety"], ["report"], ["document"], ["dignity", "respect"]];
+  if (/oxygen|respiratory|breathing/.test(text)) groups.push(["oxygen", "respiratory", "breathing"]);
+  if (/elimination|urinary|bowel|ostomy|catheter/.test(text)) groups.push(["elimination", "urinary", "bowel", "catheter", "ostomy"]);
+  if (/infection|standard precautions/.test(text)) groups.push(["infection", "precaution", "hand hygiene"]);
+  if (/fall|mobility|transfer|restraint/.test(text)) groups.push(["fall", "mobility", "transfer", "restraint"]);
+  if (/nutrition|hydration|fluid|intake/.test(text)) groups.push(["nutrition", "hydration", "intake", "fluid"]);
+  if (/medication|dosage/.test(text)) groups.push(["medication", "dosage"]);
+  if (/wound|skin|pressure/.test(text)) groups.push(["wound", "skin", "pressure injury"]);
+  if (/dementia|confusion|mental/.test(text)) groups.push(["dementia", "confusion", "mental health"]);
+  if (/pain|comfort|sleep/.test(text)) groups.push(["pain", "comfort", "sleep"]);
+  if (/grief|death|hospice|end-of-life/.test(text)) groups.push(["grief", "death", "hospice", "end-of-life"]);
+  return groups;
+}
+
+function writtenAssignmentConfigForWeek(week) {
+  return {
+    type: "written-autograde",
+    minWords: 110,
+    prompt: `Complete ${week.assignmentTitle}. Analyze the long-term care scenario, identify the resident-care priorities, explain safe practical nursing actions, and include what should be reported or documented.`,
+    checklist: [
+      "Identify the resident-care problem, risk, or priority in the scenario.",
+      "Explain safe practical nursing actions that protect dignity and follow scope.",
+      "State what should be reported to the nurse, provider, instructor, or care team.",
+      "Include documentation language and do not include real patient-identifying information."
+    ],
+    conceptGroups: longTermConceptGroups(week),
+    responseSections: [
+      {
+        title: "Part 1: Resident-Care Priority",
+        prompt: "Identify the main resident-care problem, risk, or priority in this scenario."
+      },
+      {
+        title: "Part 2: Nursing Actions",
+        prompt: "Describe safe practical nursing actions that protect the resident and stay within scope."
+      },
+      {
+        title: "Part 3: Reporting",
+        prompt: "State what should be reported, who should be notified, and why."
+      },
+      {
+        title: "Part 4: Documentation",
+        prompt: "Write objective documentation language for the resident-care situation."
+      },
+      {
+        title: "Part 5: Dignity and Safety",
+        prompt: "Explain how your plan protects resident dignity, rights, and safety."
+      }
+    ]
+  };
+}
+
+function writtenAssignmentContentForWeek(week) {
+  return [
+    "Canvas item type: Assignment.",
+    "",
+    week.assignmentTitle,
+    week.assignmentDescription,
+    "",
+    "Assignment directions",
+    "Complete each part in clear, complete sentences. Use long-term care vocabulary, stay within practical nursing scope, and protect resident confidentiality.",
+    "",
+    "Grading focus",
+    "Your work will be evaluated for resident-care priorities, safe nursing actions, reporting, documentation, dignity, organization, and confidentiality.",
+    "",
+    `Due: ${week.dueDate} at 11:59 PM.`,
+    "",
+    writtenAssignmentMarker(writtenAssignmentConfigForWeek(week))
+  ].join("\n");
+}
+
 const weeklyModules = [
   {
     week: 1,
@@ -479,7 +554,7 @@ function weeklyLesson(week) {
         durationMinutes: week.exam ? 90 : 45,
         content: examQuestions
           ? quizContent(`${week.assignmentDescription} Due ${week.dueDate} at 11:59 PM.`, examQuestions)
-          : `Canvas item type: Assignment.\n\n${week.assignmentDescription}\n\nDue: ${week.dueDate} at 11:59 PM.`
+          : writtenAssignmentContentForWeek(week)
       },
       ...(quiz ? [{
         title: quiz.title,

@@ -5,7 +5,80 @@ function materialHref(fileName) {
   return `${materialBase}/${encodeURIComponent(fileName)}`;
 }
 
+const writtenAssignmentMarker = (config) =>
+  `WRITTEN_ASSIGNMENT_DATA_BASE64:${Buffer.from(JSON.stringify(config), "utf8").toString("base64")}`;
+
+function assignmentConceptGroups(title = "", note = "") {
+  const text = `${title} ${note}`.toLowerCase();
+  const groups = [["medical term", "terminology"], ["meaning", "definition"], ["clinical", "documentation"], ["patient", "communication"]];
+  if (/word structure|suffix|prefix|flashcard|drill/.test(text)) groups.push(["prefix", "suffix", "root", "combining form"], ["word part"]);
+  if (/digestive/.test(text)) groups.push(["digestive"], ["stomach", "intestine", "liver", "pancreas"]);
+  if (/urinary|reproductive/.test(text)) groups.push(["urinary"], ["reproductive"]);
+  if (/nervous/.test(text)) groups.push(["nervous"], ["brain", "spinal cord", "nerve"]);
+  if (/cardiopulmonary|hematology/.test(text)) groups.push(["cardiopulmonary", "cardiovascular", "respiratory"], ["blood", "hematology"]);
+  if (/oncology/.test(text)) groups.push(["oncology", "cancer"]);
+  return groups;
+}
+
+function writtenAssignmentConfigForLesson(title = "", note = "") {
+  return {
+    type: "written-autograde",
+    minWords: 90,
+    prompt: `Complete ${title}. Use accurate medical terminology, define the terms you use, apply them to clinical documentation or patient communication, and protect confidentiality.`,
+    checklist: [
+      "Use accurate spelling and medical terminology.",
+      "Define or explain the meaning of the key terms in your own words.",
+      "Apply the terms to a clinical note, case, chart, patient-teaching statement, or communication example.",
+      "Do not include real patient-identifying information."
+    ],
+    conceptGroups: assignmentConceptGroups(title, note),
+    responseSections: [
+      {
+        title: "Part 1: Key Terms",
+        prompt: "List the medical terms or word parts required for this assignment."
+      },
+      {
+        title: "Part 2: Meanings",
+        prompt: "Define each term or word part in your own words."
+      },
+      {
+        title: "Part 3: Clinical Use",
+        prompt: "Use the terms correctly in a clinical note, case explanation, chart entry, or patient-care example."
+      },
+      {
+        title: "Part 4: Patient Communication",
+        prompt: "Explain how you would communicate the information clearly and professionally without using real patient-identifying information."
+      }
+    ]
+  };
+}
+
+function assignmentContent(title, note = "") {
+  return [
+    "Canvas item type: Assignment.",
+    "",
+    title,
+    note || "Complete the assignment using this week's medical terminology.",
+    "",
+    "Assignment directions",
+    "Use accurate spelling, define the key terms, apply them to a clinical example, and write clearly for a healthcare setting.",
+    "",
+    "Grading focus",
+    "Your work will be evaluated for terminology accuracy, correct meanings, clinical application, professional communication, organization, and confidentiality.",
+    "",
+    writtenAssignmentMarker(writtenAssignmentConfigForLesson(title, note))
+  ].join("\n");
+}
+
 function itemLesson(type, title, { files = [], note = "", minutes = 35, externalUrl = null } = {}) {
+  if (type === "Assignment") {
+    return {
+      title,
+      durationMinutes: minutes,
+      externalUrl,
+      content: assignmentContent(title, note)
+    };
+  }
   const fileText = files.length
     ? `\n\nCourse file${files.length === 1 ? "" : "s"}:\n${files.map((file) => `- ${file}: ${materialHref(file)}`).join("\n")}`
     : "";

@@ -39,6 +39,8 @@ const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = requ
 
 initialize();
 
+const AUTO_GRADE_PENDING_PREFIX = "[AUTO_GRADE_PENDING_APPROVAL]";
+
 function ensureInstructorAccessAccounts() {
   const legacyRoney = db.prepare("SELECT id FROM users WHERE lower(email) = 'roney.hernandez.instructor@browardmiamihi.com' AND role = 'instructor'").get();
   const currentRoney = db.prepare("SELECT id FROM users WHERE lower(email) = 'roney.hernandez@browardmiamihi.com' AND role = 'instructor'").get();
@@ -2124,6 +2126,14 @@ function renderWrittenResponseSections(response = "", sections = []) {
   `;
 }
 
+function isAutoGradeApprovalPending(note = "") {
+  return String(note || "").startsWith(AUTO_GRADE_PENDING_PREFIX);
+}
+
+function cleanGradeNote(note = "") {
+  return String(note || "").replace(AUTO_GRADE_PENDING_PREFIX, "").trim();
+}
+
 function matchingLessonForGradeItem(item = {}, lessons = []) {
   const itemTitle = normalizedTitle(item.title);
   return lessons.find((lesson) => {
@@ -2212,7 +2222,7 @@ function renderWrittenAutogradeInstructions(config = null) {
 }
 
 function renderWrittenAutogradeFeedback(grade = null) {
-  const note = String(grade?.note || "");
+  const note = cleanGradeNote(grade?.note || "");
   if (!note.includes("Written response score:") && !note.includes("Auto-graded written response:")) return "";
   const lines = note.split(/\n+/).map((line) => line.trim()).filter(Boolean);
   return `
@@ -3090,11 +3100,12 @@ function pnDiscussionGradeRows() {
 }
 
 function studentGradebookRows(enrollment, gradeItems = [], grades = []) {
-  const scoreByItemId = new Map(grades.map((grade) => [grade.grade_item_id, grade.score]));
+  const gradeByItemId = new Map(grades.map((grade) => [grade.grade_item_id, grade]));
   const savedRows = gradeItems.map((item) => ({
     ...item,
     group: item.title.toLowerCase().includes("elsevier") ? "Imported Assignments" : "Assignments",
-    score: scoreByItemId.has(item.id) ? scoreByItemId.get(item.id) : null
+    score: gradeByItemId.has(item.id) && !isAutoGradeApprovalPending(gradeByItemId.get(item.id)?.note) ? gradeByItemId.get(item.id).score : null,
+    status: isAutoGradeApprovalPending(gradeByItemId.get(item.id)?.note) ? "pending" : undefined
   }));
   if (enrollment.slug !== "introduction-to-nursing-practical-nursing") return savedRows;
 
@@ -3173,7 +3184,7 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
                 <td>${escapeHtml(formatGradeDue(row.due_date))}</td>
                 <td></td>
                 <td>
-                  ${row.status === "missing" ? `<span class="grade-status missing">missing</span>` : row.status === "info" ? `<span class="grade-status info">!</span>` : ""}
+                  ${row.status === "missing" ? `<span class="grade-status missing">missing</span>` : row.status === "info" ? `<span class="grade-status info">!</span>` : row.status === "pending" ? `<span class="grade-status info">pending review</span>` : ""}
                 </td>
                 <td>${row.points_possible ? `${row.score === null || row.score === undefined ? "-" : escapeHtml(row.score)} / ${escapeHtml(row.points_possible)}` : "-"}</td>
               </tr>
@@ -4740,8 +4751,9 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
   const relatedLessonHref = assignmentItemHref({ ...item, id: null }, lessons, baseHref);
   const hasRelatedLesson = relatedLessonHref.includes("?lesson=");
   const status = Number(item.published ?? 1) === 0 ? "Unpublished" : "Published";
+  const pendingInstructorReview = isAutoGradeApprovalPending(studentGrade?.note);
   const scoreLabel = studentScore === null || studentScore === undefined
-    ? "Not graded"
+    ? pendingInstructorReview ? "Pending instructor review" : "Not graded"
     : `${studentScore} / ${item.points_possible || 0}`;
   return `
     <main class="canvas-course-main canvas-page-main">
@@ -8827,19 +8839,21 @@ app.get("/admin/assignment-submissions", requireAuth, requireRole("admin", "inst
     JOIN courses ON courses.id = enrollments.course_id
     JOIN users ON users.id = enrollments.user_id
     LEFT JOIN grades ON grades.enrollment_id = enrollments.id AND grades.grade_item_id = grade_items.id
-    WHERE (? = 'all' OR (? = 'graded' AND grades.id IS NOT NULL) OR (? = 'ungraded' AND grades.id IS NULL))
+    WHERE (? = 'all'
+      OR (? = 'graded' AND grades.id IS NOT NULL AND COALESCE(grades.note, '') NOT LIKE ?)
+      OR (? = 'ungraded' AND (grades.id IS NULL OR COALESCE(grades.note, '') LIKE ?)))
       AND (? = '' OR lower(users.first_name || ' ' || users.last_name || ' ' || users.email || ' ' || courses.title || ' ' || grade_items.title) LIKE '%' || lower(?) || '%')
-    ORDER BY CASE WHEN grades.id IS NULL THEN 0 ELSE 1 END, assignment_submissions.submitted_at DESC
-  `).all(status, status, status, q, q);
+    ORDER BY CASE WHEN grades.id IS NULL OR COALESCE(grades.note, '') LIKE ? THEN 0 ELSE 1 END, assignment_submissions.submitted_at DESC
+  `).all(status, status, `${AUTO_GRADE_PENDING_PREFIX}%`, status, `${AUTO_GRADE_PENDING_PREFIX}%`, q, q, `${AUTO_GRADE_PENDING_PREFIX}%`);
   const counts = db.prepare(`
     SELECT COUNT(*) AS total,
-      SUM(CASE WHEN grades.id IS NULL THEN 1 ELSE 0 END) AS ungraded,
-      SUM(CASE WHEN grades.id IS NOT NULL THEN 1 ELSE 0 END) AS graded
+      SUM(CASE WHEN grades.id IS NULL OR COALESCE(grades.note, '') LIKE ? THEN 1 ELSE 0 END) AS ungraded,
+      SUM(CASE WHEN grades.id IS NOT NULL AND COALESCE(grades.note, '') NOT LIKE ? THEN 1 ELSE 0 END) AS graded
     FROM assignment_submissions
     JOIN grade_items ON grade_items.id = assignment_submissions.grade_item_id
     JOIN enrollments ON enrollments.id = assignment_submissions.enrollment_id
     LEFT JOIN grades ON grades.enrollment_id = enrollments.id AND grades.grade_item_id = grade_items.id
-  `).get();
+  `).get(`${AUTO_GRADE_PENDING_PREFIX}%`, `${AUTO_GRADE_PENDING_PREFIX}%`);
   const body = `
     <div class="page-head">
       <div>
@@ -8850,27 +8864,30 @@ app.get("/admin/assignment-submissions", requireAuth, requireRole("admin", "inst
       <div class="actions"><a class="button ghost" href="/admin/students">Students</a><a class="button ghost" href="/admin/courses">Courses</a></div>
     </div>
     <section class="grid cols-3">
-      ${stat("Awaiting grade", String(counts.ungraded || 0))}
-      ${stat("Graded", String(counts.graded || 0))}
+      ${stat("Needs review", String(counts.ungraded || 0))}
+      ${stat("Approved / graded", String(counts.graded || 0))}
       ${stat("Total submissions", String(counts.total || 0))}
     </section>
     <form class="card assignment-inbox-filters" method="get" action="/admin/assignment-submissions">
-      <label>Status<select name="status"><option value="ungraded" ${status === "ungraded" ? "selected" : ""}>Awaiting grade</option><option value="graded" ${status === "graded" ? "selected" : ""}>Graded</option><option value="all" ${status === "all" ? "selected" : ""}>All submissions</option></select></label>
+      <label>Status<select name="status"><option value="ungraded" ${status === "ungraded" ? "selected" : ""}>Needs review</option><option value="graded" ${status === "graded" ? "selected" : ""}>Approved / graded</option><option value="all" ${status === "all" ? "selected" : ""}>All submissions</option></select></label>
       <label>Search<input type="search" name="q" value="${escapeHtml(q)}" placeholder="Student, course, or assignment"></label>
       <button class="small" type="submit">Apply</button>
     </form>
     <section class="assignment-inbox-list">
       ${submissions.map((submission) => {
         const submissionAutogradeConfig = storedWrittenAssignmentConfigForGradeItem({ ...submission, title: submission.assignment_title });
+        const approvalPending = isAutoGradeApprovalPending(submission.grade_feedback);
+        const hasPostedGrade = submission.score !== null && submission.score !== undefined && !approvalPending;
+        const cleanFeedback = cleanGradeNote(submission.grade_feedback || "");
         return `
-        <article class="card assignment-inbox-item ${submission.score === null || submission.score === undefined ? "ungraded" : "graded"}">
+        <article class="card assignment-inbox-item ${hasPostedGrade ? "graded" : "ungraded"}">
           <header>
             <div>
-              <p class="eyebrow">${submission.score === null || submission.score === undefined ? "Awaiting grade" : "Graded"}</p>
+              <p class="eyebrow">${approvalPending ? "Auto grade needs approval" : hasPostedGrade ? "Graded" : "Awaiting grade"}</p>
               <h2>${escapeHtml(submission.assignment_title)}</h2>
               <p>${escapeHtml(submission.course_title)}</p>
             </div>
-            <span class="pill ${submission.score === null || submission.score === undefined ? "orange" : ""}">${submission.score === null || submission.score === undefined ? "New submission" : `${escapeHtml(submission.score)} / ${escapeHtml(submission.points_possible)}`}</span>
+            <span class="pill ${hasPostedGrade ? "" : "orange"}">${approvalPending ? `Review ${escapeHtml(submission.score)} / ${escapeHtml(submission.points_possible)}` : hasPostedGrade ? `${escapeHtml(submission.score)} / ${escapeHtml(submission.points_possible)}` : "New submission"}</span>
           </header>
           <div class="assignment-inbox-meta">
             <div><span>Student</span><strong>${escapeHtml(submission.first_name)} ${escapeHtml(submission.last_name)}</strong><small>${escapeHtml(submission.email)}</small></div>
@@ -8882,8 +8899,8 @@ app.get("/admin/assignment-submissions", requireAuth, requireRole("admin", "inst
             <label>Score
               <span><input type="number" name="score" min="0" max="${escapeHtml(submission.points_possible)}" step="0.01" value="${escapeHtml(submission.score ?? "")}" required> / ${escapeHtml(submission.points_possible)}</span>
             </label>
-            <label>Instructor feedback<textarea name="feedback" rows="3" maxlength="3000" placeholder="Feedback visible to the student">${escapeHtml(submission.grade_feedback || "")}</textarea></label>
-            <button class="button" type="submit">${submission.score === null || submission.score === undefined ? "Post Grade" : "Update Grade"}</button>
+            <label>Instructor feedback<textarea name="feedback" rows="3" maxlength="3000" placeholder="Feedback visible to the student">${escapeHtml(cleanFeedback)}</textarea></label>
+            <button class="button" type="submit">${approvalPending ? "Approve Grade" : hasPostedGrade ? "Update Grade" : "Post Grade"}</button>
           </form>
         </article>
       `;
@@ -14208,7 +14225,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         item: selectedAssignment,
         lessons,
         instructor: false,
-        studentScore: selectedAssignmentGrade?.score,
+        studentScore: isAutoGradeApprovalPending(selectedAssignmentGrade?.note) ? null : selectedAssignmentGrade?.score,
         studentGrade: selectedAssignmentGrade,
         enrollmentId: enrollment.id,
         submission: selectedAssignmentSubmission
@@ -14631,6 +14648,7 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
   }
   if (autoGradeConfig) {
     const result = gradeWrittenAssignment({ item: assignment, response: studentResponse, config: autoGradeConfig });
+    const pendingFeedback = `${AUTO_GRADE_PENDING_PREFIX}\n${result.feedback}`;
     db.prepare(`
       INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -14638,8 +14656,8 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
         score = excluded.score,
         note = excluded.note,
         updated_at = CURRENT_TIMESTAMP
-    `).run(enrollmentId, assignmentId, result.score, result.feedback);
-    flash(req, `Assignment submitted and graded: ${rubricPoints(result.score)} / ${rubricPoints(assignment.points_possible)}.`);
+    `).run(enrollmentId, assignmentId, result.score, pendingFeedback);
+    flash(req, "Assignment submitted. Your instructor will review the grade.");
   } else {
     const staffRecipients = db.prepare("SELECT id FROM users WHERE role IN ('admin', 'instructor') AND status = 'active'").all();
     const studentName = `${req.user.first_name} ${req.user.last_name}`.trim() || req.user.email;

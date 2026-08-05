@@ -226,7 +226,25 @@ function writtenAssignmentConfigForWeek(week, title, focus = "") {
       "Identify one safe action you can take as a practical nursing student or practical nurse.",
       "Do not include real patient-identifying information."
     ],
-    conceptGroups: introWrittenAssignmentTerms[week] || []
+    conceptGroups: introWrittenAssignmentTerms[week] || [],
+    responseSections: [
+      {
+        title: "Part 1: Key Concept",
+        prompt: "Identify the main nursing concept from this assignment and explain it in your own words."
+      },
+      {
+        title: "Part 2: Patient Safety or Dignity",
+        prompt: "Explain why this concept matters for patient safety, dignity, communication, or professional accountability."
+      },
+      {
+        title: "Part 3: Practical Nursing Action",
+        prompt: "Describe one safe action you can take as a practical nursing student or practical nurse."
+      },
+      {
+        title: "Part 4: Reporting or Documentation",
+        prompt: "State what you would report, document, or clarify with the instructor or supervising nurse."
+      }
+    ]
   };
 }
 
@@ -236,7 +254,7 @@ function buildChapterNursingAssignmentContent(week) {
     "Canvas item type: Assignment.",
     "",
     `Chapter ${week.week} Nursing Assignment`,
-    "Type your answer directly in the portal. Use the chapter reading, PowerPoint review, and weekly learning activity to answer in your own words.",
+    "Use the chapter reading, PowerPoint review, and weekly learning activity to answer in your own words.",
     "",
     "Prompt",
     `Explain the most important nursing lesson from Chapter ${week.week}: ${chapterTitle}. Describe why it matters for safe practical nursing care and identify one appropriate action you can take within your role.`,
@@ -960,7 +978,7 @@ function buildWeeklyAssignmentContent(week) {
     ]),
     "",
     "Graded Evidence",
-    `${week.assessment}. Submit your response directly in the portal for immediate scoring and feedback.`,
+    `${week.assessment}. Complete each written part in clear, complete sentences.`,
     "",
     writtenAssignmentMarker(writtenAssignmentConfigForWeek(week.week, week.assessment, week.focus))
   ].join("\n");

@@ -19,6 +19,62 @@ db.exec("PRAGMA foreign_keys = ON;");
 const legacyLocalEmailDomain = "@browardmiamihi.local";
 const portalEmailDomain = "@browardmiamihi.com";
 
+function writtenAssignmentMarker(config) {
+  return `WRITTEN_ASSIGNMENT_DATA_BASE64:${Buffer.from(JSON.stringify(config), "utf8").toString("base64")}`;
+}
+
+function fallbackWrittenAssignmentContent(title = "", existingContent = "") {
+  const cleanTitle = String(title || "Written Assignment").trim();
+  const cleanContent = String(existingContent || "")
+    .replace(/^Canvas item type:\s*Assignment\.?/i, "")
+    .replace(/\n*Course files?:[\s\S]*$/i, "")
+    .trim();
+  const config = {
+    type: "written-autograde",
+    minWords: 75,
+    prompt: `Complete ${cleanTitle}. Use course terminology, explain your reasoning, apply the content to a realistic healthcare or nursing situation, and protect confidentiality.`,
+    checklist: [
+      "Answer each part in complete sentences.",
+      "Use accurate course terminology.",
+      "Apply the content to a realistic healthcare, nursing, resident-care, or patient-care situation.",
+      "Do not include real patient-identifying information."
+    ],
+    conceptGroups: [["course", "chapter", "terminology", "nursing"], ["patient", "resident", "healthcare", "care"], ["safety", "communication", "documentation", "professional"], ["confidentiality", "privacy"]],
+    responseSections: [
+      {
+        title: "Part 1: Key Concepts",
+        prompt: "Identify the key terms, concepts, or requirements for this assignment."
+      },
+      {
+        title: "Part 2: Explanation",
+        prompt: "Explain the meaning or importance of those concepts in your own words."
+      },
+      {
+        title: "Part 3: Application",
+        prompt: "Apply the concepts to a realistic healthcare, nursing, resident-care, or patient-care situation."
+      },
+      {
+        title: "Part 4: Reporting or Professional Action",
+        prompt: "State what should be documented, reported, acknowledged, or done professionally."
+      }
+    ]
+  };
+  return [
+    "Canvas item type: Assignment.",
+    "",
+    cleanTitle,
+    cleanContent || "Complete each part in clear, complete sentences.",
+    "",
+    "Assignment directions",
+    "Complete each part in clear, complete sentences. Use course terminology, explain your reasoning, and protect confidentiality.",
+    "",
+    "Grading focus",
+    "Your work will be evaluated for accuracy, application, professional communication, organization, and confidentiality.",
+    "",
+    writtenAssignmentMarker(config)
+  ].join("\n");
+}
+
 function migrate() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -2623,6 +2679,30 @@ function seed() {
     SET item_type = 'assignment'
     WHERE content LIKE '%WRITTEN_ASSIGNMENT_DATA_BASE64:%'
   `).run();
+
+  const unmarkedWrittenAssignments = db.prepare(`
+    SELECT lessons.id, lessons.title, lessons.content
+    FROM lessons
+    JOIN modules ON modules.id = lessons.module_id
+    JOIN courses ON courses.id = modules.course_id
+    WHERE lessons.item_type = 'assignment'
+      AND lessons.content NOT LIKE '%WRITTEN_ASSIGNMENT_DATA_BASE64:%'
+      AND lessons.content NOT LIKE '%QUIZ_DATA_BASE64:%'
+      AND courses.slug IN (
+        'medical-terminology',
+        'introduction-to-nursing-practical-nursing',
+        'anatomy-and-physiology',
+        'long-term-care-nursing-pn103'
+      )
+  `).all();
+  const standardizeWrittenAssignment = db.prepare(`
+    UPDATE lessons
+    SET content = ?, published = 1, instructor_only = 0, item_type = 'assignment'
+    WHERE id = ?
+  `);
+  unmarkedWrittenAssignments.forEach((lesson) => {
+    standardizeWrittenAssignment.run(fallbackWrittenAssignmentContent(lesson.title, lesson.content), lesson.id);
+  });
 }
 
 function initialize() {
