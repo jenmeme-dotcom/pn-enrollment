@@ -14,6 +14,7 @@ const { db, initialize, databaseFile } = require("./db");
 const {
   courses,
   feeSchedule,
+  otherCourseFeeSchedule,
   tuitionNotes,
   catalogOperatingHours,
   catalogAcademicCalendar,
@@ -1391,6 +1392,19 @@ function renderTuitionFeesSection(courses = [], { compact = false } = {}) {
               <tr>
                 <td><strong>${escapeHtml(fee.label)}</strong>${fee.note ? ` <em>(${escapeHtml(fee.note)})</em>` : ""}</td>
                 <td><strong>${money(fee.amountCents)}</strong></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div class="table-card fee-table-card other-course-fee-table-card">
+        <table>
+          <thead><tr><th>Other Fees / Costs for Courses Offered</th><th>Cost</th></tr></thead>
+          <tbody>
+            ${otherCourseFeeSchedule.map((fee) => `
+              <tr>
+                <td><strong>${escapeHtml(fee.label)}</strong></td>
+                <td><strong>${fee.amountCents === undefined ? escapeHtml(fee.costLabel || "Contact school for current cost") : money(fee.amountCents)}</strong></td>
               </tr>
             `).join("")}
           </tbody>
