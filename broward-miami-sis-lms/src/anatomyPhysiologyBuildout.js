@@ -527,6 +527,34 @@ function weekModule([week, chapterNumbers, title]) {
 }
 
 const studentModules = weekPlan.map(weekModule);
+const supplementalResourceLessons = [
+  {
+    title: "Resource: Nursing Workbook Sample",
+    file: "PN104_Nursing_Workbook_Sample.pdf"
+  },
+  {
+    title: "Resource: Basics of Nursing - September 21, 2025",
+    file: "PN104_Basics_of_Nursing_2025-09-21.pdf"
+  },
+  {
+    title: "Resource: Basics of Nursing - October 6, 2025",
+    file: "PN104_Basics_of_Nursing_2025-10-06.pdf"
+  },
+  {
+    title: "Resource: Basics of Nursing - October 12, 2025",
+    file: "PN104_Basics_of_Nursing_2025-10-12.pdf"
+  }
+].map((resource) => ({
+  title: resource.title,
+  durationMinutes: 15,
+  content: [
+    "Supplemental Resource",
+    "Use this resource for additional study and review alongside the assigned Anatomy and Physiology modules.",
+    "",
+    "Resource file",
+    `- Open or download: ${materialBase}/${resource.file}`
+  ].join("\n")
+}));
 const facultyLessons = chapters.map((chapter) => ({
   title: `Faculty PowerPoint — Chapter ${chapter.number}: ${chapter.title}`,
   durationMinutes: 0,
@@ -704,6 +732,7 @@ const anatomyPhysiologyCourse = {
       ]
     },
     ...studentModules,
+    { title: "Resources", lessons: supplementalResourceLessons },
     { title: "PN104 Faculty Instructor Resources", lessons: facultyLessons }
   ],
   gradeItems
