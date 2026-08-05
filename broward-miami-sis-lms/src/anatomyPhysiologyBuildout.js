@@ -37,7 +37,7 @@ const chapters = [
   number,
   title,
   studentFile: `${stem}.pptx`,
-  facultyFile: [6, 7, 8].includes(number)
+  facultyFile: [6, 7, 8, 15, 17, 18].includes(number)
     ? `${stem}_FACULTY_with_word_for_word_script_notes.pptx`
     : `${stem}_FACULTY.pptx`
 }));
