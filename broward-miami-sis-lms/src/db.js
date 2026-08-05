@@ -162,6 +162,19 @@ function migrate() {
       uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS institution_catalogs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      catalog_year TEXT NOT NULL,
+      title TEXT NOT NULL,
+      file_original_name TEXT NOT NULL,
+      file_storage_name TEXT NOT NULL,
+      file_mime_type TEXT,
+      file_size INTEGER,
+      active INTEGER NOT NULL DEFAULT 1,
+      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS course_seed_versions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,

@@ -1431,6 +1431,40 @@ function renderCatalogDefinitionList(items = []) {
   `;
 }
 
+const defaultCatalogPdf = {
+  catalog_year: "2025-2026",
+  title: "Broward-Miami Health Institute Institution Catalog 2025-2026",
+  href: "/assets/bmhi-institution-catalog-2025-2026.pdf",
+  source: "default"
+};
+
+function currentInstitutionCatalog() {
+  const uploaded = db.prepare(`
+    SELECT c.*, TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS uploader_name
+    FROM institution_catalogs c
+    LEFT JOIN users u ON u.id = c.uploaded_by
+    WHERE c.active = 1
+    ORDER BY c.uploaded_at DESC, c.id DESC
+    LIMIT 1
+  `).get();
+  if (!uploaded) return defaultCatalogPdf;
+  return {
+    ...uploaded,
+    href: "/catalog/current.pdf",
+    source: "uploaded"
+  };
+}
+
+function recentInstitutionCatalogs(limit = 5) {
+  return db.prepare(`
+    SELECT c.*, TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS uploader_name
+    FROM institution_catalogs c
+    LEFT JOIN users u ON u.id = c.uploaded_by
+    ORDER BY c.uploaded_at DESC, c.id DESC
+    LIMIT ?
+  `).all(limit);
+}
+
 function canvasCourseCode(course = {}) {
   if (course.slug === "home-health-aide") return "HHA 75";
   if (course.slug === "home-health-aide-creole") return "HHA 75 Kreyol";
@@ -7323,14 +7357,50 @@ app.post("/admin/tickets/:id/status", requireAuth, requireRole("admin", "instruc
 
 app.get("/catalog", requireAuth, (req, res) => {
   const catalogCourses = db.prepare("SELECT * FROM courses WHERE published = 1 ORDER BY category, title").all();
+  const activeCatalog = currentInstitutionCatalog();
+  const recentCatalogs = req.user.role === "admin" ? recentInstitutionCatalogs() : [];
+  const catalogUploadPanel = req.user.role === "admin" ? `
+    <section class="card catalog-upload-card">
+      <div class="table-card-head">
+        <div>
+          <h2>Upload 2026 Catalog PDF</h2>
+          <p class="muted">Upload the official 2026 catalog here. After upload, the Catalog page, Open PDF button, and embedded preview will use the newest active PDF.</p>
+        </div>
+      </div>
+      <form class="form-grid" method="post" action="/admin/catalog/upload" enctype="multipart/form-data">
+        <label>Catalog year
+          <input name="catalogYear" value="2026" required>
+        </label>
+        <label>Catalog title
+          <input name="catalogTitle" value="Broward-Miami Health Institute 2026 Catalog" required>
+        </label>
+        <label class="span-2">Catalog PDF
+          <input type="file" name="catalogPdf" accept="application/pdf,.pdf" required>
+        </label>
+        <button class="button" type="submit">Upload Catalog</button>
+      </form>
+      <div class="catalog-upload-status">
+        <p><strong>Current catalog:</strong> ${escapeHtml(activeCatalog.title)}${activeCatalog.source === "uploaded" ? ` · ${escapeHtml(formatBytes(activeCatalog.file_size))} · uploaded ${escapeHtml(formatMessageDate(activeCatalog.uploaded_at))}` : " · default file"}</p>
+        ${recentCatalogs.length ? `
+          <div class="catalog-definition-list">
+            ${recentCatalogs.map((catalog) => `
+              <p><strong>${escapeHtml(catalog.catalog_year)}</strong><span>${escapeHtml(catalog.title)} · ${escapeHtml(formatBytes(catalog.file_size))} · ${escapeHtml(catalog.uploader_name || "Staff")} · ${escapeHtml(formatMessageDate(catalog.uploaded_at))}</span></p>
+            `).join("")}
+          </div>
+        ` : ""}
+      </div>
+    </section>
+  ` : "";
   const body = `
     <div class="page-head">
       <div>
         <h1>School Catalog</h1>
-        <p>Broward-Miami Health Institute Institution Catalog 2025-2026, Vol. III. Effective March 2025. Structured details below are extracted from the current catalog PDF.</p>
+        <p>${escapeHtml(activeCatalog.title)}. Structured details below are extracted from the school catalog record.</p>
       </div>
-      <a class="button" href="/assets/bmhi-institution-catalog-2025-2026.pdf" target="_blank" rel="noopener">Open PDF</a>
+      <a class="button" href="${escapeHtml(activeCatalog.href)}" target="_blank" rel="noopener">Open PDF</a>
     </div>
+
+    ${catalogUploadPanel}
 
     <section class="grid cols-4">
       ${stat("Campus", instituteAddress)}
@@ -7400,10 +7470,68 @@ app.get("/catalog", requireAuth, (req, res) => {
     </section>
 
     <section class="card catalog-card">
-      <iframe class="catalog-frame" src="/assets/bmhi-institution-catalog-2025-2026.pdf" title="Broward-Miami Health Institute Institution Catalog 2025-2026"></iframe>
+      <iframe class="catalog-frame" src="${escapeHtml(activeCatalog.href)}" title="${escapeHtml(activeCatalog.title)}"></iframe>
     </section>
   `;
   render(req, res, "School Catalog", body);
+});
+
+app.get("/catalog/current.pdf", requireAuth, (req, res) => {
+  const catalog = currentInstitutionCatalog();
+  if (catalog.source !== "uploaded") {
+    return res.redirect(defaultCatalogPdf.href);
+  }
+  const filePath = path.join(uploadDir, catalog.file_storage_name || "");
+  if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) {
+    return res.redirect(defaultCatalogPdf.href);
+  }
+  const fileName = path.basename(catalog.file_original_name || "bmhi-catalog.pdf").replace(/["\r\n]/g, "");
+  res.set({
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `inline; filename="${fileName}"`,
+    "Cache-Control": "private, max-age=300"
+  });
+  return res.sendFile(filePath);
+});
+
+app.post("/admin/catalog/upload", requireAuth, requireRole("admin"), (req, res) => {
+  upload.single("catalogPdf")(req, res, (error) => {
+    if (error) {
+      flash(req, error.code === "LIMIT_FILE_SIZE" ? "Catalog PDF is too large. The maximum file size is 25 MB." : error.message || "Catalog upload failed.");
+      return res.redirect("/catalog");
+    }
+    if (!req.file) {
+      flash(req, "Choose a catalog PDF to upload.");
+      return res.redirect("/catalog");
+    }
+    const extension = path.extname(req.file.originalname || "").toLowerCase();
+    const uploadedPath = path.join(uploadDir, req.file.filename);
+    const mimeType = String(req.file.mimetype || "").split(";")[0].toLowerCase();
+    const allowedPdfMimeTypes = new Set(["application/pdf", "application/octet-stream", ""]);
+    if (extension !== ".pdf" || !allowedPdfMimeTypes.has(mimeType)) {
+      if (isPathInside(uploadDir, uploadedPath) && fs.existsSync(uploadedPath)) fs.unlinkSync(uploadedPath);
+      flash(req, "Upload the catalog as a PDF file.");
+      return res.redirect("/catalog");
+    }
+    const catalogYear = String(req.body.catalogYear || "2026").trim().slice(0, 30) || "2026";
+    const catalogTitle = String(req.body.catalogTitle || `Broward-Miami Health Institute ${catalogYear} Catalog`).trim().slice(0, 180);
+    db.prepare("UPDATE institution_catalogs SET active = 0 WHERE active = 1").run();
+    db.prepare(`
+      INSERT INTO institution_catalogs (
+        catalog_year, title, file_original_name, file_storage_name, file_mime_type, file_size, active, uploaded_by
+      ) VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+    `).run(
+      catalogYear,
+      catalogTitle,
+      req.file.originalname,
+      req.file.filename,
+      req.file.mimetype,
+      req.file.size,
+      req.user.id
+    );
+    flash(req, `${catalogTitle} uploaded and set as the active catalog.`);
+    res.redirect("/catalog");
+  });
 });
 
 app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) => {
