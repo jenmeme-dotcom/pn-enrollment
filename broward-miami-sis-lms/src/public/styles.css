@@ -53,6 +53,18 @@
   gap: 7px;
 }
 
+.assignment-submission-form label span {
+  color: #5c6b74;
+  font-size: .95rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.assignment-response-fields {
+  display: grid;
+  gap: 16px;
+}
+
 .assignment-submission-form input[type="file"],
 .assignment-submission-form textarea {
   background: #ffffff;
@@ -83,6 +95,27 @@
 
 .assignment-written-response p {
   margin-bottom: 0;
+}
+
+.assignment-response-sections {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.assignment-response-section {
+  background: #ffffff;
+  border: 1px solid #dce6ea;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.assignment-response-section h4 {
+  margin: 0 0 6px;
+}
+
+.assignment-response-section p {
+  margin: 0;
 }
 
 .written-autograde-instructions {

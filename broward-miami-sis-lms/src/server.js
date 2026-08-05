@@ -2058,11 +2058,70 @@ function writtenAssignmentConfigForLesson(lesson = {}) {
             .map((group) => Array.isArray(group) ? group.map(String).filter(Boolean) : [String(group || "").trim()].filter(Boolean))
             .filter((group) => group.length)
             .slice(0, 12)
+        : [],
+      responseSections: Array.isArray(config.responseSections)
+        ? config.responseSections
+            .map((section) => ({
+              title: String(section?.title || "").trim(),
+              prompt: String(section?.prompt || "").trim()
+            }))
+            .filter((section) => section.title && section.prompt)
+            .slice(0, 8)
         : []
     };
   } catch {
     return null;
   }
+}
+
+function structuredAssignmentResponseFromBody(body = {}, config = null) {
+  const sections = config?.responseSections || [];
+  if (!sections.length) return String(body.studentResponse || "").trim().slice(0, 12000);
+  const parts = sections.map((section, index) => {
+    const value = String(body[`studentResponseSection${index}`] || "").trim().slice(0, 4000);
+    return { ...section, value };
+  });
+  if (!parts.some((part) => part.value)) return "";
+  return parts.map((part) => `${part.title}\n${part.value}`).join("\n\n").slice(0, 12000);
+}
+
+function responseSectionValues(response = "", sections = []) {
+  const text = String(response || "");
+  const values = {};
+  sections.forEach((section, index) => {
+    const title = String(section.title || "").trim();
+    const start = title ? text.indexOf(`${title}\n`) : -1;
+    if (start < 0) {
+      values[index] = "";
+      return;
+    }
+    const contentStart = start + title.length + 1;
+    const nextStarts = sections
+      .slice(index + 1)
+      .map((candidate) => text.indexOf(`${candidate.title}\n`, contentStart))
+      .filter((candidateStart) => candidateStart >= 0);
+    const contentEnd = nextStarts.length ? Math.min(...nextStarts) : text.length;
+    values[index] = text.slice(contentStart, contentEnd).trim();
+  });
+  return values;
+}
+
+function renderWrittenResponseSections(response = "", sections = []) {
+  const text = String(response || "").trim();
+  if (!text) return "";
+  const values = responseSectionValues(text, sections);
+  const hasStructuredValues = sections.length && Object.values(values).some(Boolean);
+  if (!hasStructuredValues) return `<p>${escapeHtml(text).replaceAll("\n", "<br>")}</p>`;
+  return `
+    <div class="assignment-response-sections">
+      ${sections.map((section, index) => `
+        <section class="assignment-response-section">
+          <h4>${escapeHtml(section.title)}</h4>
+          <p>${escapeHtml(values[index] || "No response entered for this section.").replaceAll("\n", "<br>")}</p>
+        </section>
+      `).join("")}
+    </div>
+  `;
 }
 
 function matchingLessonForGradeItem(item = {}, lessons = []) {
@@ -2128,7 +2187,7 @@ function gradeWrittenAssignment({ item = {}, response = "", config = null }) {
   const rawRatio = (conceptRatio * 0.65) + (lengthRatio * 0.2) + (professionalRatio * 0.15);
   const score = Number((Math.max(0, Math.min(1, rawRatio)) * pointsPossible).toFixed(2));
   const feedback = [
-    `Auto-graded written response: ${rubricPoints(score)} / ${rubricPoints(pointsPossible)}.`,
+    `Written response score: ${rubricPoints(score)} / ${rubricPoints(pointsPossible)}.`,
     `Matched concepts: ${matches.length ? matches.join(", ") : "none yet"}.`,
     missingGroups.length ? `Review and add: ${missingGroups.slice(0, 6).join(", ")}.` : "All required concept areas were addressed.",
     words < Number(config?.minWords || 90) ? `Add more detail: ${words} words submitted; target at least ${Number(config?.minWords || 90)} words.` : `Length check passed: ${words} words.`,
@@ -2141,25 +2200,24 @@ function renderWrittenAutogradeInstructions(config = null) {
   if (!config) return "";
   return `
     <section class="written-autograde-instructions">
-      <h3>Answer in the portal</h3>
+      <h3>Assignment directions</h3>
       ${config.prompt ? `<p>${escapeHtml(config.prompt)}</p>` : ""}
       ${config.checklist?.length ? `
         <ul>
           ${config.checklist.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
         </ul>
       ` : ""}
-      <p class="muted">After you submit, the portal checks your response against the assignment checklist and records the grade automatically.</p>
     </section>
   `;
 }
 
 function renderWrittenAutogradeFeedback(grade = null) {
   const note = String(grade?.note || "");
-  if (!note.includes("Auto-graded written response:")) return "";
+  if (!note.includes("Written response score:") && !note.includes("Auto-graded written response:")) return "";
   const lines = note.split(/\n+/).map((line) => line.trim()).filter(Boolean);
   return `
     <div class="assignment-autograde-feedback">
-      <strong>Automatic feedback</strong>
+      <strong>Feedback</strong>
       <ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>
     </div>
   `;
@@ -2645,7 +2703,7 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
         ${assignmentSubmissionCard || `
           <div class="lesson-action-card">
             <h2>Submit assignment</h2>
-            <p>Students type their answer directly in this module item. The portal checks the response and records the grade automatically after submission.</p>
+            <p>Complete each written part in clear, complete sentences.</p>
             <a class="button" href="${escapeHtml(assignmentHref)}">${instructor ? "View Assignment Setup" : "Open Assignment"}</a>
           </div>
         `}
@@ -4577,6 +4635,19 @@ function renderAssignmentRubric({ item, instructor = false, courseId = null, com
 
 function renderAssignmentSubmissionCard({ item, enrollmentId = null, submission = null, preview = false, autoGradeConfig = null, grade = null }) {
   if (!item?.id || (!enrollmentId && !preview)) return "";
+  const responseSections = autoGradeConfig?.responseSections || [];
+  const sectionValues = responseSectionValues(submission?.student_note || "", responseSections);
+  const structuredResponseFields = responseSections.length ? `
+    <div class="assignment-response-fields">
+      ${responseSections.map((section, index) => `
+        <label>
+          ${escapeHtml(section.title)}
+          <span>${escapeHtml(section.prompt)}</span>
+          <textarea name="studentResponseSection${index}" rows="5" maxlength="4000" required placeholder="Write this part of your answer here.">${escapeHtml(sectionValues[index] || "")}</textarea>
+        </label>
+      `).join("")}
+    </div>
+  ` : "";
   if (preview) {
     return `
       <section class="lesson-action-card assignment-submission-card">
@@ -4587,11 +4658,11 @@ function renderAssignmentSubmissionCard({ item, enrollmentId = null, submission 
           </div>
           <span class="pill">Preview only</span>
         </div>
-        <p>Students can type an answer directly in the portal. Auto-graded written assignments record the score immediately after submission.</p>
+        <p>Students complete each written part in a separate response section.</p>
         <div class="assignment-submission-form" aria-label="Student assignment submission preview">
           <label>
-            Write your response
-            <textarea rows="9" placeholder="Students type their assignment response here." disabled></textarea>
+            Part 1: Required Structures
+            <textarea rows="5" placeholder="Student response section" disabled></textarea>
           </label>
           <label>
             Attach a completed file (optional)
@@ -4617,26 +4688,31 @@ function renderAssignmentSubmissionCard({ item, enrollmentId = null, submission 
         <div class="assignment-submission-receipt">
           <p><strong>${escapeHtml(submission.file_original_name)}</strong></p>
           <p class="muted">Submitted ${escapeHtml(date(submission.submitted_at))} · ${escapeHtml(formatBytes(submission.file_size))}</p>
-          ${submission.student_note ? `<div class="assignment-written-response"><strong>Your written response</strong><p>${escapeHtml(submission.student_note)}</p></div>` : ""}
+          ${submission.student_note ? `<div class="assignment-written-response"><strong>Your written response</strong>${renderWrittenResponseSections(submission.student_note, responseSections)}</div>` : ""}
           ${renderWrittenAutogradeFeedback(grade)}
           <a class="button ghost small" href="/student/assignment-submissions/${submission.id}/file">Download submitted work</a>
         </div>
-      ` : `<p>${autoGradeConfig ? "Type your answer below. The portal will check your response and record your score after submission." : "Type your answer below, attach a completed file, or use both options. Your instructor will receive the work in the grading queue."}</p>`}
+      ` : `<p>${autoGradeConfig ? "Complete each section below in complete sentences." : "Type your answer below, attach a completed file, or use both options. Your instructor will receive the work in the grading queue."}</p>`}
       <form class="assignment-submission-form" method="post" enctype="multipart/form-data" action="/student/enrollments/${enrollmentId}/assignments/${item.id}/submit">
-        <label>
-          Write your response
-          <textarea name="studentResponse" rows="9" maxlength="12000" placeholder="Answer the assignment prompt in complete sentences. Support your response with this week's course material and do not include real patient-identifying information.">${escapeHtml(submission?.student_note || "")}</textarea>
-        </label>
         ${autoGradeConfig ? `
-          <p class="muted">File upload is not needed for this assignment. Type your complete response here and submit for automatic grading.</p>
+          ${structuredResponseFields || `
+            <label>
+              Write your response
+              <textarea name="studentResponse" rows="9" maxlength="12000" placeholder="Answer the assignment prompt in complete sentences. Support your response with this week's course material and do not include real patient-identifying information.">${escapeHtml(submission?.student_note || "")}</textarea>
+            </label>
+          `}
         ` : `
+          <label>
+            Write your response
+            <textarea name="studentResponse" rows="9" maxlength="12000" placeholder="Answer the assignment prompt in complete sentences. Support your response with this week's course material and do not include real patient-identifying information.">${escapeHtml(submission?.student_note || "")}</textarea>
+          </label>
           <label>
             ${submission ? "Replace or add an attachment (optional)" : "Attach a completed file (optional)"}
             <input type="file" name="assignmentFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.webp,.zip">
           </label>
           <p class="muted">Enter a written response, attach a file, or do both. Accepted files: PDF, Office documents, text, CSV, images, and ZIP files up to 25 MB.</p>
         `}
-        <button class="button" type="submit">${autoGradeConfig ? "Submit for Auto Grade" : submission ? "Replace Submission" : "Submit Assignment"}</button>
+        <button class="button" type="submit">${submission ? "Replace Submission" : "Submit Assignment"}</button>
       </form>
     </section>
   `;
@@ -8784,7 +8860,9 @@ app.get("/admin/assignment-submissions", requireAuth, requireRole("admin", "inst
       <button class="small" type="submit">Apply</button>
     </form>
     <section class="assignment-inbox-list">
-      ${submissions.map((submission) => `
+      ${submissions.map((submission) => {
+        const submissionAutogradeConfig = storedWrittenAssignmentConfigForGradeItem({ ...submission, title: submission.assignment_title });
+        return `
         <article class="card assignment-inbox-item ${submission.score === null || submission.score === undefined ? "ungraded" : "graded"}">
           <header>
             <div>
@@ -8799,7 +8877,7 @@ app.get("/admin/assignment-submissions", requireAuth, requireRole("admin", "inst
             <div><span>Submitted</span><strong>${escapeHtml(formatMessageDate(submission.submitted_at))}</strong><small>${escapeHtml(formatBytes(submission.file_size))}</small></div>
             <div><span>File</span><strong>${escapeHtml(submission.file_original_name)}</strong><a class="button small ghost" href="/admin/assignment-submissions/${submission.id}/file">Download</a></div>
           </div>
-          ${submission.student_note ? `<div class="assignment-student-note"><strong>Written response</strong><p>${escapeHtml(submission.student_note)}</p></div>` : ""}
+          ${submission.student_note ? `<div class="assignment-student-note"><strong>Written response</strong>${renderWrittenResponseSections(submission.student_note, submissionAutogradeConfig?.responseSections || [])}</div>` : ""}
           <form class="assignment-grade-form" method="post" action="/admin/assignment-submissions/${submission.id}/grade">
             <label>Score
               <span><input type="number" name="score" min="0" max="${escapeHtml(submission.points_possible)}" step="0.01" value="${escapeHtml(submission.score ?? "")}" required> / ${escapeHtml(submission.points_possible)}</span>
@@ -8808,7 +8886,8 @@ app.get("/admin/assignment-submissions", requireAuth, requireRole("admin", "inst
             <button class="button" type="submit">${submission.score === null || submission.score === undefined ? "Post Grade" : "Update Grade"}</button>
           </form>
         </article>
-      `).join("") || `<article class="card"><p class="empty">No assignment submissions match this view.</p></article>`}
+      `;
+      }).join("") || `<article class="card"><p class="empty">No assignment submissions match this view.</p></article>`}
     </section>
   `;
   render(req, res, "Assignment Inbox", body);
@@ -14482,9 +14561,11 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     fs.unlink(req.file.path, () => {});
     req.file = null;
   }
-  const studentResponse = String(req.body.studentResponse || "").trim().slice(0, 12000);
+  const studentResponse = autoGradeConfig
+    ? structuredAssignmentResponseFromBody(req.body, autoGradeConfig)
+    : String(req.body.studentResponse || "").trim().slice(0, 12000);
   if (autoGradeConfig && !studentResponse) {
-    flash(req, "Type your assignment response before submitting for automatic grading.");
+    flash(req, "Complete the assignment response sections before submitting.");
     return res.redirect(redirectToAssignment);
   }
   if (!autoGradeConfig && !req.file && !studentResponse) {
@@ -14558,7 +14639,7 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
         note = excluded.note,
         updated_at = CURRENT_TIMESTAMP
     `).run(enrollmentId, assignmentId, result.score, result.feedback);
-    flash(req, `Assignment submitted and auto-graded: ${rubricPoints(result.score)} / ${rubricPoints(assignment.points_possible)}.`);
+    flash(req, `Assignment submitted and graded: ${rubricPoints(result.score)} / ${rubricPoints(assignment.points_possible)}.`);
   } else {
     const staffRecipients = db.prepare("SELECT id FROM users WHERE role IN ('admin', 'instructor') AND status = 'active'").all();
     const studentName = `${req.user.first_name} ${req.user.last_name}`.trim() || req.user.email;

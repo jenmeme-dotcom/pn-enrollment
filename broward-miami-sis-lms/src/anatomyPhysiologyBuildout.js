@@ -365,7 +365,29 @@ function writtenAssignmentConfigForWeek(week, selectedChapters = []) {
       `Apply the anatomy and physiology to ${details.nursingApplication || "one patient-care observation, safety concern, or reportable change"}.`,
       "Use professional language and do not include real patient-identifying information."
     ],
-    conceptGroups: details.conceptGroups || []
+    conceptGroups: details.conceptGroups || [],
+    responseSections: [
+      {
+        title: "Part 1: Required Structures",
+        prompt: "List at least five required structures from this week's assignment."
+      },
+      {
+        title: "Part 2: Function",
+        prompt: "Explain the normal function of each selected structure in your own words."
+      },
+      {
+        title: "Part 3: Body-System Connection",
+        prompt: `Explain how the selected structures work together in this week's focus area: ${details.focus || "normal anatomy, normal physiology, and body-system teamwork"}.`
+      },
+      {
+        title: "Part 4: Practical Nursing Application",
+        prompt: `Describe one practical-nursing observation, safety concern, or reportable change related to ${details.nursingApplication || "this week's anatomy and physiology"}.`
+      },
+      {
+        title: "Part 5: Documentation or Reporting",
+        prompt: "Write one sentence explaining what you would document or report to the nurse or instructor."
+      }
+    ]
   };
 }
 
@@ -380,7 +402,7 @@ function assignmentContentForWeek(week, selectedChapters = []) {
     "Canvas item type: Assignment.",
     "",
     `Week ${week} Applied A&P Assignment`,
-    "Type your answer directly in the portal answer box below. Do not upload a PDF for this assignment.",
+    "Complete each part in clear, complete sentences. Use professional language and do not include real patient-identifying information.",
     "",
     `Assigned chapters: ${chapterLine}.`,
     "",
@@ -394,8 +416,8 @@ function assignmentContentForWeek(week, selectedChapters = []) {
     `4. Apply the information to practical nursing care by describing ${details.nursingApplication || "one observation, safety concern, or reportable change"}.`,
     "5. End with one sentence explaining what you would document or report to the nurse or instructor.",
     "",
-    "Automatic grading",
-    "After you submit, the portal checks whether your response names the required structures, explains functions, connects the body-system process, uses enough detail, and protects confidentiality. You may revise and resubmit if your response needs more detail.",
+    "Grading focus",
+    "Your work will be evaluated for required structures, accurate functions, body-system connections, practical nursing application, enough detail, organization, and confidentiality.",
     "",
     assignmentRubric,
     "",
