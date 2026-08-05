@@ -2639,11 +2639,23 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
       : enrollmentId && assignmentGradeItem
         ? renderAssignmentSubmissionCard({ item: assignmentGradeItem, enrollmentId, submission: assignmentSubmission, autoGradeConfig: writtenAutogradeConfig, grade: quizGrade })
         : "";
+    if (writtenAutogradeConfig) {
+      return `
+        ${fileButtons}
+        ${assignmentSubmissionCard || `
+          <div class="lesson-action-card">
+            <h2>Submit assignment</h2>
+            <p>Students type their answer directly in this module item. The portal checks the response and records the grade automatically after submission.</p>
+            <a class="button" href="${escapeHtml(assignmentHref)}">${instructor ? "View Assignment Setup" : "Open Assignment"}</a>
+          </div>
+        `}
+      `;
+    }
     return `
       ${fileButtons}
       <div class="lesson-action-card">
         <h2>Assignment</h2>
-        <p>${writtenAutogradeConfig ? "Review the instructions, then type your response directly in the portal. Your submission will be checked and graded automatically." : "Review the instructions, then type your response directly or attach a completed file. Your submission and grade will be saved in the portal."}</p>
+        <p>Review the instructions, then type your response directly or attach a completed file. Your submission and grade will be saved in the portal.</p>
         <a class="button" href="${escapeHtml(assignmentHref)}">${instructor ? "View Assignment Setup" : "Complete Assignment"}</a>
       </div>
       ${assignmentSubmissionCard}

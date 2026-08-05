@@ -277,34 +277,132 @@ const assignmentRubric = [
 const writtenAssignmentMarker = (config) =>
   `WRITTEN_ASSIGNMENT_DATA_BASE64:${Buffer.from(JSON.stringify(config), "utf8").toString("base64")}`;
 
-const weeklyWrittenAssignmentTerms = {
-  1: [["homeostasis", "stable internal environment"], ["cell", "cellular"], ["tissue"], ["organ system", "body system"], ["anatomical position", "directional term"]],
-  2: [["epithelial", "epithelium"], ["connective tissue"], ["muscle tissue"], ["nervous tissue"], ["integumentary", "skin"], ["barrier", "protection"]],
-  3: [["bone", "osseous"], ["axial skeleton"], ["appendicular skeleton"], ["joint", "articulation"], ["ligament"], ["mobility", "fall prevention"]],
-  4: [["skeletal muscle"], ["sarcomere", "actin", "myosin"], ["contraction"], ["tendon"], ["range of motion", "mobility"]],
-  5: [["neuron"], ["central nervous system", "brain", "spinal cord"], ["somatic nervous system"], ["sensory", "sensation"], ["motor", "movement"], ["report", "change"]],
-  6: [["sympathetic"], ["parasympathetic"], ["reflex"], ["neurological examination", "neurological assessment"], ["endocrine", "hormone"], ["insulin", "thyroid", "pituitary"]],
-  7: [["blood"], ["red blood cell", "hemoglobin"], ["heart"], ["artery", "vein", "capillary"], ["circulation"], ["pulse", "blood pressure"]],
-  8: [["lymphatic"], ["immune"], ["infection"], ["respiratory"], ["alveoli"], ["oxygenation", "breathing"]],
-  9: [["digestive"], ["stomach", "small intestine"], ["liver", "bile"], ["pancreas"], ["metabolism"], ["nutrition"]],
-  10: [["kidney", "renal"], ["nephron"], ["urinary"], ["fluid balance"], ["electrolyte"], ["acid-base", "pH"]],
-  11: [["reproductive"], ["ovary", "testes"], ["hormone"], ["fertilization"], ["privacy", "dignity"], ["patient education"]],
-  12: [["development"], ["inheritance", "genetic"], ["mitosis", "meiosis"], ["homeostasis"], ["body system"], ["safe nursing observation"]]
+const weeklyAssignmentDetails = {
+  1: {
+    structures: ["plasma membrane", "nucleus", "mitochondria", "ribosomes", "epithelial tissue", "connective tissue", "organ system", "homeostatic feedback loop"],
+    focus: "normal body organization from cells to systems and how homeostasis helps a patient remain stable",
+    nursingApplication: "a change in temperature, pain, fluid balance, or mental status that should be observed and reported",
+    conceptGroups: [["homeostasis", "stable internal environment"], ["plasma membrane", "cell membrane"], ["nucleus"], ["mitochondria"], ["tissue"], ["organ system", "body system"], ["feedback"], ["report", "observe"]]
+  },
+  2: {
+    structures: ["epithelial tissue", "connective tissue", "muscle tissue", "nervous tissue", "epidermis", "dermis", "sweat glands", "hair follicles"],
+    focus: "how tissue types and skin structures protect the body, support sensation, and help regulate temperature",
+    nursingApplication: "skin inspection, pressure-injury prevention, infection prevention, hydration, or reporting redness and breakdown",
+    conceptGroups: [["epithelial", "epithelium"], ["connective tissue"], ["muscle tissue"], ["nervous tissue"], ["epidermis"], ["dermis"], ["gland"], ["skin", "integumentary"]]
+  },
+  3: {
+    structures: ["osteon", "compact bone", "spongy bone", "axial skeleton", "appendicular skeleton", "synovial joint", "ligament", "articular cartilage"],
+    focus: "how bones, skeleton divisions, and joints support movement, stability, protection, and mineral storage",
+    nursingApplication: "fall prevention, safe transfer, mobility assistance, pain after injury, or reporting reduced range of motion",
+    conceptGroups: [["osteon", "bone"], ["compact bone"], ["spongy bone"], ["axial skeleton"], ["appendicular skeleton"], ["synovial joint", "joint"], ["ligament"], ["fall", "mobility"]]
+  },
+  4: {
+    structures: ["skeletal muscle fiber", "sarcomere", "actin", "myosin", "neuromuscular junction", "tendon", "flexor muscle", "extensor muscle"],
+    focus: "how muscle tissue and muscle-system structures produce movement, posture, and body mechanics",
+    nursingApplication: "range-of-motion exercises, safe positioning, transfer safety, weakness, spasm, or reporting new loss of strength",
+    conceptGroups: [["skeletal muscle"], ["muscle fiber"], ["sarcomere"], ["actin"], ["myosin"], ["neuromuscular junction"], ["tendon"], ["range of motion", "strength"]]
+  },
+  5: {
+    structures: ["neuron", "dendrite", "axon", "synapse", "brain", "spinal cord", "cranial nerve", "sensory pathway", "motor pathway", "cerebellum"],
+    focus: "how nervous-system anatomy supports sensation, movement, coordination, communication, and rapid response",
+    nursingApplication: "new weakness, numbness, confusion, poor coordination, altered speech, or another neurological change to assess and report",
+    conceptGroups: [["neuron"], ["dendrite"], ["axon"], ["synapse"], ["brain"], ["spinal cord"], ["sensory"], ["motor"], ["cerebellum"], ["report", "change"]]
+  },
+  6: {
+    structures: ["sympathetic division", "parasympathetic division", "reflex arc", "pupil", "cranial nerve", "deep tendon reflex", "pituitary gland", "thyroid gland", "adrenal gland", "pancreas"],
+    focus: "how the autonomic nervous system, neurological examination, and endocrine glands help regulate body function",
+    nursingApplication: "abnormal pupils, new weakness, blood-glucose change, thyroid/adrenal signs, or stress-response changes requiring follow-up",
+    conceptGroups: [["sympathetic"], ["parasympathetic"], ["reflex"], ["pupil"], ["cranial nerve"], ["pituitary"], ["thyroid"], ["adrenal"], ["pancreas"], ["hormone"]]
+  },
+  7: {
+    structures: ["plasma", "red blood cell", "white blood cell", "platelet", "right atrium", "left ventricle", "heart valve", "aorta", "vena cava", "capillary"],
+    focus: "how blood, the heart, and blood vessels transport gases, nutrients, wastes, immune cells, and pressure",
+    nursingApplication: "pulse, blood pressure, oxygenation, bleeding, edema, chest pain, or signs of poor circulation to report",
+    conceptGroups: [["plasma"], ["red blood cell", "hemoglobin"], ["white blood cell"], ["platelet"], ["atrium", "ventricle"], ["valve"], ["aorta"], ["capillary"], ["circulation"], ["blood pressure"]]
+  },
+  8: {
+    structures: ["lymphatic vessel", "lymph node", "spleen", "thymus", "tonsil", "trachea", "bronchi", "alveoli", "diaphragm", "pleura"],
+    focus: "how immune/lymphatic structures work with respiratory structures to defend the body and maintain oxygenation",
+    nursingApplication: "fever, swollen lymph nodes, cough, shortness of breath, low oxygen saturation, or infection-control precautions",
+    conceptGroups: [["lymphatic vessel"], ["lymph node"], ["spleen"], ["thymus"], ["tonsil"], ["trachea"], ["bronchi"], ["alveoli"], ["diaphragm"], ["oxygenation"]]
+  },
+  9: {
+    structures: ["mouth", "esophagus", "stomach", "duodenum", "jejunum", "ileum", "liver", "gallbladder", "pancreas", "large intestine"],
+    focus: "how digestive organs break down food, move contents, absorb nutrients, process bile and enzymes, and support metabolism",
+    nursingApplication: "nausea, vomiting, abdominal pain, swallowing difficulty, bowel-pattern changes, nutrition concerns, or dehydration risk",
+    conceptGroups: [["mouth"], ["esophagus"], ["stomach"], ["duodenum", "small intestine"], ["jejunum", "ileum"], ["liver"], ["gallbladder", "bile"], ["pancreas"], ["large intestine"], ["metabolism", "nutrition"]]
+  },
+  10: {
+    structures: ["kidney", "nephron", "glomerulus", "renal tubule", "ureter", "urinary bladder", "urethra", "antidiuretic hormone", "aldosterone", "bicarbonate buffer"],
+    focus: "how urinary structures and hormones regulate fluid balance, electrolytes, waste removal, and acid-base balance",
+    nursingApplication: "intake/output changes, dehydration, edema, abnormal urine, electrolyte concerns, or acid-base signs to report",
+    conceptGroups: [["kidney"], ["nephron"], ["glomerulus"], ["renal tubule"], ["ureter"], ["bladder"], ["urethra"], ["antidiuretic hormone", "ADH"], ["aldosterone"], ["acid-base", "bicarbonate"]]
+  },
+  11: {
+    structures: ["ovary", "uterine tube", "uterus", "endometrium", "vagina", "testis", "epididymis", "prostate gland", "estrogen", "testosterone"],
+    focus: "how reproductive structures and hormones support gamete production, pregnancy preparation, and reproductive health",
+    nursingApplication: "privacy, dignity, culturally respectful communication, patient education, and reporting pain, bleeding, or infection signs",
+    conceptGroups: [["ovary"], ["uterine tube"], ["uterus"], ["endometrium"], ["vagina"], ["testis"], ["epididymis"], ["prostate"], ["estrogen", "testosterone"], ["privacy", "dignity"]]
+  },
+  12: {
+    structures: ["fertilization", "zygote", "embryo", "fetus", "placenta", "DNA", "chromosome", "gene", "allele", "meiosis"],
+    focus: "how development and inheritance connect cell division, genetics, fetal development, and whole-body homeostasis",
+    nursingApplication: "patient teaching, family-history awareness, pregnancy-related observations, growth/development concerns, or respectful communication",
+    conceptGroups: [["fertilization"], ["zygote"], ["embryo"], ["fetus"], ["placenta"], ["DNA"], ["chromosome"], ["gene"], ["allele"], ["meiosis"]]
+  }
 };
 
 function writtenAssignmentConfigForWeek(week, selectedChapters = []) {
+  const details = weeklyAssignmentDetails[week] || {};
   return {
     type: "written-autograde",
-    minWords: 90,
-    prompt: `In complete sentences, explain how this week's A&P structures work, connect at least two structures to their functions, and describe one practical-nursing observation or safety action related to ${selectedChapters.map((chapter) => `Chapter ${chapter.number}`).join(", ")}.`,
+    minWords: 140,
+    prompt: `Answer all parts of the Week ${week} Applied A&P Assignment. Include at least five required structures from this week, explain what each structure does, connect the structures into one body-system process, and describe one practical-nursing observation or safety action related to ${selectedChapters.map((chapter) => `Chapter ${chapter.number}`).join(", ")}.`,
     checklist: [
-      "Name at least two assigned structures or systems.",
-      "Explain the normal function of each structure in your own words.",
-      "Connect the anatomy and physiology to one patient-care observation, safety concern, or reportable change.",
+      "Name at least five required structures from this week's list.",
+      "Explain the normal function of each selected structure in your own words.",
+      "Connect the structures together into one body-system process instead of listing facts only.",
+      `Apply the anatomy and physiology to ${details.nursingApplication || "one patient-care observation, safety concern, or reportable change"}.`,
       "Use professional language and do not include real patient-identifying information."
     ],
-    conceptGroups: weeklyWrittenAssignmentTerms[week] || []
+    conceptGroups: details.conceptGroups || []
   };
+}
+
+function assignmentList(items = []) {
+  return items.map((item) => `- ${item}`).join("\n");
+}
+
+function assignmentContentForWeek(week, selectedChapters = []) {
+  const details = weeklyAssignmentDetails[week] || {};
+  const chapterLine = selectedChapters.map((chapter) => `Chapter ${chapter.number}: ${chapter.title}`).join("; ");
+  return [
+    "Canvas item type: Assignment.",
+    "",
+    `Week ${week} Applied A&P Assignment`,
+    "Type your answer directly in the portal answer box below. Do not upload a PDF for this assignment.",
+    "",
+    `Assigned chapters: ${chapterLine}.`,
+    "",
+    "Required structures to mention",
+    assignmentList(details.structures || selectedChapters.map((chapter) => chapter.title)),
+    "",
+    "Your written response must answer all parts",
+    "1. Select at least five structures from the required list.",
+    "2. For each selected structure, explain its normal function in your own words.",
+    `3. Explain how the structures work together in this week's focus area: ${details.focus || "normal anatomy, normal physiology, and body-system teamwork"}.`,
+    `4. Apply the information to practical nursing care by describing ${details.nursingApplication || "one observation, safety concern, or reportable change"}.`,
+    "5. End with one sentence explaining what you would document or report to the nurse or instructor.",
+    "",
+    "Automatic grading",
+    "After you submit, the portal checks whether your response names the required structures, explains functions, connects the body-system process, uses enough detail, and protects confidentiality. You may revise and resubmit if your response needs more detail.",
+    "",
+    assignmentRubric,
+    "",
+    `Due: ${dueDates[week - 1]} at 11:59 PM.`,
+    "",
+    writtenAssignmentMarker(writtenAssignmentConfigForWeek(week, selectedChapters))
+  ].join("\n");
 }
 
 const dueDates = ["2026-07-19", "2026-07-26", "2026-08-02", "2026-08-09", "2026-08-16", "2026-08-23", "2026-08-30", "2026-09-06", "2026-09-13", "2026-09-20", "2026-09-27", "2026-10-04"];
@@ -388,7 +486,7 @@ function weekModule([week, chapterNumbers, title]) {
       {
         title: assignmentTitle,
         durationMinutes: 60,
-        content: `Canvas item type: Assignment.\n\nType your answer directly in the portal. Create a short written explanation that connects this week's major structures to their functions and one practical nursing application. Use accurate terminology and explain the connection in your own words.\n\n${assignmentRubric}\n\nDue: ${dueDates[week - 1]} at 11:59 PM.\n\n${writtenAssignmentMarker(writtenAssignmentConfigForWeek(week, selected))}`
+        content: assignmentContentForWeek(week, selected)
       },
       ...(quiz ? [{
         title: `[PN104 2026] Quiz ${quizNumberByWeek[week]}: ${quizRangeLabel(week)}`,
