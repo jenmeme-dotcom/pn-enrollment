@@ -419,7 +419,7 @@ function currentUser(req) {
 }
 
 function displayStudentNumber(student = {}) {
-  return student.student_number || `BMHI-${String(student.id || 0).padStart(5, "0")}`;
+  return student.student_number || String(100000 + Number(student.id || student.user_id || 0));
 }
 
 function detectedImageMimeType(filePath) {
@@ -3231,6 +3231,7 @@ function instructorGradebookStudents(enrollments = []) {
   ];
   const roster = enrollments.map((row) => ({
     id: row.user_id,
+    student_number: row.student_number,
     first_name: row.first_name,
     last_name: row.last_name,
     email: row.email,
@@ -3342,6 +3343,7 @@ function instructorPeopleRoster(course, enrollments = [], instructor) {
   const section = course.title;
   const roster = enrollments.map((row, index) => ({
     id: row.user_id,
+    student_number: row.student_number,
     first_name: row.first_name,
     last_name: row.last_name,
     email: row.email,
@@ -3453,7 +3455,7 @@ function renderInstructorPeoplePage({ course, courseCode, baseHref, enrollments 
                   ${person.invite_status === "pending" ? `<em>pending</em>` : ""}
                 </td>
                 <td>${escapeHtml(person.email || "")}</td>
-                <td>${person.id ? escapeHtml(`BMHI-${String(person.id).padStart(5, "0")}`) : ""}</td>
+                <td>${person.id && person.role === "Student" ? escapeHtml(displayStudentNumber(person)) : ""}</td>
                 <td>${escapeHtml(person.section || course.title)}</td>
                 <td>${escapeHtml(person.role)}</td>
                 <td>${escapeHtml(person.last_activity || "")}</td>
@@ -10806,7 +10808,7 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
   `).all(course.id);
 
   const enrollments = db.prepare(`
-    SELECT e.*, u.first_name, u.last_name, u.email, cr.id AS credential_id
+    SELECT e.*, u.first_name, u.last_name, u.email, u.student_number, cr.id AS credential_id
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
     LEFT JOIN credentials cr ON cr.enrollment_id = e.id
@@ -11138,7 +11140,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     ORDER BY due_date IS NULL, due_date, id
   `).all(course.id);
   const enrollments = db.prepare(`
-    SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email, u.cohort_name, u.cohort_start_date, u.cohort_end_date
+    SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email, u.student_number, u.cohort_name, u.cohort_start_date, u.cohort_end_date
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
     WHERE e.course_id = ?
@@ -13026,7 +13028,7 @@ app.get("/student/transcript", requireAuth, requireRole("student"), (req, res) =
         <div>
           <p class="eyebrow">Academic History</p>
           <h1>Transcript</h1>
-          <p>${escapeHtml(req.user.first_name)} ${escapeHtml(req.user.last_name)} · BMHI-${escapeHtml(String(req.user.id).padStart(5, "0"))}</p>
+          <p>${escapeHtml(req.user.first_name)} ${escapeHtml(req.user.last_name)} · ${escapeHtml(displayStudentNumber(req.user))}</p>
         </div>
         <div class="financial-actions">
           <a class="button ghost" href="/student/registration">Registration</a>
@@ -13877,7 +13879,7 @@ app.get("/student/financial", requireAuth, requireRole("student"), (req, res) =>
     .filter((award) => ["offered", "accepted"].includes(award.status))
     .reduce((sum, award) => sum + Number(award.amount_cents || 0), 0);
   const balance = Math.max(0, totalCharges - appliedPayments - financialAid);
-  const studentNumber = `BMHI-${String(req.user.id).padStart(5, "0")}`;
+  const studentNumber = displayStudentNumber(req.user);
 
   const body = `
     <section class="financial-term">

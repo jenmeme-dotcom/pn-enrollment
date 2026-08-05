@@ -874,26 +874,41 @@ function migrate() {
     ON users(student_number)
     WHERE student_number IS NOT NULL AND student_number <> '';
 
-    UPDATE users
-    SET student_number = 'BMHI-' || printf('%05d', id)
-    WHERE role = 'student'
-      AND (student_number IS NULL OR trim(student_number) = '');
+    DROP TRIGGER IF EXISTS trg_users_assign_student_number_after_insert;
+    DROP TRIGGER IF EXISTS trg_users_assign_student_number_after_update;
 
-    CREATE TRIGGER IF NOT EXISTS trg_users_assign_student_number_after_insert
+    UPDATE users
+    SET student_number = CAST(100000 + id AS TEXT)
+    WHERE role = 'student'
+      AND (
+        student_number IS NULL
+        OR trim(student_number) = ''
+        OR student_number NOT GLOB '[1-9][0-9][0-9][0-9][0-9][0-9]'
+      );
+
+    CREATE TRIGGER trg_users_assign_student_number_after_insert
     AFTER INSERT ON users
-    WHEN NEW.role = 'student' AND (NEW.student_number IS NULL OR trim(NEW.student_number) = '')
+    WHEN NEW.role = 'student' AND (
+      NEW.student_number IS NULL
+      OR trim(NEW.student_number) = ''
+      OR NEW.student_number NOT GLOB '[1-9][0-9][0-9][0-9][0-9][0-9]'
+    )
     BEGIN
       UPDATE users
-      SET student_number = 'BMHI-' || printf('%05d', NEW.id)
+      SET student_number = CAST(100000 + NEW.id AS TEXT)
       WHERE id = NEW.id;
     END;
 
-    CREATE TRIGGER IF NOT EXISTS trg_users_assign_student_number_after_update
+    CREATE TRIGGER trg_users_assign_student_number_after_update
     AFTER UPDATE OF role, student_number ON users
-    WHEN NEW.role = 'student' AND (NEW.student_number IS NULL OR trim(NEW.student_number) = '')
+    WHEN NEW.role = 'student' AND (
+      NEW.student_number IS NULL
+      OR trim(NEW.student_number) = ''
+      OR NEW.student_number NOT GLOB '[1-9][0-9][0-9][0-9][0-9][0-9]'
+    )
     BEGIN
       UPDATE users
-      SET student_number = 'BMHI-' || printf('%05d', NEW.id)
+      SET student_number = CAST(100000 + NEW.id AS TEXT)
       WHERE id = NEW.id;
     END;
   `);
