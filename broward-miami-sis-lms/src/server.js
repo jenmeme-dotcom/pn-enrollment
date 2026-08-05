@@ -1432,9 +1432,9 @@ function renderCatalogDefinitionList(items = []) {
 }
 
 const defaultCatalogPdf = {
-  catalog_year: "2025-2026",
-  title: "Broward-Miami Health Institute Institution Catalog 2025-2026",
-  href: "/assets/bmhi-institution-catalog-2025-2026.pdf",
+  catalog_year: "2026-2027",
+  title: "Broward-Miami Health Institute Institution Catalog 2026-2027",
+  href: "/assets/bmhi-institution-catalog-2026-2027.pdf",
   source: "default"
 };
 
@@ -7363,16 +7363,16 @@ app.get("/catalog", requireAuth, (req, res) => {
     <section class="card catalog-upload-card">
       <div class="table-card-head">
         <div>
-          <h2>Upload 2026 Catalog PDF</h2>
-          <p class="muted">Upload the official 2026 catalog here. After upload, the Catalog page, Open PDF button, and embedded preview will use the newest active PDF.</p>
+          <h2>Upload 2026-2027 Catalog PDF</h2>
+          <p class="muted">Upload the official 2026-2027 catalog here. After upload, the Catalog page, Open PDF button, and embedded preview will use the newest active PDF.</p>
         </div>
       </div>
       <form class="form-grid" method="post" action="/admin/catalog/upload" enctype="multipart/form-data">
         <label>Catalog year
-          <input name="catalogYear" value="2026" required>
+          <input name="catalogYear" value="2026-2027" required>
         </label>
         <label>Catalog title
-          <input name="catalogTitle" value="Broward-Miami Health Institute 2026 Catalog" required>
+          <input name="catalogTitle" value="Broward-Miami Health Institute Institution Catalog 2026-2027" required>
         </label>
         <label class="span-2">Catalog PDF
           <input type="file" name="catalogPdf" accept="application/pdf,.pdf" required>
