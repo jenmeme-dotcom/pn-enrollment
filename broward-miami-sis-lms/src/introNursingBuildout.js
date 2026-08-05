@@ -197,15 +197,59 @@ const chapterAssignmentQuestions = {
   6: quizBanks.introChapter6.slice(0, 5)
 };
 
+const writtenAssignmentMarker = (config) =>
+  `WRITTEN_ASSIGNMENT_DATA_BASE64:${Buffer.from(JSON.stringify(config), "utf8").toString("base64")}`;
+
+const introWrittenAssignmentTerms = {
+  1: [["nursing"], ["practical nurse", "pn"], ["professional"], ["patient", "care"], ["accountability", "responsibility"]],
+  2: [["history"], ["education"], ["infection control", "safety"], ["patient rights"], ["diversity", "equity"]],
+  3: [["caring"], ["comfort"], ["dignity"], ["advocacy"], ["therapeutic communication", "active listening"]],
+  4: [["scope of practice"], ["teamwork", "collaboration"], ["delegation", "assignment"], ["supervision"], ["SBAR", "closed-loop communication"]],
+  5: [["autonomy"], ["beneficence", "nonmaleficence"], ["confidentiality", "privacy"], ["boundaries"], ["patient rights"]],
+  6: [["legal"], ["scope of practice"], ["HIPAA", "privacy"], ["documentation"], ["negligence", "malpractice"], ["report"]],
+  7: [["culture", "cultural humility"], ["health equity"], ["bias", "assumption"], ["interpreter", "plain language"], ["respectful care"]],
+  8: [["safety"], ["infection prevention", "hand hygiene"], ["fall prevention"], ["patient identification"], ["near miss", "incident report"]],
+  9: [["nursing process"], ["assessment", "data collection"], ["clinical judgment"], ["priority"], ["report", "supervising nurse"]],
+  10: [["patient teaching"], ["teach-back"], ["health promotion"], ["plain language"], ["community"]],
+  11: [["professionalism"], ["resilience"], ["feedback"], ["leadership"], ["lifelong learning"]],
+  12: [["nursing leader"], ["ethical", "legal"], ["impact"], ["patient care"], ["professional commitment"]]
+};
+
+function writtenAssignmentConfigForWeek(week, title, focus = "") {
+  return {
+    type: "written-autograde",
+    minWords: 90,
+    prompt: `Write a complete response for ${title}. Use this week's nursing concepts to explain what the practical nursing student should understand, how the concept protects patients, and one safe action you can take within your role.${focus ? ` Focus: ${focus}` : ""}`,
+    checklist: [
+      "Answer in complete sentences using this week's nursing vocabulary.",
+      "Explain why the concept matters for patient safety, dignity, communication, or professional accountability.",
+      "Identify one safe action you can take as a practical nursing student or practical nurse.",
+      "Do not include real patient-identifying information."
+    ],
+    conceptGroups: introWrittenAssignmentTerms[week] || []
+  };
+}
+
 function buildChapterNursingAssignmentContent(week) {
-  const questions = chapterAssignmentQuestions[week.week] || [];
+  const chapterTitle = extendedWeekChapters[week.week]?.[0]?.title || week.title;
   return [
-    "Canvas item type: Quiz.",
+    "Canvas item type: Assignment.",
     "",
     `Chapter ${week.week} Nursing Assignment`,
-    `Select the one best nursing response for each of the ${questions.length} questions. Each question has four answer choices. No written response or file upload is required.`,
+    "Type your answer directly in the portal. Use the chapter reading, PowerPoint review, and weekly learning activity to answer in your own words.",
     "",
-    `QUIZ_DATA_BASE64:${Buffer.from(JSON.stringify(questions), "utf8").toString("base64")}`
+    "Prompt",
+    `Explain the most important nursing lesson from Chapter ${week.week}: ${chapterTitle}. Describe why it matters for safe practical nursing care and identify one appropriate action you can take within your role.`,
+    "",
+    "Submission Requirements",
+    bulletList([
+      "Use complete sentences and practical-nursing terminology from the chapter.",
+      "Connect your response to patient safety, dignity, communication, legal/ethical responsibility, or professional accountability.",
+      "Support your answer with the assigned course material.",
+      "Never include real patient-identifying information."
+    ]),
+    "",
+    writtenAssignmentMarker(writtenAssignmentConfigForWeek(week.week, `Chapter ${week.week} Nursing Assignment`, chapterTitle))
   ].join("\n");
 }
 
@@ -916,7 +960,9 @@ function buildWeeklyAssignmentContent(week) {
     ]),
     "",
     "Graded Evidence",
-    `${week.assessment}. Follow the instructor's submission directions and rubric.`
+    `${week.assessment}. Submit your response directly in the portal for immediate scoring and feedback.`,
+    "",
+    writtenAssignmentMarker(writtenAssignmentConfigForWeek(week.week, week.assessment, week.focus))
   ].join("\n");
 }
 

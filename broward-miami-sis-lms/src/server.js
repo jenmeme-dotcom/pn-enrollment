@@ -2043,6 +2043,128 @@ function lessonQuizQuestions(lesson = {}) {
   }
 }
 
+function writtenAssignmentConfigForLesson(lesson = {}) {
+  const match = String(lesson.content || "").match(/WRITTEN_ASSIGNMENT_DATA_BASE64:([A-Za-z0-9+/=]+)/);
+  if (!match) return null;
+  try {
+    const config = JSON.parse(Buffer.from(match[1], "base64").toString("utf8"));
+    if (!config || config.type !== "written-autograde") return null;
+    return {
+      prompt: String(config.prompt || "").trim(),
+      minWords: Math.max(25, Number(config.minWords || 90)),
+      checklist: Array.isArray(config.checklist) ? config.checklist.map(String).filter(Boolean).slice(0, 8) : [],
+      conceptGroups: Array.isArray(config.conceptGroups)
+        ? config.conceptGroups
+            .map((group) => Array.isArray(group) ? group.map(String).filter(Boolean) : [String(group || "").trim()].filter(Boolean))
+            .filter((group) => group.length)
+            .slice(0, 12)
+        : []
+    };
+  } catch {
+    return null;
+  }
+}
+
+function matchingLessonForGradeItem(item = {}, lessons = []) {
+  const itemTitle = normalizedTitle(item.title);
+  return lessons.find((lesson) => {
+    const lessonTitle = normalizedTitle(lesson.title);
+    const directMatch = lessonTitle && itemTitle && (lessonTitle.includes(itemTitle) || itemTitle.includes(lessonTitle));
+    const rawItemTitle = String(item.title || "").trim().toLowerCase();
+    const contentMatch = rawItemTitle.length >= 4 && String(lesson.content || "").toLowerCase().includes(rawItemTitle);
+    return directMatch || contentMatch;
+  }) || null;
+}
+
+function writtenAssignmentConfigForItem(item = {}, lessons = []) {
+  const lesson = matchingLessonForGradeItem(item, lessons);
+  return lesson ? writtenAssignmentConfigForLesson(lesson) : null;
+}
+
+function storedWrittenAssignmentConfigForGradeItem(item = {}) {
+  if (!item?.course_id) return null;
+  const lessons = db.prepare(`
+    SELECT lessons.*
+    FROM lessons
+    JOIN modules ON modules.id = lessons.module_id
+    WHERE modules.course_id = ?
+      AND lessons.content LIKE '%WRITTEN_ASSIGNMENT_DATA_BASE64:%'
+    ORDER BY modules.position, lessons.position, lessons.id
+  `).all(item.course_id);
+  return writtenAssignmentConfigForItem(item, lessons);
+}
+
+function wordCount(value = "") {
+  const matches = String(value || "").trim().match(/[A-Za-z0-9']+/g);
+  return matches ? matches.length : 0;
+}
+
+function conceptMatch(response = "", group = []) {
+  const normalized = String(response || "").toLowerCase();
+  return group.find((term) => {
+    const clean = String(term || "").trim().toLowerCase();
+    if (!clean) return false;
+    return clean.split(/\s+/).every((part) => normalized.includes(part));
+  }) || null;
+}
+
+function gradeWrittenAssignment({ item = {}, response = "", config = null }) {
+  const pointsPossible = Number(item.points_possible || 0) || 100;
+  const text = String(response || "").trim();
+  const words = wordCount(text);
+  const groups = config?.conceptGroups || [];
+  const matches = groups.map((group) => conceptMatch(text, group)).filter(Boolean);
+  const missingGroups = groups.filter((group) => !conceptMatch(text, group)).map((group) => group[0]).filter(Boolean);
+  const conceptRatio = groups.length ? matches.length / groups.length : 0.75;
+  const lengthRatio = Math.min(1, words / Math.max(1, Number(config?.minWords || 90)));
+  const sentenceCount = (text.match(/[.!?](?:\s|$)/g) || []).length;
+  const hasPatientIdentifiers = /\b(?:mr\.|mrs\.|ms\.|patient name|date of birth|dob|medical record|mrn|social security)\b/i.test(text);
+  const professionalRatio = Math.max(0, Math.min(1, (
+    (sentenceCount >= 3 ? 0.45 : sentenceCount >= 2 ? 0.3 : 0.15) +
+    (/[A-Za-z]{4,}/.test(text) ? 0.2 : 0) +
+    (hasPatientIdentifiers ? 0 : 0.25) +
+    (text.length >= 250 ? 0.1 : 0)
+  )));
+  const rawRatio = (conceptRatio * 0.65) + (lengthRatio * 0.2) + (professionalRatio * 0.15);
+  const score = Number((Math.max(0, Math.min(1, rawRatio)) * pointsPossible).toFixed(2));
+  const feedback = [
+    `Auto-graded written response: ${rubricPoints(score)} / ${rubricPoints(pointsPossible)}.`,
+    `Matched concepts: ${matches.length ? matches.join(", ") : "none yet"}.`,
+    missingGroups.length ? `Review and add: ${missingGroups.slice(0, 6).join(", ")}.` : "All required concept areas were addressed.",
+    words < Number(config?.minWords || 90) ? `Add more detail: ${words} words submitted; target at least ${Number(config?.minWords || 90)} words.` : `Length check passed: ${words} words.`,
+    hasPatientIdentifiers ? "Remove real patient-identifying information before resubmitting." : "Confidentiality check passed."
+  ].join("\n");
+  return { score, feedback, matches, missingGroups, words };
+}
+
+function renderWrittenAutogradeInstructions(config = null) {
+  if (!config) return "";
+  return `
+    <section class="written-autograde-instructions">
+      <h3>Answer in the portal</h3>
+      ${config.prompt ? `<p>${escapeHtml(config.prompt)}</p>` : ""}
+      ${config.checklist?.length ? `
+        <ul>
+          ${config.checklist.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      ` : ""}
+      <p class="muted">After you submit, the portal checks your response against the assignment checklist and records the grade automatically.</p>
+    </section>
+  `;
+}
+
+function renderWrittenAutogradeFeedback(grade = null) {
+  const note = String(grade?.note || "");
+  if (!note.includes("Auto-graded written response:")) return "";
+  const lines = note.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  return `
+    <div class="assignment-autograde-feedback">
+      <strong>Automatic feedback</strong>
+      <ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>
+    </div>
+  `;
+}
+
 function examSettingsForLesson(lesson = {}) {
   const title = String(lesson.title || "");
   if (title === "Midterm Exam: Weeks 1-6") return { label: "PN 102 Midterm Exam", minutes: 60, opensAt: "2026-07-27T00:00:00-04:00", closesAt: "2026-08-02T23:59:59-04:00" };
@@ -2508,19 +2630,20 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
 
   if (kind === "assignment") {
     const assignmentGradeItem = gradeItemForLesson(lesson, gradeItems);
+    const writtenAutogradeConfig = writtenAssignmentConfigForLesson(lesson);
     const assignmentHref = assignmentGradeItem?.id
       ? `${baseHref}?assignment=${assignmentGradeItem.id}`
       : `${baseHref}?view=assignments`;
     const assignmentSubmissionCard = instructor && assignmentGradeItem
       ? renderAssignmentSubmissionCard({ item: assignmentGradeItem, preview: true })
       : enrollmentId && assignmentGradeItem
-        ? renderAssignmentSubmissionCard({ item: assignmentGradeItem, enrollmentId, submission: assignmentSubmission })
+        ? renderAssignmentSubmissionCard({ item: assignmentGradeItem, enrollmentId, submission: assignmentSubmission, autoGradeConfig: writtenAutogradeConfig, grade: quizGrade })
         : "";
     return `
       ${fileButtons}
       <div class="lesson-action-card">
         <h2>Assignment</h2>
-        <p>Review the instructions, then type your response directly or attach a completed file. Your submission and grade will be saved in the portal.</p>
+        <p>${writtenAutogradeConfig ? "Review the instructions, then type your response directly in the portal. Your submission will be checked and graded automatically." : "Review the instructions, then type your response directly or attach a completed file. Your submission and grade will be saved in the portal."}</p>
         <a class="button" href="${escapeHtml(assignmentHref)}">${instructor ? "View Assignment Setup" : "Complete Assignment"}</a>
       </div>
       ${assignmentSubmissionCard}
@@ -4440,7 +4563,7 @@ function renderAssignmentRubric({ item, instructor = false, courseId = null, com
   `;
 }
 
-function renderAssignmentSubmissionCard({ item, enrollmentId = null, submission = null, preview = false }) {
+function renderAssignmentSubmissionCard({ item, enrollmentId = null, submission = null, preview = false, autoGradeConfig = null, grade = null }) {
   if (!item?.id || (!enrollmentId && !preview)) return "";
   if (preview) {
     return `
@@ -4452,7 +4575,7 @@ function renderAssignmentSubmissionCard({ item, enrollmentId = null, submission 
           </div>
           <span class="pill">Preview only</span>
         </div>
-        <p>Students can type an answer, attach a completed file, or use both options.</p>
+        <p>Students can type an answer directly in the portal. Auto-graded written assignments record the score immediately after submission.</p>
         <div class="assignment-submission-form" aria-label="Student assignment submission preview">
           <label>
             Write your response
@@ -4477,25 +4600,31 @@ function renderAssignmentSubmissionCard({ item, enrollmentId = null, submission 
         </div>
         ${submission ? `<span class="pill">Submitted</span>` : ""}
       </div>
+      ${autoGradeConfig ? renderWrittenAutogradeInstructions(autoGradeConfig) : ""}
       ${submission ? `
         <div class="assignment-submission-receipt">
           <p><strong>${escapeHtml(submission.file_original_name)}</strong></p>
           <p class="muted">Submitted ${escapeHtml(date(submission.submitted_at))} · ${escapeHtml(formatBytes(submission.file_size))}</p>
           ${submission.student_note ? `<div class="assignment-written-response"><strong>Your written response</strong><p>${escapeHtml(submission.student_note)}</p></div>` : ""}
+          ${renderWrittenAutogradeFeedback(grade)}
           <a class="button ghost small" href="/student/assignment-submissions/${submission.id}/file">Download submitted work</a>
         </div>
-      ` : `<p>Type your answer below, attach a completed file, or use both options. Your instructor will receive the work in the grading queue.</p>`}
+      ` : `<p>${autoGradeConfig ? "Type your answer below. The portal will check your response and record your score after submission." : "Type your answer below, attach a completed file, or use both options. Your instructor will receive the work in the grading queue."}</p>`}
       <form class="assignment-submission-form" method="post" enctype="multipart/form-data" action="/student/enrollments/${enrollmentId}/assignments/${item.id}/submit">
         <label>
           Write your response
           <textarea name="studentResponse" rows="9" maxlength="12000" placeholder="Answer the assignment prompt in complete sentences. Support your response with this week's course material and do not include real patient-identifying information.">${escapeHtml(submission?.student_note || "")}</textarea>
         </label>
-        <label>
-          ${submission ? "Replace or add an attachment (optional)" : "Attach a completed file (optional)"}
-          <input type="file" name="assignmentFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.webp,.zip">
-        </label>
-        <p class="muted">Enter a written response, attach a file, or do both. Accepted files: PDF, Office documents, text, CSV, images, and ZIP files up to 25 MB.</p>
-        <button class="button" type="submit">${submission ? "Replace Submission" : "Submit Assignment"}</button>
+        ${autoGradeConfig ? `
+          <p class="muted">File upload is not needed for this assignment. Type your complete response here and submit for automatic grading.</p>
+        ` : `
+          <label>
+            ${submission ? "Replace or add an attachment (optional)" : "Attach a completed file (optional)"}
+            <input type="file" name="assignmentFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.webp,.zip">
+          </label>
+          <p class="muted">Enter a written response, attach a file, or do both. Accepted files: PDF, Office documents, text, CSV, images, and ZIP files up to 25 MB.</p>
+        `}
+        <button class="button" type="submit">${autoGradeConfig ? "Submit for Auto Grade" : submission ? "Replace Submission" : "Submit Assignment"}</button>
       </form>
     </section>
   `;
@@ -4517,8 +4646,9 @@ function renderCourseRubricsPage({ courseCode, baseHref, gradeItems = [], instru
   `;
 }
 
-function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons = [], instructor = false, studentScore = null, courseId = null, enrollmentId = null, submission = null }) {
+function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons = [], instructor = false, studentScore = null, studentGrade = null, courseId = null, enrollmentId = null, submission = null }) {
   const type = assignmentTypeLabel(item);
+  const writtenAutogradeConfig = writtenAssignmentConfigForItem(item, lessons);
   const relatedLessonHref = assignmentItemHref({ ...item, id: null }, lessons, baseHref);
   const hasRelatedLesson = relatedLessonHref.includes("?lesson=");
   const status = Number(item.published ?? 1) === 0 ? "Unpublished" : "Published";
@@ -4560,7 +4690,7 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
         </section>
         ${renderAssignmentRubric({ item, instructor, courseId })}
         ${!instructor && enrollmentId && type !== "Quiz" && type !== "Exam"
-          ? renderAssignmentSubmissionCard({ item, enrollmentId, submission })
+          ? renderAssignmentSubmissionCard({ item, enrollmentId, submission, autoGradeConfig: writtenAutogradeConfig, grade: studentGrade })
           : ""}
         ${type === "Quiz" || type === "Exam" ? `
           <section class="lesson-action-card">
@@ -5174,7 +5304,10 @@ function renderLineRun(lines = []) {
 }
 
 function renderCanvasLessonContent(value = "", lessonTitles = []) {
-  const raw = stripCanvasSource(value).replace(/\n*QUIZ_DATA_BASE64:[A-Za-z0-9+/=]+\s*/g, "\n").trim();
+  const raw = stripCanvasSource(value)
+    .replace(/\n*QUIZ_DATA_BASE64:[A-Za-z0-9+/=]+\s*/g, "\n")
+    .replace(/\n*WRITTEN_ASSIGNMENT_DATA_BASE64:[A-Za-z0-9+/=]+\s*/g, "\n")
+    .trim();
   if (!raw) return `<p class="empty">No page content has been added yet.</p>`;
   if (looksLikeHtml(raw)) {
     const cleanedHtml = stripDuplicateHtmlLessonHeading(sanitizeCanvasHtml(raw), lessonTitles).trim();
@@ -13985,6 +14118,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         lessons,
         instructor: false,
         studentScore: selectedAssignmentGrade?.score,
+        studentGrade: selectedAssignmentGrade,
         enrollmentId: enrollment.id,
         submission: selectedAssignmentSubmission
       })}
@@ -14314,7 +14448,7 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     return res.redirect("/student");
   }
   const assignment = db.prepare(`
-    SELECT grade_items.*, enrollments.id AS enrollment_id, courses.title AS course_title
+    SELECT grade_items.*, enrollments.id AS enrollment_id, courses.title AS course_title, courses.slug AS course_slug
     FROM enrollments
     JOIN grade_items ON grade_items.course_id = enrollments.course_id
     JOIN courses ON courses.id = enrollments.course_id
@@ -14331,8 +14465,17 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     flash(req, "This assessment must be completed in the portal and does not accept file uploads.");
     return res.redirect(redirectToAssignment);
   }
+  const autoGradeConfig = storedWrittenAssignmentConfigForGradeItem(assignment);
+  if (autoGradeConfig && req.file?.path) {
+    fs.unlink(req.file.path, () => {});
+    req.file = null;
+  }
   const studentResponse = String(req.body.studentResponse || "").trim().slice(0, 12000);
-  if (!req.file && !studentResponse) {
+  if (autoGradeConfig && !studentResponse) {
+    flash(req, "Type your assignment response before submitting for automatic grading.");
+    return res.redirect(redirectToAssignment);
+  }
+  if (!autoGradeConfig && !req.file && !studentResponse) {
     flash(req, "Write your response or attach an assignment file before submitting.");
     return res.redirect(redirectToAssignment);
   }
@@ -14393,16 +14536,29 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     const previousPath = path.join(uploadDir, previous.file_storage_name);
     if (isPathInside(uploadDir, previousPath)) fs.unlink(previousPath, () => {});
   }
-  const staffRecipients = db.prepare("SELECT id FROM users WHERE role IN ('admin', 'instructor') AND status = 'active'").all();
-  const studentName = `${req.user.first_name} ${req.user.last_name}`.trim() || req.user.email;
-  staffRecipients.forEach((staff) => savePortalMessage({
-    senderId: req.user.id,
-    recipientId: staff.id,
-    courseId: assignment.course_id,
-    subject: `${previous ? "Assignment resubmitted" : "Assignment submitted"}: ${assignment.title}`,
-    body: `${studentName} ${previous ? "replaced the submission for" : "submitted"} ${assignment.title} in ${assignment.course_title}. Open Assignment Inbox to review and grade the work.`
-  }));
-  flash(req, "Assignment submitted successfully. Staff were notified and the work was added to the grading queue.");
+  if (autoGradeConfig) {
+    const result = gradeWrittenAssignment({ item: assignment, response: studentResponse, config: autoGradeConfig });
+    db.prepare(`
+      INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET
+        score = excluded.score,
+        note = excluded.note,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(enrollmentId, assignmentId, result.score, result.feedback);
+    flash(req, `Assignment submitted and auto-graded: ${rubricPoints(result.score)} / ${rubricPoints(assignment.points_possible)}.`);
+  } else {
+    const staffRecipients = db.prepare("SELECT id FROM users WHERE role IN ('admin', 'instructor') AND status = 'active'").all();
+    const studentName = `${req.user.first_name} ${req.user.last_name}`.trim() || req.user.email;
+    staffRecipients.forEach((staff) => savePortalMessage({
+      senderId: req.user.id,
+      recipientId: staff.id,
+      courseId: assignment.course_id,
+      subject: `${previous ? "Assignment resubmitted" : "Assignment submitted"}: ${assignment.title}`,
+      body: `${studentName} ${previous ? "replaced the submission for" : "submitted"} ${assignment.title} in ${assignment.course_title}. Open Assignment Inbox to review and grade the work.`
+    }));
+    flash(req, "Assignment submitted successfully. Staff were notified and the work was added to the grading queue.");
+  }
   res.redirect(redirectToAssignment);
 });
 

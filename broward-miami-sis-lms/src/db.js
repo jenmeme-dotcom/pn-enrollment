@@ -1097,6 +1097,11 @@ function seed() {
     WHERE item_type = 'page'
       AND content LIKE 'Canvas item type: %'
   `).run();
+  db.prepare(`
+    UPDATE lessons
+    SET item_type = 'assignment'
+    WHERE content LIKE '%WRITTEN_ASSIGNMENT_DATA_BASE64:%'
+  `).run();
 
   // Keep PN 104's four scheduled discussions synchronized without refreshing
   // the entire course shell. Updating the matching weekly rows preserves the
@@ -1226,6 +1231,22 @@ function seed() {
         );
       }
     });
+
+    const updatePn104AssignmentLesson = db.prepare(`
+      UPDATE lessons
+      SET content = ?, duration_minutes = ?, published = 1, instructor_only = 0, item_type = 'assignment'
+      WHERE title = ? AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
+    `);
+    lessonDefinitions
+      .filter((lesson) => /^\[PN104 2026\] Week \d+ Applied A&P Assignment$/.test(lesson.title))
+      .forEach((definition) => {
+        updatePn104AssignmentLesson.run(
+          definition.content || "",
+          definition.durationMinutes || 60,
+          definition.title,
+          pn104CourseRow.id
+        );
+      });
 
     const chapter16LessonDefinition = lessonDefinitions.find((lesson) =>
       lesson.title === "Chapter 16: The Neurological Examination — PowerPoint"
@@ -2536,6 +2557,12 @@ function seed() {
       else insertGradeItem.run(longTermCareCourseRow.id, item.title, item.pointsPossible, item.dueDate || null);
     });
   }
+
+  db.prepare(`
+    UPDATE lessons
+    SET item_type = 'assignment'
+    WHERE content LIKE '%WRITTEN_ASSIGNMENT_DATA_BASE64:%'
+  `).run();
 }
 
 function initialize() {

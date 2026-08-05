@@ -274,6 +274,39 @@ const assignmentRubric = [
   "- Organization, completeness, and professional writing: 4 points"
 ].join("\n");
 
+const writtenAssignmentMarker = (config) =>
+  `WRITTEN_ASSIGNMENT_DATA_BASE64:${Buffer.from(JSON.stringify(config), "utf8").toString("base64")}`;
+
+const weeklyWrittenAssignmentTerms = {
+  1: [["homeostasis", "stable internal environment"], ["cell", "cellular"], ["tissue"], ["organ system", "body system"], ["anatomical position", "directional term"]],
+  2: [["epithelial", "epithelium"], ["connective tissue"], ["muscle tissue"], ["nervous tissue"], ["integumentary", "skin"], ["barrier", "protection"]],
+  3: [["bone", "osseous"], ["axial skeleton"], ["appendicular skeleton"], ["joint", "articulation"], ["ligament"], ["mobility", "fall prevention"]],
+  4: [["skeletal muscle"], ["sarcomere", "actin", "myosin"], ["contraction"], ["tendon"], ["range of motion", "mobility"]],
+  5: [["neuron"], ["central nervous system", "brain", "spinal cord"], ["somatic nervous system"], ["sensory", "sensation"], ["motor", "movement"], ["report", "change"]],
+  6: [["sympathetic"], ["parasympathetic"], ["reflex"], ["neurological examination", "neurological assessment"], ["endocrine", "hormone"], ["insulin", "thyroid", "pituitary"]],
+  7: [["blood"], ["red blood cell", "hemoglobin"], ["heart"], ["artery", "vein", "capillary"], ["circulation"], ["pulse", "blood pressure"]],
+  8: [["lymphatic"], ["immune"], ["infection"], ["respiratory"], ["alveoli"], ["oxygenation", "breathing"]],
+  9: [["digestive"], ["stomach", "small intestine"], ["liver", "bile"], ["pancreas"], ["metabolism"], ["nutrition"]],
+  10: [["kidney", "renal"], ["nephron"], ["urinary"], ["fluid balance"], ["electrolyte"], ["acid-base", "pH"]],
+  11: [["reproductive"], ["ovary", "testes"], ["hormone"], ["fertilization"], ["privacy", "dignity"], ["patient education"]],
+  12: [["development"], ["inheritance", "genetic"], ["mitosis", "meiosis"], ["homeostasis"], ["body system"], ["safe nursing observation"]]
+};
+
+function writtenAssignmentConfigForWeek(week, selectedChapters = []) {
+  return {
+    type: "written-autograde",
+    minWords: 90,
+    prompt: `In complete sentences, explain how this week's A&P structures work, connect at least two structures to their functions, and describe one practical-nursing observation or safety action related to ${selectedChapters.map((chapter) => `Chapter ${chapter.number}`).join(", ")}.`,
+    checklist: [
+      "Name at least two assigned structures or systems.",
+      "Explain the normal function of each structure in your own words.",
+      "Connect the anatomy and physiology to one patient-care observation, safety concern, or reportable change.",
+      "Use professional language and do not include real patient-identifying information."
+    ],
+    conceptGroups: weeklyWrittenAssignmentTerms[week] || []
+  };
+}
+
 const dueDates = ["2026-07-19", "2026-07-26", "2026-08-02", "2026-08-09", "2026-08-16", "2026-08-23", "2026-08-30", "2026-09-06", "2026-09-13", "2026-09-20", "2026-09-27", "2026-10-04"];
 
 const discussions = [
@@ -355,7 +388,7 @@ function weekModule([week, chapterNumbers, title]) {
       {
         title: assignmentTitle,
         durationMinutes: 60,
-        content: `Canvas item type: Assignment.\n\nCreate a one-page concept map or short written explanation that connects this week's major structures to their functions and one practical nursing application. Use accurate terminology and explain the connection in your own words.\n\n${assignmentRubric}\n\nDue: ${dueDates[week - 1]} at 11:59 PM.`
+        content: `Canvas item type: Assignment.\n\nType your answer directly in the portal. Create a short written explanation that connects this week's major structures to their functions and one practical nursing application. Use accurate terminology and explain the connection in your own words.\n\n${assignmentRubric}\n\nDue: ${dueDates[week - 1]} at 11:59 PM.\n\n${writtenAssignmentMarker(writtenAssignmentConfigForWeek(week, selected))}`
       },
       ...(quiz ? [{
         title: `[PN104 2026] Quiz ${quizNumberByWeek[week]}: ${quizRangeLabel(week)}`,
