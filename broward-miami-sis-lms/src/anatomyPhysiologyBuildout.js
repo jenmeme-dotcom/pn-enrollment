@@ -398,13 +398,25 @@ function assignmentList(items = []) {
   return items.map((item) => `- ${item}`).join("\n");
 }
 
+function assignmentFocusHeading(selectedChapters = []) {
+  if (!selectedChapters.length) return "Weekly Anatomy and Physiology Focus";
+  const chapterNumbers = selectedChapters.map((chapter) => chapter.number);
+  const chapterLabel = selectedChapters.length === 1
+    ? `Chapter ${chapterNumbers[0]}`
+    : `Chapters ${chapterNumbers[0]}-${chapterNumbers[chapterNumbers.length - 1]}`;
+  const systemTitles = selectedChapters
+    .map((chapter) => chapter.title.replace(/^The\s+/i, ""))
+    .join("; ");
+  return `${chapterLabel}: ${systemTitles}`;
+}
+
 function assignmentContentForWeek(week, selectedChapters = []) {
   const details = weeklyAssignmentDetails[week] || {};
   const chapterLine = selectedChapters.map((chapter) => `Chapter ${chapter.number}: ${chapter.title}`).join("; ");
   return [
     "Canvas item type: Assignment.",
     "",
-    `Week ${week} Applied A&P Assignment`,
+    assignmentFocusHeading(selectedChapters),
     "Complete each part in clear, complete sentences. Use professional language and do not include real patient-identifying information.",
     "",
     `Assigned chapters: ${chapterLine}.`,
