@@ -2310,6 +2310,26 @@ function storedDateMilliseconds(value) {
   return new Date(normalized).getTime();
 }
 
+function renderExamOverview({ lesson = {}, settings = {}, quizMeta = {}, questions = [] }) {
+  const overviewText = studentFacingLessonContent(
+    String(lesson.content || "")
+      .replace(/\n*QUIZ_DATA_BASE64:[A-Za-z0-9+/=]+\s*/g, "\n")
+      .trim()
+  );
+  return `
+    <div class="exam-overview">
+      <h3>Exam overview</h3>
+      ${overviewText ? renderCanvasLessonContent(overviewText, [lesson.title, settings.label]) : ""}
+      <dl>
+        <div><dt>Questions</dt><dd>${escapeHtml(questions.length || "Prepared by instructor")}</dd></div>
+        <div><dt>Time limit</dt><dd>${escapeHtml(settings.minutes || lesson.duration_minutes || 60)} minutes</dd></div>
+        <div><dt>Points</dt><dd>${escapeHtml(quizMeta.points || "No points listed")}</dd></div>
+        <div><dt>Due</dt><dd>${escapeHtml(formatGradeDue(quizMeta.dueDate) || "No due date")}</dd></div>
+      </dl>
+    </div>
+  `;
+}
+
 function renderExamInstructions(settings) {
   return `
     <div class="exam-instructions">
@@ -2367,16 +2387,17 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
     const closesAt = new Date(examSettings.closesAt).getTime();
     const attemptExpiresAt = storedDateMilliseconds(examAttempt?.expires_at);
     if (now < opensAt) {
-      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Exam not open</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamInstructions(examSettings)}<p class="exam-gate-message">Return during the availability period to begin.</p></div>`;
+      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Exam not open</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}${renderExamInstructions(examSettings)}<p class="exam-gate-message">Return during the availability period to begin.</p></div>`;
     }
     if (now > closesAt) {
-      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Exam closed</span><h2>${escapeHtml(examSettings.label)}</h2><p>This examination closed on ${escapeHtml(examDateTimeLabel(examSettings.closesAt))}. Contact your instructor if you need assistance.</p></div>`;
+      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Exam closed</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}<p>This examination closed on ${escapeHtml(examDateTimeLabel(examSettings.closesAt))}. Contact your instructor if you need assistance.</p></div>`;
     }
     if (!examAttempt) {
       return `
         <div class="lesson-action-card exam-gate-card">
           <span class="quiz-submitted-kicker">Ready to begin?</span>
           <h2>${escapeHtml(examSettings.label)}</h2>
+          ${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}
           ${renderExamInstructions(examSettings)}
           <form method="post" action="/student/enrollments/${enrollmentId}/exams/${lesson.id}/start">
             <label class="exam-confirmation"><input type="checkbox" required> I have read these instructions, understand the academic-integrity requirements, and am ready to complete the exam in one sitting.</label>
@@ -2386,7 +2407,7 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
       `;
     }
     if (examAttempt.status !== "in_progress" || now >= attemptExpiresAt) {
-      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Attempt ended</span><h2>${escapeHtml(examSettings.label)}</h2><p>This one-sitting examination attempt has ended and cannot be reopened. View Grades for the recorded result or contact your instructor.</p><a class="button" href="${escapeHtml(baseHref)}?view=grades">View Grades</a></div>`;
+      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Attempt ended</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}<p>This one-sitting examination attempt has ended and cannot be reopened. View Grades for the recorded result or contact your instructor.</p><a class="button" href="${escapeHtml(baseHref)}?view=grades">View Grades</a></div>`;
     }
   }
   if (!instructor && !examSettings && !examAttempt) {
@@ -2425,7 +2446,7 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
           <div><dt>Points</dt><dd>${escapeHtml(quizMeta.points)}</dd></div>
         </dl>
       </div>
-      ${examSettings ? `${renderExamInstructions(examSettings)}${!instructor && examAttempt ? `<div class="exam-timer" role="timer" aria-live="polite" data-exam-expires="${escapeHtml(examAttempt.expires_at)}"><span>Time remaining</span><strong data-exam-countdown>--:--</strong></div>` : ""}` : `<p class="quiz-instructions">${instructor ? "Read each question and select the best answer. This quiz page stays with the module item so students do not get redirected to grades." : "Quiz in progress. Read each question and select the best answer."}</p>`}
+      ${examSettings ? `${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}${renderExamInstructions(examSettings)}${!instructor && examAttempt ? `<div class="exam-timer" role="timer" aria-live="polite" data-exam-expires="${escapeHtml(examAttempt.expires_at)}"><span>Time remaining</span><strong data-exam-countdown>--:--</strong></div>` : ""}` : `<p class="quiz-instructions">${instructor ? "Read each question and select the best answer. This quiz page stays with the module item so students do not get redirected to grades." : "Quiz in progress. Read each question and select the best answer."}</p>`}
       <form class="quiz-preview-form" method="post" action="${enrollmentId ? `/student/enrollments/${enrollmentId}/quiz-submit` : "#"}">
         ${enrollmentId ? `<input type="hidden" name="lessonId" value="${escapeHtml(lesson.id)}">` : ""}
         ${examSettings ? `<input type="hidden" name="timedExam" value="1">` : ""}

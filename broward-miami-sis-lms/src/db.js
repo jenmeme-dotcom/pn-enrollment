@@ -2744,10 +2744,63 @@ function seed() {
     const existingGradeItem = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND title = ?");
     const appendGradeItem = db.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, ?, ?)");
     db.prepare("DELETE FROM grade_items WHERE course_id = ? AND title = '[PN102 2026] Final Exam - Introduction to Nursing Chapters 1-6'").run(introductionCourse.id);
-    const midtermGradeItem = (introductionCatalogCourse?.gradeItems || []).find((item) => item.title === "Midterm Exam: Weeks 1-6");
-    if (midtermGradeItem && !existingGradeItem.get(introductionCourse.id, midtermGradeItem.title)) {
-      appendGradeItem.run(introductionCourse.id, midtermGradeItem.title, midtermGradeItem.pointsPossible, midtermGradeItem.dueDate || null);
-    }
+    const updateIntroExamGradeItem = db.prepare(`
+      UPDATE grade_items
+      SET points_possible = ?, due_date = ?
+      WHERE course_id = ? AND title = ?
+    `);
+    const findIntroExamLesson = db.prepare(`
+      SELECT lessons.id
+      FROM lessons
+      JOIN modules ON modules.id = lessons.module_id
+      WHERE modules.course_id = ?
+        AND (
+          lessons.title = ?
+          OR lower(lessons.title) LIKE ?
+        )
+      ORDER BY
+        CASE WHEN lessons.title = ? THEN 0 ELSE 1 END,
+        modules.position,
+        lessons.position,
+        lessons.id
+      LIMIT 1
+    `);
+    const linkIntroExamLesson = db.prepare(`
+      UPDATE lessons
+      SET title = ?, content = ?, duration_minutes = ?, published = 1,
+        instructor_only = 0, item_type = 'quiz', grade_item_id = ?
+      WHERE id = ?
+    `);
+    [
+      { title: "Midterm Exam: Weeks 1-6", like: "%midterm%weeks%1%6%" },
+      { title: "Cumulative Final Exam", like: "%final%exam%" }
+    ].forEach((exam) => {
+      const gradeItemDefinition = (introductionCatalogCourse?.gradeItems || []).find((item) => item.title === exam.title);
+      const lessonDefinition = (introductionCatalogCourse?.modules || [])
+        .flatMap((module) => module.lessons || [])
+        .find((lesson) => lesson.title === exam.title);
+      if (!gradeItemDefinition || !lessonDefinition) return;
+      const updateResult = updateIntroExamGradeItem.run(
+        gradeItemDefinition.pointsPossible,
+        gradeItemDefinition.dueDate || null,
+        introductionCourse.id,
+        gradeItemDefinition.title
+      );
+      if (!updateResult.changes) {
+        appendGradeItem.run(introductionCourse.id, gradeItemDefinition.title, gradeItemDefinition.pointsPossible, gradeItemDefinition.dueDate || null);
+      }
+      const gradeItem = existingGradeItem.get(introductionCourse.id, gradeItemDefinition.title);
+      const lesson = findIntroExamLesson.get(introductionCourse.id, exam.title, exam.like, exam.title);
+      if (gradeItem && lesson) {
+        linkIntroExamLesson.run(
+          lessonDefinition.title,
+          lessonDefinition.content || "",
+          lessonDefinition.durationMinutes || 60,
+          gradeItem.id,
+          lesson.id
+        );
+      }
+    });
     db.prepare("UPDATE grade_items SET title = ?, due_date = ? WHERE course_id = ? AND title = ?").run(
       "[PN102 2026] Quiz - Chapters 7-9",
       "2026-08-23 23:59:00",
