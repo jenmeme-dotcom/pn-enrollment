@@ -8,6 +8,7 @@ const { medicalAssistantCourse } = require("./medicalAssistantBuildout");
 const { medicalBillingCodingCourse } = require("./medicalBillingCodingBuildout");
 const { medicalTerminologyCourse } = require("./medicalTerminologyBuildout");
 const { patientCareTechnicianCourse } = require("./patientCareTechnicianBuildout");
+const { ivTherapyCourse } = require("./ivTherapyBuildout");
 
 const courses = [
   {
@@ -48,6 +49,7 @@ const courses = [
     description: "BLS course shell for roster management, skills verification, completion status, and certificate printing.",
     ghlProductKeys: ["Basic Life Support", "BLS", "basic-life-support"]
   },
+  ivTherapyCourse,
   aclsCourse,
   {
     title: "Pediatric Advanced Life Support",
