@@ -169,7 +169,21 @@ const dayMidtermQuestionBank = [
   q("Parathyroid hormone generally _____ blood calcium.", ["Raises.", "Lowers.", "Eliminates.", "Does not affect."]),
   q("Which formed element carries oxygen?", ["Erythrocyte.", "Platelet.", "Neutrophil.", "Monocyte."]),
   q("Which leukocyte is commonly an early responder to bacterial infection?", ["Neutrophil.", "Eosinophil.", "Basophil.", "Erythrocyte."]),
-  q("What is the first broad step of hemostasis after a blood vessel is injured?", ["Vascular spasm.", "Red blood cell production.", "Antibody production.", "Hemolysis."])
+  q("What is the first broad step of hemostasis after a blood vessel is injured?", ["Vascular spasm.", "Red blood cell production.", "Antibody production.", "Hemolysis."]),
+  q("The term distal means:", ["Farther from the point of attachment.", "Closer to the point of attachment.", "Toward the midline.", "Toward the head."]),
+  q("Which bond forms when atoms share electrons?", ["Covalent bond.", "Ionic bond.", "Hydrogen bond only.", "Peptide bond only."]),
+  q("Diffusion moves particles:", ["From higher concentration to lower concentration.", "From lower concentration to higher concentration using ATP.", "Only through protein pumps.", "Only through bone tissue."]),
+  q("Which connective tissue stores energy and provides insulation?", ["Adipose tissue.", "Nervous tissue.", "Simple squamous epithelium.", "Cardiac muscle."]),
+  q("The dermis contains:", ["Blood vessels, nerves, glands, and connective tissue.", "Only dead keratinized cells.", "No sensory receptors.", "No extracellular matrix."]),
+  q("Red bone marrow is a major site of:", ["Blood cell formation.", "Bile storage.", "Urine formation.", "Nerve impulse generation."]),
+  q("The vertebral column protects the:", ["Spinal cord.", "Heart.", "Liver.", "Urinary bladder."]),
+  q("Which bone is located in the upper arm?", ["Humerus.", "Femur.", "Radius.", "Tibia."]),
+  q("Dual autonomic innervation means that an organ:", ["Receives input from both sympathetic and parasympathetic divisions.", "Is controlled only by skeletal muscle.", "Has no involuntary regulation.", "Receives sensory input only."]),
+  q("Which finding represents a change in level of consciousness?", ["A normally alert patient becomes difficult to arouse.", "A patient correctly states name and location.", "Both pupils constrict briskly to light.", "Strength is equal in both hands."]),
+  q("The pituitary gland is controlled closely by the:", ["Hypothalamus.", "Spleen.", "Gallbladder.", "Thymus only."]),
+  q("Thyroid hormones strongly influence the body's:", ["Metabolic rate.", "Blood type.", "Joint classification.", "Clotting sequence only."]),
+  q("Hemoglobin is located primarily inside:", ["Red blood cells.", "Platelets.", "Plasma proteins.", "Neutrophils."]),
+  q("Platelets are most directly involved in:", ["Hemostasis.", "Oxygen transport.", "Hormone secretion.", "Nerve conduction."])
 ];
 const dayMidtermQuestions = dayMidtermQuestionBank.map((question, index) => {
   const correctPosition = index % 4;
@@ -580,9 +594,9 @@ function weekModule([week, chapterNumbers, title]) {
       }] : []),
       ...([6, 12].includes(week) ? [{
         title: week === 6 ? dayMidtermTitle : "[PN104 2026] Quiz: Final Examination",
-        durationMinutes: 90,
+        durationMinutes: week === 6 ? 60 : 90,
         content: `Canvas item type: Exam.\n\n${quizContent(week === 6
-          ? "DAY COURSE MIDTERM. Complete all 36 questions covering Chapters 1–8 and 15–18. Select the one best answer for each question. This exam is separate from the evening-course midterm."
+          ? "DAY COURSE MIDTERM. Complete all 50 questions covering Chapters 1–8 and 15–18. Select the one best answer for each question. You have 60 minutes after selecting Start Now. This exam is separate from the evening-course midterm."
           : "Comprehensive final examination covering Chapters 1-28.", week === 6 ? dayMidtermQuestions : [...quizBanks[9], ...quizBanks[12]])}`
       }] : [])
     ]
@@ -650,7 +664,7 @@ const anatomyPhysiologyCourse = {
   credentialType: "Course",
   deliveryMode: "Campus / blended",
   ghlProductKeys: ["Anatomy and Physiology", "PN 104", "PN104", "anatomy-and-physiology"],
-  seedVersion: "2026-08-13-day-midterm-chapters-1-8-and-15-18",
+  seedVersion: "2026-08-13-day-midterm-50-questions-60-minutes",
   description: "In this 12-week Anatomy and Physiology course, you will study how the structures of the human body are organized, how they function, and how body systems work together. You will connect normal anatomy and physiology to observations, safety concerns, and changes in condition that matter in practical nursing care.",
   objectives: [
     "Use correct anatomical terminology to describe body structures and relationships.",
