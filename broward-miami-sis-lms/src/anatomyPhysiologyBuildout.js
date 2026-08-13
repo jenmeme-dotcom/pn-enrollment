@@ -60,6 +60,8 @@ const weekPlan = [
 ];
 
 const q = (prompt, options, answer = 0) => ({ prompt, options, answer });
+const dayMidtermTitle = "[PN104 DAY 2026] Midterm Exam — Chapters 1–8 and 15–18";
+const dayMidtermDueDate = "2026-08-21 23:59:59";
 const quizBanks = {
   3: [
     q("Homeostasis is best described as:", ["Maintenance of a relatively stable internal environment.", "Complete absence of change.", "Growth of every tissue.", "Voluntary control of all organs."]),
@@ -130,6 +132,52 @@ const quizBanks = {
     q("The best first step when an A&P finding is unfamiliar is to:", ["Review the evidence, assess carefully, and seek appropriate guidance.", "Guess.", "Ignore it.", "Change the care plan independently."])
   ]
 };
+
+const dayMidtermQuestionBank = [
+  q("Which sequence progresses from the simplest level of organization to the most complex?", ["Chemical, cellular, tissue, organ.", "Cellular, chemical, organ, tissue.", "Tissue, cellular, chemical, organ.", "Organ, tissue, cellular, chemical."]),
+  q("Which response is an example of negative feedback?", ["Body temperature falls and shivering begins.", "Labor contractions intensify until birth.", "Platelets recruit additional platelets.", "A neuron depolarizes after reaching threshold."]),
+  q("The heart is _____ to the lungs.", ["Medial.", "Lateral.", "Distal.", "Superficial."]),
+  q("Which subatomic particle determines an element's atomic number?", ["Proton.", "Electron.", "Neutron.", "Ion."]),
+  q("A solution with a pH of 6 is:", ["Acidic.", "Neutral.", "Basic.", "Isotonic by definition."]),
+  q("Which molecule is the cell's directly usable energy source?", ["ATP.", "DNA.", "Cholesterol.", "Glycogen."]),
+  q("The movement of water across a selectively permeable membrane is:", ["Osmosis.", "Active transport.", "Filtration only.", "Endocytosis."]),
+  q("Which organelle produces most cellular ATP?", ["Mitochondrion.", "Golgi apparatus.", "Lysosome.", "Nucleus."]),
+  q("Protein synthesis occurs directly at the:", ["Ribosome.", "Centriole.", "Lysosome.", "Peroxisome."]),
+  q("Which tissue type is distinguished by abundant extracellular matrix?", ["Connective tissue.", "Epithelial tissue.", "Nervous tissue.", "Muscle tissue."]),
+  q("Which epithelium is best suited to withstand abrasion?", ["Stratified squamous epithelium.", "Simple squamous epithelium.", "Simple cuboidal epithelium.", "Pseudostratified columnar epithelium."]),
+  q("Replacement of damaged tissue with scar tissue is called:", ["Fibrosis.", "Diffusion.", "Secretion.", "Atrophy."]),
+  q("Which skin layer is avascular?", ["Epidermis.", "Dermis.", "Hypodermis.", "Reticular layer."]),
+  q("The ABCDE rule is used to screen for:", ["Melanoma.", "Pressure injuries.", "Acne.", "Burn depth."]),
+  q("Which gland is most directly involved in cooling the body?", ["Eccrine sweat gland.", "Sebaceous gland.", "Ceruminous gland.", "Endocrine gland."]),
+  q("Which cell builds new bone matrix?", ["Osteoblast.", "Osteoclast.", "Osteocyte.", "Chondrocyte."]),
+  q("The cylindrical structural unit of compact bone is the:", ["Osteon.", "Trabecula.", "Epiphysis.", "Lacuna."]),
+  q("Which assessment is an early priority after a limb is casted?", ["Compare circulation, sensation, and movement bilaterally.", "Encourage immediate full weight bearing.", "Place an object inside the cast to relieve itching.", "Keep the limb dependent continuously."]),
+  q("Which vertebra supports the skull?", ["Atlas.", "Axis.", "Sacrum.", "Coccyx."]),
+  q("The sternum and ribs belong to the:", ["Axial skeleton.", "Appendicular skeleton.", "Pectoral girdle.", "Pelvic girdle."]),
+  q("A patient develops new leg weakness with loss of bladder control. What is the best action?", ["Report the findings urgently.", "Reassess at the next routine visit.", "Apply heat and encourage walking.", "Document the findings as expected aging."]),
+  q("The acetabulum articulates with the head of the:", ["Femur.", "Humerus.", "Tibia.", "Radius."]),
+  q("Which bones form the pectoral girdle?", ["Clavicles and scapulae.", "Radii and ulnae.", "Tibiae and fibulae.", "Sacrum and coccyx."]),
+  q("The lateral ankle projection is the:", ["Lateral malleolus.", "Olecranon.", "Acromion.", "Greater trochanter."]),
+  q("Which response is most consistent with sympathetic activation?", ["Faster heart rate and dilated airways.", "Slower heart rate and increased digestion.", "Pupil constriction and urination.", "Increased salivation and bowel activity."]),
+  q("All autonomic preganglionic neurons release:", ["Acetylcholine.", "Dopamine.", "Serotonin.", "Norepinephrine."]),
+  q("The phrase rest-and-digest describes the:", ["Parasympathetic division.", "Sympathetic division.", "Somatic nervous system.", "Sensory division."]),
+  q("A patient suddenly develops facial droop and slurred speech. What is the priority response?", ["Initiate the urgent stroke response.", "Arrange routine follow-up.", "Offer a meal and allow rest.", "Complete only a skin assessment."]),
+  q("Pronator drift primarily assesses for:", ["Motor weakness.", "Hearing loss.", "Visual acuity.", "Loss of smell."]),
+  q("PERRLA refers primarily to assessment of the:", ["Pupils.", "Deep-tendon reflexes.", "Gait.", "Speech."]),
+  q("Which hormone lowers blood glucose?", ["Insulin.", "Glucagon.", "Cortisol.", "Parathyroid hormone."]),
+  q("Most endocrine systems are regulated through:", ["Negative feedback.", "Positive feedback only.", "Voluntary motor control.", "Blood clotting."]),
+  q("Parathyroid hormone generally _____ blood calcium.", ["Raises.", "Lowers.", "Eliminates.", "Does not affect."]),
+  q("Which formed element carries oxygen?", ["Erythrocyte.", "Platelet.", "Neutrophil.", "Monocyte."]),
+  q("Which leukocyte is commonly an early responder to bacterial infection?", ["Neutrophil.", "Eosinophil.", "Basophil.", "Erythrocyte."]),
+  q("What is the first broad step of hemostasis after a blood vessel is injured?", ["Vascular spasm.", "Red blood cell production.", "Antibody production.", "Hemolysis."])
+];
+const dayMidtermQuestions = dayMidtermQuestionBank.map((question, index) => {
+  const correctPosition = index % 4;
+  const options = [...question.options];
+  const correct = options.shift();
+  options.splice(correctPosition, 0, correct);
+  return { ...question, options, answer: correctPosition };
+});
 
 const additionalQuizQuestions = {
   3: [
@@ -531,9 +579,11 @@ function weekModule([week, chapterNumbers, title]) {
         content: quizContent("Complete all 45 questions: 15 questions for each week in this three-week range. Read every option, identify what the question is asking, and choose the answer that best reflects normal anatomy and physiology.", quiz)
       }] : []),
       ...([6, 12].includes(week) ? [{
-        title: week === 6 ? "[PN104 2026] Quiz: Midterm Examination" : "[PN104 2026] Quiz: Final Examination",
+        title: week === 6 ? dayMidtermTitle : "[PN104 2026] Quiz: Final Examination",
         durationMinutes: 90,
-        content: quizContent(week === 6 ? "Midterm examination covering Chapters 1-17." : "Comprehensive final examination covering Chapters 1-28.", week === 6 ? [...quizBanks[3], ...quizBanks[6]] : [...quizBanks[9], ...quizBanks[12]])
+        content: `Canvas item type: Exam.\n\n${quizContent(week === 6
+          ? "DAY COURSE MIDTERM. Complete all 36 questions covering Chapters 1–8 and 15–18. Select the one best answer for each question. This exam is separate from the evening-course midterm."
+          : "Comprehensive final examination covering Chapters 1-28.", week === 6 ? dayMidtermQuestions : [...quizBanks[9], ...quizBanks[12]])}`
       }] : [])
     ]
   };
@@ -586,7 +636,7 @@ const gradeItems = [
     const discussion = discussionByWeek.get(week);
     if (discussion) items.unshift({ title: discussion.title, pointsPossible: discussion.pointsPossible, dueDate: discussion.dueDate });
     if (expandedQuizBanks[week]) items.push({ title: `[PN104 2026] Quiz ${quizNumberByWeek[week]}: ${quizRangeLabel(week)}`, pointsPossible: 50, dueDate: dueDates[week - 1] });
-    if (week === 6) items.push({ title: "[PN104 2026] Quiz: Midterm Examination", pointsPossible: 150, dueDate: dueDates[week - 1] });
+    if (week === 6) items.push({ title: dayMidtermTitle, pointsPossible: 150, dueDate: dayMidtermDueDate });
     if (week === 12) items.push({ title: "[PN104 2026] Quiz: Final Examination", pointsPossible: 200, dueDate: dueDates[week - 1] });
     return items;
   })
@@ -600,7 +650,7 @@ const anatomyPhysiologyCourse = {
   credentialType: "Course",
   deliveryMode: "Campus / blended",
   ghlProductKeys: ["Anatomy and Physiology", "PN 104", "PN104", "anatomy-and-physiology"],
-  seedVersion: "2026-07-29-expanded-three-week-quizzes-and-exams",
+  seedVersion: "2026-08-13-day-midterm-chapters-1-8-and-15-18",
   description: "In this 12-week Anatomy and Physiology course, you will study how the structures of the human body are organized, how they function, and how body systems work together. You will connect normal anatomy and physiology to observations, safety concerns, and changes in condition that matter in practical nursing care.",
   objectives: [
     "Use correct anatomical terminology to describe body structures and relationships.",
@@ -644,7 +694,7 @@ const anatomyPhysiologyCourse = {
     }
     assessments.push("Applied A&P Assignment · 25 points");
     if (expandedQuizBanks[week]) assessments.push(`Quiz ${quizNumberByWeek[week]} · 50 points`);
-    if (week === 6) assessments.push("Midterm Examination · 150 points");
+    if (week === 6) assessments.push("DAY Midterm Examination · Chapters 1–8 and 15–18 · 150 points");
     if (week === 12) assessments.push("Final Examination · 200 points");
     return {
       week,
@@ -695,7 +745,7 @@ const anatomyPhysiologyCourse = {
             "- Discussion due dates: Week 3 August 2; Week 5 August 16; Week 8 September 6; Week 11 September 27, 2026 by 11:59 PM",
             "- Weekly applied assignments with rubric: 25 points each",
             "- Four quizzes: 50 points each; every quiz contains 45 questions, with 15 questions for each week in its three-week range",
-            "- Week 6 Midterm Examination: 150 points; covers Chapters 1-17; due August 23, 2026 by 11:59 PM",
+            "- PN104 DAY Midterm Examination: 150 points; covers Chapters 1–8 and 15–18; opens August 17, 2026 at 12:00 AM and closes August 21, 2026 at 11:59 PM",
             "- Week 12 Final Examination: 200 points; comprehensive Chapters 1-28; due October 4, 2026 by 11:59 PM",
             "",
             "How to Study Anatomy and Physiology",
@@ -741,7 +791,7 @@ const anatomyPhysiologyCourse = {
         {
           title: "PN 104 Syllabus",
           durationMinutes: 30,
-          content: `Course code: PN 104\nLength: 12 weeks\nClock hours: 90\nDelivery: Campus / blended\n\nRequired textbook: OpenStax Anatomy and Physiology 2e — ${openStaxAnatomyPhysiologyUrl}\n\nWeekly structure: chapter slide review, student-directed lesson, applied assignment with rubric, four scheduled discussions, and scheduled assessments.\n\nDiscussions: Week 3 — Movement, Stability, and Musculoskeletal Safety (due August 2); Week 5 — Nervous-System Changes — Recognize and Report (due August 16); Week 8 — Defense and Oxygenation Working Together (due September 6); Week 11 — Reproductive Anatomy and Respectful Patient Education (due September 27). All discussion deadlines are 11:59 PM in 2026 and each discussion is worth 10 points.\n\nGrading: Four discussions total 40 points; applied assignments 25 points each; quizzes 50 points each; midterm 150 points; final 200 points.`
+          content: `Course code: PN 104\nLength: 12 weeks\nClock hours: 90\nDelivery: Campus / blended\n\nRequired textbook: OpenStax Anatomy and Physiology 2e — ${openStaxAnatomyPhysiologyUrl}\n\nWeekly structure: chapter slide review, student-directed lesson, applied assignment with rubric, four scheduled discussions, and scheduled assessments.\n\nDiscussions: Week 3 — Movement, Stability, and Musculoskeletal Safety (due August 2); Week 5 — Nervous-System Changes — Recognize and Report (due August 16); Week 8 — Defense and Oxygenation Working Together (due September 6); Week 11 — Reproductive Anatomy and Respectful Patient Education (due September 27). All discussion deadlines are 11:59 PM in 2026 and each discussion is worth 10 points.\n\nDAY Midterm: Chapters 1–8 and 15–18; opens August 17, 2026 at 12:00 AM and closes August 21, 2026 at 11:59 PM. This DAY exam is separate from the evening-course midterm.\n\nGrading: Four discussions total 40 points; applied assignments 25 points each; quizzes 50 points each; midterm 150 points; final 200 points.`
         }
       ]
     },
