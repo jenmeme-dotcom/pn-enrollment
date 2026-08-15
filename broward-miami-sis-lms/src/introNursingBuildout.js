@@ -1012,7 +1012,7 @@ const gradeItems = [
   { title: "Therapeutic Communication Practice", pointsPossible: 50 },
   { title: "Quiz 2: Weeks 3-4", pointsPossible: 50 },
   { title: "Ethics Case Response", pointsPossible: 75 },
-  { title: "Midterm Exam: Weeks 1-6", pointsPossible: 150, dueDate: "2026-08-02 23:59:00" },
+  { title: "Midterm Exam: Weeks 1-6", pointsPossible: 150, dueDate: "2026-08-21 23:59:59" },
   { title: "Health Equity Reflection", pointsPossible: 50, dueDate: "2026-08-09 23:59:00" },
   { title: "[PN102 2026] Quiz - Chapters 7-9", pointsPossible: 50, dueDate: "2026-08-23 23:59:00" },
   { title: "Clinical Judgment Worksheet", pointsPossible: 75, dueDate: "2026-08-23 23:59:00" },
@@ -1059,7 +1059,7 @@ const modules = [
           "",
           "Upcoming Exams",
           bulletList([
-            "Week 6 Midterm Exam — Due August 2, 2026 by 11:59 PM. This 150-point exam covers Chapters 1-6 and the major concepts from Weeks 1-6.",
+            "Week 6 Midterm Exam — Due August 21, 2026 by 11:59 PM. This 150-point exam covers Chapters 1-6 and the major concepts from Weeks 1-6.",
             "Week 12 Cumulative Final Exam — Due September 13, 2026 by 11:59 PM. This 200-point exam covers Chapters 1-13 and integrates safety, communication, ethics, legal responsibilities, infection prevention, mobility, hygiene, vital signs, and physical assessment."
           ]),
           "Begin preparing now by reviewing each chapter's learning objectives, vocabulary, NCLEX-PN practice question, quiz rationale, and any topic your instructor identifies for remediation. The Calendar and To Do areas will remind you as each exam approaches.",
