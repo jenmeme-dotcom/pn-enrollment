@@ -3323,11 +3323,12 @@ function instructorGradebookItems(course, gradeItems = []) {
     { title: "Ethics Case Response", points_possible: 75, unpublished: true },
     { title: "Health Equity Reflection", points_possible: 50, unpublished: true }
   ];
-  const source = course.slug === "introduction-to-nursing-practical-nursing" ? pnDefaults : gradeItems;
-  return source.slice(0, 8).map((item) => ({
+  const source = gradeItems.length ? gradeItems : pnDefaults;
+  return source.map((item) => ({
     id: item.id,
     title: item.title,
     points_possible: item.points_possible,
+    due_date: item.due_date,
     unpublished: Boolean(item.unpublished)
   }));
 }
@@ -3369,6 +3370,7 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
                 <th>
                   <span>${escapeHtml(item.title)}</span>
                   <small>Out of ${escapeHtml(item.points_possible || 0)}</small>
+                  ${item.due_date ? `<small>Due ${escapeHtml(date(item.due_date))}</small>` : ""}
                   ${item.unpublished ? `<em>UNPUBLISHED</em>` : ""}
                 </th>
               `).join("")}
