@@ -82,8 +82,8 @@ const tuitionNotes = [
 ];
 
 const catalogOperatingHours = [
-  { label: "Day classes", value: "Monday - Thursday, 9:00 am - 4:30 pm" },
-  { label: "Evening classes", value: "Monday - Thursday, 5:00 pm - 9:00 pm" },
+  { label: "Day classes", value: "Monday - Thursday, 9:00 am - 1:00 pm" },
+  { label: "Evening classes", value: "Monday - Thursday, 6:00 pm - 9:00 pm" },
   { label: "Administrative offices", value: "Monday - Friday, 8:00 am - 2:00 pm" }
 ];
 
