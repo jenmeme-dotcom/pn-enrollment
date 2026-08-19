@@ -142,6 +142,7 @@ function startServer(port, databaseFile) {
       env: {
         ...process.env,
         ADMISSIONS_NOTIFICATION_EMAIL: "admissions-office@example.test",
+        ADMISSIONS_PRIVATE_NOTIFICATION_EMAIL: "private-copy@example.test",
         DATABASE_FILE: databaseFile,
         EMAIL_DELIVERY_ENABLED: "true",
         NODE_ENV: "test",
@@ -241,9 +242,10 @@ test("submitting an admissions application emails the admissions office", async 
   assert.ok(application, "Expected the admissions application to be stored");
 
   const message = await waitForSmtpMessage();
-  assert.deepEqual(message.recipients, ["admissions-office@example.test"]);
+  assert.deepEqual(message.recipients.sort(), ["admissions-office@example.test", "private-copy@example.test"]);
   assert.match(message.data, /New admissions application: Nia Applicant/);
   assert.match(message.data, new RegExp(application.application_number));
   assert.match(message.data, /new\.applicant@example\.test/);
+  assert.doesNotMatch(message.data, /private-copy@example\.test/);
   assert.match(message.data, /Review the application|Review application in the admissions portal/);
 });

@@ -230,6 +230,7 @@ const americanHeartAssociationSlugs = new Set([
 const emailDeliveryEnabled = process.env.EMAIL_DELIVERY_ENABLED === "true";
 const emailFrom = process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@browardmiamihi.com";
 const admissionsNotificationEmail = process.env.ADMISSIONS_NOTIFICATION_EMAIL || instituteEmail;
+const admissionsPrivateNotificationEmail = process.env.ADMISSIONS_PRIVATE_NOTIFICATION_EMAIL || "jen.meme@gmail.com";
 const externalBaseUrl = (process.env.PUBLIC_APP_URL || "https://portal.browardmiamihi.com").replace(/\/+$/, "");
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || path.join(path.dirname(databaseFile), "uploads"));
 const courseMaterialsDir = path.resolve(process.env.COURSE_MATERIALS_DIR || path.join(path.dirname(__dirname), "course_materials"));
@@ -1090,7 +1091,7 @@ function plainTextMessage({ sender, recipient, subject, body }) {
   ].join("\n");
 }
 
-async function deliverEmailMessage({ to, replyTo, subject, text, html }) {
+async function deliverEmailMessage({ to, bcc, replyTo, subject, text, html }) {
   const transporter = getMailTransporter();
   if (!transporter) {
     return { sent: false, reason: "External delivery is not configured yet." };
@@ -1100,6 +1101,7 @@ async function deliverEmailMessage({ to, replyTo, subject, text, html }) {
     await transporter.sendMail({
       from: emailFrom,
       to,
+      bcc,
       replyTo,
       subject,
       text,
@@ -1135,6 +1137,13 @@ async function deliverExternalEmail({ sender, recipient, subject, body }) {
 
 function admissionsNotificationRecipients() {
   return String(admissionsNotificationEmail || "")
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean);
+}
+
+function admissionsPrivateNotificationRecipients() {
+  return String(admissionsPrivateNotificationEmail || "")
     .split(",")
     .map((email) => email.trim())
     .filter(Boolean);
@@ -1194,6 +1203,7 @@ async function notifyAdmissionsApplication(application) {
   const message = admissionsApplicationEmail(application);
   const delivery = await deliverEmailMessage({
     to: recipients.join(", "),
+    bcc: admissionsPrivateNotificationRecipients().join(", ") || undefined,
     replyTo: application.email,
     subject: `[BMHI Admissions] ${message.subject}`,
     text: message.text,
