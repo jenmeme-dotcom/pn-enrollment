@@ -7629,6 +7629,7 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
         ${req.user.role === "admin" ? `<a class="button ghost" href="/admin/admin-roles">Admin roles</a>` : ""}
         ${req.user.role === "admin" ? `<a class="button ghost" href="/admin/instructor-roles">Instructor roles</a>` : ""}
         <a class="button ghost" href="/admin/staff-portal">Staff time</a>
+        ${req.user.role === "admin" ? `<a class="button" href="/admin/instructor-roles#create-instructor">Add instructor</a>` : ""}
         <a class="button" href="/admin/students">Add student</a>
       </div>
     </div>
@@ -8488,7 +8489,7 @@ app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res)
       ${stat("Temporary password", instructorAccessDefaultPassword)}
     </section>
 
-    <section class="card" style="margin-top:18px">
+    <section class="card" id="create-instructor" style="margin-top:18px">
       <div class="table-card-head">
         <div>
           <h2>Create instructor login</h2>
