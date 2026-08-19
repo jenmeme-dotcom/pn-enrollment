@@ -145,21 +145,8 @@ function quizNote(label, questions) {
   return `${label} Multiple-choice questions only.\n\nQUIZ_DATA_BASE64:${Buffer.from(JSON.stringify(questions)).toString("base64")}`;
 }
 
-const chapterQuizTitles = {
-  1: "[PN101 2026] Quiz 1 - Chapter 1 Word Structure",
-  2: "[PN101 2026] Quiz 2 - Chapter 2 Body Organization and Oncology",
-  3: "[PN101 2026] Quiz 3 - Chapter 3 Suffixes",
-  4: "[PN101 2026] Quiz 4 - Chapter 4 Prefixes",
-  5: "[PN101 2026] Quiz 5 - Chapter 5 Digestive System",
-  6: "[PN101 2026] Quiz 6 - Chapter 6 Urinary System",
-  7: "[PN101 2026] Quiz 7 - Chapter 7 Female Reproductive System",
-  8: "[PN101 2026] Quiz 8 - Chapter 8 Male Reproductive System",
-  9: "[PN101 2026] Quiz 9 - Chapter 9 Nervous System",
-  10: "[PN101 2026] Quiz 10 - Chapter 10 Cardiovascular System"
-};
-
 function chapterQuizTitle(chapter) {
-  return chapterQuizTitles[chapter] || `[PN101 2026] Quiz ${chapter} - Chapter ${chapter} Review`;
+  return `[PN101 2026] Quiz ${chapter} - Chapter ${chapter}: ${chapterTitles[chapter]}`;
 }
 
 function chapterLessons(chapters) {
@@ -181,15 +168,15 @@ function chapterLessons(chapters) {
 const weeklyPlan = [
   { week: 1, title: "Orientation and Foundations", date: "Jun 24", chapters: [1, 2], focus: "Chapters 1–2: Basic Word Structure; Body Organization and Oncology", dueDate: "2026-07-01" },
   { week: 2, title: "Suffixes and Prefixes", date: "Jul 1", chapters: [3, 4], focus: "Chapters 3–4: Suffixes and Prefixes", dueDate: "2026-07-08" },
-  { week: 3, title: "Digestive and Urinary Systems", date: "Jul 8", chapters: [5, 6], focus: "Chapters 5–6: Digestive and Urinary Systems", dueDate: "2026-07-15" },
-  { week: 4, title: "Reproductive Systems", date: "Jul 15", chapters: [7, 8], focus: "Chapters 7–8: Female and Male Reproductive Systems", dueDate: "2026-07-22" },
-  { week: 5, title: "Nervous and Cardiovascular Systems", date: "Jul 22", chapters: [9, 10], focus: "Chapters 9–10: Nervous and Cardiovascular Systems", dueDate: "2026-07-29" },
-  { week: 6, title: "Blood, Lymphatic, and Midterm 1", date: "Jul 29", chapters: [11, 12], focus: "Chapters 11–12 and Midterm 1 review for Chapters 1–12", dueDate: "2026-08-05" },
-  { week: 7, title: "Body Systems I", date: "Aug 5", chapters: [13, 14], focus: "Chapters 13–14 body-system terminology", dueDate: "2026-08-12" },
-  { week: 8, title: "Body Systems II", date: "Aug 12", chapters: [15, 16], focus: "Chapters 15–16 body-system terminology", dueDate: "2026-08-19" },
-  { week: 9, title: "Body Systems III", date: "Aug 19", chapters: [17, 18], focus: "Chapters 17–18 body-system terminology", dueDate: "2026-08-26" },
-  { week: 10, title: "Advanced Medical Terminology I", date: "Aug 26", chapters: [19, 20], focus: "Chapters 19–20 advanced medical terminology", dueDate: "2026-09-02" },
-  { week: 11, title: "Advanced Medical Terminology II and Midterm 2", date: "Sep 2", chapters: [21, 22], focus: "Chapters 21–22 and Midterm 2 review for Chapters 13–22", dueDate: "2026-09-08" },
+  { week: 3, title: "Digestive System Terminology", date: "Jul 8", chapters: [5, 6], focus: "Chapters 5–6: Digestive System; Additional Suffixes and Digestive System Terminology", dueDate: "2026-07-15" },
+  { week: 4, title: "Urinary and Female Reproductive Systems", date: "Jul 15", chapters: [7, 8], focus: "Chapters 7–8: Urinary System and Female Reproductive System", dueDate: "2026-07-22" },
+  { week: 5, title: "Male Reproductive and Nervous Systems", date: "Jul 22", chapters: [9, 10], focus: "Chapters 9–10: Male Reproductive System and Nervous System", dueDate: "2026-07-29" },
+  { week: 6, title: "Cardiovascular and Respiratory Systems; Midterm 1", date: "Jul 29", chapters: [11, 12], focus: "Chapters 11–12: Cardiovascular and Respiratory Systems; Midterm 1 review for Chapters 1–12", dueDate: "2026-08-05" },
+  { week: 7, title: "Blood, Lymphatic, and Immune Systems", date: "Aug 5", chapters: [13, 14], focus: "Chapters 13–14: Blood System; Lymphatic and Immune System", dueDate: "2026-08-12" },
+  { week: 8, title: "Musculoskeletal System and Skin", date: "Aug 12", chapters: [15, 16], focus: "Chapters 15–16: Musculoskeletal System and Skin", dueDate: "2026-08-19" },
+  { week: 9, title: "Sense Organs and Endocrine System", date: "Aug 19", chapters: [17, 18], focus: "Chapters 17–18: Sense Organs and Endocrine System", dueDate: "2026-08-26" },
+  { week: 10, title: "Oncology and Radiology", date: "Aug 26", chapters: [19, 20], focus: "Chapters 19–20: Cancer Medicine (Oncology); Radiology and Nuclear Medicine", dueDate: "2026-09-02" },
+  { week: 11, title: "Pharmacology, Psychiatry, and Midterm 2", date: "Sep 2", chapters: [21, 22], focus: "Chapters 21–22: Pharmacology and Psychiatry; Midterm 2 review for Chapters 13–22", dueDate: "2026-09-08" },
   { week: 12, title: "Comprehensive Final Exam", date: "Sep 9", chapters: [], focus: "Comprehensive review and final exam covering Chapters 1–22", dueDate: "2026-09-09" }
 ];
 
