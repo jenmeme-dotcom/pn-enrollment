@@ -1285,6 +1285,18 @@ function seed() {
             )
         )
       `).run(`Chapter ${chapter}: ${chapterTitle} — Video`, pn101CourseRow.id, `Chapter ${chapter}`);
+
+      const correctedQuizTitle = `[PN101 2026] Quiz ${chapter} - Chapter ${chapter}: ${chapterTitle}`;
+      const priorQuizTitlePattern = `[PN101 2026] Quiz ${chapter} - Chapter ${chapter}%`;
+      db.prepare(`
+        UPDATE lessons SET title = ?
+        WHERE title LIKE ?
+          AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
+      `).run(correctedQuizTitle, priorQuizTitlePattern, pn101CourseRow.id);
+      db.prepare(`
+        UPDATE grade_items SET title = ?
+        WHERE title LIKE ? AND course_id = ?
+      `).run(correctedQuizTitle, priorQuizTitlePattern, pn101CourseRow.id);
     });
   }
   const pn101AssessmentDefinitions = pn101CourseDefinition?.modules
