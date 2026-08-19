@@ -229,6 +229,7 @@ const americanHeartAssociationSlugs = new Set([
 ]);
 const emailDeliveryEnabled = process.env.EMAIL_DELIVERY_ENABLED === "true";
 const emailFrom = process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@browardmiamihi.com";
+const admissionsNotificationEmail = process.env.ADMISSIONS_NOTIFICATION_EMAIL || instituteEmail;
 const externalBaseUrl = (process.env.PUBLIC_APP_URL || "https://portal.browardmiamihi.com").replace(/\/+$/, "");
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || path.join(path.dirname(databaseFile), "uploads"));
 const courseMaterialsDir = path.resolve(process.env.COURSE_MATERIALS_DIR || path.join(path.dirname(__dirname), "course_materials"));
@@ -1089,7 +1090,7 @@ function plainTextMessage({ sender, recipient, subject, body }) {
   ].join("\n");
 }
 
-async function deliverExternalEmail({ sender, recipient, subject, body }) {
+async function deliverEmailMessage({ to, replyTo, subject, text, html }) {
   const transporter = getMailTransporter();
   if (!transporter) {
     return { sent: false, reason: "External delivery is not configured yet." };
@@ -1098,28 +1099,110 @@ async function deliverExternalEmail({ sender, recipient, subject, body }) {
   try {
     await transporter.sendMail({
       from: emailFrom,
-      to: recipient.email,
-      replyTo: sender.email,
-      subject: `[BMHI] ${subject}`,
-      text: plainTextMessage({ sender, recipient, subject, body }),
-      html: `
-        <div style="font-family:Arial,sans-serif;line-height:1.55;color:#17212b">
-          <p><strong>${escapeHtml(instituteName)} Student Email</strong></p>
-          <p><strong>From:</strong> ${escapeHtml(personName(sender))}<br>
-          <strong>To:</strong> ${escapeHtml(personName(recipient))}</p>
-          <h2 style="font-size:18px">${escapeHtml(subject)}</h2>
-          <p>${renderTextWithLinks(body)}</p>
-          <hr>
-          <p style="color:#607080;font-size:13px">This message was sent from the BMHI Student Portal.<br>
-          <a href="${escapeHtml(externalBaseUrl)}">${escapeHtml(externalBaseUrl)}</a></p>
-        </div>
-      `
+      to,
+      replyTo,
+      subject,
+      text,
+      html
     });
     return { sent: true };
   } catch (error) {
-    console.error("External email delivery failed", error);
+    console.error("Email delivery failed", error);
     return { sent: false, reason: error.message };
   }
+}
+
+async function deliverExternalEmail({ sender, recipient, subject, body }) {
+  return deliverEmailMessage({
+    to: recipient.email,
+    replyTo: sender.email,
+    subject: `[BMHI] ${subject}`,
+    text: plainTextMessage({ sender, recipient, subject, body }),
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.55;color:#17212b">
+        <p><strong>${escapeHtml(instituteName)} Student Email</strong></p>
+        <p><strong>From:</strong> ${escapeHtml(personName(sender))}<br>
+        <strong>To:</strong> ${escapeHtml(personName(recipient))}</p>
+        <h2 style="font-size:18px">${escapeHtml(subject)}</h2>
+        <p>${renderTextWithLinks(body)}</p>
+        <hr>
+        <p style="color:#607080;font-size:13px">This message was sent from the BMHI Student Portal.<br>
+        <a href="${escapeHtml(externalBaseUrl)}">${escapeHtml(externalBaseUrl)}</a></p>
+      </div>
+    `
+  });
+}
+
+function admissionsNotificationRecipients() {
+  return String(admissionsNotificationEmail || "")
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean);
+}
+
+function admissionsApplicationEmail(application) {
+  const applicantName = `${application.first_name} ${application.last_name}`.trim();
+  const admissionsUrl = `${externalBaseUrl}/admin/admissions`;
+  const address = [application.address, application.city, application.state, application.zip].filter(Boolean).join(", ");
+  const subject = `New admissions application: ${applicantName}`;
+  const fields = [
+    ["Application number", application.application_number],
+    ["Applicant", applicantName],
+    ["Program", application.program_title],
+    ["Preferred start", application.preferred_start || "Not specified"],
+    ["Email", application.email],
+    ["Phone", application.phone],
+    ["Address", address || "Not provided"],
+    ["Education", application.education_level || "Not provided"],
+    ["School / institution", application.high_school || "Not provided"],
+    ["Emergency contact", [application.emergency_contact, application.emergency_phone].filter(Boolean).join(" - ") || "Not provided"],
+    ["How heard", application.how_heard || "Not provided"],
+    ["Goals / notes", application.goals || "No notes submitted."],
+    ["Submitted", application.submitted_at || "Just now"]
+  ];
+  const text = [
+    `${instituteName} Admissions Notification`,
+    "",
+    "A new student application was submitted.",
+    "",
+    ...fields.map(([label, value]) => `${label}: ${value}`),
+    "",
+    `Review the application: ${admissionsUrl}`
+  ].join("\n");
+  const rows = fields.map(([label, value]) => `
+    <tr>
+      <th style="text-align:left;padding:8px 12px;border-bottom:1px solid #d7e0e8;color:#4d6072;vertical-align:top">${escapeHtml(label)}</th>
+      <td style="padding:8px 12px;border-bottom:1px solid #d7e0e8">${escapeHtml(value)}</td>
+    </tr>
+  `).join("");
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.55;color:#17212b">
+      <p><strong>${escapeHtml(instituteName)} Admissions Notification</strong></p>
+      <h2 style="font-size:20px;margin-bottom:8px">New student application submitted</h2>
+      <table style="border-collapse:collapse;margin:14px 0;width:100%;max-width:720px">${rows}</table>
+      <p><a href="${escapeHtml(admissionsUrl)}" style="color:#0f6b78;font-weight:bold">Review application in the admissions portal</a></p>
+    </div>
+  `;
+  return { subject, text, html };
+}
+
+async function notifyAdmissionsApplication(application) {
+  const recipients = admissionsNotificationRecipients();
+  if (!recipients.length) {
+    return { sent: false, reason: "No admissions notification recipient is configured." };
+  }
+  const message = admissionsApplicationEmail(application);
+  const delivery = await deliverEmailMessage({
+    to: recipients.join(", "),
+    replyTo: application.email,
+    subject: `[BMHI Admissions] ${message.subject}`,
+    text: message.text,
+    html: message.html
+  });
+  if (!delivery.sent && emailDeliveryEnabled) {
+    console.warn(`Admissions application notification was not sent: ${delivery.reason}`);
+  }
+  return delivery;
 }
 
 const weeklyReminderTimeZone = "America/New_York";
@@ -5869,7 +5952,7 @@ app.post("/admissions/apply", (req, res) => {
     number = applicationNumber();
   }
 
-  db.prepare(`
+  const insert = db.prepare(`
     INSERT INTO admission_applications (
       application_number, first_name, last_name, date_of_birth, email, phone, address, city, state, zip,
       program_slug, program_title, preferred_start, education_level, high_school, emergency_contact,
@@ -5898,6 +5981,10 @@ app.post("/admissions/apply", (req, res) => {
     String(req.body.goals || "").trim(),
     consent
   );
+  const application = db.prepare("SELECT * FROM admission_applications WHERE id = ?").get(insert.lastInsertRowid);
+  notifyAdmissionsApplication(application).catch((error) => {
+    console.error("Admissions application notification failed", error);
+  });
   res.redirect(`/admissions/apply/submitted?ref=${encodeURIComponent(number)}`);
 });
 
