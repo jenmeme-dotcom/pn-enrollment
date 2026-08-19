@@ -26,12 +26,10 @@ const {
 
 const instructorAccessDefaultPassword = "InstructorPass123!";
 const instructorLoginRepairs = new Map([
-  ["dayana.diaz@browardmiamihi.com", { firstName: "Dayana", lastName: "Diaz" }],
-  ["roney.hernandez@browardmiamihi.com", { firstName: "Roney", lastName: "Hernandez" }]
+  ["dayana.diaz@browardmiamihi.com", { firstName: "Dayana", lastName: "Diaz" }]
 ]);
 const instructorAccessAccounts = [
-  { firstName: "Dayana", lastName: "Diaz", email: "dayana.diaz@browardmiamihi.com", phone: "" },
-  { firstName: "Roney", lastName: "Hernandez", email: "roney.hernandez@browardmiamihi.com", phone: "" }
+  { firstName: "Dayana", lastName: "Diaz", email: "dayana.diaz@browardmiamihi.com", phone: "" }
 ];
 const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = require("./ui");
@@ -39,13 +37,22 @@ const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = requ
 initialize();
 
 function ensureInstructorAccessAccounts() {
-  const legacyRoney = db.prepare("SELECT id FROM users WHERE lower(email) = 'roney.hernandez.instructor@browardmiamihi.com' AND role = 'instructor'").get();
-  const currentRoney = db.prepare("SELECT id FROM users WHERE lower(email) = 'roney.hernandez@browardmiamihi.com' AND role = 'instructor'").get();
-  if (legacyRoney && !currentRoney) {
-    db.prepare("UPDATE users SET email = 'roney.hernandez@browardmiamihi.com' WHERE id = ?").run(legacyRoney.id);
-  } else if (legacyRoney && currentRoney) {
-    db.prepare("UPDATE users SET email = 'roney.hernandez.instructor-retired@browardmiamihi.com', status = 'inactive' WHERE id = ?").run(legacyRoney.id);
-  }
+  db.prepare(`
+    UPDATE users
+    SET status = 'inactive',
+      organization_status = 'removed',
+      class_lock_reason = 'Removed from instructor access'
+    WHERE role IN ('admin', 'instructor')
+      AND (
+        lower(email) IN (
+          'roney.hernandez@browardmiamihi.com',
+          'roney.hernandez.instructor@browardmiamihi.com',
+          'roney.hernandez.instructor-retired@browardmiamihi.com',
+          'roney.hernandez.admin-removed@browardmiamihi.com'
+        )
+        OR (lower(first_name) = 'roney' AND lower(last_name) = 'hernandez')
+      )
+  `).run();
 
   const upsertInstructor = db.prepare(`
     INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
@@ -7574,7 +7581,7 @@ app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res)
   const instructors = db.prepare(`
     SELECT id, first_name, last_name, email, phone, status, created_at
     FROM users
-    WHERE role = 'instructor'
+    WHERE role = 'instructor' AND status = 'active'
     ORDER BY last_name, first_name
   `).all();
   const body = `
