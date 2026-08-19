@@ -70,6 +70,7 @@ function ensureInstructorAccessAccounts() {
       status = 'active',
       organization_status = 'organized',
       class_lock_reason = NULL
+    WHERE COALESCE(users.status, 'active') <> 'inactive'
   `);
   instructorAccessAccounts.forEach((account) => {
     upsertInstructor.run(
@@ -8532,7 +8533,14 @@ app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res)
         <tbody>
           ${instructors.map((instructor) => `
             <tr>
-              <td><strong>${escapeHtml(instructor.first_name)} ${escapeHtml(instructor.last_name)}</strong></td>
+              <td>
+                <div class="instructor-name-actions">
+                  <strong>${escapeHtml(instructor.first_name)} ${escapeHtml(instructor.last_name)}</strong>
+                  <form method="post" action="/admin/instructor-roles/${encodeURIComponent(instructor.email)}/deactivate" class="inline-form" onsubmit="return confirm('Inactivate instructor access for ${escapeHtml(instructor.first_name)} ${escapeHtml(instructor.last_name)}?');">
+                    <button class="small ghost danger" type="submit">Inactivate access</button>
+                  </form>
+                </div>
+              </td>
               <td>${escapeHtml(instructor.email)}</td>
               <td>${escapeHtml(instructor.phone || "")}</td>
               <td><span class="pill">instructor</span></td>
@@ -8573,6 +8581,21 @@ app.post("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res
 app.post("/admin/instructor-roles/refresh-approved", requireAuth, requireRole("admin"), (req, res) => {
   ensureInstructorAccessAccounts();
   flash(req, "Approved instructor accounts were refreshed. Dayana Diaz can use Faculty Login now.");
+  res.redirect("/admin/instructor-roles");
+});
+
+app.post("/admin/instructor-roles/:email/deactivate", requireAuth, requireRole("admin"), (req, res) => {
+  const email = String(req.params.email || "").toLowerCase();
+  const instructor = db.prepare("SELECT id, first_name, last_name, email FROM users WHERE lower(email) = ? AND role = 'instructor'").get(email);
+  if (!instructor) return res.status(404).send("Instructor account not found");
+  const result = db.prepare(`
+    UPDATE users
+    SET status = 'inactive',
+      organization_status = 'removed',
+      class_lock_reason = 'Instructor access inactivated by admin'
+    WHERE id = ? AND role = 'instructor'
+  `).run(instructor.id);
+  flash(req, result.changes ? `${instructor.first_name} ${instructor.last_name}'s instructor access was inactivated.` : "Instructor access was not changed.");
   res.redirect("/admin/instructor-roles");
 });
 
