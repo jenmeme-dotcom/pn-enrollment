@@ -32,6 +32,35 @@ const courseObjectives = [
 const chapterQuizQuestions = Object.fromEntries(
   Array.from({ length: 22 }, (_, index) => [index + 1, chapterQuestionBanks[index + 1].slice(0, 10)])
 );
+
+const chapterTitles = {
+  1: "Basic Word Structure",
+  2: "Terms Pertaining to the Body as a Whole",
+  3: "Suffixes",
+  4: "Prefixes",
+  5: "Digestive System",
+  6: "Additional Suffixes and Digestive System Terminology",
+  7: "Urinary System",
+  8: "Female Reproductive System",
+  9: "Male Reproductive System",
+  10: "Nervous System",
+  11: "Cardiovascular System",
+  12: "Respiratory System",
+  13: "Blood System",
+  14: "Lymphatic and Immune System",
+  15: "Musculoskeletal System",
+  16: "Skin",
+  17: "Sense Organs: The Eye and Ear",
+  18: "Endocrine System",
+  19: "Cancer Medicine (Oncology)",
+  20: "Radiology and Nuclear Medicine",
+  21: "Pharmacology",
+  22: "Psychiatry"
+};
+
+function chapterPowerPointTitle(chapter) {
+  return `Chapter ${chapter}: ${chapterTitles[chapter]} — PowerPoint`;
+}
 const midtermOneQuestions = Array.from({ length: 12 }, (_, index) => index + 1)
   .flatMap((chapter) => chapterQuestionBanks[chapter].slice(10, 12));
 const midtermTwoQuestions = Array.from({ length: 10 }, (_, index) => index + 13)
@@ -64,7 +93,10 @@ function chapterLessons(chapters) {
   return chapters.flatMap((chapter) => {
     const fileName = `Chapter_${String(chapter).padStart(3, "0")}.pptx`;
     return [
-      itemLesson("Attachment", fileName, { files: [fileName] }),
+      itemLesson("Attachment", chapterPowerPointTitle(chapter), {
+        files: [fileName],
+        note: `Study Chapter ${chapter}: ${chapterTitles[chapter]}.`
+      }),
       itemLesson("Quiz", chapterQuizTitle(chapter), {
         note: quizNote(`Chapter ${chapter} assessment supplied by BMHI.`, chapterQuizQuestions[chapter]),
         minutes: 30
@@ -169,11 +201,11 @@ const medicalTerminologyCourse = {
   description: courseDescription,
   ghlProductKeys: ["Medical Terminology", "PN 101", "PN101", "PN Medical Terminology", "medical-terminology", "Med Term"],
   courseNumber: "PN 101",
-  seedVersion: "canvas-pn101-medical-terminology-quizzes-2026-07-14",
+  seedVersion: "canvas-pn101-medical-terminology-chapter-titles-2026-08-19",
   objectives: courseObjectives,
   weeks: weeklyModules,
   modules,
   gradeItems
 };
 
-module.exports = { medicalTerminologyCourse };
+module.exports = { chapterTitles, medicalTerminologyCourse };

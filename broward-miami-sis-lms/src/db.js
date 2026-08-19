@@ -8,6 +8,7 @@ const { lippincottEnrollmentInstructions } = require("./fundamentalsBuildout");
 const { longTermCareNursingCourse } = require("./longTermCareNursingBuildout");
 const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 const { ensureIntroNursingQuizQuestionMinimum } = require("./introNursingQuizQuestions");
+const { chapterTitles: medicalTerminologyChapterTitles } = require("./medicalTerminologyBuildout");
 
 const rootDir = path.resolve(__dirname, "..");
 const databaseFile = path.resolve(rootDir, process.env.DATABASE_FILE || "./data/bmhi.sqlite");
@@ -1252,6 +1253,39 @@ function seed() {
       renamePn101Lesson.run(nextTitle, priorTitle, pn101CourseRow.id);
       renamePn101GradeItem.run(nextTitle, priorTitle, pn101CourseRow.id);
     });
+
+    const renamePn101ChapterResource = db.prepare(`
+      UPDATE lessons SET title = ?
+      WHERE id IN (
+        SELECT l.id FROM lessons l
+        JOIN modules m ON m.id = l.module_id
+        WHERE m.course_id = ?
+          AND (l.title = ? OR l.title = ?)
+      )
+    `);
+    Object.entries(medicalTerminologyChapterTitles).forEach(([chapter, chapterTitle]) => {
+      const fileName = `Chapter_${String(chapter).padStart(3, "0")}.pptx`;
+      renamePn101ChapterResource.run(
+        `Chapter ${chapter}: ${chapterTitle} — PowerPoint`,
+        pn101CourseRow.id,
+        fileName,
+        `Chapter ${chapter} PowerPoint`
+      );
+
+      db.prepare(`
+        UPDATE lessons SET title = ?
+        WHERE id IN (
+          SELECT l.id FROM lessons l
+          JOIN modules m ON m.id = l.module_id
+          WHERE m.course_id = ?
+            AND l.title = ?
+            AND (
+              LOWER(COALESCE(l.content, '')) LIKE '%youtube%'
+              OR LOWER(COALESCE(l.external_url, '')) LIKE '%youtu%'
+            )
+        )
+      `).run(`Chapter ${chapter}: ${chapterTitle} — Video`, pn101CourseRow.id, `Chapter ${chapter}`);
+    });
   }
   const pn101AssessmentDefinitions = pn101CourseDefinition?.modules
     ?.flatMap((module) => module.lessons || [])
@@ -1294,7 +1328,7 @@ function seed() {
     const updatePn101Module = db.prepare("UPDATE modules SET title = ?, position = ? WHERE id = ?");
     const updatePn101LessonPlacement = db.prepare(`
       UPDATE lessons
-      SET module_id = ?, content = ?, external_url = ?, duration_minutes = ?, position = ?
+      SET module_id = ?, title = ?, content = ?, external_url = ?, duration_minutes = ?, position = ?
       WHERE id = ?
     `);
     pn101CourseDefinition.modules.forEach((moduleDefinition, index) => {
@@ -1326,6 +1360,7 @@ function seed() {
         }
         updatePn101LessonPlacement.run(
           module.id,
+          lessonDefinition.title,
           lessonDefinition.content,
           lessonDefinition.externalUrl || null,
           lessonDefinition.durationMinutes || 45,
