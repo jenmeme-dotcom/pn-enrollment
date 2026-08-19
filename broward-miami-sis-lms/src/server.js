@@ -1973,11 +1973,7 @@ function quizChapterLabel(title = "") {
 }
 
 function quizDueAndPoints(lesson = {}, gradeItems = []) {
-  const lessonTitle = normalizedTitle(lesson.title);
-  const gradeItem = gradeItems.find((item) => {
-    const gradeTitle = normalizedTitle(item.title);
-    return gradeTitle && lessonTitle && (gradeTitle.includes(lessonTitle) || lessonTitle.includes(gradeTitle));
-  });
+  const gradeItem = gradeItemForLesson(lesson, gradeItems);
   return {
     dueDate: gradeItem?.due_date || lesson.due_date || null,
     points: gradeItem?.points_possible || 10
@@ -4137,6 +4133,12 @@ function normalizedTitle(value = "") {
 }
 
 function gradeItemForLesson(lesson = {}, gradeItems = []) {
+  const linkedGradeItemId = Number(lesson.grade_item_id || 0);
+  if (linkedGradeItemId) {
+    const linkedGradeItem = gradeItems.find((item) => Number(item.id) === linkedGradeItemId);
+    if (linkedGradeItem) return linkedGradeItem;
+  }
+
   const lessonTitle = normalizedTitle(lesson.title);
   const directMatch = gradeItems.find((item) => {
     const itemTitle = normalizedTitle(item.title);
@@ -4149,6 +4151,47 @@ function gradeItemForLesson(lesson = {}, gradeItems = []) {
     const itemTitle = String(item.title || "").trim().toLowerCase();
     return itemTitle.length >= 4 && lessonContent.includes(itemTitle);
   }) || null;
+}
+
+function gradeItemsForCourse(courseId) {
+  return db.prepare(`
+    SELECT * FROM grade_items
+    WHERE course_id = ?
+    ORDER BY due_date IS NULL, due_date, id
+  `).all(courseId);
+}
+
+function resolveLessonGradeItem(lesson = {}, courseId, options = {}) {
+  if (!lesson?.id || !courseId) return null;
+  const linkedGradeItemId = Number(lesson.grade_item_id || 0);
+  if (linkedGradeItemId) {
+    const linkedGradeItem = db.prepare("SELECT * FROM grade_items WHERE id = ? AND course_id = ?")
+      .get(linkedGradeItemId, courseId);
+    if (linkedGradeItem) return linkedGradeItem;
+  }
+
+  const matchedGradeItem = gradeItemForLesson(lesson, gradeItemsForCourse(courseId));
+  if (matchedGradeItem) {
+    if (linkedGradeItemId !== Number(matchedGradeItem.id)) {
+      db.prepare("UPDATE lessons SET grade_item_id = ? WHERE id = ?").run(matchedGradeItem.id, lesson.id);
+      lesson.grade_item_id = matchedGradeItem.id;
+    }
+    return matchedGradeItem;
+  }
+
+  if (!options.createIfMissing) return null;
+  const title = String(lesson.title || "Course quiz").trim() || "Course quiz";
+  const pointsPossible = Number(options.pointsPossible || 0) > 0 ? Number(options.pointsPossible) : 10;
+  const result = db.prepare(`
+    INSERT INTO grade_items (course_id, title, points_possible, due_date)
+    VALUES (?, ?, ?, NULL)
+  `).run(courseId, title, pointsPossible);
+  const createdGradeItem = db.prepare("SELECT * FROM grade_items WHERE id = ?").get(result.lastInsertRowid);
+  if (createdGradeItem) {
+    db.prepare("UPDATE lessons SET grade_item_id = ? WHERE id = ?").run(createdGradeItem.id, lesson.id);
+    lesson.grade_item_id = createdGradeItem.id;
+  }
+  return createdGradeItem || null;
 }
 
 function lessonIndexForGradeItem(item = {}, lessons = []) {
@@ -14233,11 +14276,11 @@ app.post("/student/enrollments/:id/quizzes/:lessonId/start", requireAuth, requir
   `).get(enrollmentId, req.user.id);
   if (!enrollment) return res.status(404).send("Enrollment not found");
   const lesson = db.prepare(`
-    SELECT l.id, l.title, l.content FROM lessons l JOIN modules m ON m.id = l.module_id
+    SELECT l.id, l.title, l.content, l.grade_item_id FROM lessons l JOIN modules m ON m.id = l.module_id
     WHERE l.id = ? AND m.course_id = ? AND COALESCE(l.published, 1) = 1
   `).get(lessonId, enrollment.course_id);
   if (!lesson || examSettingsForLesson(lesson) || !lessonQuizQuestions(lesson).length) return res.status(404).send("Quiz not found");
-  const gradeItem = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND title = ?").get(enrollment.course_id, lesson.title);
+  const gradeItem = resolveLessonGradeItem(lesson, enrollment.course_id, { createIfMissing: true, pointsPossible: 10 });
   const existingGrade = gradeItem ? db.prepare("SELECT id FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").get(enrollmentId, gradeItem.id) : null;
   if (existingGrade) {
     flash(req, "This quiz has already been submitted and graded.");
@@ -14271,7 +14314,7 @@ app.post("/student/enrollments/:id/exams/:lessonId/start", requireAuth, requireR
   `).get(enrollmentId, req.user.id);
   if (!enrollment) return res.status(404).send("Enrollment not found");
   const lesson = db.prepare(`
-    SELECT l.id, l.title FROM lessons l JOIN modules m ON m.id = l.module_id
+    SELECT l.id, l.title, l.content, l.grade_item_id FROM lessons l JOIN modules m ON m.id = l.module_id
     WHERE l.id = ? AND m.course_id = ? AND COALESCE(l.published, 1) = 1
   `).get(lessonId, enrollment.course_id);
   const settings = examSettingsForLesson(lesson);
@@ -14285,7 +14328,7 @@ app.post("/student/enrollments/:id/exams/:lessonId/start", requireAuth, requireR
     flash(req, `This exam closed ${examDateTimeLabel(settings.closesAt)}.`);
     return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
   }
-  const gradeItem = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND title = ?").get(enrollment.course_id, lesson.title);
+  const gradeItem = resolveLessonGradeItem(lesson, enrollment.course_id, { createIfMissing: true, pointsPossible: 10 });
   const existingGrade = gradeItem ? db.prepare("SELECT id FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").get(enrollmentId, gradeItem.id) : null;
   if (existingGrade) {
     flash(req, "This examination has already been submitted and graded.");
@@ -14319,7 +14362,7 @@ app.post("/student/enrollments/:id/quiz-submit", requireAuth, requireRole("stude
   `).get(enrollmentId, req.user.id);
   if (!enrollment) return res.status(404).send("Enrollment not found");
   const lesson = db.prepare(`
-    SELECT l.id, l.title, l.content FROM lessons l
+    SELECT l.id, l.title, l.content, l.grade_item_id FROM lessons l
     JOIN modules m ON m.id = l.module_id
     WHERE l.id = ? AND m.course_id = ? AND COALESCE(l.published, 1) = 1
   `).get(lessonId, enrollment.course_id);
@@ -14330,7 +14373,7 @@ app.post("/student/enrollments/:id/quiz-submit", requireAuth, requireRole("stude
     return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
   }
   const examSettings = examSettingsForLesson(lesson);
-  const gradeItem = db.prepare("SELECT id, points_possible FROM grade_items WHERE course_id = ? AND title = ?").get(enrollment.course_id, lesson.title);
+  const gradeItem = resolveLessonGradeItem(lesson, enrollment.course_id, { createIfMissing: true, pointsPossible: 10 });
   if (examSettings) {
     const attempt = db.prepare("SELECT * FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollmentId, lessonId);
     if (!attempt || attempt.status !== "in_progress") {
