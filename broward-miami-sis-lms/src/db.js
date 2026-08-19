@@ -894,6 +894,7 @@ function seed() {
       organization_status = 'organized',
       class_lock_reason = NULL
     WHERE lower(email) = 'dayana.diaz@browardmiamihi.com'
+      AND COALESCE(status, 'active') <> 'inactive'
   `).run(hash("InstructorPass123!"));
 
   const upsertAdminAccessUser = db.prepare(`

@@ -5198,6 +5198,13 @@ textarea {
   gap: 10px;
 }
 
+.instructor-name-actions {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .inline-form {
   display: inline-flex;
   margin: 0;
