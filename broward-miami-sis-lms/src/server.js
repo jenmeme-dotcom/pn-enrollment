@@ -28,10 +28,12 @@ const {
 
 const instructorAccessDefaultPassword = "InstructorPass123!";
 const instructorLoginRepairs = new Map([
-  ["dayana.diaz@browardmiamihi.com", { firstName: "Dayana", lastName: "Diaz" }]
+  ["dayana.diaz@browardmiamihi.com", { firstName: "Dayana", lastName: "Diaz" }],
+  ["natacha.aleman@browardmiamihi.com", { firstName: "Natacha Andrea", lastName: "Aleman" }]
 ]);
 const instructorAccessAccounts = [
-  { firstName: "Dayana", lastName: "Diaz", email: "dayana.diaz@browardmiamihi.com", phone: "" }
+  { firstName: "Dayana", lastName: "Diaz", email: "dayana.diaz@browardmiamihi.com", phone: "" },
+  { firstName: "Natacha Andrea", lastName: "Aleman", email: "natacha.aleman@browardmiamihi.com", phone: "" }
 ];
 const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = require("./ui");
@@ -8721,7 +8723,7 @@ app.post("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res
 
 app.post("/admin/instructor-roles/refresh-approved", requireAuth, requireRole("admin"), (req, res) => {
   ensureInstructorAccessAccounts();
-  flash(req, "Approved instructor accounts were refreshed. Dayana Diaz can use Faculty Login now.");
+  flash(req, "Approved instructor accounts were refreshed. Dayana Diaz and Natacha Andrea Aleman can use Faculty Login now.");
   res.redirect("/admin/instructor-roles");
 });
 
