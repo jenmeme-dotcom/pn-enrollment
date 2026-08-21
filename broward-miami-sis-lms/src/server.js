@@ -7218,6 +7218,7 @@ app.get("/admin/cohort-2-schedule", requireAuth, requireRole("admin", "instructo
 });
 
 app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const canViewFinancialInformation = req.user.role === "admin";
   const staffRows = db.prepare(`
     SELECT id, role, first_name, last_name, email, phone, status
     FROM users
@@ -7249,22 +7250,22 @@ app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), 
     LIMIT 20
   `).all(selectedStaff.id);
   const recentHours = timeEntries.reduce((total, entry) => total + durationHours(entry.clock_in_at, entry.clock_out_at), 0);
-  const payRecords = db.prepare(`
-    SELECT p.*, u.first_name AS created_first_name, u.last_name AS created_last_name
-    FROM staff_pay_records p
-    LEFT JOIN users u ON u.id = p.created_by
-    WHERE p.user_id = ?
-    ORDER BY date(p.paycheck_date) DESC, p.id DESC
-    LIMIT 14
-  `).all(selectedStaff.id);
+  const payRecords = canViewFinancialInformation ? db.prepare(`
+      SELECT p.*, u.first_name AS created_first_name, u.last_name AS created_last_name
+      FROM staff_pay_records p
+      LEFT JOIN users u ON u.id = p.created_by
+      WHERE p.user_id = ?
+      ORDER BY date(p.paycheck_date) DESC, p.id DESC
+      LIMIT 14
+    `).all(selectedStaff.id) : [];
   const latestPay = payRecords[0];
   const viewerQuery = req.user.role === "admin" ? `?staffId=${encodeURIComponent(selectedStaff.id)}` : "";
   const body = `
     <div class="page-head">
       <div>
         <p class="eyebrow">Staff Portal</p>
-        <h1>Time Clock & Pay Info</h1>
-        <p>Clock in and out for work sessions, review time entries, and view payroll statement information.</p>
+        <h1>${canViewFinancialInformation ? "Time Clock & Pay Info" : "Staff Time Clock"}</h1>
+        <p>${canViewFinancialInformation ? "Clock in and out for work sessions, review time entries, and manage payroll statement information." : "Clock in and out for work sessions and review your time entries."}</p>
       </div>
       <div class="actions">
         <a class="button ghost" href="/admin/help">Staff help</a>
@@ -7272,11 +7273,11 @@ app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), 
       </div>
     </div>
 
-    <section class="grid cols-4 staff-portal-stats">
+    <section class="grid ${canViewFinancialInformation ? "cols-4" : "cols-3"} staff-portal-stats">
       ${stat("Selected staff", staffName(selectedStaff))}
       ${stat("Clock status", selectedOpenEntry ? "Clocked in" : "Clocked out")}
       ${stat("Recent hours shown", formatHours(recentHours))}
-      ${stat("Latest paycheck", latestPay ? date(latestPay.paycheck_date) : "No pay record")}
+      ${canViewFinancialInformation ? stat("Latest paycheck", latestPay ? date(latestPay.paycheck_date) : "No pay record") : ""}
     </section>
 
     ${req.user.role === "admin" ? `
@@ -7302,7 +7303,7 @@ app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), 
           ${openEntry ? `
             <form method="post" action="/admin/staff-portal/clock-out" class="time-clock-form">
               <label for="clockOutNote">Clock out note</label>
-              <textarea id="clockOutNote" name="note" placeholder="Optional note for payroll or supervisor"></textarea>
+              <textarea id="clockOutNote" name="note" placeholder="Optional note for your supervisor"></textarea>
               <button type="submit">Clock out</button>
             </form>
           ` : `
@@ -7317,7 +7318,7 @@ app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), 
         `}
       </article>
 
-      <article class="card pay-summary-card" id="pay-info">
+      ${canViewFinancialInformation ? `<article class="card pay-summary-card" id="pay-info">
         <div class="table-card-head">
           <div>
             <h2>Pay Information</h2>
@@ -7335,7 +7336,7 @@ app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), 
             <p><strong>Net pay</strong><span>${money(latestPay.net_pay_cents)}</span></p>
           </div>
         ` : `<p class="muted">Payroll statement details will appear here after an administrator posts a pay record.</p>`}
-      </article>
+      </article>` : ""}
     </section>
 
     <section class="table-card" style="margin-top:18px">
@@ -7366,7 +7367,7 @@ app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), 
       </table>
     </section>
 
-    <section class="table-card" style="margin-top:18px">
+    ${canViewFinancialInformation ? `<section class="table-card" style="margin-top:18px">
       <div class="table-card-head">
         <div>
           <h2>Payroll Statements</h2>
@@ -7390,9 +7391,9 @@ app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), 
           `).join("") || `<tr><td class="empty" colspan="8">No payroll statement records yet.</td></tr>`}
         </tbody>
       </table>
-    </section>
+    </section>` : ""}
 
-    ${req.user.role === "admin" ? `
+    ${canViewFinancialInformation ? `
       <section class="card staff-pay-form-card" style="margin-top:18px">
         <h2>Add Pay Record</h2>
         <p class="muted">Use this to post pay information to the selected staff member's portal.</p>
@@ -7419,7 +7420,7 @@ app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), 
       </section>
     ` : ""}
   `;
-  render(req, res, "Staff Time & Pay", body);
+  render(req, res, canViewFinancialInformation ? "Staff Time & Pay" : "Staff Time Clock", body);
 });
 
 app.post("/admin/staff-portal/clock-in", requireAuth, requireRole("admin", "instructor"), (req, res) => {
