@@ -3280,26 +3280,13 @@ function studentGradebookRows(enrollment, gradeItems = [], grades = []) {
     score: gradeByItemId.has(item.id) && !isAutoGradeApprovalPending(gradeByItemId.get(item.id)?.note) ? gradeByItemId.get(item.id).score : null,
     status: isAutoGradeApprovalPending(gradeByItemId.get(item.id)?.note) ? "pending" : undefined
   }));
-  if (enrollment.slug !== "introduction-to-nursing-practical-nursing") return savedRows;
-
-  const visibleSavedRows = savedRows.map((item) => {
+  return savedRows.map((item) => {
     if (item.title === "Class Participation and Professionalism") return { ...item, title: "Class Participation and Professionalism Acknowledgement" };
-    if (item.title === "Quiz 1: Weeks 1-2") return { ...item, title: "Quiz 1", points_possible: 20 };
+    if (enrollment.slug === "introduction-to-nursing-practical-nursing" && item.title === "Quiz 1: Weeks 1-2") {
+      return { ...item, title: "Quiz 1" };
+    }
     return item;
   });
-  const extraRows = [
-    { title: "Elsevier Adaptive Quizzing Quiz 1", points_possible: 100, group: "Imported Assignments", score: null },
-    { title: "Elsevier Adaptive Quizzing Quiz 2", points_possible: 100, group: "Imported Assignments", score: null },
-    { title: "Historical Nursing Leader Project: Legacy, Ethics, and Patient Care", points_possible: 100, group: "Assignments", score: null },
-    { title: "Nightingale Pledge Acknowledgement", points_possible: null, group: "Assignments", score: null, status: "info" }
-  ];
-  const preferredTitles = new Set([
-    "Class Participation and Professionalism Acknowledgement",
-    "Professional Beginning Reflection",
-    "Quiz 1"
-  ]);
-  const selectedSavedRows = visibleSavedRows.filter((item) => preferredTitles.has(item.title));
-  return [...pnDiscussionGradeRows(), ...extraRows, ...selectedSavedRows];
 }
 
 function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems = [], grades = [], student }) {
@@ -6075,9 +6062,35 @@ function ghlLocationFromPayload(payload) {
 
 function dashboardStats(selectedCohort = "") {
   const hasCohortFilter = Boolean(selectedCohort);
-  const studentCount = hasCohortFilter
-    ? db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'student' AND cohort_name = ?").get(selectedCohort).count
-    : db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'student'").get().count;
+  const studentRows = db.prepare(`
+    SELECT
+      u.id,
+      u.status AS account_status,
+      SUM(CASE WHEN e.status = 'active' AND e.withdrawn_at IS NULL THEN 1 ELSE 0 END) AS active_enrollments,
+      SUM(CASE WHEN e.status = 'hold' AND e.withdrawn_at IS NULL THEN 1 ELSE 0 END) AS hold_enrollments,
+      SUM(CASE WHEN e.status = 'completed' THEN 1 ELSE 0 END) AS completed_enrollments,
+      SUM(CASE WHEN e.status = 'withdrawn' OR e.withdrawn_at IS NOT NULL THEN 1 ELSE 0 END) AS withdrawn_enrollments
+    FROM users u
+    LEFT JOIN enrollments e ON e.user_id = u.id
+    WHERE u.role = 'student' ${hasCohortFilter ? "AND u.cohort_name = ?" : ""}
+    GROUP BY u.id
+  `).all(...(hasCohortFilter ? [selectedCohort] : []));
+  const studentStatusCounts = studentRows.reduce((counts, student) => {
+    let status = "Pending";
+    if (student.account_status === "withdrawn") status = "Withdrawn";
+    else if (student.account_status !== "active") status = student.account_status === "pending" ? "Pending" : "Inactive";
+    else if (Number(student.active_enrollments) > 0) status = "Active";
+    else if (Number(student.hold_enrollments) > 0) status = "Pending";
+    else if (Number(student.completed_enrollments) > 0) status = "Completed";
+    else if (Number(student.withdrawn_enrollments) > 0) status = "Withdrawn";
+    counts[status] = (counts[status] || 0) + 1;
+    return counts;
+  }, {});
+  const statusOrder = ["Active", "Pending", "Withdrawn", "Completed", "Inactive"];
+  const studentStatuses = statusOrder
+    .filter((status) => studentStatusCounts[status])
+    .map((status) => ({ status, count: studentStatusCounts[status] }));
+  const studentCount = studentRows.length;
   const activeCount = hasCohortFilter
     ? db.prepare(`
       SELECT COUNT(*) AS count
@@ -6096,11 +6109,30 @@ function dashboardStats(selectedCohort = "") {
     : db.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE status = 'completed'").get().count;
   return {
     students: studentCount,
+    studentStatuses,
     admissions: db.prepare("SELECT COUNT(*) AS count FROM admission_applications WHERE status IN ('new','reviewing')").get().count,
     courses: db.prepare("SELECT COUNT(*) AS count FROM courses WHERE published = 1").get().count,
     active: activeCount,
     completed: completedCount
   };
+}
+
+function renderDashboardStudentStat(total, statuses = [], cohortLabel = "All cohorts") {
+  const reconciledTotal = statuses.reduce((sum, item) => sum + Number(item.count || 0), 0);
+  return `
+    <div class="stat dashboard-student-stat">
+      <span>Students · ${escapeHtml(cohortLabel)}</span>
+      <strong>${escapeHtml(total)}</strong>
+      <div class="dashboard-status-breakdown" aria-label="${escapeHtml(`${total} students by status`)}">
+        ${statuses.map((item) => `
+          <span class="dashboard-status-item ${escapeHtml(item.status.toLowerCase())}">
+            <b>${escapeHtml(item.count)}</b> ${escapeHtml(item.status)}
+          </span>
+        `).join("") || `<span class="dashboard-status-item"><b>0</b> No students</span>`}
+      </div>
+      <small>${reconciledTotal === Number(total) ? "Status counts match total" : "Status review required"}</small>
+    </div>
+  `;
 }
 
 function applicationNumber() {
@@ -7804,7 +7836,7 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
       <form method="get" action="/admin" class="dashboard-cohort-filter">
         <div>
           <label for="dashboard-cohort">View cohort</label>
-          <select id="dashboard-cohort" name="cohort">
+          <select id="dashboard-cohort" name="cohort" onchange="this.form.submit()">
             <option value="">All cohorts</option>
             ${cohorts.map((cohort) => `<option value="${escapeHtml(cohort)}" ${cohort === selectedCohort ? "selected" : ""}>${escapeHtml(cohort)}</option>`).join("")}
           </select>
@@ -7814,7 +7846,7 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
       </form>
     </section>
     <section class="grid cols-4">
-      ${stat("Students", stats.students)}
+      ${renderDashboardStudentStat(stats.students, stats.studentStatuses, cohortLabel)}
       ${stat("Admissions", stats.admissions)}
       ${stat("Published courses", stats.courses)}
       ${stat("Active enrollments", stats.active)}
