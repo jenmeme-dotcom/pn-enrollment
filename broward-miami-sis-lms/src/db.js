@@ -936,6 +936,7 @@ function seed() {
   `);
 
   const moduleCount = db.prepare("SELECT COUNT(*) AS count FROM modules WHERE course_id = ?");
+  const enrollmentCount = db.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE course_id = ?");
   const seedVersionExists = db.prepare("SELECT id FROM course_seed_versions WHERE course_id = ? AND seed_key = ?");
   const insertSeedVersion = db.prepare("INSERT OR IGNORE INTO course_seed_versions (course_id, seed_key) VALUES (?, ?)");
   const insertModule = db.prepare("INSERT INTO modules (course_id, title, position) VALUES (?, ?, ?)");
@@ -962,11 +963,18 @@ function seed() {
     const seedKey = course.seedVersion ? `${course.slug}:${course.seedVersion}` : null;
     const hasCurrentSeedVersion = seedKey ? seedVersionExists.get(saved.id, seedKey) : null;
     const existingModuleCount = moduleCount.get(saved.id).count;
-    const shouldRefreshSeedContent = Boolean(seedKey && !hasCurrentSeedVersion && existingModuleCount > 0);
+    const hasEnrollments = enrollmentCount.get(saved.id).count > 0;
+    const seedRefreshPending = Boolean(seedKey && !hasCurrentSeedVersion && existingModuleCount > 0);
+    const shouldRefreshSeedContent = seedRefreshPending && !hasEnrollments;
     if (shouldRefreshSeedContent) {
       db.prepare("DELETE FROM modules WHERE course_id = ?").run(saved.id);
       db.prepare("DELETE FROM grade_items WHERE course_id = ?").run(saved.id);
     }
+
+    // Live course rows own student progress, attempts, submissions, and grades.
+    // Mark the catalog version current and let the targeted migrations below
+    // update content without replacing IDs referenced by student records.
+    if (seedRefreshPending && hasEnrollments) insertSeedVersion.run(saved.id, seedKey);
 
     if (existingModuleCount === 0 || shouldRefreshSeedContent) {
       if (course.modules) {
