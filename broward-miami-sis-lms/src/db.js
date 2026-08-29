@@ -1415,6 +1415,7 @@ function seed() {
   }
 
   const fundamentals = db.prepare("SELECT id FROM courses WHERE slug = ?").get("fundamental-nursing-skills-and-concepts-new-cohort");
+  const longTermCare = db.prepare("SELECT id FROM courses WHERE slug = ?").get(longTermCareNursingCourse.slug);
   if (fundamentals) {
     const lippincottLessonTitle = "Lippincott CoursePoint Class Code - Fundamentals";
     const existingLippincottLesson = db.prepare(`
@@ -1517,7 +1518,7 @@ function seed() {
   const cohortTwoCourses = [
     { code: "pn101", course: medicalTerminology, startDate: "2026-06-17" },
     { code: "pn102", course: introNursing, startDate: "2026-06-22" },
-    { code: "pn103", course: fundamentals, startDate: "2026-07-02" },
+    { code: "pn103", course: longTermCare, startDate: "2026-07-02" },
     { code: "pn104", course: anatomyPhysiology, startDate: "2026-07-13" }
   ];
   cohortTwoStudents.forEach(([firstName, lastName, email, uniformSize]) => {
@@ -1538,6 +1539,27 @@ function seed() {
       });
     }
   });
+  if (fundamentals && longTermCare) {
+    const cohortTwoRoster = db.prepare("SELECT id FROM users WHERE role = 'student' AND cohort_name = 'Cohort 2'").all();
+    const removeFundamentalsAccess = db.prepare(`
+      UPDATE enrollments
+      SET status = 'withdrawn',
+        withdrawal_effective_date = COALESCE(withdrawal_effective_date, date('now')),
+        withdrawal_reason = COALESCE(withdrawal_reason, 'Corrected course placement: Cohort 2 belongs in PN 103 Long-Term Care Nursing.'),
+        withdrawn_at = COALESCE(withdrawn_at, CURRENT_TIMESTAMP)
+      WHERE user_id = ? AND course_id = ?
+        AND status != 'withdrawn' AND withdrawn_at IS NULL
+    `);
+    cohortTwoRoster.forEach((student) => {
+      removeFundamentalsAccess.run(student.id, fundamentals.id);
+      insertCohortEnrollment.run(student.id, longTermCare.id, "2026-07-02", `cohort-2-pn103-${student.id}`);
+      db.prepare(`
+        UPDATE enrollments
+        SET status = 'active', withdrawn_at = NULL, withdrawal_effective_date = NULL, withdrawal_reason = NULL
+        WHERE user_id = ? AND course_id = ? AND external_order_id = ?
+      `).run(student.id, longTermCare.id, `cohort-2-pn103-${student.id}`);
+    });
+  }
   // Seeded cohort data is additive only. Operational enrollment status and
   // academic records must never be overwritten or deleted during startup.
 
