@@ -46,7 +46,7 @@ function ensureInstructorAccessAccounts() {
   db.prepare(`
     UPDATE users
     SET status = 'inactive',
-      organization_status = 'removed',
+      organization_status = 'not_organized',
       class_lock_reason = 'Removed from instructor access'
     WHERE role IN ('admin', 'instructor')
       AND (
@@ -8833,7 +8833,7 @@ app.post("/admin/instructor-roles/:email/deactivate", requireAuth, requireRole("
   const result = db.prepare(`
     UPDATE users
     SET status = 'inactive',
-      organization_status = 'removed',
+      organization_status = 'not_organized',
       class_lock_reason = 'Instructor access inactivated by admin'
     WHERE id = ? AND role = 'instructor'
   `).run(instructor.id);

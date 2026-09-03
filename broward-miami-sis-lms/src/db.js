@@ -1036,7 +1036,7 @@ function seed() {
   db.prepare(`
     UPDATE users
     SET status = 'inactive',
-      organization_status = 'removed',
+      organization_status = 'not_organized',
       class_lock_reason = 'Removed from instructor access'
     WHERE role IN ('admin', 'instructor')
       AND (
