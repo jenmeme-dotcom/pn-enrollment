@@ -75,6 +75,16 @@ const feeSchedule = [
   { label: "Books, Supplies & Uniforms", amountCents: 7500 }
 ];
 
+const otherCourseFeeSchedule = [
+  { label: "BLS/CPR", costLabel: "Contact school for current cost" },
+  { label: "PALS", costLabel: "Contact school for current cost" },
+  { label: "ACLS", costLabel: "Contact school for current cost" },
+  { label: "CEUs", costLabel: "Contact school for current cost" },
+  { label: "IV Therapy", costLabel: "Contact school for current cost" },
+  { label: "Medication Aide", costLabel: "Contact school for current cost" },
+  { label: "Medication Aide Refresher", costLabel: "Contact school for current cost" }
+];
+
 const tuitionNotes = [
   "Students must allow two weeks for processing receipts which are requested to be sent by mail or fax.",
   "Types of Payment: Visa, MasterCard, Bank Wire, Check or PayPal.",
@@ -199,6 +209,7 @@ const catalogProgramSummaries = [
 module.exports = {
   courses,
   feeSchedule,
+  otherCourseFeeSchedule,
   tuitionNotes,
   catalogOperatingHours,
   catalogAcademicCalendar,

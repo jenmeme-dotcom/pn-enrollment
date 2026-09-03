@@ -52,3 +52,11 @@ services:
         generateValue: true
       - key: GHL_WEBHOOK_SECRET
         generateValue: true
+      - key: QUICKBOOKS_CLIENT_ID
+        sync: false
+      - key: QUICKBOOKS_CLIENT_SECRET
+        sync: false
+      - key: QUICKBOOKS_REDIRECT_URI
+        value: https://portal.browardmiamihi.com/admin/integrations/quickbooks/callback
+      - key: QUICKBOOKS_WEBHOOK_VERIFIER
+        sync: false

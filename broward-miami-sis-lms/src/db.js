@@ -21,11 +21,68 @@ db.exec("PRAGMA foreign_keys = ON;");
 const legacyLocalEmailDomain = "@browardmiamihi.local";
 const portalEmailDomain = "@browardmiamihi.com";
 
+function writtenAssignmentMarker(config) {
+  return `WRITTEN_ASSIGNMENT_DATA_BASE64:${Buffer.from(JSON.stringify(config), "utf8").toString("base64")}`;
+}
+
+function fallbackWrittenAssignmentContent(title = "", existingContent = "") {
+  const cleanTitle = String(title || "Written Assignment").trim();
+  const cleanContent = String(existingContent || "")
+    .replace(/^Canvas item type:\s*Assignment\.?/i, "")
+    .replace(/\n*Course files?:[\s\S]*$/i, "")
+    .trim();
+  const config = {
+    type: "written-autograde",
+    minWords: 75,
+    prompt: `Complete ${cleanTitle}. Use course terminology, explain your reasoning, apply the content to a realistic healthcare or nursing situation, and protect confidentiality.`,
+    checklist: [
+      "Answer each part in complete sentences.",
+      "Use accurate course terminology.",
+      "Apply the content to a realistic healthcare, nursing, resident-care, or patient-care situation.",
+      "Do not include real patient-identifying information."
+    ],
+    conceptGroups: [["course", "chapter", "terminology", "nursing"], ["patient", "resident", "healthcare", "care"], ["safety", "communication", "documentation", "professional"], ["confidentiality", "privacy"]],
+    responseSections: [
+      {
+        title: "Part 1: Key Concepts",
+        prompt: "Identify the key terms, concepts, or requirements for this assignment."
+      },
+      {
+        title: "Part 2: Explanation",
+        prompt: "Explain the meaning or importance of those concepts in your own words."
+      },
+      {
+        title: "Part 3: Application",
+        prompt: "Apply the concepts to a realistic healthcare, nursing, resident-care, or patient-care situation."
+      },
+      {
+        title: "Part 4: Reporting or Professional Action",
+        prompt: "State what should be documented, reported, acknowledged, or done professionally."
+      }
+    ]
+  };
+  return [
+    "Canvas item type: Assignment.",
+    "",
+    cleanTitle,
+    cleanContent || "Complete each part in clear, complete sentences.",
+    "",
+    "Assignment directions",
+    "Complete each part in clear, complete sentences. Use course terminology, explain your reasoning, and protect confidentiality.",
+    "",
+    "Grading focus",
+    "Your work will be evaluated for accuracy, application, professional communication, organization, and confidentiality.",
+    "",
+    writtenAssignmentMarker(config)
+  ].join("\n");
+}
+
 function migrate() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       role TEXT NOT NULL CHECK(role IN ('admin','instructor','student')),
+      student_number TEXT,
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
@@ -103,6 +160,19 @@ function migrate() {
       file_size INTEGER,
       status TEXT NOT NULL DEFAULT 'uploaded' CHECK(status IN ('uploaded','reviewed','imported','failed')),
       note TEXT,
+      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS institution_catalogs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      catalog_year TEXT NOT NULL,
+      title TEXT NOT NULL,
+      file_original_name TEXT NOT NULL,
+      file_storage_name TEXT NOT NULL,
+      file_mime_type TEXT,
+      file_size INTEGER,
+      active INTEGER NOT NULL DEFAULT 1,
       uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -378,6 +448,47 @@ function migrate() {
       name TEXT NOT NULL UNIQUE,
       description TEXT NOT NULL,
       active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS quickbooks_connections (
+      id INTEGER PRIMARY KEY CHECK(id = 1),
+      realm_id TEXT NOT NULL,
+      company_name TEXT,
+      access_token_encrypted TEXT NOT NULL,
+      refresh_token_encrypted TEXT NOT NULL,
+      access_token_expires_at TEXT NOT NULL,
+      refresh_token_expires_at TEXT,
+      connected_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      connected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_synced_at TEXT,
+      last_error TEXT,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS quickbooks_entity_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      local_type TEXT NOT NULL,
+      local_id INTEGER NOT NULL,
+      quickbooks_type TEXT NOT NULL,
+      quickbooks_id TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'synced' CHECK(sync_status IN ('pending','synced','error')),
+      last_error TEXT,
+      last_synced_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(local_type, local_id, quickbooks_type),
+      UNIQUE(quickbooks_type, quickbooks_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS quickbooks_sync_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      direction TEXT NOT NULL,
+      action TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('started','success','error')),
+      records_processed INTEGER NOT NULL DEFAULT 0,
+      message TEXT,
+      started_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -723,6 +834,9 @@ function migrate() {
     db.exec("ALTER TABLE student_self_evaluations ADD COLUMN additional_notes TEXT;");
   }
   const userColumns = db.prepare("PRAGMA table_info(users)").all().map((column) => column.name);
+  if (!userColumns.includes("student_number")) {
+    db.exec("ALTER TABLE users ADD COLUMN student_number TEXT;");
+  }
   if (!userColumns.includes("personal_email")) {
     db.exec("ALTER TABLE users ADD COLUMN personal_email TEXT;");
   }
@@ -777,6 +891,49 @@ function migrate() {
   if (!userColumns.includes("photo_reviewed_by")) {
     db.exec("ALTER TABLE users ADD COLUMN photo_reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL;");
   }
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_student_number
+    ON users(student_number)
+    WHERE student_number IS NOT NULL AND student_number <> '';
+
+    DROP TRIGGER IF EXISTS trg_users_assign_student_number_after_insert;
+    DROP TRIGGER IF EXISTS trg_users_assign_student_number_after_update;
+
+    UPDATE users
+    SET student_number = CAST(100000 + id AS TEXT)
+    WHERE role = 'student'
+      AND (
+        student_number IS NULL
+        OR trim(student_number) = ''
+        OR student_number NOT GLOB '[1-9][0-9][0-9][0-9][0-9][0-9]'
+      );
+
+    CREATE TRIGGER trg_users_assign_student_number_after_insert
+    AFTER INSERT ON users
+    WHEN NEW.role = 'student' AND (
+      NEW.student_number IS NULL
+      OR trim(NEW.student_number) = ''
+      OR NEW.student_number NOT GLOB '[1-9][0-9][0-9][0-9][0-9][0-9]'
+    )
+    BEGIN
+      UPDATE users
+      SET student_number = CAST(100000 + NEW.id AS TEXT)
+      WHERE id = NEW.id;
+    END;
+
+    CREATE TRIGGER trg_users_assign_student_number_after_update
+    AFTER UPDATE OF role, student_number ON users
+    WHEN NEW.role = 'student' AND (
+      NEW.student_number IS NULL
+      OR trim(NEW.student_number) = ''
+      OR NEW.student_number NOT GLOB '[1-9][0-9][0-9][0-9][0-9][0-9]'
+    )
+    BEGIN
+      UPDATE users
+      SET student_number = CAST(100000 + NEW.id AS TEXT)
+      WHERE id = NEW.id;
+    END;
+  `);
   const enrollmentColumns = db.prepare("PRAGMA table_info(enrollments)").all().map((column) => column.name);
   if (!enrollmentColumns.includes("withdrawal_effective_date")) {
     db.exec("ALTER TABLE enrollments ADD COLUMN withdrawal_effective_date TEXT;");
@@ -1028,6 +1185,27 @@ function seed() {
     }
   }
 
+  // Older catalog seeds stored the Canvas item type only in lesson content.
+  // Promote those markers without replacing rows so existing progress, grades,
+  // and submissions continue to reference the same lesson IDs.
+  db.prepare(`
+    UPDATE lessons
+    SET item_type = CASE
+      WHEN content LIKE 'Canvas item type: Assignment.%' THEN 'assignment'
+      WHEN content LIKE 'Canvas item type: Discussion.%' THEN 'discussion'
+      WHEN content LIKE 'Canvas item type: Quiz.%' OR content LIKE 'Canvas item type: Exam.%' THEN 'quiz'
+      WHEN content LIKE 'Canvas item type: Attachment.%' THEN 'file'
+      ELSE item_type
+    END
+    WHERE item_type = 'page'
+      AND content LIKE 'Canvas item type: %'
+  `).run();
+  db.prepare(`
+    UPDATE lessons
+    SET item_type = 'assignment'
+    WHERE content LIKE '%WRITTEN_ASSIGNMENT_DATA_BASE64:%'
+  `).run();
+
   // Keep PN 104's four scheduled discussions synchronized without refreshing
   // the entire course shell. Updating the matching weekly rows preserves the
   // selected lesson and grade-item IDs; only obsolete discussion placeholders
@@ -1157,6 +1335,142 @@ function seed() {
       }
     });
 
+    const pn104OrientationModule = db.prepare(`
+      SELECT id FROM modules
+      WHERE course_id = ?
+        AND title = 'Orientation and Course Resources'
+      ORDER BY position, id LIMIT 1
+    `).get(pn104CourseRow.id);
+    const openStaxTextbookDefinition = lessonDefinitions.find((lesson) =>
+      lesson.title === "Required Textbook: OpenStax Anatomy and Physiology 2e"
+    );
+    if (pn104OrientationModule && openStaxTextbookDefinition) {
+      const existingOpenStaxLesson = db.prepare(`
+        SELECT id FROM lessons
+        WHERE module_id = ?
+          AND (title = ? OR lower(title) LIKE '%openstax%')
+        ORDER BY position, id LIMIT 1
+      `).get(pn104OrientationModule.id, openStaxTextbookDefinition.title);
+      if (existingOpenStaxLesson) {
+        db.prepare(`
+          UPDATE lessons
+          SET title = ?, content = ?, external_url = ?, duration_minutes = ?, published = 1, instructor_only = 0, item_type = 'page'
+          WHERE id = ?
+        `).run(
+          openStaxTextbookDefinition.title,
+          openStaxTextbookDefinition.content || "",
+          openStaxTextbookDefinition.externalUrl || null,
+          openStaxTextbookDefinition.durationMinutes || 15,
+          existingOpenStaxLesson.id
+        );
+      } else {
+        const syllabusPosition = db.prepare(`
+          SELECT position FROM lessons
+          WHERE module_id = ? AND title = 'PN 104 Syllabus'
+          ORDER BY id LIMIT 1
+        `).get(pn104OrientationModule.id)?.position;
+        const position = syllabusPosition
+          || db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(pn104OrientationModule.id).next;
+        if (syllabusPosition) {
+          db.prepare("UPDATE lessons SET position = position + 1 WHERE module_id = ? AND position >= ?").run(pn104OrientationModule.id, syllabusPosition);
+        }
+        db.prepare(`
+          INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only, item_type)
+          VALUES (?, ?, ?, ?, ?, ?, 1, 0, 'page')
+        `).run(
+          pn104OrientationModule.id,
+          openStaxTextbookDefinition.title,
+          openStaxTextbookDefinition.content || "",
+          openStaxTextbookDefinition.externalUrl || null,
+          openStaxTextbookDefinition.durationMinutes || 15,
+          position
+        );
+      }
+    }
+
+    const pn104ResourceModuleDefinition = pn104CourseDefinition.modules.find((module) => module.title === "Resources");
+    if (pn104ResourceModuleDefinition) {
+      let pn104ResourceModule = db.prepare(`
+        SELECT id, position FROM modules
+        WHERE course_id = ? AND title = 'Resources'
+        ORDER BY position, id
+        LIMIT 1
+      `).get(pn104CourseRow.id);
+      if (!pn104ResourceModule) {
+        const facultyModulePosition = db.prepare(`
+          SELECT position FROM modules
+          WHERE course_id = ? AND title = 'PN104 Faculty Instructor Resources'
+          ORDER BY position, id
+          LIMIT 1
+        `).get(pn104CourseRow.id)?.position;
+        const resourcePosition = facultyModulePosition
+          || db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM modules WHERE course_id = ?").get(pn104CourseRow.id).next;
+        if (facultyModulePosition) {
+          db.prepare("UPDATE modules SET position = position + 1 WHERE course_id = ? AND position >= ?").run(pn104CourseRow.id, resourcePosition);
+        }
+        const resourceModuleId = db.prepare("INSERT INTO modules (course_id, title, position) VALUES (?, 'Resources', ?)").run(
+          pn104CourseRow.id,
+          resourcePosition
+        ).lastInsertRowid;
+        pn104ResourceModule = { id: resourceModuleId, position: resourcePosition };
+      }
+
+      const resourceLessonByTitle = db.prepare(`
+        SELECT id FROM lessons
+        WHERE module_id = ? AND title = ?
+        ORDER BY position, id
+        LIMIT 1
+      `);
+      const resourceMaxPosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?");
+      const updateResourceLesson = db.prepare(`
+        UPDATE lessons
+        SET content = ?, external_url = ?, duration_minutes = ?, position = ?, published = 1, instructor_only = 0, item_type = 'page'
+        WHERE id = ?
+      `);
+      const insertResourceLesson = db.prepare(`
+        INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only, item_type)
+        VALUES (?, ?, ?, ?, ?, ?, 1, 0, 'page')
+      `);
+      pn104ResourceModuleDefinition.lessons.forEach((lesson, index) => {
+        const position = index + 1;
+        const existingLesson = resourceLessonByTitle.get(pn104ResourceModule.id, lesson.title);
+        if (existingLesson) {
+          updateResourceLesson.run(
+            lesson.content || "",
+            lesson.externalUrl || null,
+            lesson.durationMinutes || 15,
+            position,
+            existingLesson.id
+          );
+        } else {
+          insertResourceLesson.run(
+            pn104ResourceModule.id,
+            lesson.title,
+            lesson.content || "",
+            lesson.externalUrl || null,
+            lesson.durationMinutes || 15,
+            position || resourceMaxPosition.get(pn104ResourceModule.id).next
+          );
+        }
+      });
+    }
+
+    const updatePn104AssignmentLesson = db.prepare(`
+      UPDATE lessons
+      SET content = ?, duration_minutes = ?, published = 1, instructor_only = 0, item_type = 'assignment'
+      WHERE title = ? AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
+    `);
+    lessonDefinitions
+      .filter((lesson) => /^\[PN104 2026\] Week \d+ Applied A&P Assignment$/.test(lesson.title))
+      .forEach((definition) => {
+        updatePn104AssignmentLesson.run(
+          definition.content || "",
+          definition.durationMinutes || 60,
+          definition.title,
+          pn104CourseRow.id
+        );
+      });
+
     const chapter16LessonDefinition = lessonDefinitions.find((lesson) =>
       lesson.title === "Chapter 16: The Neurological Examination — PowerPoint"
     );
@@ -1170,11 +1484,10 @@ function seed() {
               AND title LIKE 'Week 6:%'
           )
           AND (
-            title IN (?, ?, ?, ?, ?)
+            title IN (?, ?, ?, ?)
             OR title LIKE 'Chapter 16:%Neurological%'
             OR content LIKE '%PN104_Ch16_Neurological_Exam%'
             OR external_url LIKE '%PN104_Ch16_Neurological_Exam%'
-            OR external_url LIKE '%Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955%'
           )
       `).run(
         chapter16LessonDefinition.title,
@@ -1182,12 +1495,49 @@ function seed() {
         chapter16LessonDefinition.externalUrl || null,
         chapter16LessonDefinition.durationMinutes || 75,
         pn104CourseRow.id,
-        "Chapter 16: The Neurological Examination — Student Slide Review",
-        "Chapter 16: Neurological Assessment — PowerPoint",
         "Chapter 16: The Neurological Examination — PowerPoint",
         "Chapter 16: The Neurological Exam — PowerPoint",
+        "Chapter 16: Neurological Assessment — PowerPoint",
         chapter16LessonDefinition.title
       );
+
+      const week6Module = db.prepare(`
+        SELECT id FROM modules
+        WHERE course_id = ? AND title LIKE 'Week 6:%'
+        ORDER BY position, id
+        LIMIT 1
+      `).get(pn104CourseRow.id);
+      if (week6Module) {
+        const chapter16PowerPointRows = db.prepare(`
+          SELECT id
+          FROM lessons
+          WHERE module_id = ?
+            AND (
+              title = 'Chapter 16: The Neurological Examination — PowerPoint'
+              OR title = 'Chapter 16: The Neurological Exam — PowerPoint'
+              OR title = 'Chapter 16: Neurological Assessment — PowerPoint'
+              OR title LIKE 'Chapter 16:%Neurological%PowerPoint%'
+              OR content LIKE '%PN104_Ch16_Neurological_Exam.pptx%'
+              OR external_url LIKE '%PN104_Ch16_Neurological_Exam.pptx%'
+            )
+            AND COALESCE(external_url, '') NOT LIKE '%Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955%'
+          ORDER BY CASE WHEN title = 'Chapter 16: The Neurological Examination — PowerPoint' THEN 0 ELSE 1 END, position, id
+        `).all(week6Module.id);
+        const chapter16PowerPointKeeper = chapter16PowerPointRows[0]?.id;
+        if (chapter16PowerPointKeeper) {
+          const moveCompletion = db.prepare(`
+            INSERT OR IGNORE INTO lesson_completions (enrollment_id, lesson_id, completed_at)
+            SELECT enrollment_id, ?, completed_at
+            FROM lesson_completions
+            WHERE lesson_id = ?
+          `);
+          const deleteLesson = db.prepare("DELETE FROM lessons WHERE id = ?");
+          chapter16PowerPointRows.slice(1).forEach((row) => {
+            moveCompletion.run(chapter16PowerPointKeeper, row.id);
+            deleteLesson.run(row.id);
+          });
+        }
+      }
     }
 
     const chapter16VideoDefinition = lessonDefinitions.find((lesson) =>
@@ -1248,6 +1598,45 @@ function seed() {
             chapter16Position + 1
           );
         }
+
+        const chapter16VideoRows = db.prepare(`
+          SELECT id
+          FROM lessons
+          WHERE module_id = ?
+            AND (
+              title = 'Chapter 16 Additional Reference: Neurological Exam Video'
+              OR external_url LIKE '%Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955%'
+            )
+          ORDER BY position, id
+        `).all(week6Module.id);
+        const chapter16VideoKeeper = chapter16VideoRows[0]?.id;
+        if (chapter16VideoKeeper) {
+          const moveCompletion = db.prepare(`
+            INSERT OR IGNORE INTO lesson_completions (enrollment_id, lesson_id, completed_at)
+            SELECT enrollment_id, ?, completed_at
+            FROM lesson_completions
+            WHERE lesson_id = ?
+          `);
+          const deleteLesson = db.prepare("DELETE FROM lessons WHERE id = ?");
+          chapter16VideoRows.slice(1).forEach((row) => {
+            moveCompletion.run(chapter16VideoKeeper, row.id);
+            deleteLesson.run(row.id);
+          });
+        }
+
+        db.prepare(`
+          UPDATE lessons
+          SET position = (
+            SELECT ordered.new_position
+            FROM (
+              SELECT id, ROW_NUMBER() OVER (ORDER BY position, id) AS new_position
+              FROM lessons
+              WHERE module_id = ?
+            ) AS ordered
+            WHERE ordered.id = lessons.id
+          )
+          WHERE module_id = ?
+        `).run(week6Module.id, week6Module.id);
       }
     }
   }
@@ -2174,6 +2563,43 @@ function seed() {
           }
         }
 
+        const assignmentLesson = module.lessons.find((lesson) =>
+          /^\[PN102 2026\] Chapter [1-6] Applied Nursing Assignment$/.test(lesson.title)
+        );
+        if (assignmentLesson) {
+          const assignmentItemType = String(assignmentLesson.content || "").includes("QUIZ_DATA_BASE64:")
+            ? "quiz"
+            : "assignment";
+          const storedAssignment = existingLessonByTitle.get(storedModule.id, assignmentLesson.title)
+            || existingLessonByTitle.get(storedModule.id, `Week ${weekNumber} Applied Assignment`);
+          if (storedAssignment) {
+            db.prepare(`
+              UPDATE lessons
+              SET title = ?, content = ?, duration_minutes = ?, published = 1,
+                instructor_only = 0, item_type = ?
+              WHERE id = ?
+            `).run(
+              assignmentLesson.title,
+              assignmentLesson.content || "",
+              assignmentLesson.durationMinutes || 60,
+              assignmentItemType,
+              storedAssignment.id
+            );
+          } else {
+            const assignmentId = appendLesson.run(
+              storedModule.id,
+              assignmentLesson.title,
+              assignmentLesson.content || "",
+              null,
+              assignmentLesson.durationMinutes || 60,
+              nextLessonPosition.get(storedModule.id).position,
+              1,
+              0
+            ).lastInsertRowid;
+            db.prepare("UPDATE lessons SET item_type = ? WHERE id = ?").run(assignmentItemType, assignmentId);
+          }
+        }
+
         // Replace the legacy preview-style five-question quiz with the
         // interactive 15-question assessment while preserving its lesson ID.
         const quizLesson = module.lessons.find((lesson) => lesson.title === `[PN102 2026] Quiz ${weekNumber} - Chapter ${weekNumber}`);
@@ -2406,10 +2832,63 @@ function seed() {
     const existingGradeItem = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND title = ?");
     const appendGradeItem = db.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, ?, ?)");
     db.prepare("DELETE FROM grade_items WHERE course_id = ? AND title = '[PN102 2026] Final Exam - Introduction to Nursing Chapters 1-6'").run(introductionCourse.id);
-    const midtermGradeItem = (introductionCatalogCourse?.gradeItems || []).find((item) => item.title === "Midterm Exam: Weeks 1-6");
-    if (midtermGradeItem && !existingGradeItem.get(introductionCourse.id, midtermGradeItem.title)) {
-      appendGradeItem.run(introductionCourse.id, midtermGradeItem.title, midtermGradeItem.pointsPossible, midtermGradeItem.dueDate || null);
-    }
+    const updateIntroExamGradeItem = db.prepare(`
+      UPDATE grade_items
+      SET points_possible = ?, due_date = ?
+      WHERE course_id = ? AND title = ?
+    `);
+    const findIntroExamLesson = db.prepare(`
+      SELECT lessons.id
+      FROM lessons
+      JOIN modules ON modules.id = lessons.module_id
+      WHERE modules.course_id = ?
+        AND (
+          lessons.title = ?
+          OR lower(lessons.title) LIKE ?
+        )
+      ORDER BY
+        CASE WHEN lessons.title = ? THEN 0 ELSE 1 END,
+        modules.position,
+        lessons.position,
+        lessons.id
+      LIMIT 1
+    `);
+    const linkIntroExamLesson = db.prepare(`
+      UPDATE lessons
+      SET title = ?, content = ?, duration_minutes = ?, published = 1,
+        instructor_only = 0, item_type = 'quiz', grade_item_id = ?
+      WHERE id = ?
+    `);
+    [
+      { title: "Midterm Exam: Weeks 1-6", like: "%midterm%weeks%1%6%" },
+      { title: "Cumulative Final Exam", like: "%final%exam%" }
+    ].forEach((exam) => {
+      const gradeItemDefinition = (introductionCatalogCourse?.gradeItems || []).find((item) => item.title === exam.title);
+      const lessonDefinition = (introductionCatalogCourse?.modules || [])
+        .flatMap((module) => module.lessons || [])
+        .find((lesson) => lesson.title === exam.title);
+      if (!gradeItemDefinition || !lessonDefinition) return;
+      const updateResult = updateIntroExamGradeItem.run(
+        gradeItemDefinition.pointsPossible,
+        gradeItemDefinition.dueDate || null,
+        introductionCourse.id,
+        gradeItemDefinition.title
+      );
+      if (!updateResult.changes) {
+        appendGradeItem.run(introductionCourse.id, gradeItemDefinition.title, gradeItemDefinition.pointsPossible, gradeItemDefinition.dueDate || null);
+      }
+      const gradeItem = existingGradeItem.get(introductionCourse.id, gradeItemDefinition.title);
+      const lesson = findIntroExamLesson.get(introductionCourse.id, exam.title, exam.like, exam.title);
+      if (gradeItem && lesson) {
+        linkIntroExamLesson.run(
+          lessonDefinition.title,
+          lessonDefinition.content || "",
+          lessonDefinition.durationMinutes || 60,
+          gradeItem.id,
+          lesson.id
+        );
+      }
+    });
     db.prepare("UPDATE grade_items SET title = ?, due_date = ? WHERE course_id = ? AND title = ?").run(
       "[PN102 2026] Quiz - Chapters 7-9",
       "2026-08-23 23:59:00",
@@ -2531,6 +3010,36 @@ function seed() {
       else insertGradeItem.run(longTermCareCourseRow.id, item.title, item.pointsPossible, item.dueDate || null);
     });
   }
+
+  db.prepare(`
+    UPDATE lessons
+    SET item_type = 'assignment'
+    WHERE content LIKE '%WRITTEN_ASSIGNMENT_DATA_BASE64:%'
+  `).run();
+
+  const unmarkedWrittenAssignments = db.prepare(`
+    SELECT lessons.id, lessons.title, lessons.content
+    FROM lessons
+    JOIN modules ON modules.id = lessons.module_id
+    JOIN courses ON courses.id = modules.course_id
+    WHERE lessons.item_type = 'assignment'
+      AND lessons.content NOT LIKE '%WRITTEN_ASSIGNMENT_DATA_BASE64:%'
+      AND lessons.content NOT LIKE '%QUIZ_DATA_BASE64:%'
+      AND courses.slug IN (
+        'medical-terminology',
+        'introduction-to-nursing-practical-nursing',
+        'anatomy-and-physiology',
+        'long-term-care-nursing-pn103'
+      )
+  `).all();
+  const standardizeWrittenAssignment = db.prepare(`
+    UPDATE lessons
+    SET content = ?, published = 1, instructor_only = 0, item_type = 'assignment'
+    WHERE id = ?
+  `);
+  unmarkedWrittenAssignments.forEach((lesson) => {
+    standardizeWrittenAssignment.run(fallbackWrittenAssignmentContent(lesson.title, lesson.content), lesson.id);
+  });
 }
 
 function initialize() {

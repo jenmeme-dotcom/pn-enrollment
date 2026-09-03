@@ -179,6 +179,98 @@ const introQuizByWeek = {
   12: { title: "[PN102 2026] Quiz - Chapters 10-13", questions: quizBanks.introChapters10to13 }
 };
 
+const chapterAssignments = {
+  1: { title: "[PN102 2026] Chapter 1 Applied Nursing Assignment", dueDate: "2026-07-05 23:59:00" },
+  2: { title: "[PN102 2026] Chapter 2 Applied Nursing Assignment", dueDate: "2026-07-12 23:59:00" },
+  3: { title: "[PN102 2026] Chapter 3 Applied Nursing Assignment", dueDate: "2026-07-19 23:59:00" },
+  4: { title: "[PN102 2026] Chapter 4 Applied Nursing Assignment", dueDate: "2026-07-26 23:59:00" },
+  5: { title: "[PN102 2026] Chapter 5 Applied Nursing Assignment", dueDate: "2026-08-02 23:59:00" },
+  6: { title: "[PN102 2026] Chapter 6 Applied Nursing Assignment", dueDate: "2026-08-09 23:59:00" }
+};
+
+const chapterAssignmentQuestions = {
+  1: quizBanks.introChapter1.slice(0, 5),
+  2: quizBanks.introChapter2.slice(0, 5),
+  3: quizBanks.introChapter3.slice(0, 5),
+  4: quizBanks.introChapter4.slice(0, 5),
+  5: quizBanks.introChapter5.slice(0, 5),
+  6: quizBanks.introChapter6.slice(0, 5)
+};
+
+const writtenAssignmentMarker = (config) =>
+  `WRITTEN_ASSIGNMENT_DATA_BASE64:${Buffer.from(JSON.stringify(config), "utf8").toString("base64")}`;
+
+const introWrittenAssignmentTerms = {
+  1: [["nursing"], ["practical nurse", "pn"], ["professional"], ["patient", "care"], ["accountability", "responsibility"]],
+  2: [["history"], ["education"], ["infection control", "safety"], ["patient rights"], ["diversity", "equity"]],
+  3: [["caring"], ["comfort"], ["dignity"], ["advocacy"], ["therapeutic communication", "active listening"]],
+  4: [["scope of practice"], ["teamwork", "collaboration"], ["delegation", "assignment"], ["supervision"], ["SBAR", "closed-loop communication"]],
+  5: [["autonomy"], ["beneficence", "nonmaleficence"], ["confidentiality", "privacy"], ["boundaries"], ["patient rights"]],
+  6: [["legal"], ["scope of practice"], ["HIPAA", "privacy"], ["documentation"], ["negligence", "malpractice"], ["report"]],
+  7: [["culture", "cultural humility"], ["health equity"], ["bias", "assumption"], ["interpreter", "plain language"], ["respectful care"]],
+  8: [["safety"], ["infection prevention", "hand hygiene"], ["fall prevention"], ["patient identification"], ["near miss", "incident report"]],
+  9: [["nursing process"], ["assessment", "data collection"], ["clinical judgment"], ["priority"], ["report", "supervising nurse"]],
+  10: [["patient teaching"], ["teach-back"], ["health promotion"], ["plain language"], ["community"]],
+  11: [["professionalism"], ["resilience"], ["feedback"], ["leadership"], ["lifelong learning"]],
+  12: [["nursing leader"], ["ethical", "legal"], ["impact"], ["patient care"], ["professional commitment"]]
+};
+
+function writtenAssignmentConfigForWeek(week, title, focus = "") {
+  return {
+    type: "written-autograde",
+    minWords: 90,
+    prompt: `Write a complete response for ${title}. Use this week's nursing concepts to explain what the practical nursing student should understand, how the concept protects patients, and one safe action you can take within your role.${focus ? ` Focus: ${focus}` : ""}`,
+    checklist: [
+      "Answer in complete sentences using this week's nursing vocabulary.",
+      "Explain why the concept matters for patient safety, dignity, communication, or professional accountability.",
+      "Identify one safe action you can take as a practical nursing student or practical nurse.",
+      "Do not include real patient-identifying information."
+    ],
+    conceptGroups: introWrittenAssignmentTerms[week] || [],
+    responseSections: [
+      {
+        title: "Part 1: Key Concept",
+        prompt: "Identify the main nursing concept from this assignment and explain it in your own words."
+      },
+      {
+        title: "Part 2: Patient Safety or Dignity",
+        prompt: "Explain why this concept matters for patient safety, dignity, communication, or professional accountability."
+      },
+      {
+        title: "Part 3: Practical Nursing Action",
+        prompt: "Describe one safe action you can take as a practical nursing student or practical nurse."
+      },
+      {
+        title: "Part 4: Reporting or Documentation",
+        prompt: "State what you would report, document, or clarify with the instructor or supervising nurse."
+      }
+    ]
+  };
+}
+
+function buildChapterNursingAssignmentContent(week) {
+  const chapterTitle = extendedWeekChapters[week.week]?.[0]?.title || week.title;
+  return [
+    "Canvas item type: Assignment.",
+    "",
+    `Chapter ${week.week} Nursing Assignment`,
+    "Use the chapter reading, PowerPoint review, and weekly learning activity to answer in your own words.",
+    "",
+    "Prompt",
+    `Explain the most important nursing lesson from Chapter ${week.week}: ${chapterTitle}. Describe why it matters for safe practical nursing care and identify one appropriate action you can take within your role.`,
+    "",
+    "Submission Requirements",
+    bulletList([
+      "Use complete sentences and practical-nursing terminology from the chapter.",
+      "Connect your response to patient safety, dignity, communication, legal/ethical responsibility, or professional accountability.",
+      "Support your answer with the assigned course material.",
+      "Never include real patient-identifying information."
+    ]),
+    "",
+    writtenAssignmentMarker(writtenAssignmentConfigForWeek(week.week, `Chapter ${week.week} Nursing Assignment`, chapterTitle))
+  ].join("\n");
+}
+
 const powerPointReviewNotes = {
   1: [
     ["What is nursing?", "As a student nurse, you are learning to combine scientific knowledge, clinical skills, observation, communication, compassion, and advocacy so you can help people maintain health, recover from illness, manage chronic conditions, and experience comfort and dignity."],
@@ -872,6 +964,8 @@ function buildWeeklyActivityContent(week) {
 function buildWeeklyAssignmentContent(week) {
   const details = weeklyStudyDetails[week.week] || {};
   return [
+    "Canvas item type: Assignment.",
+    "",
     `Week ${week.week} Applied Assignment`,
     details.practice || week.activities,
     "",
@@ -884,7 +978,9 @@ function buildWeeklyAssignmentContent(week) {
     ]),
     "",
     "Graded Evidence",
-    `${week.assessment}. Follow the instructor's submission directions and rubric.`
+    `${week.assessment}. Complete each written part in clear, complete sentences.`,
+    "",
+    writtenAssignmentMarker(writtenAssignmentConfigForWeek(week.week, week.assessment, week.focus))
   ].join("\n");
 }
 
@@ -916,14 +1012,19 @@ const gradeItems = [
   { title: "Therapeutic Communication Practice", pointsPossible: 50 },
   { title: "Quiz 2: Weeks 3-4", pointsPossible: 50 },
   { title: "Ethics Case Response", pointsPossible: 75 },
-  { title: "Midterm Exam: Weeks 1-6", pointsPossible: 150, dueDate: "2026-08-02 23:59:00" },
+  { title: "Midterm Exam: Weeks 1-6", pointsPossible: 150, dueDate: "2026-08-21 23:59:59" },
   { title: "Health Equity Reflection", pointsPossible: 50, dueDate: "2026-08-09 23:59:00" },
   { title: "[PN102 2026] Quiz - Chapters 7-9", pointsPossible: 50, dueDate: "2026-08-23 23:59:00" },
   { title: "Clinical Judgment Worksheet", pointsPossible: 75, dueDate: "2026-08-23 23:59:00" },
   { title: "[PN102 2026] Quiz - Chapters 10-13", pointsPossible: 50, dueDate: "2026-09-13 23:59:00" },
   { title: "Professional Development Plan", pointsPossible: 50, dueDate: "2026-09-06 23:59:00" },
   { title: "Final Impact Presentation", pointsPossible: 50, dueDate: "2026-09-13 23:59:00" },
-  { title: "Cumulative Final Exam", pointsPossible: 200, dueDate: "2026-09-13 23:59:00" }
+  { title: "Cumulative Final Exam", pointsPossible: 200, dueDate: "2026-09-13 23:59:00" },
+  ...Object.values(chapterAssignments).map((assignment) => ({
+    title: assignment.title,
+    pointsPossible: 25,
+    dueDate: assignment.dueDate
+  }))
 ];
 
 const policies = {
@@ -958,7 +1059,7 @@ const modules = [
           "",
           "Upcoming Exams",
           bulletList([
-            "Week 6 Midterm Exam — Due August 2, 2026 by 11:59 PM. This 150-point exam covers Chapters 1-6 and the major concepts from Weeks 1-6.",
+            "Week 6 Midterm Exam — Due August 21, 2026 by 11:59 PM. This 150-point exam covers Chapters 1-6 and the major concepts from Weeks 1-6.",
             "Week 12 Cumulative Final Exam — Due September 13, 2026 by 11:59 PM. This 200-point exam covers Chapters 1-13 and integrates safety, communication, ethics, legal responsibilities, infection prevention, mobility, hygiene, vital signs, and physical assessment."
           ]),
           "Begin preparing now by reviewing each chapter's learning objectives, vocabulary, NCLEX-PN practice question, quiz rationale, and any topic your instructor identifies for remediation. The Calendar and To Do areas will remind you as each exam approaches.",
@@ -1029,8 +1130,10 @@ const modules = [
         content: buildWeeklyActivityContent(week)
       },
       {
-        title: `Week ${week.week} Applied Assignment`,
-        content: buildWeeklyAssignmentContent(week),
+        title: chapterAssignments[week.week]?.title || `Week ${week.week} Applied Assignment`,
+        content: chapterAssignments[week.week]
+          ? buildChapterNursingAssignmentContent(week)
+          : buildWeeklyAssignmentContent(week),
         durationMinutes: 60
       },
       ...(quiz ? [{
