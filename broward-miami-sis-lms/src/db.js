@@ -1285,6 +1285,39 @@ function seed() {
     }
   }
 
+  if (pn104CourseRow) {
+    const week6Module = db.prepare(`
+      SELECT id FROM modules WHERE course_id = ? AND title LIKE 'Week 6:%'
+      ORDER BY position, id LIMIT 1
+    `).get(pn104CourseRow.id);
+    if (week6Module) {
+      let gradeItem = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND title = ?").get(pn104CourseRow.id, samanthaMidterm.title);
+      if (!gradeItem) {
+        const result = db.prepare(`
+          INSERT INTO grade_items (course_id, title, points_possible, due_date, allowed_student_email)
+          VALUES (?, ?, 150, ?, ?)
+        `).run(pn104CourseRow.id, samanthaMidterm.title, samanthaMidterm.dueDate, samanthaMidterm.studentEmail);
+        gradeItem = { id: result.lastInsertRowid };
+      } else {
+        db.prepare(`UPDATE grade_items SET points_possible = 150, due_date = ?, allowed_student_email = ? WHERE id = ?`)
+          .run(samanthaMidterm.dueDate, samanthaMidterm.studentEmail, gradeItem.id);
+      }
+      const lesson = db.prepare("SELECT id FROM lessons WHERE module_id = ? AND title = ?").get(week6Module.id, samanthaMidterm.title);
+      if (lesson) {
+        db.prepare(`
+          UPDATE lessons SET content = ?, duration_minutes = 60, published = 1, instructor_only = 0,
+            item_type = 'quiz', grade_item_id = ?, allowed_student_email = ? WHERE id = ?
+        `).run(samanthaMidterm.content, gradeItem.id, samanthaMidterm.studentEmail, lesson.id);
+      } else {
+        const position = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(week6Module.id).next;
+        db.prepare(`
+          INSERT INTO lessons (module_id, title, content, duration_minutes, position, published, instructor_only, item_type, grade_item_id, allowed_student_email)
+          VALUES (?, ?, ?, 60, ?, 1, 0, 'quiz', ?, ?)
+        `).run(week6Module.id, samanthaMidterm.title, samanthaMidterm.content, position, gradeItem.id, samanthaMidterm.studentEmail);
+      }
+    }
+  }
+
   // Update every live PN101 assessment in place. This preserves lesson IDs,
   // enrollments, completion links, submissions, and existing gradebook history.
   const pn101CourseDefinition = courses.find((course) => course.slug === "medical-terminology");
