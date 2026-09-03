@@ -18,4 +18,5 @@ test("the quizzes footer provides direct midterm and final exam links", () => {
   assert.match(serverSource, /aria-label="Course exams"/);
   assert.match(serverSource, /Open \$\{escapeHtml\(assignmentTypeLabel\(item\)\)\} Exam/);
   assert.match(serverSource, /\["Midterm", "Final"\]\.includes\(assignmentTypeLabel\(item\)\)/);
+  assert.match(serverSource, /quizzesOnly \? isAssessmentType\(assignmentTypeLabel\(item\)\) : true/);
 });

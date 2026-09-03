@@ -5093,8 +5093,7 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
 
 function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeItems = [], lessons = [], quizzesOnly = false, instructor = false }) {
   const filteredItems = gradeItems.filter((item) => {
-    const isQuiz = String(item.title || "").toLowerCase().includes("quiz");
-    return quizzesOnly ? isQuiz : true;
+    return quizzesOnly ? isAssessmentType(assignmentTypeLabel(item)) : true;
   });
   const fallbackItems = quizzesOnly
     ? lessons.filter((lesson) => lessonItemKind(lesson) === "quiz").map((lesson) => ({
