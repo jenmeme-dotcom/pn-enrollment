@@ -5132,6 +5132,7 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
   const description = quizzesOnly
     ? "Course quizzes are listed here with due dates, points, and module links."
     : "Course assignments are listed here with due dates, points, and module links.";
+  const examLinks = rows.filter((item) => ["Midterm", "Final"].includes(assignmentTypeLabel(item)));
   return `
     <main class="canvas-course-main canvas-assignments-main">
       <div class="canvas-mini-head">
@@ -5172,6 +5173,14 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
       <section class="syllabus-card">
         <h2>${escapeHtml(courseTitle)}</h2>
         <p>Use Modules for weekly directions and Files for supporting handouts, worksheets, slides, and readings.</p>
+        ${quizzesOnly && examLinks.length ? `
+          <div class="lesson-file-actions course-exam-links" aria-label="Course exams">
+            ${examLinks.map((item) => {
+              const href = item.lesson_id ? `${baseHref}?lesson=${item.lesson_id}` : assignmentItemHref(item, lessons, baseHref);
+              return `<a class="button" href="${escapeHtml(href)}">Open ${escapeHtml(assignmentTypeLabel(item))} Exam</a>`;
+            }).join("")}
+          </div>
+        ` : ""}
       </section>
     </main>
   `;
