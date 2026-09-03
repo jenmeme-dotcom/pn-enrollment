@@ -16,6 +16,7 @@ function questionsFromContent(content) {
 }
 
 test("Samantha's PN104 midterm has 50 original four-option questions", () => {
+  assert.match(samanthaMidterm.title, /Practice Midterm/);
   assert.equal(samanthaMidterm.questions.length, 50);
   samanthaMidterm.questions.forEach((question) => {
     assert.equal(question.options.length, 4);
@@ -26,6 +27,40 @@ test("Samantha's PN104 midterm has 50 original four-option questions", () => {
     .find((lesson) => lesson.title === "[PN104 DAY 2026] Midterm Exam — Chapters 1–8 and 15–18");
   const originalPrompts = new Set(questionsFromContent(originalExam.content).map((question) => question.prompt.toLowerCase()));
   assert.equal(samanthaMidterm.questions.filter((question) => originalPrompts.has(question.prompt.toLowerCase())).length, 0);
+});
+
+test("renaming Samantha's exam to Practice Midterm clears only her prior private attempt", () => {
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "bmhi-samantha-practice-reset-"));
+  const databaseFile = path.join(temporaryDirectory, "practice-midterm.sqlite");
+  const initialize = () => execFileSync(process.execPath, ["--no-warnings", "-e", "require('./src/db').initialize()"], {
+    cwd: projectRoot,
+    env: { ...process.env, DATABASE_FILE: databaseFile, NODE_ENV: "test" }
+  });
+  try {
+    initialize();
+    let database = new DatabaseSync(databaseFile);
+    const lesson = database.prepare("SELECT id, grade_item_id FROM lessons WHERE title = ?").get(samanthaMidterm.title);
+    const enrollment = database.prepare(`
+      SELECT e.id FROM enrollments e JOIN users u ON u.id = e.user_id JOIN courses c ON c.id = e.course_id
+      WHERE lower(u.email) = lower(?) AND c.slug = 'anatomy-and-physiology'
+    `).get(samanthaMidterm.studentEmail);
+    database.prepare("UPDATE lessons SET title = ? WHERE id = ?").run(samanthaMidterm.legacyTitle, lesson.id);
+    database.prepare("UPDATE grade_items SET title = ? WHERE id = ?").run(samanthaMidterm.legacyTitle, lesson.grade_item_id);
+    database.prepare("INSERT INTO exam_attempts (enrollment_id, lesson_id, expires_at, status) VALUES (?, ?, '2026-09-04T23:59:59-04:00', 'submitted')").run(enrollment.id, lesson.id);
+    database.prepare("INSERT INTO grades (enrollment_id, grade_item_id, score) VALUES (?, ?, 120)").run(enrollment.id, lesson.grade_item_id);
+    database.prepare("INSERT INTO lesson_completions (enrollment_id, lesson_id) VALUES (?, ?)").run(enrollment.id, lesson.id);
+    database.close();
+
+    initialize();
+    database = new DatabaseSync(databaseFile);
+    assert.ok(database.prepare("SELECT id FROM lessons WHERE id = ? AND title = ?").get(lesson.id, samanthaMidterm.title));
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollment.id, lesson.id).count, 0);
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").get(enrollment.id, lesson.grade_item_id).count, 0);
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM lesson_completions WHERE enrollment_id = ? AND lesson_id = ?").get(enrollment.id, lesson.id).count, 0);
+    database.close();
+  } finally {
+    fs.rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
 });
 
 test("the new midterm is stored as a Samantha-only lesson and grade item", () => {
