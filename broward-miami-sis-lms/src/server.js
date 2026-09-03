@@ -5138,7 +5138,36 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
   const description = quizzesOnly
     ? "Course quizzes are listed here with due dates, points, and module links."
     : "Course assignments are listed here with due dates, points, and module links.";
-  const examLinks = rows.filter((item) => ["Midterm", "Final"].includes(assignmentTypeLabel(item)));
+  const practiceRows = rows.filter((item) => String(item.title || "").toLowerCase().includes("practice midterm"));
+  const examRows = rows.filter((item) => !practiceRows.includes(item) && ["Midterm", "Final"].includes(assignmentTypeLabel(item)));
+  const quizRows = rows.filter((item) => !practiceRows.includes(item) && !examRows.includes(item));
+  const renderAssignmentTable = (sectionTitle, sectionDescription, items) => `
+    <section class="syllabus-card assignment-list-section">
+      <h2>${escapeHtml(sectionTitle)}</h2>
+      ${sectionDescription ? `<p>${escapeHtml(sectionDescription)}</p>` : ""}
+      <table class="syllabus-table">
+        <thead>
+          <tr><th>Name</th><th>Type</th><th>Due Date</th><th>Points</th><th>Rubric</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          ${items.map((item) => {
+            const href = item.lesson_id ? `${baseHref}?lesson=${item.lesson_id}` : assignmentItemHref(item, lessons, baseHref);
+            const status = Number(item.published ?? 1) === 0 ? "Unpublished" : "Published";
+            return `
+              <tr>
+                <td><a href="${escapeHtml(href)}">${escapeHtml(item.title)}</a></td>
+                <td>${escapeHtml(assignmentTypeLabel(item))}</td>
+                <td>${escapeHtml(formatGradeDue(item.due_date) || "No due date")}</td>
+                <td>${escapeHtml(item.points_possible || 0)}</td>
+                <td>${rubricEligible(item) ? `<a href="${escapeHtml(item.id ? `${baseHref}?assignment=${item.id}` : href)}#assignment-rubric">View rubric</a>` : "—"}</td>
+                <td><span class="pill ${status === "Unpublished" ? "orange" : ""}">${escapeHtml(status)}</span></td>
+              </tr>
+            `;
+          }).join("") || `<tr><td colspan="6" class="empty">No items have been added yet.</td></tr>`}
+        </tbody>
+      </table>
+    </section>
+  `;
   return `
     <main class="canvas-course-main canvas-assignments-main">
       <div class="canvas-mini-head">
@@ -5146,7 +5175,7 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
         <strong>${escapeHtml(courseCode)} &gt; ${escapeHtml(title)}</strong>
         ${instructor ? `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=modules">Manage Modules</a>` : `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=modules">View Modules</a>`}
       </div>
-      <section class="syllabus-card">
+      <section class="syllabus-card assignment-page-intro">
         <div class="syllabus-title-row">
           <div>
             <h1>${escapeHtml(title)}</h1>
@@ -5154,39 +5183,15 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
           </div>
           ${instructor ? `<a class="button ghost small" href="${escapeHtml(baseHref)}?view=grades">Open Gradebook</a>` : `<a class="button ghost small" href="${escapeHtml(baseHref)}?view=grades">View Grades</a>`}
         </div>
-        <table class="syllabus-table">
-          <thead>
-            <tr><th>Name</th><th>Type</th><th>Due Date</th><th>Points</th><th>Rubric</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            ${rows.map((item) => {
-              const href = item.lesson_id ? `${baseHref}?lesson=${item.lesson_id}` : assignmentItemHref(item, lessons, baseHref);
-              const status = Number(item.published ?? 1) === 0 ? "Unpublished" : "Published";
-              return `
-                <tr>
-                  <td><a href="${escapeHtml(href)}">${escapeHtml(item.title)}</a></td>
-                  <td>${escapeHtml(assignmentTypeLabel(item))}</td>
-                  <td>${escapeHtml(formatGradeDue(item.due_date) || "No due date")}</td>
-                  <td>${escapeHtml(item.points_possible || 0)}</td>
-                  <td>${rubricEligible(item) ? `<a href="${escapeHtml(item.id ? `${baseHref}?assignment=${item.id}` : href)}#assignment-rubric">View rubric</a>` : "—"}</td>
-                  <td><span class="pill ${status === "Unpublished" ? "orange" : ""}">${escapeHtml(status)}</span></td>
-                </tr>
-              `;
-            }).join("") || `<tr><td colspan="6" class="empty">No ${escapeHtml(title.toLowerCase())} have been added yet.</td></tr>`}
-          </tbody>
-        </table>
       </section>
+      ${quizzesOnly
+        ? `${quizRows.length ? renderAssignmentTable("Quizzes", "Course quizzes and chapter assessments.", quizRows) : ""}
+           ${renderAssignmentTable("Practice", "Practice assessments do not replace the scheduled course exams.", practiceRows)}
+           ${renderAssignmentTable("Exams", "Open the scheduled Midterm and Final Exam here.", examRows)}`
+        : renderAssignmentTable("Course Assignments", "", rows)}
       <section class="syllabus-card">
         <h2>${escapeHtml(courseTitle)}</h2>
         <p>Use Modules for weekly directions and Files for supporting handouts, worksheets, slides, and readings.</p>
-        ${quizzesOnly && examLinks.length ? `
-          <div class="lesson-file-actions course-exam-links" aria-label="Course exams">
-            ${examLinks.map((item) => {
-              const href = item.lesson_id ? `${baseHref}?lesson=${item.lesson_id}` : assignmentItemHref(item, lessons, baseHref);
-              return `<a class="button" href="${escapeHtml(href)}">${escapeHtml(examLinkLabel(item))}</a>`;
-            }).join("")}
-          </div>
-        ` : ""}
       </section>
     </main>
   `;
