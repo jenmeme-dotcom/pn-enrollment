@@ -14,11 +14,11 @@ test("assignment type labels distinguish midterms and finals from quizzes", () =
   assert.equal(assignmentTypeLabel({ title: "Unit Exam" }), "Exam");
 });
 
-test("the quizzes footer provides direct midterm and final exam links", () => {
-  assert.match(serverSource, /aria-label="Course exams"/);
-  assert.match(serverSource, /Open Practice Midterm/);
-  assert.match(serverSource, /Open Midterm Exam/);
-  assert.match(serverSource, /Open Final Exam/);
+test("the quizzes page separates practice work from actual exams", () => {
+  assert.match(serverSource, /renderAssignmentTable\("Practice"/);
+  assert.match(serverSource, /renderAssignmentTable\("Exams"/);
+  assert.match(serverSource, /practiceRows = rows\.filter/);
+  assert.match(serverSource, /examRows = rows\.filter/);
   assert.match(serverSource, /\["Midterm", "Final"\]\.includes\(assignmentTypeLabel\(item\)\)/);
   assert.match(serverSource, /quizzesOnly \? isAssessmentType\(assignmentTypeLabel\(item\)\) : true/);
 });
