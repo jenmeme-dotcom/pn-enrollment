@@ -13,3 +13,9 @@ test("assignment type labels distinguish midterms and finals from quizzes", () =
   assert.equal(assignmentTypeLabel({ title: "Quiz 2: Chapters 4-6" }), "Quiz");
   assert.equal(assignmentTypeLabel({ title: "Unit Exam" }), "Exam");
 });
+
+test("the quizzes footer provides direct midterm and final exam links", () => {
+  assert.match(serverSource, /aria-label="Course exams"/);
+  assert.match(serverSource, /Open \$\{escapeHtml\(assignmentTypeLabel\(item\)\)\} Exam/);
+  assert.match(serverSource, /\["Midterm", "Final"\]\.includes\(assignmentTypeLabel\(item\)\)/);
+});
