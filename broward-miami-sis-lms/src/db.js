@@ -1647,7 +1647,12 @@ function seed() {
       ORDER BY position, id LIMIT 1
     `).get(pn104CourseRow.id);
     if (week6Module) {
-      let gradeItem = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND title = ?").get(pn104CourseRow.id, samanthaMidterm.title);
+      let gradeItem = db.prepare(`
+        SELECT id, title FROM grade_items
+        WHERE course_id = ? AND title IN (?, ?)
+        ORDER BY CASE WHEN title = ? THEN 0 ELSE 1 END LIMIT 1
+      `).get(pn104CourseRow.id, samanthaMidterm.title, samanthaMidterm.legacyTitle, samanthaMidterm.title);
+      const isPracticeMidtermMigration = gradeItem?.title === samanthaMidterm.legacyTitle;
       if (!gradeItem) {
         const result = db.prepare(`
           INSERT INTO grade_items (course_id, title, points_possible, due_date, allowed_student_email)
@@ -1655,15 +1660,29 @@ function seed() {
         `).run(pn104CourseRow.id, samanthaMidterm.title, samanthaMidterm.dueDate, samanthaMidterm.studentEmail);
         gradeItem = { id: result.lastInsertRowid };
       } else {
-        db.prepare(`UPDATE grade_items SET points_possible = 150, due_date = ?, allowed_student_email = ? WHERE id = ?`)
-          .run(samanthaMidterm.dueDate, samanthaMidterm.studentEmail, gradeItem.id);
+        db.prepare(`UPDATE grade_items SET title = ?, points_possible = 150, due_date = ?, allowed_student_email = ? WHERE id = ?`)
+          .run(samanthaMidterm.title, samanthaMidterm.dueDate, samanthaMidterm.studentEmail, gradeItem.id);
       }
-      const lesson = db.prepare("SELECT id FROM lessons WHERE module_id = ? AND title = ?").get(week6Module.id, samanthaMidterm.title);
+      const lesson = db.prepare(`
+        SELECT id, title FROM lessons WHERE module_id = ? AND title IN (?, ?)
+        ORDER BY CASE WHEN title = ? THEN 0 ELSE 1 END LIMIT 1
+      `).get(week6Module.id, samanthaMidterm.title, samanthaMidterm.legacyTitle, samanthaMidterm.title);
       if (lesson) {
         db.prepare(`
-          UPDATE lessons SET content = ?, duration_minutes = 60, published = 1, instructor_only = 0,
+          UPDATE lessons SET title = ?, content = ?, duration_minutes = 60, published = 1, instructor_only = 0,
             item_type = 'quiz', grade_item_id = ?, allowed_student_email = ? WHERE id = ?
-        `).run(samanthaMidterm.content, gradeItem.id, samanthaMidterm.studentEmail, lesson.id);
+        `).run(samanthaMidterm.title, samanthaMidterm.content, gradeItem.id, samanthaMidterm.studentEmail, lesson.id);
+        if (isPracticeMidtermMigration) {
+          const enrollment = db.prepare(`
+            SELECT e.id FROM enrollments e JOIN users u ON u.id = e.user_id
+            WHERE e.course_id = ? AND lower(u.email) = lower(?) LIMIT 1
+          `).get(pn104CourseRow.id, samanthaMidterm.studentEmail);
+          if (enrollment) {
+            db.prepare("DELETE FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").run(enrollment.id, lesson.id);
+            db.prepare("DELETE FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").run(enrollment.id, gradeItem.id);
+            db.prepare("DELETE FROM lesson_completions WHERE enrollment_id = ? AND lesson_id = ?").run(enrollment.id, lesson.id);
+          }
+        }
       } else {
         const position = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(week6Module.id).next;
         db.prepare(`
