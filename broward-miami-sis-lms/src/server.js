@@ -8,11 +8,13 @@ const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const nodemailer = require("nodemailer");
+const quickbooks = require("./quickbooks");
 const { adminAccessAccounts, adminAccessDefaultPassword } = require("./adminAccess");
 const { db, initialize, databaseFile } = require("./db");
 const {
   courses,
   feeSchedule,
+  otherCourseFeeSchedule,
   tuitionNotes,
   catalogOperatingHours,
   catalogAcademicCalendar,
@@ -37,6 +39,8 @@ const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = require("./ui");
 
 initialize();
+
+const AUTO_GRADE_PENDING_PREFIX = "[AUTO_GRADE_PENDING_APPROVAL]";
 
 function ensureInstructorAccessAccounts() {
   db.prepare(`
@@ -393,7 +397,12 @@ function receiveAssignment(req, res, next) {
 
 app.set("trust proxy", 1);
 app.use(express.urlencoded({ extended: false }));
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({
+  limit: "1mb",
+  verify: (req, _res, buffer) => {
+    if (req.path === "/webhooks/quickbooks") req.rawBody = Buffer.from(buffer);
+  }
+}));
 app.use((req, res, next) => {
   if (/\.(css|js)$/i.test(req.path)) {
     res.set("Cache-Control", "no-cache, must-revalidate");
@@ -419,7 +428,11 @@ app.use(
 
 function currentUser(req) {
   if (!req.session.userId) return null;
-  return db.prepare("SELECT id, role, first_name, last_name, email, personal_email, phone, status, withdrawal_effective_date, withdrawal_reason, withdrawn_at, withdrawn_by, organization_status, class_lock_reason, photo_storage_name, photo_original_name, photo_review_status, photo_review_note, photo_submitted_at, photo_reviewed_at, photo_reviewed_by, created_at FROM users WHERE id = ?").get(req.session.userId);
+  return db.prepare("SELECT id, role, student_number, first_name, last_name, email, personal_email, phone, status, withdrawal_effective_date, withdrawal_reason, withdrawn_at, withdrawn_by, organization_status, class_lock_reason, photo_storage_name, photo_original_name, photo_review_status, photo_review_note, photo_submitted_at, photo_reviewed_at, photo_reviewed_by, created_at FROM users WHERE id = ?").get(req.session.userId);
+}
+
+function displayStudentNumber(student = {}) {
+  return student.student_number || String(100000 + Number(student.id || student.user_id || 0));
 }
 
 function detectedImageMimeType(filePath) {
@@ -979,6 +992,33 @@ function groupOnsiteVisitRows(rows = []) {
   }, new Map());
 }
 
+function renderOnsiteVisitStandardsNav(rows = []) {
+  const grouped = groupOnsiteVisitRows(rows);
+  return `
+    <section class="card osv-standards-nav" aria-label="OSV standards quick navigation">
+      <div class="osv-standards-nav-head">
+        <div>
+          <p class="eyebrow">Quick navigation</p>
+          <h2>Standards</h2>
+        </div>
+        <span>${escapeHtml(grouped.size)} section${grouped.size === 1 ? "" : "s"}</span>
+      </div>
+      <div class="osv-standard-grid">
+        ${[...grouped.entries()].map(([section, items]) => {
+          const progress = onsiteVisitProgress(items);
+          return `
+            <a class="osv-standard-link" href="#${escapeHtml(featureSlug(section))}">
+              <strong>${escapeHtml(section)}</strong>
+              <span>${escapeHtml(progress.total)} item${progress.total === 1 ? "" : "s"}</span>
+              <small>${escapeHtml(progress.missing)} missing · ${escapeHtml(progress.received)} received · ${escapeHtml(progress.approved)} approved</small>
+            </a>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function onsiteRequestText(rows = []) {
   const needed = rows.filter((row) => !["approved", "not_applicable"].includes(row.status));
   if (!needed.length) return "All OSV checklist items are approved or marked not applicable.";
@@ -997,10 +1037,21 @@ function formatBytes(value = 0) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function courseMaterialStorageSlug(courseSlug = "") {
+  const slug = String(courseSlug || "");
+  return slug === "anatomy-and-physiology" ? "anatomy-and-physiology-pn104" : slug;
+}
+
+function courseSlugForMaterialStorage(storageSlug = "") {
+  const slug = String(storageSlug || "");
+  return slug === "anatomy-and-physiology-pn104" ? "anatomy-and-physiology" : slug;
+}
+
 function courseMaterialFiles(courseSlug = "") {
   const slug = String(courseSlug || "");
   if (!slug) return [];
-  const materialDir = path.join(courseMaterialsDir, slug);
+  const materialSlug = courseMaterialStorageSlug(slug);
+  const materialDir = path.join(courseMaterialsDir, materialSlug);
   if (!fs.existsSync(materialDir)) return [];
   return fs.readdirSync(materialDir, { withFileTypes: true })
     .filter((entry) => entry.isFile() && !entry.name.startsWith("."))
@@ -1011,7 +1062,7 @@ function courseMaterialFiles(courseSlug = "") {
         name: entry.name,
         size: stats.size,
         updatedAt: stats.mtime.toISOString().slice(0, 10),
-        href: `/course-materials/${encodeURIComponent(slug)}/${encodeURIComponent(entry.name)}`
+        href: `/course-materials/${encodeURIComponent(materialSlug)}/${encodeURIComponent(entry.name)}`
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -1023,28 +1074,33 @@ function isPathInside(parent, child) {
 }
 
 app.get("/course-materials/:courseSlug/:fileName", requireAuth, (req, res) => {
-  const courseSlug = String(req.params.courseSlug || "");
+  const materialSlug = String(req.params.courseSlug || "");
   const fileName = path.basename(String(req.params.fileName || ""));
-  if (!courseSlug || !fileName) return res.status(404).send("Course material not found");
+  if (!materialSlug || !fileName) return res.status(404).send("Course material not found");
 
+  const courseSlug = courseSlugForMaterialStorage(materialSlug);
   const course = db.prepare("SELECT id, slug FROM courses WHERE slug = ?").get(courseSlug);
-  if (!course) return res.status(404).send("Course material not found");
+  if (!course || courseMaterialStorageSlug(course.slug) !== materialSlug) {
+    return res.status(404).send("Course material not found");
+  }
 
   const canAccess = req.user.role === "admin" || req.user.role === "instructor" || Boolean(db.prepare(`
     SELECT e.id
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     WHERE e.user_id = ? AND c.slug = ? AND e.status = 'active'
-  `).get(req.user.id, courseSlug));
+  `).get(req.user.id, course.slug));
   if (!canAccess) return res.status(403).send("Forbidden");
   if (isClassLocked(req.user)) return res.status(403).send(classLockMessage(req.user));
 
-  const materialDir = path.join(courseMaterialsDir, course.slug);
+  const materialDir = path.join(courseMaterialsDir, materialSlug);
   const filePath = path.join(materialDir, fileName);
   if (!isPathInside(materialDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Course material not found");
-  if (req.query.inline === "1" && path.extname(fileName).toLowerCase() === ".pdf") {
+  const fileExtension = path.extname(fileName).toLowerCase();
+  if (req.query.inline === "1" && (fileExtension === ".pdf" || isVideoFileExtension(fileExtension))) {
+    const contentType = fileExtension === ".pdf" ? "application/pdf" : videoContentType(fileExtension);
     res.set({
-      "Content-Type": "application/pdf",
+      "Content-Type": contentType,
       "Content-Disposition": `inline; filename="${fileName.replace(/["\r\n]/g, "")}"`,
       "Cache-Control": "private, max-age=3600"
     });
@@ -1444,6 +1500,19 @@ function renderTuitionFeesSection(courses = [], { compact = false } = {}) {
           </tbody>
         </table>
       </div>
+      <div class="table-card fee-table-card other-course-fee-table-card">
+        <table>
+          <thead><tr><th>Other Fees / Costs for Courses Offered</th><th>Cost</th></tr></thead>
+          <tbody>
+            ${otherCourseFeeSchedule.map((fee) => `
+              <tr>
+                <td><strong>${escapeHtml(fee.label)}</strong></td>
+                <td><strong>${fee.amountCents === undefined ? escapeHtml(fee.costLabel || "Contact school for current cost") : money(fee.amountCents)}</strong></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
       <ul class="tuition-notes">
         ${tuitionNotes.map((note) => `<li>${escapeHtml(note)}</li>`).join("")}
       </ul>
@@ -1463,6 +1532,40 @@ function renderCatalogDefinitionList(items = []) {
       `).join("")}
     </div>
   `;
+}
+
+const defaultCatalogPdf = {
+  catalog_year: "2026-2027",
+  title: "Broward-Miami Health Institute Institution Catalog 2026-2027",
+  href: "/assets/bmhi-institution-catalog-2026-2027.pdf",
+  source: "default"
+};
+
+function currentInstitutionCatalog() {
+  const uploaded = db.prepare(`
+    SELECT c.*, TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS uploader_name
+    FROM institution_catalogs c
+    LEFT JOIN users u ON u.id = c.uploaded_by
+    WHERE c.active = 1
+    ORDER BY c.uploaded_at DESC, c.id DESC
+    LIMIT 1
+  `).get();
+  if (!uploaded) return defaultCatalogPdf;
+  return {
+    ...uploaded,
+    href: "/catalog/current.pdf",
+    source: "uploaded"
+  };
+}
+
+function recentInstitutionCatalogs(limit = 5) {
+  return db.prepare(`
+    SELECT c.*, TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS uploader_name
+    FROM institution_catalogs c
+    LEFT JOIN users u ON u.id = c.uploaded_by
+    ORDER BY c.uploaded_at DESC, c.id DESC
+    LIMIT ?
+  `).all(limit);
 }
 
 function canvasCourseCode(course = {}) {
@@ -1671,6 +1774,9 @@ function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = []) {
       </nav>
       <span class="canvas-top-spacer"></span>
       ${breadcrumbs.length ? "" : `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=syllabus">Immersive Reader</a>`}
+      <form class="canvas-top-signout" method="post" action="/logout">
+        <button class="canvas-top-button" type="submit">Sign out</button>
+      </form>
     </header>
     <nav id="canvas-course-submenu" class="canvas-course-submenu" aria-label="${escapeHtml(courseCode)} course menu" hidden>
       ${courseMenuItems.map((item) => `<a href="${escapeHtml(item.href)}">${escapeHtml(item.label)}</a>`).join("")}
@@ -1731,7 +1837,8 @@ function moduleItemMeta(lesson) {
   const pieces = [];
   if (Number(lesson.instructor_only || 0) === 1) pieces.push("Instructor only");
   if (Number(lesson.published ?? 1) === 0) pieces.push("Unpublished");
-  if (youtubeVideoId(lesson.external_url)) pieces.push("Embedded YouTube recording");
+  if (directVideoUrl(lesson.external_url)) pieces.push("Embedded portal video");
+  else if (youtubeVideoId(lesson.external_url)) pieces.push("Embedded YouTube recording");
   const dateMatch = title.match(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/i);
   if (dateMatch) pieces.push(dateMatch[0]);
   if (lower.includes("discussion")) pieces.push("10 pts");
@@ -1903,7 +2010,7 @@ function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, course
               ${module.lessons.map((lesson) => {
                 const inferredKind = lessonItemKind(lesson);
                 const kind = (lesson.item_type === "youtube"
-                  || (youtubeVideoId(lesson.external_url) && inferredKind === "page"))
+                  || ((youtubeVideoId(lesson.external_url) || directVideoUrl(lesson.external_url)) && inferredKind === "page"))
                   ? "video"
                   : inferredKind;
                 const isPublished = Number(lesson.published ?? 1) !== 0 && Number(lesson.instructor_only || 0) !== 1;
@@ -1928,8 +2035,8 @@ function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, course
                 <details class="canvas-module-item-create">
                   <summary>+ Add page, assignment, link, or recording</summary>
                   <form method="post" action="/admin/courses/${courseId}/modules/${module.id}/items">
-                    <p class="module-item-create-help">To add a class recording, choose <strong>YouTube recording link</strong>. Students will watch it in an embedded player inside the course.</p>
-                    <div><label>Item type</label><select name="itemType" data-module-item-type><option value="page">Page</option><option value="assignment">Assignment</option><option value="link">External link</option><option value="youtube">YouTube recording link (embedded)</option></select></div>
+                    <p class="module-item-create-help">To add a class recording, choose <strong>Recording video link</strong>. Direct MP4/WebM/MOV files show in a clean portal player. YouTube videos remain YouTube embeds.</p>
+                    <div><label>Item type</label><select name="itemType" data-module-item-type><option value="page">Page</option><option value="assignment">Assignment</option><option value="link">External link</option><option value="youtube">Recording video link (embedded)</option></select></div>
                     <div><label>Title</label><input name="title" required></div>
                     <div data-module-link-field hidden>
                       <label data-module-url-label>Web address</label>
@@ -2001,11 +2108,11 @@ function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, course
               const linkField = form.querySelector('[data-module-link-field]');
               const urlInput = linkField.querySelector('input[name="externalUrl"]');
               linkField.hidden = !['link', 'youtube'].includes(select.value);
-              linkField.querySelector('[data-module-url-label]').textContent = isYouTube ? 'YouTube recording link' : 'Web address';
+              linkField.querySelector('[data-module-url-label]').textContent = isYouTube ? 'Recording video link' : 'Web address';
               linkField.querySelector('[data-module-url-help]').textContent = isYouTube
-                ? 'Paste a YouTube watch, share, Shorts, Live, or embed link. Students will watch it inside the lesson.'
+                ? 'Paste a direct MP4/WebM/MOV file URL for a clean portal player, or paste a YouTube link for a YouTube embed.'
                 : 'Paste the full address for the external resource.';
-              urlInput.placeholder = isYouTube ? 'https://www.youtube.com/watch?v=...' : 'https://example.com';
+              urlInput.placeholder = isYouTube ? 'https://portal.browardmiamihi.com/course-materials/course/video.mp4' : 'https://example.com';
               urlInput.required = !linkField.hidden;
               form.querySelector('[data-module-assignment-fields]').hidden = select.value !== 'assignment';
             };
@@ -2089,9 +2196,198 @@ function lessonQuizQuestions(lesson = {}) {
   }
 }
 
+function writtenAssignmentConfigForLesson(lesson = {}) {
+  const match = String(lesson.content || "").match(/WRITTEN_ASSIGNMENT_DATA_BASE64:([A-Za-z0-9+/=]+)/);
+  if (!match) return null;
+  try {
+    const config = JSON.parse(Buffer.from(match[1], "base64").toString("utf8"));
+    if (!config || config.type !== "written-autograde") return null;
+    return {
+      prompt: String(config.prompt || "").trim(),
+      minWords: Math.max(25, Number(config.minWords || 90)),
+      checklist: Array.isArray(config.checklist) ? config.checklist.map(String).filter(Boolean).slice(0, 8) : [],
+      conceptGroups: Array.isArray(config.conceptGroups)
+        ? config.conceptGroups
+            .map((group) => Array.isArray(group) ? group.map(String).filter(Boolean) : [String(group || "").trim()].filter(Boolean))
+            .filter((group) => group.length)
+            .slice(0, 12)
+        : [],
+      responseSections: Array.isArray(config.responseSections)
+        ? config.responseSections
+            .map((section) => ({
+              title: String(section?.title || "").trim(),
+              prompt: String(section?.prompt || "").trim()
+            }))
+            .filter((section) => section.title && section.prompt)
+            .slice(0, 8)
+        : []
+    };
+  } catch {
+    return null;
+  }
+}
+
+function structuredAssignmentResponseFromBody(body = {}, config = null) {
+  const sections = config?.responseSections || [];
+  if (!sections.length) return String(body.studentResponse || "").trim().slice(0, 12000);
+  const parts = sections.map((section, index) => {
+    const value = String(body[`studentResponseSection${index}`] || "").trim().slice(0, 4000);
+    return { ...section, value };
+  });
+  if (!parts.some((part) => part.value)) return "";
+  return parts.map((part) => `${part.title}\n${part.value}`).join("\n\n").slice(0, 12000);
+}
+
+function responseSectionValues(response = "", sections = []) {
+  const text = String(response || "");
+  const values = {};
+  sections.forEach((section, index) => {
+    const title = String(section.title || "").trim();
+    const start = title ? text.indexOf(`${title}\n`) : -1;
+    if (start < 0) {
+      values[index] = "";
+      return;
+    }
+    const contentStart = start + title.length + 1;
+    const nextStarts = sections
+      .slice(index + 1)
+      .map((candidate) => text.indexOf(`${candidate.title}\n`, contentStart))
+      .filter((candidateStart) => candidateStart >= 0);
+    const contentEnd = nextStarts.length ? Math.min(...nextStarts) : text.length;
+    values[index] = text.slice(contentStart, contentEnd).trim();
+  });
+  return values;
+}
+
+function renderWrittenResponseSections(response = "", sections = []) {
+  const text = String(response || "").trim();
+  if (!text) return "";
+  const values = responseSectionValues(text, sections);
+  const hasStructuredValues = sections.length && Object.values(values).some(Boolean);
+  if (!hasStructuredValues) return `<p>${escapeHtml(text).replaceAll("\n", "<br>")}</p>`;
+  return `
+    <div class="assignment-response-sections">
+      ${sections.map((section, index) => `
+        <section class="assignment-response-section">
+          <h4>${escapeHtml(section.title)}</h4>
+          <p>${escapeHtml(values[index] || "No response entered for this section.").replaceAll("\n", "<br>")}</p>
+        </section>
+      `).join("")}
+    </div>
+  `;
+}
+
+function isAutoGradeApprovalPending(note = "") {
+  return String(note || "").startsWith(AUTO_GRADE_PENDING_PREFIX);
+}
+
+function cleanGradeNote(note = "") {
+  return String(note || "").replace(AUTO_GRADE_PENDING_PREFIX, "").trim();
+}
+
+function matchingLessonForGradeItem(item = {}, lessons = []) {
+  const itemTitle = normalizedTitle(item.title);
+  return lessons.find((lesson) => {
+    const lessonTitle = normalizedTitle(lesson.title);
+    const directMatch = lessonTitle && itemTitle && (lessonTitle.includes(itemTitle) || itemTitle.includes(lessonTitle));
+    const rawItemTitle = String(item.title || "").trim().toLowerCase();
+    const contentMatch = rawItemTitle.length >= 4 && String(lesson.content || "").toLowerCase().includes(rawItemTitle);
+    return directMatch || contentMatch;
+  }) || null;
+}
+
+function writtenAssignmentConfigForItem(item = {}, lessons = []) {
+  const lesson = matchingLessonForGradeItem(item, lessons);
+  return lesson ? writtenAssignmentConfigForLesson(lesson) : null;
+}
+
+function storedWrittenAssignmentConfigForGradeItem(item = {}) {
+  if (!item?.course_id) return null;
+  const lessons = db.prepare(`
+    SELECT lessons.*
+    FROM lessons
+    JOIN modules ON modules.id = lessons.module_id
+    WHERE modules.course_id = ?
+      AND lessons.content LIKE '%WRITTEN_ASSIGNMENT_DATA_BASE64:%'
+    ORDER BY modules.position, lessons.position, lessons.id
+  `).all(item.course_id);
+  return writtenAssignmentConfigForItem(item, lessons);
+}
+
+function wordCount(value = "") {
+  const matches = String(value || "").trim().match(/[A-Za-z0-9']+/g);
+  return matches ? matches.length : 0;
+}
+
+function conceptMatch(response = "", group = []) {
+  const normalized = String(response || "").toLowerCase();
+  return group.find((term) => {
+    const clean = String(term || "").trim().toLowerCase();
+    if (!clean) return false;
+    return clean.split(/\s+/).every((part) => normalized.includes(part));
+  }) || null;
+}
+
+function gradeWrittenAssignment({ item = {}, response = "", config = null }) {
+  const pointsPossible = Number(item.points_possible || 0) || 100;
+  const text = String(response || "").trim();
+  const words = wordCount(text);
+  const groups = config?.conceptGroups || [];
+  const matches = groups.map((group) => conceptMatch(text, group)).filter(Boolean);
+  const missingGroups = groups.filter((group) => !conceptMatch(text, group)).map((group) => group[0]).filter(Boolean);
+  const conceptRatio = groups.length ? matches.length / groups.length : 0.75;
+  const lengthRatio = Math.min(1, words / Math.max(1, Number(config?.minWords || 90)));
+  const sentenceCount = (text.match(/[.!?](?:\s|$)/g) || []).length;
+  const hasPatientIdentifiers = /\b(?:mr\.|mrs\.|ms\.|patient name|date of birth|dob|medical record|mrn|social security)\b/i.test(text);
+  const professionalRatio = Math.max(0, Math.min(1, (
+    (sentenceCount >= 3 ? 0.45 : sentenceCount >= 2 ? 0.3 : 0.15) +
+    (/[A-Za-z]{4,}/.test(text) ? 0.2 : 0) +
+    (hasPatientIdentifiers ? 0 : 0.25) +
+    (text.length >= 250 ? 0.1 : 0)
+  )));
+  const rawRatio = (conceptRatio * 0.65) + (lengthRatio * 0.2) + (professionalRatio * 0.15);
+  const score = Number((Math.max(0, Math.min(1, rawRatio)) * pointsPossible).toFixed(2));
+  const feedback = [
+    `Written response score: ${rubricPoints(score)} / ${rubricPoints(pointsPossible)}.`,
+    `Matched concepts: ${matches.length ? matches.join(", ") : "none yet"}.`,
+    missingGroups.length ? `Review and add: ${missingGroups.slice(0, 6).join(", ")}.` : "All required concept areas were addressed.",
+    words < Number(config?.minWords || 90) ? `Add more detail: ${words} words submitted; target at least ${Number(config?.minWords || 90)} words.` : `Length check passed: ${words} words.`,
+    hasPatientIdentifiers ? "Remove real patient-identifying information before resubmitting." : "Confidentiality check passed."
+  ].join("\n");
+  return { score, feedback, matches, missingGroups, words };
+}
+
+function renderWrittenAutogradeInstructions(config = null) {
+  if (!config) return "";
+  return `
+    <section class="written-autograde-instructions">
+      <h3>Assignment directions</h3>
+      ${config.prompt ? `<p>${escapeHtml(config.prompt)}</p>` : ""}
+      ${config.checklist?.length ? `
+        <ul>
+          ${config.checklist.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      ` : ""}
+    </section>
+  `;
+}
+
+function renderWrittenAutogradeFeedback(grade = null) {
+  const note = cleanGradeNote(grade?.note || "");
+  if (!note.includes("Written response score:") && !note.includes("Auto-graded written response:")) return "";
+  const lines = note.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  return `
+    <div class="assignment-autograde-feedback">
+      <strong>Feedback</strong>
+      <ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>
+    </div>
+  `;
+}
+
 function examSettingsForLesson(lesson = {}) {
   const title = String(lesson.title || "");
-  if (title === "Midterm Exam: Weeks 1-6") return { label: "PN 102 Midterm Exam", minutes: 60, opensAt: "2026-07-27T00:00:00-04:00", closesAt: "2026-08-02T23:59:59-04:00" };
+  if (/\[PN104 DAY 2026\] Midterm Exam/i.test(title)) return { label: "PN 104 Day Course Midterm Exam", minutes: 60, opensAt: "2026-08-17T00:00:00-04:00", closesAt: "2026-08-21T23:59:59-04:00" };
+  if (title === "Midterm Exam: Weeks 1-6") return { label: "PN 102 Midterm Exam", minutes: 60, opensAt: "2026-07-27T00:00:00-04:00", closesAt: "2026-08-21T23:59:59-04:00" };
   if (title === "Cumulative Final Exam") return { label: "PN 102 Cumulative Final Exam", minutes: 90, opensAt: "2026-09-07T00:00:00-04:00", closesAt: "2026-09-13T23:59:59-04:00" };
   if (/\[PN103 2026\] Midterm - Chapters 14-19/i.test(title)) return { label: "PN 103 Midterm Exam", minutes: 60, opensAt: "2026-07-27T00:00:00-04:00", closesAt: "2026-08-02T23:59:59-04:00" };
   if (/\[PN103 2026\] Final Comprehensive Exam/i.test(title)) return { label: "PN 103 Final Comprehensive Exam", minutes: 90, opensAt: "2026-09-03T00:00:00-04:00", closesAt: "2026-09-09T23:59:59-04:00" };
@@ -2114,6 +2410,26 @@ function storedDateMilliseconds(value) {
   return new Date(normalized).getTime();
 }
 
+function renderExamOverview({ lesson = {}, settings = {}, quizMeta = {}, questions = [] }) {
+  const overviewText = studentFacingLessonContent(
+    String(lesson.content || "")
+      .replace(/\n*QUIZ_DATA_BASE64:[A-Za-z0-9+/=]+\s*/g, "\n")
+      .trim()
+  );
+  return `
+    <div class="exam-overview">
+      <h3>Exam overview</h3>
+      ${overviewText ? renderCanvasLessonContent(overviewText, [lesson.title, settings.label]) : ""}
+      <dl>
+        <div><dt>Questions</dt><dd>${escapeHtml(questions.length || "Prepared by instructor")}</dd></div>
+        <div><dt>Time limit</dt><dd>${escapeHtml(settings.minutes || lesson.duration_minutes || 60)} minutes</dd></div>
+        <div><dt>Points</dt><dd>${escapeHtml(quizMeta.points || "No points listed")}</dd></div>
+        <div><dt>Due</dt><dd>${escapeHtml(formatGradeDue(quizMeta.dueDate) || "No due date")}</dd></div>
+      </dl>
+    </div>
+  `;
+}
+
 function renderExamInstructions(settings) {
   return `
     <div class="exam-instructions">
@@ -2123,6 +2439,7 @@ function renderExamInstructions(settings) {
         <li>Do not copy, photograph, record, share, or discuss exam questions or answers.</li>
         <li>You have <strong>${escapeHtml(settings.minutes)} minutes</strong>. Complete the entire exam in one sitting.</li>
         <li>The timer cannot be paused. You cannot restart the exam or receive another attempt after selecting Start Now.</li>
+        <li>The exam must remain in full-screen mode. Leaving full screen, changing tabs, minimizing the browser, or opening another window automatically submits the exam.</li>
         <li>Use the bathroom and address personal needs before starting. Do not leave the exam after it begins.</li>
         <li>Unanswered questions are scored as incorrect. Submit before the timer reaches zero.</li>
       </ul>
@@ -2171,16 +2488,17 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
     const closesAt = new Date(examSettings.closesAt).getTime();
     const attemptExpiresAt = storedDateMilliseconds(examAttempt?.expires_at);
     if (now < opensAt) {
-      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Exam not open</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamInstructions(examSettings)}<p class="exam-gate-message">Return during the availability period to begin.</p></div>`;
+      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Exam not open</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}${renderExamInstructions(examSettings)}<p class="exam-gate-message">Return during the availability period to begin.</p></div>`;
     }
     if (now > closesAt) {
-      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Exam closed</span><h2>${escapeHtml(examSettings.label)}</h2><p>This examination closed on ${escapeHtml(examDateTimeLabel(examSettings.closesAt))}. Contact your instructor if you need assistance.</p></div>`;
+      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Exam closed</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}<p>This examination closed on ${escapeHtml(examDateTimeLabel(examSettings.closesAt))}. Contact your instructor if you need assistance.</p></div>`;
     }
     if (!examAttempt) {
       return `
         <div class="lesson-action-card exam-gate-card">
           <span class="quiz-submitted-kicker">Ready to begin?</span>
           <h2>${escapeHtml(examSettings.label)}</h2>
+          ${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}
           ${renderExamInstructions(examSettings)}
           <form method="post" action="/student/enrollments/${enrollmentId}/exams/${lesson.id}/start">
             <label class="exam-confirmation"><input type="checkbox" required> I have read these instructions, understand the academic-integrity requirements, and am ready to complete the exam in one sitting.</label>
@@ -2190,7 +2508,7 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
       `;
     }
     if (examAttempt.status !== "in_progress" || now >= attemptExpiresAt) {
-      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Attempt ended</span><h2>${escapeHtml(examSettings.label)}</h2><p>This one-sitting examination attempt has ended and cannot be reopened. View Grades for the recorded result or contact your instructor.</p><a class="button" href="${escapeHtml(baseHref)}?view=grades">View Grades</a></div>`;
+      return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Attempt ended</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}<p>This one-sitting examination attempt has ended and cannot be reopened. View Grades for the recorded result or contact your instructor.</p><a class="button" href="${escapeHtml(baseHref)}?view=grades">View Grades</a></div>`;
     }
   }
   if (!instructor && !examSettings && !examAttempt) {
@@ -2229,10 +2547,20 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
           <div><dt>Points</dt><dd>${escapeHtml(quizMeta.points)}</dd></div>
         </dl>
       </div>
-      ${examSettings ? `${renderExamInstructions(examSettings)}${!instructor && examAttempt ? `<div class="exam-timer" role="timer" aria-live="polite" data-exam-expires="${escapeHtml(examAttempt.expires_at)}"><span>Time remaining</span><strong data-exam-countdown>--:--</strong></div>` : ""}` : `<p class="quiz-instructions">${instructor ? "Read each question and select the best answer. This quiz page stays with the module item so students do not get redirected to grades." : "Quiz in progress. Read each question and select the best answer."}</p>`}
-      <form class="quiz-preview-form" method="post" action="${enrollmentId ? `/student/enrollments/${enrollmentId}/quiz-submit` : "#"}">
+      ${examSettings ? `${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}${renderExamInstructions(examSettings)}${!instructor && examAttempt ? `<div class="exam-timer" role="timer" aria-live="polite" data-exam-expires="${escapeHtml(examAttempt.expires_at)}"><span>Time remaining</span><strong data-exam-countdown>--:--</strong></div>` : ""}` : `<p class="quiz-instructions">${instructor ? "Read each question and select the best answer. This quiz page stays with the module item so students do not get redirected to grades." : "Quiz in progress. Read each question and select the best answer."}</p>`}
+      ${examSettings && !instructor ? `
+        <div class="secure-exam-gate" data-secure-exam-gate>
+          <div>
+            <strong>Secure exam mode required</strong>
+            <p>Close other tabs and applications before continuing.</p>
+            <button class="button" type="button" data-enter-secure-exam>Enter Full Screen</button>
+          </div>
+        </div>
+      ` : ""}
+      <form class="quiz-preview-form" method="post" action="${enrollmentId ? `/student/enrollments/${enrollmentId}/quiz-submit` : "#"}" ${examSettings && !instructor ? "data-secure-exam-form" : ""}>
         ${enrollmentId ? `<input type="hidden" name="lessonId" value="${escapeHtml(lesson.id)}">` : ""}
         ${examSettings ? `<input type="hidden" name="timedExam" value="1">` : ""}
+        ${examSettings && !instructor ? `<input type="hidden" name="integrityExit" value="" data-integrity-exit>` : ""}
         ${questions.length ? `<div class="quiz-page-status" aria-live="polite"><strong>Question <span data-quiz-current>1</span> of ${questions.length}</strong><span data-quiz-progress style="--quiz-progress:${100 / questions.length}%"></span></div>` : ""}
         ${questionFields}
         <div class="quiz-submit-row quiz-page-actions">
@@ -2306,6 +2634,42 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
               };
               updateTimer();
               setInterval(updateTimer, 1000);
+            }
+            const secureGate = card.querySelector('[data-secure-exam-gate]');
+            const secureForm = card.querySelector('[data-secure-exam-form]');
+            if (secureGate && secureForm) {
+              const enterButton = secureGate.querySelector('[data-enter-secure-exam]');
+              const integrityExit = secureForm.querySelector('[data-integrity-exit]');
+              let secureModeStarted = false;
+              let secureSubmissionStarted = false;
+              const submitForExit = (reason) => {
+                if (!secureModeStarted || secureSubmissionStarted) return;
+                secureSubmissionStarted = true;
+                if (integrityExit) integrityExit.value = reason;
+                secureForm.submit();
+              };
+              enterButton.addEventListener('click', async () => {
+                try {
+                  await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+                  secureModeStarted = true;
+                  secureGate.hidden = true;
+                } catch {
+                  enterButton.textContent = 'Full Screen Required';
+                }
+              });
+              document.addEventListener('fullscreenchange', () => {
+                if (secureModeStarted && !document.fullscreenElement) submitForExit('fullscreen-exit');
+              });
+              document.addEventListener('visibilitychange', () => {
+                if (document.hidden) submitForExit('tab-or-window-change');
+              });
+              window.addEventListener('blur', () => submitForExit('browser-focus-lost'));
+              ['copy', 'cut', 'contextmenu'].forEach((eventName) => {
+                document.addEventListener(eventName, (event) => {
+                  if (secureModeStarted) event.preventDefault();
+                });
+              });
+              secureForm.addEventListener('submit', () => { secureSubmissionStarted = true; });
             }
           })();
         </script>
@@ -2483,7 +2847,7 @@ function renderVideoAssignmentPanel({ lesson, enrollmentId = null, instructor = 
   `;
 }
 
-function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false, gradeItems = [], quizGrade = null, courseId = null, examAttempt = null }) {
+function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false, gradeItems = [], quizGrade = null, courseId = null, examAttempt = null, assignmentSubmission = null }) {
   const title = String(lesson.title || "");
   const lower = title.toLowerCase();
   const kind = lessonItemKind(lesson);
@@ -2554,16 +2918,35 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
 
   if (kind === "assignment") {
     const assignmentGradeItem = gradeItemForLesson(lesson, gradeItems);
+    const writtenAutogradeConfig = writtenAssignmentConfigForLesson(lesson);
     const assignmentHref = assignmentGradeItem?.id
       ? `${baseHref}?assignment=${assignmentGradeItem.id}`
       : `${baseHref}?view=assignments`;
+    const assignmentSubmissionCard = instructor && assignmentGradeItem
+      ? renderAssignmentSubmissionCard({ item: assignmentGradeItem, preview: true, autoGradeConfig: writtenAutogradeConfig })
+      : enrollmentId && assignmentGradeItem
+        ? renderAssignmentSubmissionCard({ item: assignmentGradeItem, enrollmentId, submission: assignmentSubmission, autoGradeConfig: writtenAutogradeConfig, grade: quizGrade })
+        : "";
+    if (writtenAutogradeConfig) {
+      return `
+        ${fileButtons}
+        ${assignmentSubmissionCard || `
+          <div class="lesson-action-card">
+            <h2>Submit assignment</h2>
+            <p>Complete each written part in clear, complete sentences.</p>
+            <a class="button" href="${escapeHtml(assignmentHref)}">${instructor ? "View Assignment Setup" : "Open Assignment"}</a>
+          </div>
+        `}
+      `;
+    }
     return `
       ${fileButtons}
       <div class="lesson-action-card">
         <h2>Assignment</h2>
-        <p>Review the instructions, then open the assignment to type your response directly or attach a completed file. Your submission and grade will be saved in the portal.</p>
+        <p>Review the instructions, then type your response directly or attach a completed file. Your submission and grade will be saved in the portal.</p>
         <a class="button" href="${escapeHtml(assignmentHref)}">${instructor ? "View Assignment Setup" : "Complete Assignment"}</a>
       </div>
+      ${assignmentSubmissionCard}
     `;
   }
 
@@ -2675,6 +3058,22 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
   const firstLesson = lessons[0];
   const selectedLesson = lessons.find((lesson) => lesson.id === Number(lessonId)) || firstLesson;
   if (!selectedLesson) return `<main class="canvas-course-main canvas-page-main"><p class="empty">No lesson was found.</p></main>`;
+  if (/^PN 104 Syllabus$/i.test(String(selectedLesson.title || "")) && courseId) {
+    const syllabusCourse = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(courseId));
+    if (syllabusCourse) {
+      return renderCourseSyllabus({
+        courseTitle: syllabusCourse.title,
+        courseDescription: syllabusCourse.description,
+        courseCode,
+        courseHours: syllabusCourse.hours,
+        courseCategory: syllabusCourse.category,
+        courseSlug: syllabusCourse.slug,
+        gradeItems,
+        lessons,
+        baseHref
+      });
+    }
+  }
   const selectedIndex = lessons.findIndex((lesson) => lesson.id === selectedLesson.id);
   const previousLesson = selectedIndex > 0 ? lessons[selectedIndex - 1] : null;
   const nextLesson = selectedIndex >= 0 && selectedIndex < lessons.length - 1 ? lessons[selectedIndex + 1] : null;
@@ -2682,6 +3081,9 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
   const selectedGradeItem = gradeItemForLesson(selectedLesson, gradeItems);
   const quizGrade = selectedGradeItem ? grades.find((grade) => grade.grade_item_id === selectedGradeItem.id) : null;
   const selectedLessonKind = lessonItemKind(selectedLesson);
+  const selectedAssignmentSubmission = !instructor && enrollmentId && selectedLessonKind === "assignment" && selectedGradeItem
+    ? db.prepare("SELECT * FROM assignment_submissions WHERE grade_item_id = ? AND enrollment_id = ?").get(selectedGradeItem.id, enrollmentId)
+    : null;
   const examAttempt = !instructor && enrollmentId && selectedLessonKind === "quiz"
     ? db.prepare("SELECT * FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollmentId, selectedLesson.id)
     : null;
@@ -2695,7 +3097,8 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
   // source content on a student page exposes every question before Start Now.
   const showLessonSourceContent = instructor || !selectedLessonIsQuiz;
   const lessonContentForViewer = instructor ? selectedLesson.content : studentFacingLessonContent(selectedLesson.content);
-  const selectedLessonYouTubeEmbed = youtubeEmbedUrl(selectedLesson.external_url);
+  const selectedLessonVideoUrl = directVideoUrl(selectedLesson.external_url);
+  const selectedLessonYouTubeEmbed = selectedLessonVideoUrl ? null : youtubeEmbedUrl(selectedLesson.external_url);
   const selectedLessonYouTubeWatch = youtubeWatchUrl(selectedLesson.external_url);
   return `
     <main class="canvas-course-main canvas-page-main">
@@ -2715,7 +3118,15 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
         </p>
         <h1>${escapeHtml(selectedLessonHeading.title)}</h1>
         <div class="canvas-page-copy">
-          ${selectedLessonYouTubeEmbed ? `
+          ${selectedLessonVideoUrl ? `
+            <section class="video-recording" aria-label="Class recording">
+              <div class="video-recording-frame">
+                <video controls preload="metadata" playsinline src="${escapeHtml(selectedLessonVideoUrl)}">
+                  Your browser cannot play this video.
+                </video>
+              </div>
+            </section>
+          ` : selectedLessonYouTubeEmbed ? `
             <section class="youtube-recording" aria-label="YouTube recording">
               <div class="youtube-recording-frame">
                 <iframe
@@ -2726,7 +3137,7 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
                   allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowfullscreen></iframe>
               </div>
-              <p class="youtube-recording-fallback">If the player does not load, <a href="${escapeHtml(selectedLessonYouTubeWatch)}" target="_blank" rel="noopener noreferrer">open the recording on YouTube</a>.</p>
+              ${instructor && selectedLessonYouTubeWatch ? `<p class="youtube-recording-fallback">Instructor note: this is a YouTube embed. For a video-only student player with no YouTube branding, use a direct MP4/WebM/MOV file URL instead.</p>` : ""}
             </section>
           ` : selectedLesson.external_url ? `
             <div class="external-lesson-callout">
@@ -2737,7 +3148,7 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
           ` : ""}
           ${showLessonSourceContent ? renderCanvasLessonContent(lessonContentForViewer, [selectedLesson.title, selectedLessonDisplayTitle, selectedLessonHeading.title]) : ""}
         </div>
-        ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId, examAttempt })}
+        ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, gradeItems, quizGrade, courseId, examAttempt, assignmentSubmission: selectedAssignmentSubmission })}
         ${selectedGradeItem && rubricEligible(selectedGradeItem)
           ? renderAssignmentRubric({ item: selectedGradeItem, instructor, courseId })
           : ""}
@@ -2909,11 +3320,12 @@ function pnDiscussionGradeRows() {
 }
 
 function studentGradebookRows(enrollment, gradeItems = [], grades = []) {
-  const scoreByItemId = new Map(grades.map((grade) => [grade.grade_item_id, grade.score]));
+  const gradeByItemId = new Map(grades.map((grade) => [grade.grade_item_id, grade]));
   const savedRows = gradeItems.map((item) => ({
     ...item,
     group: item.title.toLowerCase().includes("elsevier") ? "Imported Assignments" : "Assignments",
-    score: scoreByItemId.has(item.id) ? scoreByItemId.get(item.id) : null
+    score: gradeByItemId.has(item.id) && !isAutoGradeApprovalPending(gradeByItemId.get(item.id)?.note) ? gradeByItemId.get(item.id).score : null,
+    status: isAutoGradeApprovalPending(gradeByItemId.get(item.id)?.note) ? "pending" : undefined
   }));
   return savedRows.map((item) => {
     if (item.title === "Class Participation and Professionalism") return { ...item, title: "Class Participation and Professionalism Acknowledgement" };
@@ -2979,7 +3391,7 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
                 <td>${escapeHtml(formatGradeDue(row.due_date))}</td>
                 <td></td>
                 <td>
-                  ${row.status === "missing" ? `<span class="grade-status missing">missing</span>` : row.status === "info" ? `<span class="grade-status info">!</span>` : ""}
+                  ${row.status === "missing" ? `<span class="grade-status missing">missing</span>` : row.status === "info" ? `<span class="grade-status info">!</span>` : row.status === "pending" ? `<span class="grade-status info">pending review</span>` : ""}
                 </td>
                 <td>${row.points_possible ? `${row.score === null || row.score === undefined ? "-" : escapeHtml(row.score)} / ${escapeHtml(row.points_possible)}` : "-"}</td>
               </tr>
@@ -3022,6 +3434,7 @@ function instructorGradebookStudents(enrollments = []) {
   ];
   const roster = enrollments.map((row) => ({
     id: row.user_id,
+    student_number: row.student_number,
     first_name: row.first_name,
     last_name: row.last_name,
     email: row.email,
@@ -3043,11 +3456,12 @@ function instructorGradebookItems(course, gradeItems = []) {
     { title: "Ethics Case Response", points_possible: 75, unpublished: true },
     { title: "Health Equity Reflection", points_possible: 50, unpublished: true }
   ];
-  const source = course.slug === "introduction-to-nursing-practical-nursing" ? pnDefaults : gradeItems;
-  return source.slice(0, 8).map((item) => ({
+  const source = gradeItems.length ? gradeItems : pnDefaults;
+  return source.map((item) => ({
     id: item.id,
     title: item.title,
     points_possible: item.points_possible,
+    due_date: item.due_date,
     unpublished: Boolean(item.unpublished)
   }));
 }
@@ -3089,6 +3503,7 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
                 <th>
                   <span>${escapeHtml(item.title)}</span>
                   <small>Out of ${escapeHtml(item.points_possible || 0)}</small>
+                  ${item.due_date ? `<small>Due ${escapeHtml(date(item.due_date))}</small>` : ""}
                   ${item.unpublished ? `<em>UNPUBLISHED</em>` : ""}
                 </th>
               `).join("")}
@@ -3133,6 +3548,7 @@ function instructorPeopleRoster(course, enrollments = [], instructor) {
   const section = course.title;
   const roster = enrollments.map((row, index) => ({
     id: row.user_id,
+    student_number: row.student_number,
     first_name: row.first_name,
     last_name: row.last_name,
     email: row.email,
@@ -3244,7 +3660,7 @@ function renderInstructorPeoplePage({ course, courseCode, baseHref, enrollments 
                   ${person.invite_status === "pending" ? `<em>pending</em>` : ""}
                 </td>
                 <td>${escapeHtml(person.email || "")}</td>
-                <td>${person.id ? escapeHtml(`BMHI-${String(person.id).padStart(5, "0")}`) : ""}</td>
+                <td>${person.id && person.role === "Student" ? escapeHtml(displayStudentNumber(person)) : ""}</td>
                 <td>${escapeHtml(person.section || course.title)}</td>
                 <td>${escapeHtml(person.role)}</td>
                 <td>${escapeHtml(person.last_activity || "")}</td>
@@ -4076,6 +4492,8 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
   const requiredTitles = courseDefinition?.requiredTitles || [];
   const policies = Object.entries(courseDefinition?.policies || {});
   const weeklySchedule = courseDefinition?.weeks || [];
+  const discussions = courseDefinition?.discussions || [];
+  const syllabusDetails = courseDefinition?.syllabus || {};
   const tallyRows = gradeTallyRows(gradeItems);
   const totalPoints = gradeItems.reduce((sum, item) => sum + Number(item.points_possible || 0), 0);
   const assignmentRows = gradeItems.length ? gradeItems : [
@@ -4134,6 +4552,8 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
               <p><strong>Course code</strong><span>${escapeHtml(courseCode)}</span></p>
               <p><strong>Clock hours</strong><span>${escapeHtml(courseHours)}</span></p>
               <p><strong>Program area</strong><span>${escapeHtml(courseCategory)}</span></p>
+              ${syllabusDetails.length ? `<p><strong>Course length</strong><span>${escapeHtml(syllabusDetails.length)}</span></p>` : ""}
+              ${syllabusDetails.delivery ? `<p><strong>Delivery</strong><span>${escapeHtml(syllabusDetails.delivery)}</span></p>` : ""}
             </div>
           </section>
 
@@ -4156,12 +4576,31 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
             <section class="syllabus-card">
               <h2>Weekly Course Schedule</h2>
               <table class="syllabus-table">
-                <thead><tr><th>Week</th><th>Topic and Required Reading</th><th>Assessment</th></tr></thead>
+                <thead><tr><th>Week</th><th>Topic and Required Reading</th><th>Assessment</th><th>Due Date</th></tr></thead>
                 <tbody>${weeklySchedule.map((week) => `
                   <tr>
                     <td>Week ${escapeHtml(week.week)}</td>
                     <td><strong>${escapeHtml(week.title)}</strong>${week.chapters ? `<br>${escapeHtml(week.chapters)}` : ""}</td>
                     <td>${escapeHtml(week.assessment || week.assignmentTitle || "Module activities")}</td>
+                    <td>${week.dueDate ? date(week.dueDate) : "See course calendar"}</td>
+                  </tr>
+                `).join("")}</tbody>
+              </table>
+            </section>
+          ` : ""}
+
+          ${discussions.length ? `
+            <section class="syllabus-card">
+              <h2>Discussion Schedule</h2>
+              <p>Complete the initial response and required classmate reply by the posted deadline. Use professional language and protect patient confidentiality.</p>
+              <table class="syllabus-table">
+                <thead><tr><th>Week</th><th>Discussion</th><th>Due Date</th><th>Points</th></tr></thead>
+                <tbody>${discussions.map((discussion) => `
+                  <tr>
+                    <td>Week ${escapeHtml(discussion.week)}</td>
+                    <td>${escapeHtml(discussion.title.replace(/^\[[^\]]+\]\s*/, ""))}</td>
+                    <td>${discussion.dueDate ? date(discussion.dueDate) : "See course calendar"}</td>
+                    <td>${escapeHtml(discussion.pointsPossible || 0)}</td>
                   </tr>
                 `).join("")}</tbody>
               </table>
@@ -4463,6 +4902,104 @@ function renderAssignmentRubric({ item, instructor = false, courseId = null, com
   `;
 }
 
+function renderAssignmentSubmissionCard({ item, enrollmentId = null, submission = null, preview = false, autoGradeConfig = null, grade = null }) {
+  if (!item?.id || (!enrollmentId && !preview)) return "";
+  const responseSections = autoGradeConfig?.responseSections || [];
+  const sectionValues = responseSectionValues(submission?.student_note || "", responseSections);
+  const structuredResponseFields = responseSections.length ? `
+    <div class="assignment-response-fields">
+      ${responseSections.map((section, index) => `
+        <label>
+          ${escapeHtml(section.title)}
+          <span>${escapeHtml(section.prompt)}</span>
+          <textarea name="studentResponseSection${index}" rows="5" maxlength="4000" required placeholder="Write this part of your answer here.">${escapeHtml(sectionValues[index] || "")}</textarea>
+        </label>
+      `).join("")}
+    </div>
+  ` : "";
+  if (preview) {
+    const previewFields = responseSections.length ? `
+      <div class="assignment-response-fields">
+        ${responseSections.map((section, index) => `
+          <label>
+            ${escapeHtml(section.title)}
+            <span>${escapeHtml(section.prompt)}</span>
+            <textarea rows="5" maxlength="4000" placeholder="Student response section ${index + 1}"></textarea>
+          </label>
+        `).join("")}
+      </div>
+    ` : `
+      <label>
+        Write your response
+        <textarea rows="9" maxlength="12000" placeholder="Student response section"></textarea>
+      </label>
+    `;
+    return `
+      <section class="lesson-action-card assignment-submission-card">
+        <div class="assignment-submission-heading">
+          <div>
+            <p class="eyebrow">Student submission form</p>
+            <h2>Submit assignment</h2>
+          </div>
+          <span class="pill">Instructor preview</span>
+        </div>
+        <p>Students complete each written part in a separate response section. These boxes are typeable so instructors can inspect the student workflow; enrolled students see the active submission button in their portal.</p>
+        <div class="assignment-submission-form" aria-label="Student assignment submission preview">
+          ${previewFields}
+          <label>
+            Attach a completed file (optional)
+            <input type="file" disabled>
+          </label>
+          <p class="muted">File upload and final submission are active for enrolled students.</p>
+          <button class="button" type="button" disabled>Submit Assignment</button>
+        </div>
+      </section>
+    `;
+  }
+  return `
+    <section class="lesson-action-card assignment-submission-card">
+      <div class="assignment-submission-heading">
+        <div>
+          <p class="eyebrow">Your work</p>
+          <h2>${submission ? "Assignment submitted" : "Submit assignment"}</h2>
+        </div>
+        ${submission ? `<span class="pill">Submitted</span>` : ""}
+      </div>
+      ${autoGradeConfig ? renderWrittenAutogradeInstructions(autoGradeConfig) : ""}
+      ${submission ? `
+        <div class="assignment-submission-receipt">
+          <p><strong>${escapeHtml(submission.file_original_name)}</strong></p>
+          <p class="muted">Submitted ${escapeHtml(date(submission.submitted_at))} · ${escapeHtml(formatBytes(submission.file_size))}</p>
+          ${submission.student_note ? `<div class="assignment-written-response"><strong>Your written response</strong>${renderWrittenResponseSections(submission.student_note, responseSections)}</div>` : ""}
+          ${renderWrittenAutogradeFeedback(grade)}
+          <a class="button ghost small" href="/student/assignment-submissions/${submission.id}/file">Download submitted work</a>
+        </div>
+      ` : `<p>${autoGradeConfig ? "Complete each section below in complete sentences." : "Type your answer below, attach a completed file, or use both options. Your instructor will receive the work in the grading queue."}</p>`}
+      <form class="assignment-submission-form" method="post" enctype="multipart/form-data" action="/student/enrollments/${enrollmentId}/assignments/${item.id}/submit">
+        ${autoGradeConfig ? `
+          ${structuredResponseFields || `
+            <label>
+              Write your response
+              <textarea name="studentResponse" rows="9" maxlength="12000" placeholder="Answer the assignment prompt in complete sentences. Support your response with this week's course material and do not include real patient-identifying information.">${escapeHtml(submission?.student_note || "")}</textarea>
+            </label>
+          `}
+        ` : `
+          <label>
+            Write your response
+            <textarea name="studentResponse" rows="9" maxlength="12000" placeholder="Answer the assignment prompt in complete sentences. Support your response with this week's course material and do not include real patient-identifying information.">${escapeHtml(submission?.student_note || "")}</textarea>
+          </label>
+          <label>
+            ${submission ? "Replace or add an attachment (optional)" : "Attach a completed file (optional)"}
+            <input type="file" name="assignmentFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.webp,.zip">
+          </label>
+          <p class="muted">Enter a written response, attach a file, or do both. Accepted files: PDF, Office documents, text, CSV, images, and ZIP files up to 25 MB.</p>
+        `}
+        <button class="button" type="submit">${submission ? "Replace Submission" : "Submit Assignment"}</button>
+      </form>
+    </section>
+  `;
+}
+
 function renderCourseRubricsPage({ courseCode, baseHref, gradeItems = [], instructor = false, courseId = null }) {
   const items = gradeItems.filter(rubricEligible);
   return `
@@ -4479,13 +5016,15 @@ function renderCourseRubricsPage({ courseCode, baseHref, gradeItems = [], instru
   `;
 }
 
-function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons = [], instructor = false, studentScore = null, courseId = null, enrollmentId = null, submission = null }) {
+function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons = [], instructor = false, studentScore = null, studentGrade = null, courseId = null, enrollmentId = null, submission = null }) {
   const type = assignmentTypeLabel(item);
+  const writtenAutogradeConfig = writtenAssignmentConfigForItem(item, lessons);
   const relatedLessonHref = assignmentItemHref({ ...item, id: null }, lessons, baseHref);
   const hasRelatedLesson = relatedLessonHref.includes("?lesson=");
   const status = Number(item.published ?? 1) === 0 ? "Unpublished" : "Published";
+  const pendingInstructorReview = isAutoGradeApprovalPending(studentGrade?.note);
   const scoreLabel = studentScore === null || studentScore === undefined
-    ? "Not graded"
+    ? pendingInstructorReview ? "Pending instructor review" : "Not graded"
     : `${studentScore} / ${item.points_possible || 0}`;
   return `
     <main class="canvas-course-main canvas-page-main">
@@ -4521,37 +5060,9 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
           </div>
         </section>
         ${renderAssignmentRubric({ item, instructor, courseId })}
-        ${!instructor && enrollmentId && type !== "Quiz" && type !== "Exam" ? `
-          <section class="lesson-action-card assignment-submission-card">
-            <div class="assignment-submission-heading">
-              <div>
-                <p class="eyebrow">Your work</p>
-                <h2>${submission ? "Assignment submitted" : "Submit assignment"}</h2>
-              </div>
-              ${submission ? `<span class="pill">Submitted</span>` : ""}
-            </div>
-            ${submission ? `
-              <div class="assignment-submission-receipt">
-                <p><strong>${escapeHtml(submission.file_original_name)}</strong></p>
-                <p class="muted">Submitted ${escapeHtml(date(submission.submitted_at))} · ${escapeHtml(formatBytes(submission.file_size))}</p>
-                ${submission.student_note ? `<div class="assignment-written-response"><strong>Your written response</strong><p>${escapeHtml(submission.student_note)}</p></div>` : ""}
-                <a class="button ghost small" href="/student/assignment-submissions/${submission.id}/file">Download submitted work</a>
-              </div>
-            ` : `<p>Type your answer below, attach a completed file, or use both options. Your instructor will receive the work in the grading queue.</p>`}
-            <form class="assignment-submission-form" method="post" enctype="multipart/form-data" action="/student/enrollments/${enrollmentId}/assignments/${item.id}/submit">
-              <label>
-                Write your response
-                <textarea name="studentResponse" rows="9" maxlength="12000" placeholder="Answer the assignment prompt in complete sentences. Support your response with this week's course material and do not include real patient-identifying information.">${escapeHtml(submission?.student_note || "")}</textarea>
-              </label>
-              <label>
-                ${submission ? "Replace or add an attachment (optional)" : "Attach a completed file (optional)"}
-                <input type="file" name="assignmentFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.webp,.zip">
-              </label>
-              <p class="muted">Enter a written response, attach a file, or do both. Accepted files: PDF, Office documents, text, CSV, images, and ZIP files up to 25 MB.</p>
-              <button class="button" type="submit">${submission ? "Replace Submission" : "Submit Assignment"}</button>
-            </form>
-          </section>
-        ` : ""}
+        ${!instructor && enrollmentId && type !== "Quiz" && type !== "Exam"
+          ? renderAssignmentSubmissionCard({ item, enrollmentId, submission, autoGradeConfig: writtenAutogradeConfig, grade: studentGrade })
+          : ""}
         ${type === "Quiz" || type === "Exam" ? `
           <section class="lesson-action-card">
             <h2>${escapeHtml(type)}</h2>
@@ -4830,12 +5341,55 @@ function youtubeVideoId(value = "") {
 
 function youtubeEmbedUrl(value = "") {
   const videoId = youtubeVideoId(value);
-  return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}` : null;
+  return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1&iv_load_policy=3` : null;
 }
 
 function youtubeWatchUrl(value = "") {
   const videoId = youtubeVideoId(value);
   return videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
+}
+
+function isVideoFileExtension(extension = "") {
+  return [".mp4", ".webm", ".ogg", ".ogv", ".mov", ".m4v"].includes(String(extension || "").toLowerCase());
+}
+
+function videoContentType(extension = "") {
+  const types = {
+    ".mp4": "video/mp4",
+    ".m4v": "video/mp4",
+    ".webm": "video/webm",
+    ".ogg": "video/ogg",
+    ".ogv": "video/ogg",
+    ".mov": "video/quicktime"
+  };
+  return types[String(extension || "").toLowerCase()] || "application/octet-stream";
+}
+
+function directVideoUrl(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  const sourceForPath = (pathname, search = "") => {
+    if (!isVideoFileExtension(path.extname(pathname).toLowerCase())) return null;
+    const base = `${pathname}${search || ""}`;
+    if (!pathname.startsWith("/course-materials/")) return base;
+    const separator = base.includes("?") ? "&" : "?";
+    return base.includes("inline=1") ? base : `${base}${separator}inline=1`;
+  };
+
+  if (raw.startsWith("/")) return sourceForPath(raw);
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const parsed = new URL(withProtocol);
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return null;
+    if (!isVideoFileExtension(path.extname(parsed.pathname).toLowerCase())) return null;
+    if (parsed.pathname.startsWith("/course-materials/")) {
+      parsed.searchParams.set("inline", "1");
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
 }
 
 function renderTextWithLinks(value = "") {
@@ -5121,7 +5675,10 @@ function renderLineRun(lines = []) {
 }
 
 function renderCanvasLessonContent(value = "", lessonTitles = []) {
-  const raw = stripCanvasSource(value).replace(/\n*QUIZ_DATA_BASE64:[A-Za-z0-9+/=]+\s*/g, "\n").trim();
+  const raw = stripCanvasSource(value)
+    .replace(/\n*QUIZ_DATA_BASE64:[A-Za-z0-9+/=]+\s*/g, "\n")
+    .replace(/\n*WRITTEN_ASSIGNMENT_DATA_BASE64:[A-Za-z0-9+/=]+\s*/g, "\n")
+    .trim();
   if (!raw) return `<p class="empty">No page content has been added yet.</p>`;
   if (looksLikeHtml(raw)) {
     const cleanedHtml = stripDuplicateHtmlLessonHeading(sanitizeCanvasHtml(raw), lessonTitles).trim();
@@ -6050,6 +6607,62 @@ app.get("/admissions/apply/submitted", (req, res) => {
   render(req, res, "Application Submitted", body);
 });
 
+app.get("/legal/privacy", (req, res) => {
+  const body = `
+    <div class="page-head"><div><p class="eyebrow">Legal</p><h1>Privacy Policy</h1><p>Effective August 4, 2026</p></div></div>
+    <article class="card prose legal-document">
+      <h2>Information we collect</h2>
+      <p>Broward-Miami Health Institute collects account, enrollment, academic, attendance, billing, contact, and support information needed to operate its student information and learning management system. When an authorized administrator connects QuickBooks Online, the portal exchanges student customer records, billing charges, invoices, payment records, transaction identifiers, and synchronization status with the institute's QuickBooks company.</p>
+      <h2>How information is used</h2>
+      <p>Information is used to deliver instruction, administer enrollment, maintain student accounts, reconcile tuition and fee payments, provide support, meet institutional obligations, prevent fraud, and maintain accurate business records. QuickBooks data is used only for the institute's accounting and student billing workflows.</p>
+      <h2>Sharing and service providers</h2>
+      <p>Information is shared only with authorized institute personnel and service providers that support portal hosting, communications, course delivery, and accounting. QuickBooks data is not sold or used for advertising. Intuit processes connected accounting data under its own privacy and platform terms.</p>
+      <h2>Security and retention</h2>
+      <p>Access is role restricted. QuickBooks authorization tokens are encrypted at rest, connections use HTTPS, and synchronization activity is logged. Records are retained for the period required for educational, accounting, legal, and audit purposes. Access tokens are removed when the QuickBooks connection is disconnected; accounting and audit records already created remain subject to institutional retention requirements.</p>
+      <h2>Your choices</h2>
+      <p>Authorized administrators may disconnect QuickBooks from the Billing page. Students may contact the institute to request access to or correction of their information, subject to applicable record-retention requirements.</p>
+      <h2>Contact</h2>
+      <p>Questions may be directed to <a href="mailto:${escapeHtml(instituteEmail)}">${escapeHtml(instituteEmail)}</a>, ${escapeHtml(institutePhone)}, or ${escapeHtml(instituteAddress)}.</p>
+    </article>
+  `;
+  render(req, res, "Privacy Policy", body);
+});
+
+app.get("/legal/terms", (req, res) => {
+  const body = `
+    <div class="page-head"><div><p class="eyebrow">Legal</p><h1>Portal and QuickBooks Integration Terms</h1><p>Effective August 4, 2026</p></div></div>
+    <article class="card prose legal-document">
+      <h2>Authorized use</h2>
+      <p>This portal is provided by Broward-Miami Health Institute for authorized students, faculty, staff, and administrators. Users must protect their credentials, provide accurate information, and use the service only for legitimate institutional purposes.</p>
+      <h2>QuickBooks connection</h2>
+      <p>Only an authorized institute administrator may connect the portal to the institute's QuickBooks Online company. The connection may create or synchronize customers, invoices, and payments. QuickBooks remains the institute's accounting system of record, while the portal provides the student-facing billing view.</p>
+      <h2>Data accuracy</h2>
+      <p>Staff must review synchronized records and promptly correct discrepancies. Service availability and synchronization timing may be affected by Intuit, hosting providers, network conditions, or maintenance. No accounting entry should be treated as final until it has been reviewed by authorized staff.</p>
+      <h2>Acceptable use</h2>
+      <p>Users may not attempt unauthorized access, interfere with the service, upload malicious content, misrepresent payments, or use student or accounting information outside their assigned responsibilities.</p>
+      <h2>Suspension and termination</h2>
+      <p>The institute may restrict access to protect students, institutional records, or service integrity. Administrators may disconnect QuickBooks at any time. Disconnection stops future synchronization but does not delete valid accounting or educational records already created.</p>
+      <h2>Contact</h2>
+      <p>Questions may be directed to <a href="mailto:${escapeHtml(instituteEmail)}">${escapeHtml(instituteEmail)}</a>, ${escapeHtml(institutePhone)}, or ${escapeHtml(instituteAddress)}.</p>
+    </article>
+  `;
+  render(req, res, "Portal Terms", body);
+});
+
+app.get("/quickbooks/connect", (req, res) => res.redirect("/admin/integrations/quickbooks/connect"));
+
+app.get("/quickbooks/disconnect", (req, res) => {
+  const body = `
+    <section class="card prose legal-document">
+      <p class="eyebrow">QuickBooks Online</p>
+      <h1>Manage the accounting connection</h1>
+      <p>An authorized institute administrator can disconnect QuickBooks from <strong>Admin → Billing → QuickBooks Online</strong>. Disconnection revokes the portal's current Intuit authorization and stops future synchronization. Existing accounting and audit records remain available.</p>
+      <div class="actions"><a class="button" href="/admin/billing">Sign in to manage QuickBooks</a><a class="button ghost" href="/legal/privacy">Privacy policy</a></div>
+    </section>
+  `;
+  render(req, res, "QuickBooks Connection", body);
+});
+
 app.get("/login", (req, res) => {
   const body = `
     <section class="login-wrap">
@@ -6427,15 +7040,371 @@ app.get("/help/browser-cache", requireAuth, (req, res) => {
   render(req, res, "Browser Cache Help", body, req.user.role === "student" ? { studentPortal: true, activeStudentNav: "help" } : {});
 });
 
+const staffPortalSops = [
+  {
+    id: "SOP-000",
+    slug: "how-to-find-sops",
+    title: "How to Find and Use Staff SOPs",
+    audience: "All staff",
+    frequency: "Use at the start of training and whenever a process is unclear.",
+    purpose: "Show staff how to open this SOP library, find the correct procedure, and follow the same portal process each time.",
+    links: [{ label: "Open SOP Library", href: "/admin/help" }],
+    steps: [
+      "Sign in using Faculty Login.",
+      "Use the staff navigation bar and select SOPs. The same page is also available from the Help button in the top-right staff toolbar.",
+      "Review the SOP cards and choose the procedure that matches the task you need to complete.",
+      "Open the SOP and follow the steps in order. Use the linked portal buttons in the SOP when available.",
+      "If a screen looks different from the SOP, refresh the page first, then open Browser Troubleshooting from the SOP Library.",
+      "If the SOP does not cover the task, notify the administrator so the SOP library can be updated."
+    ],
+    quality: [
+      "Staff should not rely on memory when completing high-risk tasks such as grading, student access, registrar records, billing, or withdrawals.",
+      "Use the SOP title and SOP number when asking for help so another staff member can find the same procedure."
+    ],
+    records: "No separate record is required. The portal records the actual task completed, such as messages, grades, student access updates, uploads, and checklist notes."
+  },
+  {
+    id: "SOP-001",
+    slug: "staff-sign-in-navigation",
+    title: "Staff Sign-In and Portal Navigation",
+    audience: "All staff",
+    frequency: "Every work session.",
+    purpose: "Provide a consistent login and navigation process for staff using the student portal and LMS.",
+    links: [
+      { label: "Dashboard", href: "/admin" },
+      { label: "Courses", href: "/admin/courses" },
+      { label: "Inbox", href: "/admin/messages" }
+    ],
+    steps: [
+      "Open the portal website and choose Faculty Login.",
+      "Enter the assigned staff email username and password.",
+      "Start on Dashboard to review new activity, alerts, and upcoming work.",
+      "Use Students for student records, class access, registrar checklist, photos, and passwords.",
+      "Use Courses for LMS modules, assignments, syllabus, gradebook, people, and student view.",
+      "Use Assignment Inbox for written submissions that need grading or approval.",
+      "Use Inbox for staff-to-student messages.",
+      "Use SOPs whenever a procedure needs to be checked before action."
+    ],
+    quality: [
+      "Do not share staff login credentials.",
+      "Sign out at the end of the work session, especially on shared computers."
+    ],
+    records: "Portal activity is saved in the related module, message thread, grade item, or student record."
+  },
+  {
+    id: "SOP-002",
+    slug: "student-records-id-numbers",
+    title: "Create Student Records and Verify Student ID Numbers",
+    audience: "Administrators and registrar staff",
+    frequency: "Whenever a student account is created or reviewed.",
+    purpose: "Create complete student accounts and confirm each student has an official six-digit student ID number.",
+    adminOnly: true,
+    links: [{ label: "Students", href: "/admin/students" }],
+    steps: [
+      "Open Students.",
+      "Use New student to enter legal first name, legal last name, portal login email, personal reminder email, phone, cohort, cohort dates, and uniform size.",
+      "Keep Class access set to Locked until registrar and payment requirements are complete.",
+      "Select the initial course only after confirming the program or class.",
+      "Submit the form to create the student account.",
+      "Confirm the Student ID column shows a six-digit number with no letters and no leading zero.",
+      "Use the student ID when identifying the student in staff notes, registrar files, transcripts, and support requests."
+    ],
+    quality: [
+      "Do not create a duplicate student if the email already exists.",
+      "Student IDs are generated automatically and should not be manually invented."
+    ],
+    records: "The official ID is stored on the student record and appears on the roster, registrar page, student profile, financial page, and transcript."
+  },
+  {
+    id: "SOP-003",
+    slug: "student-access-photo-review",
+    title: "Manage Student Access and Photo Review",
+    audience: "Administrators and registrar staff",
+    frequency: "Before students begin coursework and whenever access is questioned.",
+    purpose: "Control when students can enter courses and verify profile photo requirements.",
+    adminOnly: true,
+    links: [{ label: "Students", href: "/admin/students" }],
+    steps: [
+      "Open Students.",
+      "Find the student by name, email, cohort, or student ID.",
+      "Review Class access. Locked means the student cannot fully proceed; Organized means the student is cleared for class access.",
+      "Before unlocking, confirm admissions documents, payment plan, registrar notes, and any required photo review.",
+      "If the student submitted a photo, approve or deny it using the Photo review controls.",
+      "If denying a photo, enter a clear note explaining what must be corrected.",
+      "Change Class access to Organized only after the student is cleared.",
+      "Save access and confirm the status changed on the roster."
+    ],
+    quality: [
+      "Do not unlock students with missing admissions or payment requirements unless an administrator approves the exception.",
+      "Use notes that are professional and clear enough for another staff member to understand."
+    ],
+    records: "Photo review events, access status, and class lock reasons are stored on the student record."
+  },
+  {
+    id: "SOP-004",
+    slug: "course-modules-student-view",
+    title: "Review Courses, Modules, and Student View",
+    audience: "Administrators and instructors",
+    frequency: "Before students begin a week, after course edits, and before announcements.",
+    purpose: "Confirm course content appears correctly to students before directing them to complete work.",
+    links: [{ label: "Courses", href: "/admin/courses" }],
+    steps: [
+      "Open Courses.",
+      "Select the correct course, such as PN 101, PN 102, PN 103, or PN 104.",
+      "Open Modules to review weekly order, page titles, assignments, quizzes, discussions, PowerPoints, videos, and resources.",
+      "Open each recently edited item and confirm the content matches the intended student view.",
+      "Use Student View when available to confirm students can see the item and use the correct buttons.",
+      "Check that files open as files, lessons open as lessons, assignments open as assignments, and quizzes open as quizzes.",
+      "If an item is incorrect, correct the course item before telling students to begin."
+    ],
+    quality: [
+      "Keep module titles and chapter titles consistent.",
+      "Do not leave duplicate module items visible to students."
+    ],
+    records: "Course modules, lessons, grade items, and student progress remain in the LMS."
+  },
+  {
+    id: "SOP-005",
+    slug: "written-assignments-autograde",
+    title: "Review Written Assignments and Auto-Graded Work",
+    audience: "Administrators and instructors",
+    frequency: "After students submit written assignments.",
+    purpose: "Review student-written responses, approve or adjust automatic grades, and keep grading transparent.",
+    links: [
+      { label: "Assignment Inbox", href: "/admin/assignment-submissions" },
+      { label: "Courses", href: "/admin/courses" }
+    ],
+    steps: [
+      "Open Assignment Inbox.",
+      "Keep the status filter on Needs review to see new submissions and auto-graded items waiting for approval.",
+      "Open the submission card and read each written response section.",
+      "Review any downloaded attachment if one is present.",
+      "Compare the response against the assignment directions, required structures, rubric, and professional writing expectations.",
+      "Use the suggested score only as a starting point. The instructor is responsible for approving or changing the grade.",
+      "Enter or revise instructor feedback.",
+      "Select Approve Grade, Update Grade, or Post Grade.",
+      "Confirm the student receives the grading notification."
+    ],
+    quality: [
+      "Automatic scores are provisional until instructor approval.",
+      "Do not approve a grade without reviewing the student's written work.",
+      "Adjust the grade when the response is inaccurate, incomplete, copied, unsafe, or missing required parts."
+    ],
+    records: "The submission, score, feedback, and notification are stored in the Assignment Inbox and gradebook."
+  },
+  {
+    id: "SOP-006",
+    slug: "gradebook-review",
+    title: "Use the Gradebook and Check Student Progress",
+    audience: "Administrators and instructors",
+    frequency: "Weekly and before progress meetings.",
+    purpose: "Review grades, identify missing work, and confirm the gradebook matches the course requirements.",
+    links: [{ label: "Courses", href: "/admin/courses" }],
+    steps: [
+      "Open Courses and choose the correct course.",
+      "Open Grades or Gradebook.",
+      "Review each student row and each assignment column.",
+      "Look for missing scores, unusually low scores, or provisional auto-scores that still require instructor review.",
+      "Use Assignment Inbox to review written work before approving provisional grades.",
+      "Check Discussions, Quizzes, and Assignments separately when a grade seems incorrect.",
+      "Document follow-up through Inbox when a student needs to complete missing work."
+    ],
+    quality: [
+      "The gradebook shows academic progress, but written assignment work must still be reviewed in Assignment Inbox.",
+      "Do not change grades without checking the related submission or assessment record."
+    ],
+    records: "Grade entries are stored in the LMS gradebook and connected to student enrollment records."
+  },
+  {
+    id: "SOP-007",
+    slug: "student-messaging",
+    title: "Message Students Through the Portal",
+    audience: "Administrators and instructors",
+    frequency: "Whenever course, registrar, billing, or support communication is needed.",
+    purpose: "Keep student communication documented inside the portal.",
+    links: [{ label: "Inbox", href: "/admin/messages" }],
+    steps: [
+      "Open Inbox.",
+      "Choose the student recipient and the related course when the message is course-specific.",
+      "Use a clear subject line, such as Missing Week 2 Assignment or Registrar Document Needed.",
+      "Write the message in professional language.",
+      "Include the action the student must take and the due date when applicable.",
+      "Send the message and verify it appears in the message thread.",
+      "Use the same thread for follow-up when the topic continues."
+    ],
+    quality: [
+      "Do not include private information that does not belong in a student message.",
+      "Use portal messages for decisions that need a record."
+    ],
+    records: "Sent and received messages remain in the portal Inbox."
+  },
+  {
+    id: "SOP-008",
+    slug: "registrar-documents",
+    title: "Upload and Review Registrar Documents",
+    audience: "Administrators and registrar staff",
+    frequency: "When admissions, enrollment, or graduation documents are received.",
+    purpose: "Keep student files organized and ready for audit or graduation review.",
+    adminOnly: true,
+    links: [{ label: "Registrar Checklist", href: "/admin/students#registrar-upload-matrix" }],
+    steps: [
+      "Open Students.",
+      "Find the student and select Upload documents or the specific registrar checklist item.",
+      "Upload the document under the matching checklist item.",
+      "Set the item status to Pending, Received, Approved, Missing, or Waived.",
+      "Enter a short note when a document is missing, unclear, waived, or approved with conditions.",
+      "Use the Admissions document checklist to confirm all required admissions items are complete.",
+      "Verify the student file shows complete readiness before graduation approval."
+    ],
+    quality: [
+      "Upload documents to the correct student only.",
+      "Use Waived only when the school has approved that exception.",
+      "Do not delete or overwrite student records to correct a document error; add a note and upload the correct file."
+    ],
+    records: "Uploaded files, status changes, and registrar notes remain attached to the student checklist."
+  },
+  {
+    id: "SOP-009",
+    slug: "student-profile-support",
+    title: "Help Students Use Their Portal",
+    audience: "Administrators, instructors, and support staff",
+    frequency: "When a student asks for help with the portal.",
+    purpose: "Guide students to the correct portal area without completing coursework for them.",
+    links: [
+      { label: "Students", href: "/admin/students" },
+      { label: "Browser Troubleshooting", href: "/help/browser-cache" }
+    ],
+    steps: [
+      "Confirm the student's name, email, and six-digit student ID.",
+      "Confirm the student is using Student Login, not Faculty Login.",
+      "Direct the student to Dashboard for course cards and reminders.",
+      "Direct the student to My Courses for modules, PowerPoints, assignments, quizzes, and discussions.",
+      "Direct the student to Calendar for due dates.",
+      "Direct the student to Inbox for school messages.",
+      "Direct the student to My Profile for student ID, contact information, attendance, documents, evaluations, transcript, and fees.",
+      "If the portal shows old information, have the student refresh the page and then use Browser Troubleshooting."
+    ],
+    quality: [
+      "Staff may explain where to find items, but should not type assignment answers for students.",
+      "If a student cannot see a course, verify enrollment and class access before troubleshooting the browser."
+    ],
+    records: "Support messages and enrollment/access changes should be documented in the portal."
+  },
+  {
+    id: "SOP-010",
+    slug: "browser-troubleshooting",
+    title: "Browser Troubleshooting and Cache Reset",
+    audience: "All staff",
+    frequency: "When the portal shows outdated pages, missing buttons, or old course content.",
+    purpose: "Resolve common browser display issues without changing student records.",
+    links: [{ label: "Browser Troubleshooting", href: "/help/browser-cache" }],
+    steps: [
+      "Refresh the page.",
+      "Sign out and sign back in.",
+      "Open Browser Troubleshooting from Staff SOPs or Help.",
+      "Use Clear Local Portal Cache.",
+      "Refresh the page again.",
+      "If the issue remains, try a private browser window or a different browser.",
+      "If the issue still remains, report the exact page, student, course, and screenshot to the administrator."
+    ],
+    quality: [
+      "Clearing browser cache does not delete grades, submissions, documents, messages, or student records.",
+      "Do not make duplicate course items because one browser is showing an outdated view."
+    ],
+    records: "No record is required unless the issue affects student access, grades, or official records."
+  }
+];
+
+function visibleStaffSops(user) {
+  return staffPortalSops.filter((sop) => !sop.adminOnly || user.role === "admin");
+}
+
+function staffSopBySlug(slug, user) {
+  return visibleStaffSops(user).find((sop) => sop.slug === slug) || null;
+}
+
+function renderSopLinks(links = []) {
+  return links.length ? `
+    <div class="sop-link-row">
+      ${links.map((link) => `<a class="button small ghost" href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`).join("")}
+    </div>
+  ` : "";
+}
+
+function renderStaffSopCard(sop) {
+  return `
+    <article class="help-card staff-sop-card">
+      <span class="sop-step">${escapeHtml(sop.id.replace("SOP-", ""))}</span>
+      <h2>${escapeHtml(sop.title)}</h2>
+      <p>${escapeHtml(sop.purpose)}</p>
+      <dl class="sop-card-meta">
+        <div><dt>Audience</dt><dd>${escapeHtml(sop.audience)}</dd></div>
+        <div><dt>When</dt><dd>${escapeHtml(sop.frequency)}</dd></div>
+      </dl>
+      <a class="button small" href="/admin/help/sops/${escapeHtml(sop.slug)}">Open SOP</a>
+    </article>
+  `;
+}
+
+function renderStaffSopDetail(sop, user) {
+  const otherSops = visibleStaffSops(user).filter((item) => item.slug !== sop.slug).slice(0, 6);
+  return `
+    <section class="staff-help-page sop-detail-page">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">${escapeHtml(sop.id)} · Staff SOP</p>
+          <h1>${escapeHtml(sop.title)}</h1>
+          <p>${escapeHtml(sop.purpose)}</p>
+        </div>
+        <div class="actions">
+          <a class="button ghost" href="/admin/help">All SOPs</a>
+          <button class="button" type="button" onclick="window.print()">Print SOP</button>
+        </div>
+      </div>
+
+      <section class="sop-summary-card">
+        <div><strong>Audience</strong><span>${escapeHtml(sop.audience)}</span></div>
+        <div><strong>Frequency</strong><span>${escapeHtml(sop.frequency)}</span></div>
+        <div><strong>Location</strong><span>Staff Portal / SOPs</span></div>
+      </section>
+
+      ${renderSopLinks(sop.links)}
+
+      <section class="sop-document-grid">
+        <article class="card sop-document-section">
+          <h2>Procedure</h2>
+          <ol>${sop.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>
+        </article>
+        <article class="card sop-document-section">
+          <h2>Quality Checks</h2>
+          <ul>${sop.quality.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </article>
+        <article class="card sop-document-section">
+          <h2>Records</h2>
+          <p>${escapeHtml(sop.records)}</p>
+        </article>
+      </section>
+
+      <section class="card sop-related-list">
+        <h2>Other SOPs</h2>
+        <div class="feature-quick-list">
+          ${otherSops.map((item) => `<a href="/admin/help/sops/${escapeHtml(item.slug)}">${escapeHtml(item.id)} · ${escapeHtml(item.title)}</a>`).join("")}
+        </div>
+      </section>
+    </section>
+  `;
+}
+
 app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const isAdmin = req.user.role === "admin";
+  const sops = visibleStaffSops(req.user);
   const body = `
     <section class="staff-help-page">
       <div class="page-head">
         <div>
-          <p class="eyebrow">Staff Help</p>
-          <h1>Standard of Practice</h1>
-          <p>Use this page as the staff reference for completing common SIS and LMS tasks the same way every time.</p>
+          <p class="eyebrow">Staff SOP Library</p>
+          <h1>Student Portal Standard Operating Procedures</h1>
+          <p>Use these procedures to complete student portal, LMS, registrar, grading, messaging, and support tasks the same way every time.</p>
         </div>
         <div class="actions">
           <a class="button ghost" href="/help/browser-cache">Browser troubleshooting</a>
@@ -6445,157 +7414,24 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
 
       <section class="staff-help-hero">
         <div>
-          <h2>Daily staff checklist</h2>
-          <p>${isAdmin ? "Start each work session by checking new applications, student file completion, unread messages, course activity, and any OSV evidence requests." : "Start each instructional session by checking course activity, unread student messages, HESI follow-up needs, and upcoming class items."}</p>
+          <h2>Start Here</h2>
+          <p>${isAdmin ? "Open SOP-000 first when training staff. Then use the matching SOP for admissions, student records, courses, grading, messaging, documents, billing, or troubleshooting." : "Open SOP-000 first when learning the staff portal. Then use the matching SOP for courses, grading, messaging, student support, or troubleshooting."}</p>
         </div>
         <ol>
-          <li>Sign in through Faculty Login.</li>
-          <li>Review Dashboard alerts and new activity.</li>
-          <li>${isAdmin ? "Open Students to confirm class access and admissions files." : "Open Students to view enrolled students and cohort placement."}</li>
-          <li>Open Inbox before the end of each work session.</li>
+          <li>Open SOP-000: How to Find and Use Staff SOPs.</li>
+          <li>Choose the SOP that matches the work being completed.</li>
+          <li>Follow the steps in order and use the linked portal pages.</li>
+          <li>Document completed work in the related student, course, message, or grade record.</li>
         </ol>
       </section>
 
       <section class="help-grid staff-sop-grid">
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">01</span>
-          <h2>Create or review an applicant</h2>
-          <ol>
-            <li>Open Admissions from the staff navigation.</li>
-            <li>Review the applicant's program, contact details, education history, and notes.</li>
-            <li>Set the application status to New, Reviewing, Accepted, Waitlisted, Declined, or Converted.</li>
-            <li>When accepted, create the student account and leave class access locked until the file is organized.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/admissions">Open admissions</a>
-        </article>
-        ` : ""}
-
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">02</span>
-          <h2>Create a student record</h2>
-          <ol>
-            <li>Open Students and use New student.</li>
-            <li>Enter the student's legal name, email, phone, cohort, cohort dates, and uniform size.</li>
-            <li>Keep class access locked until registrar requirements are complete.</li>
-            <li>Enroll the student in the correct course only after confirming the program.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/students">Open students</a>
-        </article>
-        ` : ""}
-
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">03</span>
-          <h2>Complete student files</h2>
-          <ol>
-            <li>Open the student's Registrar Checklist.</li>
-            <li>Upload documents to the matching checklist item.</li>
-            <li>Use the Admissions documents checklist to mark each required item Complete or Waived.</li>
-            <li>When every admissions item is complete, confirm the green Complete badge appears.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/students#registrar-upload-matrix">Open registrar files</a>
-        </article>
-        ` : ""}
-
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">04</span>
-          <h2>Unlock class access</h2>
-          <ol>
-            <li>Verify admissions documents, payment plan, and registrar notes.</li>
-            <li>On the Students page, change Class access to Organized.</li>
-            <li>Save access and confirm the student is no longer marked Locked.</li>
-            <li>Use Lock access again if the student becomes out of compliance.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/students">Manage access</a>
-        </article>
-        ` : ""}
-
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">05</span>
-          <h2>Add or reset instructor login</h2>
-          <ol>
-            <li>Open Instructor Roles from the staff navigation.</li>
-            <li>Use Create instructor login to enter the faculty member's name, email username, and optional phone number.</li>
-            <li>Use Refresh approved instructors to restore approved faculty accounts such as Dayana Diaz and Roney Hernandez.</li>
-            <li>Give the instructor their email username and the temporary password shown on the page.</li>
-            <li>If the login fails, use Reset to temporary password and have the instructor try Faculty Login again.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/instructor-roles">Open instructor roles</a>
-        </article>
-        ` : ""}
-
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">${isAdmin ? "06" : "05"}</span>
-          <h2>Manage courses and LMS content</h2>
-          <ol>
-            <li>Open Courses and select the program or class.</li>
-            <li>Use the Canvas-style course tools for modules, syllabus, assignments, grades, people, and settings.</li>
-            <li>Keep Practical Nursing courses separate from Home Health Aide and American Heart Association courses.</li>
-            <li>Review student view before announcing new course content.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/courses">Open courses</a>
-        </article>
-
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">${isAdmin ? "07" : "06"}</span>
-          <h2>Communicate with students</h2>
-          <ol>
-            <li>Open Inbox to view incoming student messages.</li>
-            <li>Choose a course when the message is course-specific.</li>
-            <li>Use clear subject lines and document important decisions in the thread.</li>
-            <li>Check external email delivery status if SMTP is enabled.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/messages">Open inbox</a>
-        </article>
-
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">${isAdmin ? "08" : "07"}</span>
-          <h2>Track HESI and cohort records</h2>
-          <ol>
-            <li>Open HESI Scores and choose the correct cohort.</li>
-            <li>Enter scores by subject and compare them against acceptable scores.</li>
-            <li>Use remediation status to identify students needing follow-up.</li>
-            <li>Keep cohort names consistent, such as Cohort 1 or Cohort 2.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/hesi">Open HESI scores</a>
-        </article>
-
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">09</span>
-          <h2>Prepare OSV visit evidence</h2>
-          <ol>
-            <li>Open OSV Visit from the staff navigation.</li>
-            <li>Upload evidence under the matching standard or checklist item.</li>
-            <li>Use notes to explain where each document belongs in the visit packet.</li>
-            <li>Open the presentation view when preparing the organized evidence packet.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/onsite-visit">Open OSV visit</a>
-        </article>
-        ` : ""}
-
-        ${isAdmin ? `
-        <article class="help-card staff-sop-card">
-          <span class="sop-step">10</span>
-          <h2>Billing and financial aid</h2>
-          <ol>
-            <li>Open Billing for tuition balances, payment plans, and account clearance.</li>
-            <li>Open Financial Aid for aid records and student funding notes.</li>
-            <li>Confirm payment plan status before unlocking class access.</li>
-            <li>Record notes before graduation approval.</li>
-          </ol>
-          <a class="button small ghost" href="/admin/billing">Open billing</a>
-        </article>
-        ` : ""}
+        ${sops.map(renderStaffSopCard).join("")}
       </section>
 
       <section class="card staff-help-reference">
-        <h2>When something does not look right</h2>
-        <p>First refresh the page. If the portal still shows old wording, old buttons, or broken formatting, use the browser troubleshooting page to clear local portal cache. This does not delete school records.</p>
+        <h2>Daily Staff Start-Up</h2>
+        <p>Sign in, review Dashboard activity, open Assignment Inbox for pending grading, check Inbox messages, and use the relevant SOP before changing student access, grades, registrar documents, or billing records.</p>
         <div class="actions">
           <a class="button ghost" href="/help/browser-cache">Open browser troubleshooting</a>
           ${isAdmin ? `<a class="button ghost" href="/admin/admin-roles">Admin roles</a>` : ""}
@@ -6605,6 +7441,12 @@ app.get("/admin/help", requireAuth, requireRole("admin", "instructor"), (req, re
     </section>
   `;
   render(req, res, "Staff Help", body);
+});
+
+app.get("/admin/help/sops/:slug", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const sop = staffSopBySlug(String(req.params.slug || ""), req.user);
+  if (!sop) return res.status(404).send("SOP not found");
+  render(req, res, sop.title, renderStaffSopDetail(sop, req.user));
 });
 
 function ticketUrgencyLabel(value = "") {
@@ -6768,14 +7610,50 @@ app.post("/admin/tickets/:id/status", requireAuth, requireRole("admin", "instruc
 
 app.get("/catalog", requireAuth, (req, res) => {
   const catalogCourses = db.prepare("SELECT * FROM courses WHERE published = 1 ORDER BY category, title").all();
+  const activeCatalog = currentInstitutionCatalog();
+  const recentCatalogs = req.user.role === "admin" ? recentInstitutionCatalogs() : [];
+  const catalogUploadPanel = req.user.role === "admin" ? `
+    <section class="card catalog-upload-card">
+      <div class="table-card-head">
+        <div>
+          <h2>Upload 2026-2027 Catalog PDF</h2>
+          <p class="muted">Upload the official 2026-2027 catalog here. After upload, the Catalog page, Open PDF button, and embedded preview will use the newest active PDF.</p>
+        </div>
+      </div>
+      <form class="form-grid" method="post" action="/admin/catalog/upload" enctype="multipart/form-data">
+        <label>Catalog year
+          <input name="catalogYear" value="2026-2027" required>
+        </label>
+        <label>Catalog title
+          <input name="catalogTitle" value="Broward-Miami Health Institute Institution Catalog 2026-2027" required>
+        </label>
+        <label class="span-2">Catalog PDF
+          <input type="file" name="catalogPdf" accept="application/pdf,.pdf" required>
+        </label>
+        <button class="button" type="submit">Upload Catalog</button>
+      </form>
+      <div class="catalog-upload-status">
+        <p><strong>Current catalog:</strong> ${escapeHtml(activeCatalog.title)}${activeCatalog.source === "uploaded" ? ` · ${escapeHtml(formatBytes(activeCatalog.file_size))} · uploaded ${escapeHtml(formatMessageDate(activeCatalog.uploaded_at))}` : " · default file"}</p>
+        ${recentCatalogs.length ? `
+          <div class="catalog-definition-list">
+            ${recentCatalogs.map((catalog) => `
+              <p><strong>${escapeHtml(catalog.catalog_year)}</strong><span>${escapeHtml(catalog.title)} · ${escapeHtml(formatBytes(catalog.file_size))} · ${escapeHtml(catalog.uploader_name || "Staff")} · ${escapeHtml(formatMessageDate(catalog.uploaded_at))}</span></p>
+            `).join("")}
+          </div>
+        ` : ""}
+      </div>
+    </section>
+  ` : "";
   const body = `
     <div class="page-head">
       <div>
         <h1>School Catalog</h1>
-        <p>Broward-Miami Health Institute Institution Catalog 2025-2026, Vol. III. Effective March 2025. Structured details below are extracted from the current catalog PDF.</p>
+        <p>${escapeHtml(activeCatalog.title)}. Structured details below are extracted from the school catalog record.</p>
       </div>
-      <a class="button" href="/assets/bmhi-institution-catalog-2025-2026.pdf" target="_blank" rel="noopener">Open PDF</a>
+      <a class="button" href="${escapeHtml(activeCatalog.href)}" target="_blank" rel="noopener">Open PDF</a>
     </div>
+
+    ${catalogUploadPanel}
 
     <section class="grid cols-4">
       ${stat("Campus", instituteAddress)}
@@ -6845,10 +7723,68 @@ app.get("/catalog", requireAuth, (req, res) => {
     </section>
 
     <section class="card catalog-card">
-      <iframe class="catalog-frame" src="/assets/bmhi-institution-catalog-2025-2026.pdf" title="Broward-Miami Health Institute Institution Catalog 2025-2026"></iframe>
+      <iframe class="catalog-frame" src="${escapeHtml(activeCatalog.href)}" title="${escapeHtml(activeCatalog.title)}"></iframe>
     </section>
   `;
   render(req, res, "School Catalog", body);
+});
+
+app.get("/catalog/current.pdf", requireAuth, (req, res) => {
+  const catalog = currentInstitutionCatalog();
+  if (catalog.source !== "uploaded") {
+    return res.redirect(defaultCatalogPdf.href);
+  }
+  const filePath = path.join(uploadDir, catalog.file_storage_name || "");
+  if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) {
+    return res.redirect(defaultCatalogPdf.href);
+  }
+  const fileName = path.basename(catalog.file_original_name || "bmhi-catalog.pdf").replace(/["\r\n]/g, "");
+  res.set({
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `inline; filename="${fileName}"`,
+    "Cache-Control": "private, max-age=300"
+  });
+  return res.sendFile(filePath);
+});
+
+app.post("/admin/catalog/upload", requireAuth, requireRole("admin"), (req, res) => {
+  upload.single("catalogPdf")(req, res, (error) => {
+    if (error) {
+      flash(req, error.code === "LIMIT_FILE_SIZE" ? "Catalog PDF is too large. The maximum file size is 25 MB." : error.message || "Catalog upload failed.");
+      return res.redirect("/catalog");
+    }
+    if (!req.file) {
+      flash(req, "Choose a catalog PDF to upload.");
+      return res.redirect("/catalog");
+    }
+    const extension = path.extname(req.file.originalname || "").toLowerCase();
+    const uploadedPath = path.join(uploadDir, req.file.filename);
+    const mimeType = String(req.file.mimetype || "").split(";")[0].toLowerCase();
+    const allowedPdfMimeTypes = new Set(["application/pdf", "application/octet-stream", ""]);
+    if (extension !== ".pdf" || !allowedPdfMimeTypes.has(mimeType)) {
+      if (isPathInside(uploadDir, uploadedPath) && fs.existsSync(uploadedPath)) fs.unlinkSync(uploadedPath);
+      flash(req, "Upload the catalog as a PDF file.");
+      return res.redirect("/catalog");
+    }
+    const catalogYear = String(req.body.catalogYear || "2026").trim().slice(0, 30) || "2026";
+    const catalogTitle = String(req.body.catalogTitle || `Broward-Miami Health Institute ${catalogYear} Catalog`).trim().slice(0, 180);
+    db.prepare("UPDATE institution_catalogs SET active = 0 WHERE active = 1").run();
+    db.prepare(`
+      INSERT INTO institution_catalogs (
+        catalog_year, title, file_original_name, file_storage_name, file_mime_type, file_size, active, uploaded_by
+      ) VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+    `).run(
+      catalogYear,
+      catalogTitle,
+      req.file.originalname,
+      req.file.filename,
+      req.file.mimetype,
+      req.file.size,
+      req.user.id
+    );
+    flash(req, `${catalogTitle} uploaded and set as the active catalog.`);
+    res.redirect("/catalog");
+  });
 });
 
 app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -8220,14 +9156,13 @@ app.get("/admin/onsite-visit", requireAuth, requireRole("admin"), (req, res) => 
       ${stat("Still missing", String(progress.missing))}
     </section>
 
+    ${renderOnsiteVisitStandardsNav(rows)}
+
     <section class="grid cols-2 osv-workspace">
       <article class="card osv-overview">
         <h2>Binder readiness</h2>
         ${progressBar(progress.percent)}
         <p class="muted">Approved and not-applicable items count toward binder readiness. Uploaded files remain attached to each evidence item.</p>
-        <div class="registrar-mini-list registrar-anchor-list">
-          ${[...groupOnsiteVisitRows(rows).keys()].map((section) => `<a href="#${escapeHtml(featureSlug(section))}">${escapeHtml(section)}</a>`).join("")}
-        </div>
       </article>
       <article class="card osv-request-panel">
         <div class="actions" style="justify-content:space-between">
@@ -8571,19 +9506,21 @@ app.get("/admin/assignment-submissions", requireAuth, requireRole("admin", "inst
     JOIN courses ON courses.id = enrollments.course_id
     JOIN users ON users.id = enrollments.user_id
     LEFT JOIN grades ON grades.enrollment_id = enrollments.id AND grades.grade_item_id = grade_items.id
-    WHERE (? = 'all' OR (? = 'graded' AND grades.id IS NOT NULL) OR (? = 'ungraded' AND grades.id IS NULL))
+    WHERE (? = 'all'
+      OR (? = 'graded' AND grades.id IS NOT NULL AND COALESCE(grades.note, '') NOT LIKE ?)
+      OR (? = 'ungraded' AND (grades.id IS NULL OR COALESCE(grades.note, '') LIKE ?)))
       AND (? = '' OR lower(users.first_name || ' ' || users.last_name || ' ' || users.email || ' ' || courses.title || ' ' || grade_items.title) LIKE '%' || lower(?) || '%')
-    ORDER BY CASE WHEN grades.id IS NULL THEN 0 ELSE 1 END, assignment_submissions.submitted_at DESC
-  `).all(status, status, status, q, q);
+    ORDER BY CASE WHEN grades.id IS NULL OR COALESCE(grades.note, '') LIKE ? THEN 0 ELSE 1 END, assignment_submissions.submitted_at DESC
+  `).all(status, status, `${AUTO_GRADE_PENDING_PREFIX}%`, status, `${AUTO_GRADE_PENDING_PREFIX}%`, q, q, `${AUTO_GRADE_PENDING_PREFIX}%`);
   const counts = db.prepare(`
     SELECT COUNT(*) AS total,
-      SUM(CASE WHEN grades.id IS NULL THEN 1 ELSE 0 END) AS ungraded,
-      SUM(CASE WHEN grades.id IS NOT NULL THEN 1 ELSE 0 END) AS graded
+      SUM(CASE WHEN grades.id IS NULL OR COALESCE(grades.note, '') LIKE ? THEN 1 ELSE 0 END) AS ungraded,
+      SUM(CASE WHEN grades.id IS NOT NULL AND COALESCE(grades.note, '') NOT LIKE ? THEN 1 ELSE 0 END) AS graded
     FROM assignment_submissions
     JOIN grade_items ON grade_items.id = assignment_submissions.grade_item_id
     JOIN enrollments ON enrollments.id = assignment_submissions.enrollment_id
     LEFT JOIN grades ON grades.enrollment_id = enrollments.id AND grades.grade_item_id = grade_items.id
-  `).get();
+  `).get(`${AUTO_GRADE_PENDING_PREFIX}%`, `${AUTO_GRADE_PENDING_PREFIX}%`);
   const body = `
     <div class="page-head">
       <div>
@@ -8594,41 +9531,47 @@ app.get("/admin/assignment-submissions", requireAuth, requireRole("admin", "inst
       <div class="actions"><a class="button ghost" href="/admin/students">Students</a><a class="button ghost" href="/admin/courses">Courses</a></div>
     </div>
     <section class="grid cols-3">
-      ${stat("Awaiting grade", String(counts.ungraded || 0))}
-      ${stat("Graded", String(counts.graded || 0))}
+      ${stat("Needs review", String(counts.ungraded || 0))}
+      ${stat("Approved / graded", String(counts.graded || 0))}
       ${stat("Total submissions", String(counts.total || 0))}
     </section>
     <form class="card assignment-inbox-filters" method="get" action="/admin/assignment-submissions">
-      <label>Status<select name="status"><option value="ungraded" ${status === "ungraded" ? "selected" : ""}>Awaiting grade</option><option value="graded" ${status === "graded" ? "selected" : ""}>Graded</option><option value="all" ${status === "all" ? "selected" : ""}>All submissions</option></select></label>
+      <label>Status<select name="status"><option value="ungraded" ${status === "ungraded" ? "selected" : ""}>Needs review</option><option value="graded" ${status === "graded" ? "selected" : ""}>Approved / graded</option><option value="all" ${status === "all" ? "selected" : ""}>All submissions</option></select></label>
       <label>Search<input type="search" name="q" value="${escapeHtml(q)}" placeholder="Student, course, or assignment"></label>
       <button class="small" type="submit">Apply</button>
     </form>
     <section class="assignment-inbox-list">
-      ${submissions.map((submission) => `
-        <article class="card assignment-inbox-item ${submission.score === null || submission.score === undefined ? "ungraded" : "graded"}">
+      ${submissions.map((submission) => {
+        const submissionAutogradeConfig = storedWrittenAssignmentConfigForGradeItem({ ...submission, title: submission.assignment_title });
+        const approvalPending = isAutoGradeApprovalPending(submission.grade_feedback);
+        const hasPostedGrade = submission.score !== null && submission.score !== undefined && !approvalPending;
+        const cleanFeedback = cleanGradeNote(submission.grade_feedback || "");
+        return `
+        <article class="card assignment-inbox-item ${hasPostedGrade ? "graded" : "ungraded"}">
           <header>
             <div>
-              <p class="eyebrow">${submission.score === null || submission.score === undefined ? "Awaiting grade" : "Graded"}</p>
+              <p class="eyebrow">${approvalPending ? "Auto grade needs approval" : hasPostedGrade ? "Graded" : "Awaiting grade"}</p>
               <h2>${escapeHtml(submission.assignment_title)}</h2>
               <p>${escapeHtml(submission.course_title)}</p>
             </div>
-            <span class="pill ${submission.score === null || submission.score === undefined ? "orange" : ""}">${submission.score === null || submission.score === undefined ? "New submission" : `${escapeHtml(submission.score)} / ${escapeHtml(submission.points_possible)}`}</span>
+            <span class="pill ${hasPostedGrade ? "" : "orange"}">${approvalPending ? `Review ${escapeHtml(submission.score)} / ${escapeHtml(submission.points_possible)}` : hasPostedGrade ? `${escapeHtml(submission.score)} / ${escapeHtml(submission.points_possible)}` : "New submission"}</span>
           </header>
           <div class="assignment-inbox-meta">
             <div><span>Student</span><strong>${escapeHtml(submission.first_name)} ${escapeHtml(submission.last_name)}</strong><small>${escapeHtml(submission.email)}</small></div>
             <div><span>Submitted</span><strong>${escapeHtml(formatMessageDate(submission.submitted_at))}</strong><small>${escapeHtml(formatBytes(submission.file_size))}</small></div>
             <div><span>File</span><strong>${escapeHtml(submission.file_original_name)}</strong><a class="button small ghost" href="/admin/assignment-submissions/${submission.id}/file">Download</a></div>
           </div>
-          ${submission.student_note ? `<div class="assignment-student-note"><strong>Written response</strong><p>${escapeHtml(submission.student_note)}</p></div>` : ""}
+          ${submission.student_note ? `<div class="assignment-student-note"><strong>Written response</strong>${renderWrittenResponseSections(submission.student_note, submissionAutogradeConfig?.responseSections || [])}</div>` : ""}
           <form class="assignment-grade-form" method="post" action="/admin/assignment-submissions/${submission.id}/grade">
             <label>Score
               <span><input type="number" name="score" min="0" max="${escapeHtml(submission.points_possible)}" step="0.01" value="${escapeHtml(submission.score ?? "")}" required> / ${escapeHtml(submission.points_possible)}</span>
             </label>
-            <label>Instructor feedback<textarea name="feedback" rows="3" maxlength="3000" placeholder="Feedback visible to the student">${escapeHtml(submission.grade_feedback || "")}</textarea></label>
-            <button class="button" type="submit">${submission.score === null || submission.score === undefined ? "Post Grade" : "Update Grade"}</button>
+            <label>Instructor feedback<textarea name="feedback" rows="3" maxlength="3000" placeholder="Feedback visible to the student">${escapeHtml(cleanFeedback)}</textarea></label>
+            <button class="button" type="submit">${approvalPending ? "Approve Grade" : hasPostedGrade ? "Update Grade" : "Post Grade"}</button>
           </form>
         </article>
-      `).join("") || `<article class="card"><p class="empty">No assignment submissions match this view.</p></article>`}
+      `;
+      }).join("") || `<article class="card"><p class="empty">No assignment submissions match this view.</p></article>`}
     </section>
   `;
   render(req, res, "Assignment Inbox", body);
@@ -8914,7 +9857,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
       </div>
       <section class="table-card" style="margin-top:18px">
         <table>
-          <thead><tr><th>Student</th><th>Contact</th><th>Cohort</th><th>Enrollments</th></tr></thead>
+          <thead><tr><th>Student</th><th>Student ID</th><th>Contact</th><th>Cohort</th><th>Enrollments</th></tr></thead>
           <tbody>
             ${students.map((student) => `
               <tr>
@@ -8924,6 +9867,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                   <span class="muted">${escapeHtml(student.status)}</span><br>
                   ${renderPhotoReviewBadge(student)}
                 </td>
+                <td><strong>${escapeHtml(displayStudentNumber(student))}</strong></td>
                 <td>${escapeHtml(student.email)}<br><span class="muted">${escapeHtml(student.phone || "")}</span></td>
                 <td>
                   ${student.cohort_name ? `<span class="pill">${escapeHtml(student.cohort_name)}</span>` : `<span class="muted">No cohort listed</span>`}
@@ -8931,7 +9875,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 </td>
                 <td>${student.enrollment_count || 0} total<br><span class="muted">${student.completed_count || 0} completed</span></td>
               </tr>
-            `).join("") || `<tr><td class="empty" colspan="4">No students yet.</td></tr>`}
+            `).join("") || `<tr><td class="empty" colspan="5">No students yet.</td></tr>`}
           </tbody>
         </table>
       </section>
@@ -9002,7 +9946,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
             const admissionsReady = admissionsComplete === admissionsTotal;
             return `
             <tr>
-              <td><strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br><span class="muted">${escapeHtml(student.email)}</span></td>
+              <td><strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br><span class="muted">${escapeHtml(displayStudentNumber(student))}</span><br><span class="muted">${escapeHtml(student.email)}</span></td>
               <td>
                 <strong>${escapeHtml(student.checklist_complete || 0)}/${escapeHtml(registrarChecklistItems.length)}</strong> ready<br>
                 <span class="muted">${escapeHtml(student.checklist_uploads || 0)} uploaded</span><br>
@@ -9022,7 +9966,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
     </section>
     <section class="table-card student-roster-table-card" style="margin-top:18px">
       <table class="student-roster-table">
-        <thead><tr><th>Name</th><th>Contact</th><th>Photo review</th><th>Class access</th><th>Registrar</th><th>Enrollments</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Student ID</th><th>Contact</th><th>Photo review</th><th>Class access</th><th>Registrar</th><th>Enrollments</th><th>Actions</th></tr></thead>
         <tbody>
           ${students.map((student) => {
             const admissionsComplete = Number(student.admissions_document_complete || 0);
@@ -9038,6 +9982,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 ${student.uniform_size ? `<br><span class="pill">Uniform: ${escapeHtml(student.uniform_size)}</span>` : ""}
                 ${student.cohort_start_date || student.cohort_end_date ? `<br><span class="muted">${escapeHtml(date(student.cohort_start_date))} - ${escapeHtml(date(student.cohort_end_date))}</span>` : ""}
               </td>
+              <td><strong>${escapeHtml(displayStudentNumber(student))}</strong></td>
               <td>${escapeHtml(student.email)}<br><span class="muted">${escapeHtml(student.phone || "")}</span></td>
               <td class="photo-review-cell">${renderPhotoReviewControls(student, { returnTo: "students", canReview: true })}</td>
               <td>
@@ -9081,7 +10026,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
                 </form>
               </td>
             </tr>
-          `; }).join("") || `<tr><td class="empty" colspan="7">No students yet.</td></tr>`}
+          `; }).join("") || `<tr><td class="empty" colspan="8">No students yet.</td></tr>`}
         </tbody>
       </table>
     </section>
@@ -9125,7 +10070,7 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
       <div>
         <p class="eyebrow">Registrar Checklist</p>
         <h1>${escapeHtml(student.first_name)} ${escapeHtml(student.last_name)}</h1>
-        <p>${escapeHtml(student.email)} · BMHI-${escapeHtml(String(student.id).padStart(5, "0"))}</p>
+        <p>${escapeHtml(student.email)} · Student ID ${escapeHtml(displayStudentNumber(student))}</p>
       </div>
       <div class="actions">
         <a class="button ghost" href="/admin/students">Students</a>
@@ -10084,6 +11029,16 @@ app.get("/admin/billing", requireAuth, requireRole("admin"), (req, res) => {
   const policy = db.prepare("SELECT * FROM billing_refund_policies WHERE active = 1 ORDER BY id DESC LIMIT 1").get();
   const totalCharges = db.prepare("SELECT COALESCE(SUM(amount_cents), 0) AS total FROM billing_charges WHERE status = 'posted'").get().total;
   const totalPayments = db.prepare("SELECT COALESCE(SUM(amount_cents), 0) AS total FROM billing_payments").get().total;
+  const quickbooksConnection = quickbooks.connection(db);
+  const quickbooksConfigured = quickbooks.isConfigured();
+  const quickbooksStats = db.prepare(`
+    SELECT
+      SUM(CASE WHEN quickbooks_type = 'Customer' THEN 1 ELSE 0 END) AS customers,
+      SUM(CASE WHEN quickbooks_type = 'Invoice' THEN 1 ELSE 0 END) AS invoices,
+      SUM(CASE WHEN quickbooks_type = 'Payment' THEN 1 ELSE 0 END) AS payments
+    FROM quickbooks_entity_links
+  `).get();
+  const quickbooksLogs = db.prepare("SELECT * FROM quickbooks_sync_log ORDER BY id DESC LIMIT 5").all();
 
   const studentOptions = students.map((student) => `<option value="${student.id}">${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)} · ${escapeHtml(student.email)}</option>`).join("");
   const body = `
@@ -10100,6 +11055,41 @@ app.get("/admin/billing", requireAuth, requireRole("admin"), (req, res) => {
       ${stat("Payments", money(totalPayments))}
       ${stat("Receivable", money(Math.max(0, totalCharges - totalPayments)))}
       ${stat("Payment plans", String(plans.length))}
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <div class="page-head compact">
+        <div>
+          <p class="eyebrow">Accounting integration</p>
+          <h2>QuickBooks Online</h2>
+          ${quickbooksConnection
+            ? `<p><strong>Connected to ${escapeHtml(quickbooksConnection.company_name || `company ${quickbooksConnection.realm_id}`)}</strong><br><span class="muted">Last sync: ${quickbooksConnection.last_synced_at ? date(quickbooksConnection.last_synced_at) : "Not synced yet"}</span></p>`
+            : `<p class="muted">Connect the institute's QuickBooks company to synchronize students, invoices, and payments.</p>`}
+        </div>
+        <div class="actions">
+          ${quickbooksConnection ? `
+            <form method="post" action="/admin/integrations/quickbooks/sync"><button type="submit">Sync now</button></form>
+            <form method="post" action="/admin/integrations/quickbooks/disconnect" onsubmit="return confirm('Disconnect QuickBooks from the LMS? Existing accounting records will remain in both systems.');"><button class="button ghost" type="submit">Disconnect</button></form>
+          ` : quickbooksConfigured
+            ? `<a class="button" href="/admin/integrations/quickbooks/connect">Connect QuickBooks</a>`
+            : `<span class="status warning">Developer credentials required</span>`}
+        </div>
+      </div>
+      <div class="grid cols-3 integration-path">
+        ${stat("Students linked", String(quickbooksStats.customers || 0))}
+        ${stat("Invoices linked", String(quickbooksStats.invoices || 0))}
+        ${stat("Payments linked", String(quickbooksStats.payments || 0))}
+      </div>
+      ${quickbooksConnection?.last_error ? `<div class="notice error"><strong>Last sync error:</strong> ${escapeHtml(quickbooksConnection.last_error)}</div>` : ""}
+      ${!quickbooksConfigured ? `<div class="notice"><strong>Finish setup:</strong> add <code>QUICKBOOKS_CLIENT_ID</code>, <code>QUICKBOOKS_CLIENT_SECRET</code>, and the production callback URL <code>${escapeHtml(quickbooks.configuration().redirectUri)}</code> in the Intuit Developer app and Render environment.</div>` : ""}
+      ${quickbooksLogs.length ? `
+        <details>
+          <summary>Recent synchronization activity</summary>
+          <div class="table-wrap"><table><thead><tr><th>When</th><th>Direction</th><th>Status</th><th>Records</th><th>Details</th></tr></thead><tbody>
+            ${quickbooksLogs.map((log) => `<tr><td>${date(log.created_at)}</td><td>${escapeHtml(log.direction)}</td><td>${escapeHtml(log.status)}</td><td>${log.records_processed}</td><td>${escapeHtml(log.message || log.action)}</td></tr>`).join("")}
+          </tbody></table></div>
+        </details>
+      ` : ""}
     </section>
 
     <section class="grid cols-3 billing-workbench" style="margin-top:18px">
@@ -10214,6 +11204,71 @@ app.post("/admin/billing/payment-plans", requireAuth, requireRole("admin"), (req
   `).run(Number(req.body.userId), String(req.body.term || "").trim(), String(req.body.name || "Payment plan").trim(), dollarsToCents(req.body.total), dollarsToCents(req.body.installment), String(req.body.nextDueDate || ""));
   flash(req, "Payment plan created.");
   res.redirect("/admin/billing");
+});
+
+app.get("/admin/integrations/quickbooks/connect", requireAuth, requireRole("admin"), (req, res) => {
+  if (!quickbooks.isConfigured()) {
+    flash(req, "QuickBooks developer credentials must be added before connecting.");
+    return res.redirect("/admin/billing");
+  }
+  const state = crypto.randomBytes(32).toString("hex");
+  req.session.quickbooksOAuthState = state;
+  res.redirect(quickbooks.authorizationUrl(state));
+});
+
+app.get("/admin/integrations/quickbooks/callback", requireAuth, requireRole("admin"), async (req, res) => {
+  const expectedState = String(req.session.quickbooksOAuthState || "");
+  delete req.session.quickbooksOAuthState;
+  if (!expectedState || String(req.query.state || "") !== expectedState) {
+    flash(req, "QuickBooks authorization could not be verified. Please try connecting again.");
+    return res.redirect("/admin/billing");
+  }
+  if (req.query.error) {
+    flash(req, `QuickBooks connection was not completed: ${String(req.query.error_description || req.query.error)}`);
+    return res.redirect("/admin/billing");
+  }
+  try {
+    const companyName = await quickbooks.exchangeAuthorizationCode(db, {
+      code: String(req.query.code || ""),
+      realmId: String(req.query.realmId || ""),
+      userId: req.user.id
+    });
+    flash(req, `QuickBooks connected${companyName ? ` to ${companyName}` : ""}. Select Sync now to exchange billing records.`);
+  } catch (error) {
+    console.error("QuickBooks callback failed.", error);
+    flash(req, `QuickBooks connection failed: ${error.message}`);
+  }
+  res.redirect("/admin/billing");
+});
+
+app.post("/admin/integrations/quickbooks/sync", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const result = await quickbooks.syncAll(db, req.user.id);
+    flash(req, result.message);
+  } catch (error) {
+    console.error("QuickBooks synchronization failed.", error);
+    flash(req, `QuickBooks sync failed: ${error.message}`);
+  }
+  res.redirect("/admin/billing");
+});
+
+app.post("/admin/integrations/quickbooks/disconnect", requireAuth, requireRole("admin"), async (req, res) => {
+  await quickbooks.disconnect(db);
+  flash(req, "QuickBooks disconnected. Existing records and synchronization history were preserved.");
+  res.redirect("/admin/billing");
+});
+
+app.post("/webhooks/quickbooks", async (req, res) => {
+  if (!quickbooks.verifyWebhookSignature(req.rawBody || Buffer.alloc(0), req.get("intuit-signature"))) return res.sendStatus(401);
+  res.sendStatus(200);
+  const realms = Array.isArray(req.body?.eventNotifications) ? req.body.eventNotifications.map((event) => String(event.realmId || "")) : [];
+  const connectedRealm = quickbooks.connection(db)?.realm_id;
+  if (!connectedRealm || !realms.includes(String(connectedRealm))) return;
+  try {
+    await quickbooks.syncAll(db, null);
+  } catch (error) {
+    console.error("QuickBooks webhook synchronization failed.", error);
+  }
 });
 
 app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -10401,7 +11456,7 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
   `).all(course.id);
 
   const enrollments = db.prepare(`
-    SELECT e.*, u.first_name, u.last_name, u.email, cr.id AS credential_id
+    SELECT e.*, u.first_name, u.last_name, u.email, u.student_number, cr.id AS credential_id
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
     LEFT JOIN credentials cr ON cr.enrollment_id = e.id
@@ -10733,7 +11788,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     ORDER BY due_date IS NULL, due_date, id
   `).all(course.id);
   const enrollments = db.prepare(`
-    SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email, u.cohort_name, u.cohort_start_date, u.cohort_end_date
+    SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email, u.student_number, u.cohort_name, u.cohort_start_date, u.cohort_end_date
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
     WHERE e.course_id = ?
@@ -11525,8 +12580,8 @@ app.post("/admin/courses/:courseId/modules/:moduleId/items", requireAuth, requir
   const title = String(req.body.title || "").trim();
   const hasExternalUrl = ["link", "youtube"].includes(itemType);
   const submittedExternalUrl = hasExternalUrl ? req.body.externalUrl : null;
-  const youtubeUrl = itemType === "youtube" ? youtubeWatchUrl(submittedExternalUrl) : null;
-  const externalUrl = itemType === "youtube" ? youtubeUrl : itemType === "link" ? normalizeExternalUrl(submittedExternalUrl) : null;
+  const recordingUrl = itemType === "youtube" ? (youtubeWatchUrl(submittedExternalUrl) || directVideoUrl(submittedExternalUrl)) : null;
+  const externalUrl = itemType === "youtube" ? recordingUrl : itemType === "link" ? normalizeExternalUrl(submittedExternalUrl) : null;
   const content = stripCanvasSource(req.body.content)
     || (itemType === "youtube" ? "Watch the embedded recording, then complete the lesson instructions." : itemType === "link" ? "Open the external resource using the link below." : "");
   if (!title) {
@@ -11534,7 +12589,7 @@ app.post("/admin/courses/:courseId/modules/:moduleId/items", requireAuth, requir
     return res.redirect(`/admin/courses/${courseId}/student-view?view=modules`);
   }
   if (hasExternalUrl && !externalUrl) {
-    flash(req, itemType === "youtube" ? "Enter a valid YouTube recording link." : "Enter a valid web address for the external link.");
+    flash(req, itemType === "youtube" ? "Enter a valid recording link. Use a YouTube URL or a direct MP4/WebM/MOV file URL." : "Enter a valid web address for the external link.");
     return res.redirect(`/admin/courses/${courseId}/student-view?view=modules`);
   }
   const nextPosition = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(moduleId).next;
@@ -11547,7 +12602,7 @@ app.post("/admin/courses/:courseId/modules/:moduleId/items", requireAuth, requir
     INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only, item_type, grade_item_id)
     VALUES (?, ?, ?, ?, 30, ?, ?, 0, ?, ?)
   `).run(moduleId, title, content, externalUrl, nextPosition, req.body.published ? 1 : 0, itemType, gradeItemId);
-  flash(req, `${itemType === "assignment" ? "Assignment" : itemType === "youtube" ? "YouTube recording" : itemType === "link" ? "External link" : "Page"} added to the module.`);
+  flash(req, `${itemType === "assignment" ? "Assignment" : itemType === "youtube" ? "Recording" : itemType === "link" ? "External link" : "Page"} added to the module.`);
   res.redirect(`/admin/courses/${courseId}/student-view?view=modules#module-${moduleId}`);
 });
 
@@ -11831,7 +12886,7 @@ app.get("/student", requireAuth, (req, res) => {
           <div class="class-row">
             <span class="teacher-avatar">IN</span>
             <div><strong>Instructor</strong><small>${escapeHtml(row.title)}</small></div>
-            <div><strong>Room No.: 05</strong><small>${escapeHtml(times[index] || times[0])}</small></div>
+            <div><strong>Room No.: ${index % 2 === 0 ? "Humerus" : "Femur"}</strong><small>${escapeHtml(times[index] || times[0])}</small></div>
           </div>
         `).join("") || `<p class="empty">No upcoming classes.</p>`}
       </article>
@@ -12621,7 +13676,7 @@ app.get("/student/transcript", requireAuth, requireRole("student"), (req, res) =
         <div>
           <p class="eyebrow">Academic History</p>
           <h1>Transcript</h1>
-          <p>${escapeHtml(req.user.first_name)} ${escapeHtml(req.user.last_name)} · BMHI-${escapeHtml(String(req.user.id).padStart(5, "0"))}</p>
+          <p>${escapeHtml(req.user.first_name)} ${escapeHtml(req.user.last_name)} · ${escapeHtml(displayStudentNumber(req.user))}</p>
         </div>
         <div class="financial-actions">
           <a class="button ghost" href="/student/registration">Registration</a>
@@ -12669,7 +13724,7 @@ app.get("/student/transcript/print", requireAuth, requireRole("student"), (req, 
   `).all(req.user.id);
   const totalHours = records.reduce((sum, row) => sum + Number(row.hours || 0), 0);
   const completedHours = records.filter((row) => row.status === "completed").reduce((sum, row) => sum + Number(row.hours || 0), 0);
-  const studentId = `BMHI-${String(req.user.id).padStart(5, "0")}`;
+  const studentId = displayStudentNumber(req.user);
   const body = `
     <section class="print-document transcript-print">
       <div class="print-actions no-print">
@@ -13255,8 +14310,9 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
   const completedCount = enrollments.filter((row) => row.status === "completed").length;
   const admissionsChecklist = admissionsDocumentChecklistForStudent(req.user.id);
   const admissionsProgress = admissionsDocumentProgress(admissionsChecklist);
+  const studentNumber = displayStudentNumber(req.user);
   const statusRows = [
-    ["Admission No.", `BMHI-${String(req.user.id).padStart(5, "0")}`],
+    ["Student ID", studentNumber],
     ["Student Name", name],
     ["Email", req.user.email],
     ["Personal reminder email", req.user.personal_email || "Not set"],
@@ -13275,7 +14331,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
           <h1>${escapeHtml(name || "Student")}</h1>
           <p>${escapeHtml(activeEnrollment?.title || "Broward-Miami Health Institute student")}</p>
           <div class="profile-badges">
-            <span>Admission No. BMHI-${escapeHtml(String(req.user.id).padStart(5, "0"))}</span>
+            <span>Student ID ${escapeHtml(studentNumber)}</span>
             <span>${escapeHtml(req.user.status)}</span>
             <span>${escapeHtml(enrollments.length)} course${enrollments.length === 1 ? "" : "s"}</span>
           </div>
@@ -13471,7 +14527,7 @@ app.get("/student/financial", requireAuth, requireRole("student"), (req, res) =>
     .filter((award) => ["offered", "accepted"].includes(award.status))
     .reduce((sum, award) => sum + Number(award.amount_cents || 0), 0);
   const balance = Math.max(0, totalCharges - appliedPayments - financialAid);
-  const studentNumber = `BMHI-${String(req.user.id).padStart(5, "0")}`;
+  const studentNumber = displayStudentNumber(req.user);
 
   const body = `
     <section class="financial-term">
@@ -13839,7 +14895,8 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         item: selectedAssignment,
         lessons,
         instructor: false,
-        studentScore: selectedAssignmentGrade?.score,
+        studentScore: isAutoGradeApprovalPending(selectedAssignmentGrade?.note) ? null : selectedAssignmentGrade?.score,
+        studentGrade: selectedAssignmentGrade,
         enrollmentId: enrollment.id,
         submission: selectedAssignmentSubmission
       })}
@@ -14169,7 +15226,7 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     return res.redirect("/student");
   }
   const assignment = db.prepare(`
-    SELECT grade_items.*, enrollments.id AS enrollment_id, courses.title AS course_title
+    SELECT grade_items.*, enrollments.id AS enrollment_id, courses.title AS course_title, courses.slug AS course_slug
     FROM enrollments
     JOIN grade_items ON grade_items.course_id = enrollments.course_id
     JOIN courses ON courses.id = enrollments.course_id
@@ -14186,8 +15243,19 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     flash(req, "This assessment must be completed in the portal and does not accept file uploads.");
     return res.redirect(redirectToAssignment);
   }
-  const studentResponse = String(req.body.studentResponse || "").trim().slice(0, 12000);
-  if (!req.file && !studentResponse) {
+  const autoGradeConfig = storedWrittenAssignmentConfigForGradeItem(assignment);
+  if (autoGradeConfig && req.file?.path) {
+    fs.unlink(req.file.path, () => {});
+    req.file = null;
+  }
+  const studentResponse = autoGradeConfig
+    ? structuredAssignmentResponseFromBody(req.body, autoGradeConfig)
+    : String(req.body.studentResponse || "").trim().slice(0, 12000);
+  if (autoGradeConfig && !studentResponse) {
+    flash(req, "Complete the assignment response sections before submitting.");
+    return res.redirect(redirectToAssignment);
+  }
+  if (!autoGradeConfig && !req.file && !studentResponse) {
     flash(req, "Write your response or attach an assignment file before submitting.");
     return res.redirect(redirectToAssignment);
   }
@@ -14248,16 +15316,30 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     const previousPath = path.join(uploadDir, previous.file_storage_name);
     if (isPathInside(uploadDir, previousPath)) fs.unlink(previousPath, () => {});
   }
-  const staffRecipients = db.prepare("SELECT id FROM users WHERE role IN ('admin', 'instructor') AND status = 'active'").all();
-  const studentName = `${req.user.first_name} ${req.user.last_name}`.trim() || req.user.email;
-  staffRecipients.forEach((staff) => savePortalMessage({
-    senderId: req.user.id,
-    recipientId: staff.id,
-    courseId: assignment.course_id,
-    subject: `${previous ? "Assignment resubmitted" : "Assignment submitted"}: ${assignment.title}`,
-    body: `${studentName} ${previous ? "replaced the submission for" : "submitted"} ${assignment.title} in ${assignment.course_title}. Open Assignment Inbox to review and grade the work.`
-  }));
-  flash(req, "Assignment submitted successfully. Staff were notified and the work was added to the grading queue.");
+  if (autoGradeConfig) {
+    const result = gradeWrittenAssignment({ item: assignment, response: studentResponse, config: autoGradeConfig });
+    const pendingFeedback = `${AUTO_GRADE_PENDING_PREFIX}\n${result.feedback}`;
+    db.prepare(`
+      INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET
+        score = excluded.score,
+        note = excluded.note,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(enrollmentId, assignmentId, result.score, pendingFeedback);
+    flash(req, "Assignment submitted. Your instructor will review the grade.");
+  } else {
+    const staffRecipients = db.prepare("SELECT id FROM users WHERE role IN ('admin', 'instructor') AND status = 'active'").all();
+    const studentName = `${req.user.first_name} ${req.user.last_name}`.trim() || req.user.email;
+    staffRecipients.forEach((staff) => savePortalMessage({
+      senderId: req.user.id,
+      recipientId: staff.id,
+      courseId: assignment.course_id,
+      subject: `${previous ? "Assignment resubmitted" : "Assignment submitted"}: ${assignment.title}`,
+      body: `${studentName} ${previous ? "replaced the submission for" : "submitted"} ${assignment.title} in ${assignment.course_title}. Open Assignment Inbox to review and grade the work.`
+    }));
+    flash(req, "Assignment submitted successfully. Staff were notified and the work was added to the grading queue.");
+  }
   res.redirect(redirectToAssignment);
 });
 
@@ -14543,12 +15625,19 @@ app.post("/student/enrollments/:id/quiz-submit", requireAuth, requireRole("stude
     return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
   }
   const score = Number(((correct / questions.length) * Number(gradeItem.points_possible || questions.length)).toFixed(2));
+  const requestedIntegrityExit = String(req.body.integrityExit || "").trim();
+  const integrityExit = ["fullscreen-exit", "tab-or-window-change", "browser-focus-lost"].includes(requestedIntegrityExit)
+    ? requestedIntegrityExit
+    : "";
+  const gradeNote = integrityExit
+    ? `Auto-graded: ${correct} of ${questions.length} correct. Secure exam mode ended (${integrityExit}); the attempt was automatically submitted.`
+    : `Auto-graded: ${correct} of ${questions.length} correct.`;
   db.prepare(`
     INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET
       score = excluded.score, note = excluded.note, updated_at = CURRENT_TIMESTAMP
-  `).run(enrollmentId, gradeItem.id, score, `Auto-graded: ${correct} of ${questions.length} correct.`);
+  `).run(enrollmentId, gradeItem.id, score, gradeNote);
   db.prepare("UPDATE exam_attempts SET status = 'submitted', submitted_at = CURRENT_TIMESTAMP WHERE enrollment_id = ? AND lesson_id = ?")
     .run(enrollmentId, lessonId);
   db.prepare("INSERT OR IGNORE INTO lesson_completions (enrollment_id, lesson_id) VALUES (?, ?)").run(enrollmentId, lessonId);
