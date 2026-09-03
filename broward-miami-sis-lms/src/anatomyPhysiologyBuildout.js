@@ -61,7 +61,7 @@ const weekPlan = [
 
 const q = (prompt, options, answer = 0) => ({ prompt, options, answer });
 const dayMidtermTitle = "[PN104 DAY 2026] Midterm Exam — Chapters 1–8 and 15–18";
-const dayMidtermDueDate = "2026-08-21 23:59:59";
+const dayMidtermDueDate = "2026-09-04 23:59:59";
 const quizBanks = {
   3: [
     q("Homeostasis is best described as:", ["Maintenance of a relatively stable internal environment.", "Complete absence of change.", "Growth of every tissue.", "Voluntary control of all organs."]),
@@ -759,7 +759,7 @@ const anatomyPhysiologyCourse = {
             "- Discussion due dates: Week 3 August 2; Week 5 August 16; Week 8 September 6; Week 11 September 27, 2026 by 11:59 PM",
             "- Weekly applied assignments with rubric: 25 points each",
             "- Four quizzes: 50 points each; every quiz contains 45 questions, with 15 questions for each week in its three-week range",
-            "- PN104 DAY Midterm Examination: 150 points; covers Chapters 1–8 and 15–18; opens August 17, 2026 at 12:00 AM and closes August 21, 2026 at 11:59 PM",
+            "- PN104 DAY Midterm Examination: 150 points; covers Chapters 1–8 and 15–18; opens August 31, 2026 at 12:00 AM and closes September 4, 2026 at 11:59 PM",
             "- Week 12 Final Examination: 200 points; comprehensive Chapters 1-28; due October 4, 2026 by 11:59 PM",
             "",
             "How to Study Anatomy and Physiology",
@@ -805,7 +805,7 @@ const anatomyPhysiologyCourse = {
         {
           title: "PN 104 Syllabus",
           durationMinutes: 30,
-          content: `Course code: PN 104\nLength: 12 weeks\nClock hours: 90\nDelivery: Campus / blended\n\nRequired textbook: OpenStax Anatomy and Physiology 2e — ${openStaxAnatomyPhysiologyUrl}\n\nWeekly structure: chapter slide review, student-directed lesson, applied assignment with rubric, four scheduled discussions, and scheduled assessments.\n\nDiscussions: Week 3 — Movement, Stability, and Musculoskeletal Safety (due August 2); Week 5 — Nervous-System Changes — Recognize and Report (due August 16); Week 8 — Defense and Oxygenation Working Together (due September 6); Week 11 — Reproductive Anatomy and Respectful Patient Education (due September 27). All discussion deadlines are 11:59 PM in 2026 and each discussion is worth 10 points.\n\nDAY Midterm: Chapters 1–8 and 15–18; opens August 17, 2026 at 12:00 AM and closes August 21, 2026 at 11:59 PM. This DAY exam is separate from the evening-course midterm.\n\nGrading: Four discussions total 40 points; applied assignments 25 points each; quizzes 50 points each; midterm 150 points; final 200 points.`
+          content: `Course code: PN 104\nLength: 12 weeks\nClock hours: 90\nDelivery: Campus / blended\n\nRequired textbook: OpenStax Anatomy and Physiology 2e — ${openStaxAnatomyPhysiologyUrl}\n\nWeekly structure: chapter slide review, student-directed lesson, applied assignment with rubric, four scheduled discussions, and scheduled assessments.\n\nDiscussions: Week 3 — Movement, Stability, and Musculoskeletal Safety (due August 2); Week 5 — Nervous-System Changes — Recognize and Report (due August 16); Week 8 — Defense and Oxygenation Working Together (due September 6); Week 11 — Reproductive Anatomy and Respectful Patient Education (due September 27). All discussion deadlines are 11:59 PM in 2026 and each discussion is worth 10 points.\n\nDAY Midterm: Chapters 1–8 and 15–18; opens August 31, 2026 at 12:00 AM and closes September 4, 2026 at 11:59 PM. This DAY exam is separate from the evening-course midterm.\n\nGrading: Four discussions total 40 points; applied assignments 25 points each; quizzes 50 points each; midterm 150 points; final 200 points.`
         }
       ]
     },

@@ -30,18 +30,18 @@ test("PN104 day midterm is a distinct selectable 50-question exam", () => {
   assert.deepEqual([...new Set(questions.map((question) => question.answer))].sort(), [0, 1, 2, 3]);
 });
 
-test("PN104 day midterm gradebook and calendar deadline use August 21", () => {
+test("PN104 day midterm gradebook and calendar deadline use September 4", () => {
   const item = anatomyPhysiologyCourse.gradeItems.find((gradeItem) => gradeItem.title === examTitle);
   assert.ok(item);
   assert.equal(item.pointsPossible, 150);
-  assert.equal(item.dueDate, "2026-08-21 23:59:59");
+  assert.equal(item.dueDate, "2026-09-04 23:59:59");
 });
 
-test("PN104 day midterm access window opens August 17 and closes August 21", () => {
+test("PN104 day midterm access window opens August 31 and closes September 4", () => {
   const source = fs.readFileSync(path.join(__dirname, "../src/server.js"), "utf8");
   assert.match(source, /PN104 DAY 2026/);
-  assert.match(source, /2026-08-17T00:00:00-04:00/);
-  assert.match(source, /2026-08-21T23:59:59-04:00/);
+  assert.match(source, /2026-08-31T00:00:00-04:00/);
+  assert.match(source, /2026-09-04T23:59:59-04:00/);
   assert.match(source, /PN 104 Day Course Midterm Exam", minutes: 60/);
 });
 
