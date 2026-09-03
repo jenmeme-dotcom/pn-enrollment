@@ -2386,6 +2386,7 @@ function renderWrittenAutogradeFeedback(grade = null) {
 
 function examSettingsForLesson(lesson = {}) {
   const title = String(lesson.title || "");
+  if (/\[PN104 DAY 2026\] Samantha Brunvil Midterm/i.test(title)) return { label: "PN 104 Day Midterm for Samantha Brunvil", minutes: 60, opensAt: "2026-09-03T00:00:00-04:00", closesAt: "2026-09-04T23:59:59-04:00" };
   if (/\[PN104 DAY 2026\] Midterm Exam/i.test(title)) return { label: "PN 104 Day Course Midterm Exam", minutes: 60, opensAt: "2026-08-31T00:00:00-04:00", closesAt: "2026-09-04T23:59:59-04:00" };
   if (title === "Midterm Exam: Weeks 1-6") return { label: "PN 102 Midterm Exam", minutes: 60, opensAt: "2026-07-27T00:00:00-04:00", closesAt: "2026-08-21T23:59:59-04:00" };
   if (title === "Cumulative Final Exam") return { label: "PN 102 Cumulative Final Exam", minutes: 90, opensAt: "2026-09-07T00:00:00-04:00", closesAt: "2026-09-13T23:59:59-04:00" };
@@ -2395,6 +2396,11 @@ function examSettingsForLesson(lesson = {}) {
   if (/Midterm Exam 2/i.test(title)) return { label: "Midterm Exam 2", minutes: 30, opensAt: "2026-09-02T00:00:00-04:00", closesAt: "2026-09-08T23:59:59-04:00" };
   if (/Final Comprehensive Exam/i.test(title)) return { label: "Final Comprehensive Exam", minutes: 50, opensAt: "2026-09-09T00:00:00-04:00", closesAt: "2026-09-09T23:59:59-04:00" };
   return null;
+}
+
+function studentCanAccessLesson(lesson = {}, user = {}) {
+  const allowedEmail = String(lesson.allowed_student_email || "").trim().toLowerCase();
+  return !allowedEmail || allowedEmail === String(user.email || "").trim().toLowerCase();
 }
 
 function examDateTimeLabel(value) {
@@ -14752,14 +14758,16 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       AND COALESCE(m.published, 1) = 1
       AND COALESCE(l.published, 1) = 1
       AND COALESCE(l.instructor_only, 0) = 0
+      AND (l.allowed_student_email IS NULL OR lower(l.allowed_student_email) = lower(?))
     ORDER BY m.position, l.position
-  `).all(enrollment.course_id);
+  `).all(enrollment.course_id, req.user.email);
   const gradeItems = db.prepare(`
     SELECT *
     FROM grade_items
     WHERE course_id = ?
+      AND (allowed_student_email IS NULL OR lower(allowed_student_email) = lower(?))
     ORDER BY due_date IS NULL, due_date, id
-  `).all(enrollment.course_id);
+  `).all(enrollment.course_id, req.user.email);
   const grades = db.prepare(`
     SELECT g.*
     FROM grades g
@@ -15490,10 +15498,10 @@ app.post("/student/enrollments/:id/quizzes/:lessonId/start", requireAuth, requir
   `).get(enrollmentId, req.user.id);
   if (!enrollment) return res.status(404).send("Enrollment not found");
   const lesson = db.prepare(`
-    SELECT l.id, l.title, l.content, l.grade_item_id FROM lessons l JOIN modules m ON m.id = l.module_id
+    SELECT l.id, l.title, l.content, l.grade_item_id, l.allowed_student_email FROM lessons l JOIN modules m ON m.id = l.module_id
     WHERE l.id = ? AND m.course_id = ? AND COALESCE(l.published, 1) = 1
   `).get(lessonId, enrollment.course_id);
-  if (!lesson || examSettingsForLesson(lesson) || !lessonQuizQuestions(lesson).length) return res.status(404).send("Quiz not found");
+  if (!lesson || !studentCanAccessLesson(lesson, req.user) || examSettingsForLesson(lesson) || !lessonQuizQuestions(lesson).length) return res.status(404).send("Quiz not found");
   const gradeItem = resolveLessonGradeItem(lesson, enrollment.course_id, { createIfMissing: true, pointsPossible: 10 });
   const existingGrade = gradeItem ? db.prepare("SELECT id FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").get(enrollmentId, gradeItem.id) : null;
   if (existingGrade) {
@@ -15528,11 +15536,11 @@ app.post("/student/enrollments/:id/exams/:lessonId/start", requireAuth, requireR
   `).get(enrollmentId, req.user.id);
   if (!enrollment) return res.status(404).send("Enrollment not found");
   const lesson = db.prepare(`
-    SELECT l.id, l.title, l.content, l.grade_item_id FROM lessons l JOIN modules m ON m.id = l.module_id
+    SELECT l.id, l.title, l.content, l.grade_item_id, l.allowed_student_email FROM lessons l JOIN modules m ON m.id = l.module_id
     WHERE l.id = ? AND m.course_id = ? AND COALESCE(l.published, 1) = 1
   `).get(lessonId, enrollment.course_id);
   const settings = examSettingsForLesson(lesson);
-  if (!lesson || !settings) return res.status(404).send("Exam not found");
+  if (!lesson || !studentCanAccessLesson(lesson, req.user) || !settings) return res.status(404).send("Exam not found");
   const now = Date.now();
   if (now < new Date(settings.opensAt).getTime()) {
     flash(req, `This exam opens ${examDateTimeLabel(settings.opensAt)}.`);
@@ -15576,11 +15584,11 @@ app.post("/student/enrollments/:id/quiz-submit", requireAuth, requireRole("stude
   `).get(enrollmentId, req.user.id);
   if (!enrollment) return res.status(404).send("Enrollment not found");
   const lesson = db.prepare(`
-    SELECT l.id, l.title, l.content, l.grade_item_id FROM lessons l
+    SELECT l.id, l.title, l.content, l.grade_item_id, l.allowed_student_email FROM lessons l
     JOIN modules m ON m.id = l.module_id
     WHERE l.id = ? AND m.course_id = ? AND COALESCE(l.published, 1) = 1
   `).get(lessonId, enrollment.course_id);
-  if (!lesson) return res.status(404).send("Quiz not found");
+  if (!lesson || !studentCanAccessLesson(lesson, req.user)) return res.status(404).send("Quiz not found");
   const questions = lessonQuizQuestions(lesson);
   if (!questions.length) {
     flash(req, "This quiz does not have a published question set.");
