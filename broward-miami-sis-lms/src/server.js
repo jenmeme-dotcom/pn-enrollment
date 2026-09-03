@@ -2386,7 +2386,7 @@ function renderWrittenAutogradeFeedback(grade = null) {
 
 function examSettingsForLesson(lesson = {}) {
   const title = String(lesson.title || "");
-  if (/\[PN104 DAY 2026\] (?:Official Midterm|Practice Midterm|Samantha Brunvil Midterm)/i.test(title)) return { label: "PN 104 Official Day Midterm", minutes: 60, opensAt: "2026-09-03T00:00:00-04:00", closesAt: "2026-09-04T23:59:59-04:00" };
+  if (/\[PN104 DAY 2026\] (?:Midterm —|Official Midterm|Practice Midterm|Samantha Brunvil Midterm)/i.test(title)) return { label: "PN 104 Midterm", minutes: 60, opensAt: "2026-09-03T00:00:00-04:00", closesAt: "2026-09-04T23:59:59-04:00" };
   if (/\[PN104 DAY 2026\] Midterm Exam/i.test(title)) return { label: "PN 104 Day Course Midterm Exam", minutes: 60, opensAt: "2026-08-31T00:00:00-04:00", closesAt: "2026-09-04T23:59:59-04:00" };
   if (title === "Midterm Exam: Weeks 1-6") return { label: "PN 102 Midterm Exam", minutes: 60, opensAt: "2026-07-27T00:00:00-04:00", closesAt: "2026-08-21T23:59:59-04:00" };
   if (title === "Cumulative Final Exam") return { label: "PN 102 Cumulative Final Exam", minutes: 90, opensAt: "2026-09-07T00:00:00-04:00", closesAt: "2026-09-13T23:59:59-04:00" };
@@ -4749,7 +4749,6 @@ function assignmentTypeLabel(item = {}) {
 function examLinkLabel(item = {}) {
   const title = String(item.title || "").toLowerCase();
   if (title.includes("practice midterm")) return "Open Practice Midterm";
-  if (title.includes("official midterm")) return "Open Official Midterm Exam";
   if (assignmentTypeLabel(item) === "Final") return "Open Final Exam";
   return "Open Midterm Exam";
 }

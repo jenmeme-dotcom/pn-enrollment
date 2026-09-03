@@ -1649,9 +1649,9 @@ function seed() {
     if (week6Module) {
       let gradeItem = db.prepare(`
         SELECT id, title FROM grade_items
-        WHERE course_id = ? AND title IN (?, ?, ?)
+        WHERE course_id = ? AND title IN (?, ?, ?, ?)
         ORDER BY CASE WHEN title = ? THEN 0 ELSE 1 END LIMIT 1
-      `).get(pn104CourseRow.id, samanthaMidterm.title, samanthaMidterm.previousTitle, samanthaMidterm.legacyTitle, samanthaMidterm.title);
+      `).get(pn104CourseRow.id, samanthaMidterm.title, samanthaMidterm.officialTitle, samanthaMidterm.previousTitle, samanthaMidterm.legacyTitle, samanthaMidterm.title);
       const isPracticeMidtermMigration = gradeItem?.title === samanthaMidterm.legacyTitle;
       if (!gradeItem) {
         const result = db.prepare(`
@@ -1664,9 +1664,9 @@ function seed() {
           .run(samanthaMidterm.title, samanthaMidterm.dueDate, samanthaMidterm.studentEmail, gradeItem.id);
       }
       const lesson = db.prepare(`
-        SELECT id, title FROM lessons WHERE module_id = ? AND title IN (?, ?, ?)
+        SELECT id, title FROM lessons WHERE module_id = ? AND title IN (?, ?, ?, ?)
         ORDER BY CASE WHEN title = ? THEN 0 ELSE 1 END LIMIT 1
-      `).get(week6Module.id, samanthaMidterm.title, samanthaMidterm.previousTitle, samanthaMidterm.legacyTitle, samanthaMidterm.title);
+      `).get(week6Module.id, samanthaMidterm.title, samanthaMidterm.officialTitle, samanthaMidterm.previousTitle, samanthaMidterm.legacyTitle, samanthaMidterm.title);
       if (lesson) {
         db.prepare(`
           UPDATE lessons SET title = ?, content = ?, duration_minutes = 60, published = 1, instructor_only = 0,

@@ -16,7 +16,8 @@ function questionsFromContent(content) {
 }
 
 test("Samantha's PN104 midterm has 50 original four-option questions", () => {
-  assert.match(samanthaMidterm.title, /Official Midterm/);
+  assert.match(samanthaMidterm.title, /Midterm/);
+  assert.doesNotMatch(samanthaMidterm.title, /Official/);
   assert.equal(samanthaMidterm.questions.length, 50);
   samanthaMidterm.questions.forEach((question) => {
     assert.equal(question.options.length, 4);
@@ -29,7 +30,7 @@ test("Samantha's PN104 midterm has 50 original four-option questions", () => {
   assert.equal(samanthaMidterm.questions.filter((question) => originalPrompts.has(question.prompt.toLowerCase())).length, 0);
 });
 
-test("the legacy Samantha exam becomes a fresh Official Midterm", () => {
+test("the legacy Samantha exam becomes a fresh Midterm", () => {
   const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "bmhi-samantha-practice-reset-"));
   const databaseFile = path.join(temporaryDirectory, "practice-midterm.sqlite");
   const initialize = () => execFileSync(process.execPath, ["--no-warnings", "-e", "require('./src/db').initialize()"], {
