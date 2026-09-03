@@ -7628,6 +7628,41 @@ button.small {
   margin-top: 18px;
 }
 
+.secure-exam-gate {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.98);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: fixed;
+  z-index: 10000;
+}
+
+.secure-exam-gate[hidden] {
+  display: none;
+}
+
+.secure-exam-gate > div {
+  border: 1px solid #cdd9df;
+  border-radius: 8px;
+  box-shadow: 0 18px 50px rgba(25, 42, 53, 0.18);
+  max-width: 520px;
+  padding: 30px;
+  text-align: center;
+  width: calc(100% - 32px);
+}
+
+.secure-exam-gate strong {
+  color: #243642;
+  display: block;
+  font-size: 24px;
+}
+
+.secure-exam-gate p {
+  color: #526674;
+  margin: 10px 0 20px;
+}
+
 .quiz-preview-form fieldset {
   border: 1px solid #d9e1e7;
   margin: 0;

@@ -44,3 +44,15 @@ test("PN104 day midterm access window opens August 17 and closes August 21", () 
   assert.match(source, /2026-08-21T23:59:59-04:00/);
   assert.match(source, /PN 104 Day Course Midterm Exam", minutes: 60/);
 });
+
+test("timed exams enforce full-screen focus and submit when secure mode ends", () => {
+  const serverSource = fs.readFileSync(path.join(__dirname, "../src/server.js"), "utf8");
+  const styles = fs.readFileSync(path.join(__dirname, "../src/public/styles.css"), "utf8");
+  assert.match(serverSource, /data-secure-exam-form/);
+  assert.match(serverSource, /requestFullscreen/);
+  assert.match(serverSource, /visibilitychange/);
+  assert.match(serverSource, /window\.addEventListener\('blur'/);
+  assert.match(serverSource, /submitForExit\('fullscreen-exit'\)/);
+  assert.match(serverSource, /automatically submitted/);
+  assert.match(styles, /\.secure-exam-gate/);
+});

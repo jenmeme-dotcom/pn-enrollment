@@ -2439,6 +2439,7 @@ function renderExamInstructions(settings) {
         <li>Do not copy, photograph, record, share, or discuss exam questions or answers.</li>
         <li>You have <strong>${escapeHtml(settings.minutes)} minutes</strong>. Complete the entire exam in one sitting.</li>
         <li>The timer cannot be paused. You cannot restart the exam or receive another attempt after selecting Start Now.</li>
+        <li>The exam must remain in full-screen mode. Leaving full screen, changing tabs, minimizing the browser, or opening another window automatically submits the exam.</li>
         <li>Use the bathroom and address personal needs before starting. Do not leave the exam after it begins.</li>
         <li>Unanswered questions are scored as incorrect. Submit before the timer reaches zero.</li>
       </ul>
@@ -2547,9 +2548,19 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
         </dl>
       </div>
       ${examSettings ? `${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}${renderExamInstructions(examSettings)}${!instructor && examAttempt ? `<div class="exam-timer" role="timer" aria-live="polite" data-exam-expires="${escapeHtml(examAttempt.expires_at)}"><span>Time remaining</span><strong data-exam-countdown>--:--</strong></div>` : ""}` : `<p class="quiz-instructions">${instructor ? "Read each question and select the best answer. This quiz page stays with the module item so students do not get redirected to grades." : "Quiz in progress. Read each question and select the best answer."}</p>`}
-      <form class="quiz-preview-form" method="post" action="${enrollmentId ? `/student/enrollments/${enrollmentId}/quiz-submit` : "#"}">
+      ${examSettings && !instructor ? `
+        <div class="secure-exam-gate" data-secure-exam-gate>
+          <div>
+            <strong>Secure exam mode required</strong>
+            <p>Close other tabs and applications before continuing.</p>
+            <button class="button" type="button" data-enter-secure-exam>Enter Full Screen</button>
+          </div>
+        </div>
+      ` : ""}
+      <form class="quiz-preview-form" method="post" action="${enrollmentId ? `/student/enrollments/${enrollmentId}/quiz-submit` : "#"}" ${examSettings && !instructor ? "data-secure-exam-form" : ""}>
         ${enrollmentId ? `<input type="hidden" name="lessonId" value="${escapeHtml(lesson.id)}">` : ""}
         ${examSettings ? `<input type="hidden" name="timedExam" value="1">` : ""}
+        ${examSettings && !instructor ? `<input type="hidden" name="integrityExit" value="" data-integrity-exit>` : ""}
         ${questions.length ? `<div class="quiz-page-status" aria-live="polite"><strong>Question <span data-quiz-current>1</span> of ${questions.length}</strong><span data-quiz-progress style="--quiz-progress:${100 / questions.length}%"></span></div>` : ""}
         ${questionFields}
         <div class="quiz-submit-row quiz-page-actions">
@@ -2623,6 +2634,42 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
               };
               updateTimer();
               setInterval(updateTimer, 1000);
+            }
+            const secureGate = card.querySelector('[data-secure-exam-gate]');
+            const secureForm = card.querySelector('[data-secure-exam-form]');
+            if (secureGate && secureForm) {
+              const enterButton = secureGate.querySelector('[data-enter-secure-exam]');
+              const integrityExit = secureForm.querySelector('[data-integrity-exit]');
+              let secureModeStarted = false;
+              let secureSubmissionStarted = false;
+              const submitForExit = (reason) => {
+                if (!secureModeStarted || secureSubmissionStarted) return;
+                secureSubmissionStarted = true;
+                if (integrityExit) integrityExit.value = reason;
+                secureForm.submit();
+              };
+              enterButton.addEventListener('click', async () => {
+                try {
+                  await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+                  secureModeStarted = true;
+                  secureGate.hidden = true;
+                } catch {
+                  enterButton.textContent = 'Full Screen Required';
+                }
+              });
+              document.addEventListener('fullscreenchange', () => {
+                if (secureModeStarted && !document.fullscreenElement) submitForExit('fullscreen-exit');
+              });
+              document.addEventListener('visibilitychange', () => {
+                if (document.hidden) submitForExit('tab-or-window-change');
+              });
+              window.addEventListener('blur', () => submitForExit('browser-focus-lost'));
+              ['copy', 'cut', 'contextmenu'].forEach((eventName) => {
+                document.addEventListener(eventName, (event) => {
+                  if (secureModeStarted) event.preventDefault();
+                });
+              });
+              secureForm.addEventListener('submit', () => { secureSubmissionStarted = true; });
             }
           })();
         </script>
@@ -15578,12 +15625,19 @@ app.post("/student/enrollments/:id/quiz-submit", requireAuth, requireRole("stude
     return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
   }
   const score = Number(((correct / questions.length) * Number(gradeItem.points_possible || questions.length)).toFixed(2));
+  const requestedIntegrityExit = String(req.body.integrityExit || "").trim();
+  const integrityExit = ["fullscreen-exit", "tab-or-window-change", "browser-focus-lost"].includes(requestedIntegrityExit)
+    ? requestedIntegrityExit
+    : "";
+  const gradeNote = integrityExit
+    ? `Auto-graded: ${correct} of ${questions.length} correct. Secure exam mode ended (${integrityExit}); the attempt was automatically submitted.`
+    : `Auto-graded: ${correct} of ${questions.length} correct.`;
   db.prepare(`
     INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET
       score = excluded.score, note = excluded.note, updated_at = CURRENT_TIMESTAMP
-  `).run(enrollmentId, gradeItem.id, score, `Auto-graded: ${correct} of ${questions.length} correct.`);
+  `).run(enrollmentId, gradeItem.id, score, gradeNote);
   db.prepare("UPDATE exam_attempts SET status = 'submitted', submitted_at = CURRENT_TIMESTAMP WHERE enrollment_id = ? AND lesson_id = ?")
     .run(enrollmentId, lessonId);
   db.prepare("INSERT OR IGNORE INTO lesson_completions (enrollment_id, lesson_id) VALUES (?, ?)").run(enrollmentId, lessonId);
