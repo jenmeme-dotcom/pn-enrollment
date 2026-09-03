@@ -4736,12 +4736,18 @@ function lessonIndexForGradeItem(item = {}, lessons = []) {
 
 function assignmentTypeLabel(item = {}) {
   const title = String(item.title || "").toLowerCase();
+  if (title.includes("midterm")) return "Midterm";
+  if (title.includes("final")) return "Final";
   if (title.includes("quiz")) return "Quiz";
   if (title.includes("discussion")) return "Discussion";
-  if (title.includes("exam") || title.includes("midterm")) return "Exam";
+  if (title.includes("exam")) return "Exam";
   if (title.includes("acknowledg")) return "Acknowledgment";
   if (title.includes("worksheet") || title.includes("exercise") || title.includes("drill")) return "Course assignment";
   return item.group || "Assignment";
+}
+
+function isAssessmentType(type = "") {
+  return ["Quiz", "Exam", "Midterm", "Final"].includes(type);
 }
 
 function assignmentItemHref(item = {}, lessons = [], baseHref = "#") {
@@ -4785,7 +4791,7 @@ function gradeItemInstructions(item = {}) {
 
 function rubricEligible(item = {}) {
   const type = assignmentTypeLabel(item);
-  return !["Quiz", "Exam", "Acknowledgment"].includes(type) && Number(item.points_possible || 0) > 0;
+  return !isAssessmentType(type) && type !== "Acknowledgment" && Number(item.points_possible || 0) > 0;
 }
 
 function defaultAssignmentRubric(item = {}) {
@@ -5066,10 +5072,10 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
           </div>
         </section>
         ${renderAssignmentRubric({ item, instructor, courseId })}
-        ${!instructor && enrollmentId && type !== "Quiz" && type !== "Exam"
+        ${!instructor && enrollmentId && !isAssessmentType(type)
           ? renderAssignmentSubmissionCard({ item, enrollmentId, submission, autoGradeConfig: writtenAutogradeConfig, grade: studentGrade })
           : ""}
-        ${type === "Quiz" || type === "Exam" ? `
+        ${isAssessmentType(type) ? `
           <section class="lesson-action-card">
             <h2>${escapeHtml(type)}</h2>
             <p>This assessment is connected to the course gradebook. Use the module materials first, then complete the quiz or exam when your instructor opens it.</p>
@@ -15246,7 +15252,7 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     return res.status(404).send("Assignment not found");
   }
   const type = assignmentTypeLabel(assignment);
-  if (type === "Quiz" || type === "Exam") {
+  if (isAssessmentType(type)) {
     if (req.file?.path) fs.unlink(req.file.path, () => {});
     flash(req, "This assessment must be completed in the portal and does not accept file uploads.");
     return res.redirect(redirectToAssignment);
