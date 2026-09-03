@@ -1,5 +1,6 @@
 const legacyTitle = "[PN104 DAY 2026] Samantha Brunvil Midterm — Chapters 1–8 and 15–18";
-const title = "[PN104 DAY 2026] Practice Midterm — Chapters 1–8 and 15–18";
+const previousTitle = "[PN104 DAY 2026] Practice Midterm — Chapters 1–8 and 15–18";
+const title = "[PN104 DAY 2026] Official Midterm — Chapters 1–8 and 15–18";
 const studentEmail = "samanthabrunvil2106@gmail.com";
 const dueDate = "2026-09-04 23:59:59";
 
@@ -63,6 +64,6 @@ const questions = rawQuestions.map(([prompt, correct, ...distractors], index) =>
   return { prompt, options, answer };
 });
 
-const content = `Canvas item type: Exam.\n\nPRIVATE PRACTICE MIDTERM FOR SAMANTHA BRUNVIL. Complete all 50 original questions covering Chapters 1–8 and 15–18. Select the one best answer. You have 60 minutes after selecting Start Now.\n\nQUIZ_DATA_BASE64:${Buffer.from(JSON.stringify(questions), "utf8").toString("base64")}`;
+const content = `Canvas item type: Exam.\n\nPRIVATE OFFICIAL MIDTERM FOR SAMANTHA BRUNVIL. Complete all 50 original questions covering Chapters 1–8 and 15–18. Select the one best answer. You have 60 minutes after selecting Start Now.\n\nQUIZ_DATA_BASE64:${Buffer.from(JSON.stringify(questions), "utf8").toString("base64")}`;
 
-module.exports = { title, legacyTitle, studentEmail, dueDate, questions, content };
+module.exports = { title, previousTitle, legacyTitle, studentEmail, dueDate, questions, content };

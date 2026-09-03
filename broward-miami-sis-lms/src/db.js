@@ -1649,9 +1649,9 @@ function seed() {
     if (week6Module) {
       let gradeItem = db.prepare(`
         SELECT id, title FROM grade_items
-        WHERE course_id = ? AND title IN (?, ?)
+        WHERE course_id = ? AND title IN (?, ?, ?)
         ORDER BY CASE WHEN title = ? THEN 0 ELSE 1 END LIMIT 1
-      `).get(pn104CourseRow.id, samanthaMidterm.title, samanthaMidterm.legacyTitle, samanthaMidterm.title);
+      `).get(pn104CourseRow.id, samanthaMidterm.title, samanthaMidterm.previousTitle, samanthaMidterm.legacyTitle, samanthaMidterm.title);
       const isPracticeMidtermMigration = gradeItem?.title === samanthaMidterm.legacyTitle;
       if (!gradeItem) {
         const result = db.prepare(`
@@ -1664,9 +1664,9 @@ function seed() {
           .run(samanthaMidterm.title, samanthaMidterm.dueDate, samanthaMidterm.studentEmail, gradeItem.id);
       }
       const lesson = db.prepare(`
-        SELECT id, title FROM lessons WHERE module_id = ? AND title IN (?, ?)
+        SELECT id, title FROM lessons WHERE module_id = ? AND title IN (?, ?, ?)
         ORDER BY CASE WHEN title = ? THEN 0 ELSE 1 END LIMIT 1
-      `).get(week6Module.id, samanthaMidterm.title, samanthaMidterm.legacyTitle, samanthaMidterm.title);
+      `).get(week6Module.id, samanthaMidterm.title, samanthaMidterm.previousTitle, samanthaMidterm.legacyTitle, samanthaMidterm.title);
       if (lesson) {
         db.prepare(`
           UPDATE lessons SET title = ?, content = ?, duration_minutes = 60, published = 1, instructor_only = 0,
@@ -1690,6 +1690,14 @@ function seed() {
           VALUES (?, ?, ?, 60, ?, 1, 0, 'quiz', ?, ?)
         `).run(week6Module.id, samanthaMidterm.title, samanthaMidterm.content, position, gradeItem.id, samanthaMidterm.studentEmail);
       }
+      const practiceMidtermTitle = "[PN104 2026] Practice Midterm Examination";
+      const completedMidtermTitle = "[PN104 2026] Quiz: Midterm Examination";
+      db.prepare("UPDATE grade_items SET title = ? WHERE course_id = ? AND title = ?")
+        .run(practiceMidtermTitle, pn104CourseRow.id, completedMidtermTitle);
+      db.prepare(`
+        UPDATE lessons SET title = ? WHERE title = ?
+          AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
+      `).run(practiceMidtermTitle, completedMidtermTitle, pn104CourseRow.id);
     }
   }
 
