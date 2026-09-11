@@ -1,4 +1,4 @@
-function quizContent(title, questions, instructions = "A score of 85% or higher is required. Review the lesson and retake the assessment if needed.") {
+function quizContent(title, questions, instructions = "A score of 80% or higher is required. Review the lesson and retake the assessment if needed.") {
   return [
     "Canvas item type: Quiz.",
     "",
@@ -95,8 +95,10 @@ const finalExam = [...pretestOne, ...pretestTwo, ...pretestThree, ...pretestFour
 
 const page = (title, durationMinutes, content) => ({ title, durationMinutes, content });
 const quiz = (title, durationMinutes, questions, note) => ({ title, durationMinutes, content: quizContent(title, questions, note) });
+const materialBase = "/course-materials/iv-therapy-certification-30-hour";
+const deck = (label, fileName) => `\n\nCourse file:\n- ${label}: ${materialBase}/${fileName}`;
 
-const coursePolicies = `Completion requirements\n- Complete all 30 clock hours: 14 hours of assigned online/home study and 16 hours of scheduled classroom, skills lab, and evaluation.\n- Earn 85% or higher on each pre-course test and on the comprehensive online exam.\n- Attend the in-person classroom and laboratory sections. Online completion does not replace hands-on attendance.\n- Successfully demonstrate every critical skill on the competency checklist under direct evaluation by a Florida-licensed RN.\n- Clinical competence must be documented in writing. Employer policies may further limit practice and never expand legal scope.\n\nSafety notice\nThis course supports supervised education. Students must follow current Florida law, Board of Nursing rules, prescriber orders, manufacturer instructions, evidence-based standards, and facility policies. Drug references and older source manuals must be checked against current authoritative information before clinical use.`;
+const coursePolicies = `Completion requirements\n- Complete all 30 clock hours: 14 hours of assigned online/home study and 16 hours of scheduled classroom, skills lab, and evaluation.\n- Earn 80% or higher on each pre-course test and on the comprehensive online exam.\n- Attend the in-person classroom and laboratory sections. Online completion does not replace hands-on attendance.\n- Successfully demonstrate every critical skill on the competency checklist under direct evaluation by a Florida-licensed RN.\n- Clinical competence must be documented in writing. Employer policies may further limit practice and never expand legal scope.\n\nSafety notice\nThis course supports supervised education. Students must follow current Florida law, Board of Nursing rules, prescriber orders, manufacturer instructions, evidence-based standards, and facility policies. Drug references and older source manuals must be checked against current authoritative information before clinical use.`;
 
 const ivTherapyCourse = {
   title: "IV Therapy Certification - 30 Hour Hybrid",
@@ -108,10 +110,10 @@ const ivTherapyCourse = {
   registrationFeeCents: 0,
   credentialType: "Certificate",
   deliveryMode: "Hybrid: 14 hours online + 16 hours campus/lab",
-  description: "This 30-hour IV Certification course meets the Florida Board of Nursing requirements for RNs and LPNs to administer IV therapy in Florida. The course is offered at multiple locations throughout the state.\n\nThe course includes both didactic and hands-on clinical practice. Students will learn venipuncture technique, IV insertion, fluid administration, medication compatibility, and complications management.\n\nFlorida Dept. of Health Provider #50-XXXX\nCE Broker Course Tracking #20-XXXXXXX - contact hours awarded upon completion\nMeets Florida Board of Nursing IV therapy requirements\nTwo-day course format (Saturday-Sunday or weekday sessions)",
+  description: "This 30-hour IV Therapy Certification course provides advanced IV education for RNs and fulfills Florida's 30-hour post-graduate IV-therapy education component for eligible LPNs. The course is offered at multiple locations throughout the state.\n\nThe hybrid course includes 14 hours of initial online study followed by 16 hours of scheduled classroom review, hands-on clinical practice, and RN competency evaluation. Students learn venipuncture technique, peripheral IV insertion, fluid administration, medication compatibility, access-device care, and complication management.\n\nFlorida Dept. of Health Provider #50-XXXX\nCE Broker Course Tracking #20-XXXXXXX - contact hours awarded upon completion\nDesigned to meet Florida Board of Nursing IV-therapy education requirements\nTwo-day in-person format (Saturday-Sunday or weekday sessions) after online preparation",
   ghlProductKeys: ["IV Therapy", "IV Certification", "30 Hour IV Therapy", "IV Therapy Certification", "iv-therapy-certification-30-hour"],
   courseNumber: "IVT 030",
-  seedVersion: "iv-therapy-hybrid-30h-v1-2026-08-11",
+  seedVersion: "iv-therapy-hybrid-30h-pptx-v2-2026-09-11",
   objectives: [
     "Relate Florida nursing scope, employer policy, accountability, and documentation to IV therapy practice.",
     "Apply venous anatomy, fluid and electrolyte concepts, infection prevention, and medication safety to IV care.",
@@ -225,5 +227,24 @@ const ivTherapyCourse = {
     { title: "RN Competency Checkoff - IVPB, Pump, and Complication Response", pointsPossible: 100 }
   ]
 };
+
+const presentationByLesson = new Map([
+  ["Florida Scope, Accountability, and Facility Policy", ["Module 1 PowerPoint - Florida Scope and Safe IV Practice", "IVT_Module_01_Florida_Scope_and_Safe_Practice.pptx"]],
+  ["Circulation, Veins, and Peripheral Site Selection", ["Module 2 PowerPoint - Patient Education and Support", "IVT_Module_02_Patient_Education_and_Support.pptx"]],
+  ["Fluid Compartments, Tonicity, and Electrolyte Balance", ["Module 3 PowerPoint - Fluids, Electrolytes, and Calculations", "IVT_Module_03_Fluids_Electrolytes_and_Calculations.pptx"]],
+  ["Peripheral IV Insertion, Securement, and Discontinuation", ["Module 7 PowerPoint - Venipuncture Standards and Practice", "IVT_Module_07_Venipuncture_Standards.pptx"]],
+  ["Flow Rates, Dosage Calculations, Pumps, and IV Piggyback", ["Module 4 PowerPoint - Transfusion Therapy", "IVT_Module_04_Transfusion_Therapy.pptx"]],
+  ["Blood Components, Parenteral Nutrition, and High-Risk Therapy", ["Module 5 PowerPoint - Parenteral Nutrition", "IVT_Module_05_Parenteral_Nutrition.pptx"]],
+  ["Complications: Recognition, Immediate Actions, and Prevention", ["Module 6 PowerPoint - Chemotherapy Safety", "IVT_Module_06_Chemotherapy_Safety.pptx"]],
+  ["Skills Stations: Fluid, Tubing, Pump, and Vein Selection", ["Module 8 PowerPoint - In-Person IV Skills Lab", "IVT_Module_08_In_Person_Skills_Lab.pptx"]]
+]);
+
+for (const module of ivTherapyCourse.modules) {
+  for (const lesson of module.lessons) {
+    lesson.content = lesson.content.replaceAll("85%", "80%");
+    const presentation = presentationByLesson.get(lesson.title);
+    if (presentation) lesson.content += deck(...presentation);
+  }
+}
 
 module.exports = { ivTherapyCourse };
