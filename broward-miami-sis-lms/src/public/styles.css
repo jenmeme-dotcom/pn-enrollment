@@ -9390,13 +9390,69 @@ button.small {
   font-weight: 500;
 }
 
-.grades-side-panel p {
+.overall-grade-card {
+  background: #f4fafb;
+  border: 1px solid #c9e0e4;
+  border-radius: 10px;
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+.overall-grade-card > strong {
+  color: #173f4a;
+  font-size: 18px;
+}
+
+.overall-grade-card .overall-grade-eyebrow {
+  border: 0;
+  color: #54717a;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  margin: 0;
+  padding: 0;
+  text-transform: uppercase;
+}
+
+.overall-grade-values {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.overall-grade-values div {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.overall-grade-values dt {
+  color: #4b5e66;
+  font-size: 14px;
+}
+
+.overall-grade-values dd {
+  color: #123f4b;
+  font-size: 22px;
+  font-weight: 850;
+  margin: 0;
+  text-align: right;
+}
+
+.overall-grade-card > small {
+  color: #53666e;
+  line-height: 1.4;
+}
+
+.grades-side-panel > p {
   border-top: 1px solid #e1e5e9;
   margin: 0;
   padding-top: 10px;
 }
 
-.grades-side-panel p:last-child {
+.grades-side-panel > p:last-child {
   border-top: 0;
   color: #394957;
   font-size: 16px;
@@ -9435,12 +9491,22 @@ button.small {
   padding: 58px 28px 48px;
 }
 
+.instructor-gradebook-preview-shell .instructor-gradebook-main {
+  grid-column: 3 / 5;
+  padding: 38px clamp(24px, 4vw, 54px) 48px;
+}
+
 .instructor-gradebook-head {
   align-items: center;
   display: flex;
   gap: 16px;
   justify-content: space-between;
   margin-bottom: 24px;
+}
+
+.instructor-gradebook-head p {
+  color: #5f6f7d;
+  margin: 6px 0 0;
 }
 
 .gradebook-switch {
@@ -9573,6 +9639,13 @@ button.small {
   width: 210px;
 }
 
+.instructor-gradebook-table th.gradebook-summary-column {
+  background: #e5f1f3;
+  color: #173f4a;
+  font-weight: 800;
+  width: 118px;
+}
+
 .instructor-gradebook-table th span {
   display: block;
   overflow: hidden;
@@ -9608,6 +9681,24 @@ button.small {
 .instructor-gradebook-table td:not(:first-child) {
   background: #ededed;
   color: #63717d;
+}
+
+.instructor-gradebook-table td.gradebook-summary-cell,
+.instructor-gradebook-table td.gradebook-letter-cell {
+  background: #f1f8f9;
+  color: #173f4a;
+  font-weight: 800;
+}
+
+.instructor-gradebook-table td.gradebook-letter-cell {
+  font-size: 18px;
+}
+
+.gradebook-pending-score {
+  color: #8a5a00;
+  display: block;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .instructor-gradebook-table a {
@@ -12036,6 +12127,11 @@ button.small {
     padding: 24px 16px;
   }
 
+  .instructor-gradebook-preview-shell .instructor-gradebook-main {
+    grid-column: auto;
+    padding: 24px 16px;
+  }
+
   .canvas-people-main {
     grid-column: auto;
     padding: 24px 16px;
@@ -12104,6 +12200,80 @@ button.small {
 
   .grades-filter-row label {
     min-width: 0;
+  }
+
+  .canvas-grades-content {
+    overflow-x: visible;
+  }
+
+  .canvas-grades-table,
+  .canvas-grades-table tbody,
+  .canvas-grades-table tr {
+    display: block;
+    width: 100%;
+  }
+
+  .canvas-grades-table thead {
+    display: none;
+  }
+
+  .canvas-grades-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .canvas-grades-table tr {
+    background: white;
+    border: 1px solid #dce3e8;
+    border-radius: 8px;
+    padding: 14px;
+  }
+
+  .canvas-grades-table td,
+  .canvas-grades-table td:first-child,
+  .canvas-grades-table td:nth-child(2),
+  .canvas-grades-table td:nth-child(5),
+  .canvas-grades-table tbody tr:last-child td {
+    border: 0;
+    min-width: 0;
+    padding: 6px 0;
+    width: auto;
+    white-space: normal;
+  }
+
+  .canvas-grades-table td:first-child {
+    margin-bottom: 4px;
+  }
+
+  .canvas-grades-table td[data-label] {
+    align-items: flex-start;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    text-align: right;
+  }
+
+  .canvas-grades-table td[data-label]::before {
+    color: #53636f;
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 850;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .canvas-grades-table td:empty {
+    display: none;
+  }
+
+  .canvas-grades-table td.grade-cell-empty {
+    display: none;
+  }
+
+  .canvas-grades-table .grade-summary-row {
+    background: #f4fafb;
+    border-color: #c9e0e4;
   }
 
   .canvas-syllabus-main .canvas-mini-head,

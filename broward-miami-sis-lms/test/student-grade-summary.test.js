@@ -15,6 +15,7 @@ let database;
 let temporaryDirectory;
 let baseUrl;
 let studentCookie;
+let adminCookie;
 let enrollment;
 
 function reservePort() {
@@ -85,6 +86,17 @@ async function getGradesHtml() {
   const route = `/student/enrollments/${enrollment.id}?view=grades`;
   const response = await fetch(`${baseUrl}${route}`, {
     headers: { cookie: studentCookie },
+    redirect: "manual"
+  });
+  const html = await response.text();
+  assert.equal(response.status, 200, `Expected ${route} to render successfully.\n${html.slice(0, 800)}`);
+  return html;
+}
+
+async function getInstructorGradesHtml() {
+  const route = `/admin/courses/${enrollment.course_id}/student-view?view=grades`;
+  const response = await fetch(`${baseUrl}${route}`, {
+    headers: { cookie: adminCookie },
     redirect: "manual"
   });
   const html = await response.text();
@@ -182,6 +194,7 @@ before(async () => {
   insertGrade.run(enrollment.id, pendingItemId, 100, `${pendingApprovalPrefix}\nAwaiting instructor approval.`);
 
   studentCookie = await login("student@browardmiamihi.com", "StudentPass123!", "student");
+  adminCookie = await login("admin@browardmiamihi.com", "AdminPass123!", "faculty");
 });
 
 after(async () => {
@@ -209,6 +222,26 @@ test("student Grades shows saved posted scores and calculates overall grade from
   assert.match(summary, /Overall (?:Percentage|Grade)[^%]*50(?:\.0+)?%/i, "Expected zero to count in the 50% overall percentage");
   assert.match(summary, /Letter Grade[^A-F]*F\b/i, "Expected the overall letter grade to be shown");
   assert.doesNotMatch(summary, /100(?:\.0+)?%/, "Pending and ungraded work must not alter the posted-grade calculation");
+
+  const instructorHtml = await getInstructorGradesHtml();
+  const instructorStudentRow = gradeRow(instructorHtml, "Demo Student");
+  assert.match(instructorHtml, /Student Gradebook/);
+  assert.doesNotMatch(instructorHtml, /Student Preview/);
+  assert.match(instructorStudentRow, /Demo Student 50\.00% F\b/, "Instructor should see the student's current percentage and letter grade");
+  assert.match(instructorStudentRow, /100 0 100 pending review/, "Instructor should continue to see posted, zero, and pending scores");
+});
+
+test("an official final grade overrides the calculated letter grade in both grade views", async () => {
+  database.prepare("UPDATE enrollments SET final_grade = ? WHERE id = ?").run("B+", enrollment.id);
+
+  try {
+    const studentHtml = await getGradesHtml();
+    const instructorHtml = await getInstructorGradesHtml();
+    assert.match(visibleText(studentHtml), /Letter Grade B\+/, "Student should see the official final letter grade");
+    assert.match(gradeRow(instructorHtml, "Demo Student"), /Demo Student 50\.00% B\+/, "Instructor should see the official final letter grade");
+  } finally {
+    database.prepare("UPDATE enrollments SET final_grade = NULL WHERE id = ?").run(enrollment.id);
+  }
 });
 
 test("student Grades uses an explicit no-grade state instead of assigning F", async () => {
@@ -219,4 +252,7 @@ test("student Grades uses an explicit no-grade state instead of assigning F", as
   assert.match(summary, /(?:No posted grades|Not yet graded|N\/A)/i, "Expected a clear no-grade state");
   assert.doesNotMatch(summary, /Letter Grade[^A-F]*F\b/i, "No posted grades must not be reported as F");
   assert.doesNotMatch(summary, /Overall (?:Percentage|Grade)[^%]*0(?:\.0+)?%/i, "No posted grades must not be reported as 0%");
+
+  const instructorHtml = await getInstructorGradesHtml();
+  assert.match(gradeRow(instructorHtml, "Demo Student"), /Demo Student Not graded —/, "Instructor should see an explicit ungraded state");
 });

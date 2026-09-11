@@ -3368,18 +3368,50 @@ function studentGradebookRows(enrollment, gradeItems = [], grades = []) {
   });
 }
 
+function letterGradeForPercentage(percentage) {
+  if (!Number.isFinite(percentage)) return null;
+  if (percentage >= 90) return "A";
+  if (percentage >= 80) return "B";
+  if (percentage >= 70) return "C";
+  if (percentage >= 60) return "D";
+  return "F";
+}
+
+function postedGradeSummary(rows = []) {
+  const scoredRows = rows.filter((row) =>
+    row.score !== null &&
+    row.score !== undefined &&
+    Number.isFinite(Number(row.score)) &&
+    Number(row.points_possible) > 0
+  );
+  const earned = scoredRows.reduce((sum, row) => sum + Number(row.score), 0);
+  const possible = scoredRows.reduce((sum, row) => sum + Number(row.points_possible), 0);
+  const percentage = possible > 0 ? (earned / possible) * 100 : null;
+  return {
+    earned,
+    possible,
+    percentage,
+    letterGrade: letterGradeForPercentage(percentage),
+    gradedCount: scoredRows.length
+  };
+}
+
 function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems = [], grades = [], student }) {
   const rows = studentGradebookRows(enrollment, gradeItems, grades);
-  const scoredRows = rows.filter((row) => row.score !== null && row.score !== undefined && row.points_possible);
-  const earned = scoredRows.reduce((sum, row) => sum + Number(row.score || 0), 0);
-  const possible = scoredRows.reduce((sum, row) => sum + Number(row.points_possible || 0), 0);
-  const totalLabel = possible ? `${earned.toFixed(2)} / ${possible.toFixed(2)}` : "N/A (N/A)";
+  const summary = postedGradeSummary(rows);
+  const totalLabel = summary.possible ? `${summary.earned.toFixed(2)} / ${summary.possible.toFixed(2)}` : "N/A (N/A)";
+  const overallPercentage = summary.percentage === null ? "N/A" : `${summary.percentage.toFixed(2)}%`;
+  const officialFinalGrade = String(enrollment.final_grade || "").trim();
+  const overallLetterGrade = officialFinalGrade || summary.letterGrade || "Not yet graded";
   const studentLabel = personName(student);
   const groupTotals = rows.reduce((groups, row) => {
     const group = row.group || "Assignments";
-    const existing = groups.get(group) || { possible: 0, earned: 0 };
-    if (row.points_possible) existing.possible += Number(row.points_possible || 0);
-    if (row.score !== null && row.score !== undefined) existing.earned += Number(row.score || 0);
+    const existing = groups.get(group) || { possible: 0, earned: 0, gradedCount: 0 };
+    if (row.score !== null && row.score !== undefined && Number(row.points_possible) > 0) {
+      existing.possible += Number(row.points_possible);
+      existing.earned += Number(row.score);
+      existing.gradedCount += 1;
+    }
     groups.set(group, existing);
     return groups;
   }, new Map());
@@ -3420,21 +3452,21 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
                   <a href="${escapeHtml(row.id ? `${baseHref}?assignment=${row.id}` : `${baseHref}?view=assignments`)}">${escapeHtml(row.title)}</a>
                   <small>${escapeHtml(row.group || "Assignments")}</small>
                 </td>
-                <td>${escapeHtml(formatGradeDue(row.due_date))}</td>
-                <td></td>
-                <td>
+                <td data-label="Due" class="${row.due_date ? "" : "grade-cell-empty"}">${escapeHtml(formatGradeDue(row.due_date))}</td>
+                <td data-label="Submitted" class="grade-cell-empty"></td>
+                <td data-label="Status" class="${row.status ? "" : "grade-cell-empty"}">
                   ${row.status === "missing" ? `<span class="grade-status missing">missing</span>` : row.status === "info" ? `<span class="grade-status info">!</span>` : row.status === "pending" ? `<span class="grade-status info">pending review</span>` : ""}
                 </td>
-                <td>${row.points_possible ? `${row.score === null || row.score === undefined ? "-" : escapeHtml(row.score)} / ${escapeHtml(row.points_possible)}` : "-"}</td>
+                <td data-label="Score">${row.points_possible ? `${row.score === null || row.score === undefined ? "-" : escapeHtml(row.score)} / ${escapeHtml(row.points_possible)}` : "-"}</td>
               </tr>
             `).join("")}
             ${Array.from(groupTotals.entries()).map(([group, total]) => `
               <tr class="grade-summary-row">
                 <td>${escapeHtml(group)}</td>
-                <td></td>
-                <td></td>
-                <td>N/A</td>
-                <td>${escapeHtml(total.earned.toFixed(2))} / ${escapeHtml(total.possible ? total.possible.toFixed(2) : "0.00")}</td>
+                <td data-label="Due" class="grade-cell-empty"></td>
+                <td data-label="Submitted" class="grade-cell-empty"></td>
+                <td data-label="Status">${total.gradedCount ? "Posted" : "N/A"}</td>
+                <td data-label="Score">${total.gradedCount ? `${escapeHtml(total.earned.toFixed(2))} / ${escapeHtml(total.possible.toFixed(2))}` : "Not yet graded"}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -3442,7 +3474,15 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
       </section>
 
       <aside class="grades-side-panel">
-        <strong>Total: ${escapeHtml(totalLabel)}</strong>
+        <section class="overall-grade-card" aria-label="Overall course grade">
+          <p class="overall-grade-eyebrow">Overall course grade</p>
+          <strong>Total: ${escapeHtml(totalLabel)}</strong>
+          <dl class="overall-grade-values">
+            <div><dt>Overall Percentage</dt><dd>${escapeHtml(overallPercentage)}</dd></div>
+            <div><dt>Letter Grade</dt><dd>${escapeHtml(overallLetterGrade)}</dd></div>
+          </dl>
+          <small>${officialFinalGrade ? "Official final grade posted by the school." : summary.gradedCount ? `Calculated from ${summary.gradedCount} posted grade${summary.gradedCount === 1 ? "" : "s"}.` : "No posted grades yet."}</small>
+        </section>
         <button type="button">Show All Details</button>
         <p><strong>Course assignments are not weighted.</strong></p>
         <label><input type="checkbox" checked> Calculate based only on graded assignments</label>
@@ -3470,7 +3510,8 @@ function instructorGradebookStudents(enrollments = []) {
     first_name: row.first_name,
     last_name: row.last_name,
     email: row.email,
-    enrollment_id: row.id
+    enrollment_id: row.id,
+    final_grade: row.final_grade
   }));
   if (roster.length >= 6) return roster;
   const existing = new Set(roster.map((row) => personName(row).toLowerCase()));
@@ -3498,14 +3539,24 @@ function instructorGradebookItems(course, gradeItems = []) {
   }));
 }
 
-function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems = [], enrollments = [], grades = [] }) {
+function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems = [], enrollments = [], grades = [], readOnly = false }) {
   const students = instructorGradebookStudents(enrollments);
   const assignments = instructorGradebookItems(course, gradeItems);
-  const scoreByEnrollmentAndItem = new Map(grades.map((grade) => [`${grade.enrollment_id}:${grade.grade_item_id}`, grade.score]));
+  const gradeByEnrollmentAndItem = new Map(grades.map((grade) => [`${grade.enrollment_id}:${grade.grade_item_id}`, grade]));
+  const studentSummary = (student) => postedGradeSummary(assignments.map((item) => {
+    const grade = gradeByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
+    return {
+      ...item,
+      score: grade && !isAutoGradeApprovalPending(grade.note) ? grade.score : null
+    };
+  }));
   return `
     <main class="instructor-gradebook-main">
       <div class="instructor-gradebook-head">
-        <a class="gradebook-switch" href="${escapeHtml(baseHref)}?view=grades&mode=edit">Gradebook⌄</a>
+        <div>
+          <a class="gradebook-switch" href="${escapeHtml(baseHref)}?view=grades&mode=edit">Student Gradebook</a>
+          <p>${readOnly ? "View posted scores and current overall grades. Select Edit Course to open grading tools." : "Review posted scores and current overall grades for every student."}</p>
+        </div>
         <div class="gradebook-actions">
           <button type="button" title="Calendar">▦</button>
           <button type="button">Import</button>
@@ -3531,6 +3582,8 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
           <thead>
             <tr>
               <th>Student Name</th>
+              <th class="gradebook-summary-column"><span>Overall</span><small>Posted grades</small></th>
+              <th class="gradebook-summary-column"><span>Letter Grade</span><small>Current</small></th>
               ${assignments.map((item) => `
                 <th>
                   <span>${escapeHtml(item.title)}</span>
@@ -3542,16 +3595,24 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
             </tr>
           </thead>
           <tbody>
-            ${students.map((student, studentIndex) => `
-              <tr>
-                <td>${student.id ? `<a href="/admin/students/${student.id}/registrar-checklist">${escapeHtml(personName(student))}</a>` : `<a href="${escapeHtml(baseHref)}?view=grades&mode=edit">${escapeHtml(personName(student))}</a>`}</td>
-                ${assignments.map((item, itemIndex) => {
-                  const score = scoreByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
-                  const iconCell = itemIndex === 0 && [1, 5].includes(studentIndex) ? "⊞" : "";
-                  return `<td>${score === undefined ? iconCell || "-" : escapeHtml(score)}</td>`;
-                }).join("")}
-              </tr>
-            `).join("")}
+            ${students.map((student, studentIndex) => {
+              const summary = studentSummary(student);
+              const officialFinalGrade = String(student.final_grade || "").trim();
+              const letterGrade = officialFinalGrade || summary.letterGrade || "—";
+              return `
+                <tr>
+                  <td>${student.id ? `<a href="/admin/students/${student.id}/registrar-checklist">${escapeHtml(personName(student))}</a>` : `<a href="${escapeHtml(baseHref)}?view=grades&mode=edit">${escapeHtml(personName(student))}</a>`}</td>
+                  <td class="gradebook-summary-cell">${summary.percentage === null ? "Not graded" : `${escapeHtml(summary.percentage.toFixed(2))}%`}</td>
+                  <td class="gradebook-letter-cell">${escapeHtml(letterGrade)}</td>
+                  ${assignments.map((item, itemIndex) => {
+                    const grade = gradeByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
+                    const iconCell = itemIndex === 0 && [1, 5].includes(studentIndex) ? "⊞" : "";
+                    if (!grade) return `<td>${iconCell || "-"}</td>`;
+                    return `<td>${escapeHtml(grade.score)}${isAutoGradeApprovalPending(grade.note) ? `<small class="gradebook-pending-score">pending review</small>` : ""}</td>`;
+                  }).join("")}
+                </tr>
+              `;
+            }).join("")}
           </tbody>
         </table>
       </section>
@@ -11858,7 +11919,8 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     WHERE course_id = ?
     ORDER BY due_date IS NULL, due_date, id
   `).all(course.id);
-  const gradeItems = editing ? allGradeItems : allGradeItems.filter((item) => !item.allowed_student_email);
+  const reviewingGrades = activeView === "grades";
+  const gradeItems = editing || reviewingGrades ? allGradeItems : allGradeItems.filter((item) => !item.allowed_student_email);
   const courseModules = db.prepare("SELECT * FROM modules WHERE course_id = ? ORDER BY position, id").all(course.id);
   const announcements = courseAnnouncements(course.id);
   const discussionTopics = courseDiscussionTopics(course.id);
@@ -11866,14 +11928,14 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   const discussionEntries = selectedDiscussionTopicId ? discussionTopicEntries(selectedDiscussionTopicId) : [];
   const calendarEvents = courseCalendarEvents(course.id);
   const materialFiles = courseMaterialFiles(course.slug);
-  const enrollments = editing ? db.prepare(`
+  const enrollments = editing || reviewingGrades ? db.prepare(`
     SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email, u.student_number, u.cohort_name, u.cohort_start_date, u.cohort_end_date
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
     WHERE e.course_id = ?
     ORDER BY u.last_name, u.first_name
   `).all(course.id) : [];
-  const grades = editing ? db.prepare(`
+  const grades = editing || reviewingGrades ? db.prepare(`
     SELECT g.*
     FROM grades g
     JOIN enrollments e ON e.id = g.enrollment_id
@@ -12186,13 +12248,12 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
       })}
     </section>
   ` : activeView === "grades" ? `
-    <section class="canvas-course-shell instructor-preview ${editing ? "instructor-gradebook-shell" : "canvas-grades-shell student-course-shell"}">
+    <section class="canvas-course-shell instructor-preview ${editing ? "instructor-gradebook-shell" : "canvas-grades-shell student-course-shell instructor-gradebook-preview-shell"}">
       ${renderInstructorCanvasRail(req.user)}
 
       ${previewHeader([
         { label: courseCode, href: adminCourseBaseHref },
-        { label: "Grades", href: `${adminCourseBaseHref}?view=grades` },
-        { label: "Student Preview" }
+        { label: "Student Gradebook", href: `${adminCourseBaseHref}?view=grades` }
       ])}
 
       ${editing ? "" : `
@@ -12203,16 +12264,15 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         ${courseOutlinePanel}
       `}
 
-      ${editing
-        ? renderInstructorGradesPage({ course, courseCode, baseHref: adminCourseBaseHref, gradeItems, enrollments, grades })
-        : renderStudentGradesPage({
-          enrollment: { ...course, id: null, course_id: course.id, progress: 0 },
-          courseCode,
-          baseHref: adminCourseBaseHref,
-          gradeItems,
-          grades: [],
-          student: { first_name: "Student", last_name: "Preview" }
-        })}
+      ${renderInstructorGradesPage({
+        course,
+        courseCode,
+        baseHref: adminCourseBaseHref,
+        gradeItems,
+        enrollments,
+        grades,
+        readOnly: !editing
+      })}
     </section>
   ` : activeView === "syllabus" ? `
     <section class="canvas-course-shell canvas-syllabus-shell student-course-shell instructor-preview">
