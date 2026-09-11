@@ -228,7 +228,7 @@ test("student Grades shows saved posted scores and calculates overall grade from
   assert.match(instructorHtml, /Student Gradebook/);
   assert.doesNotMatch(instructorHtml, /Student Preview/);
   assert.match(instructorStudentRow, /Demo Student 50\.00% F\b/, "Instructor should see the student's current percentage and letter grade");
-  assert.match(instructorStudentRow, /100 0 100 pending review/, "Instructor should continue to see posted, zero, and pending scores");
+  assert.match(instructorStudentRow, /100 0 — pending review -/, "Instructor should show posted scores while withholding provisional pending scores");
 });
 
 test("an official final grade overrides the calculated letter grade in both grade views", async () => {

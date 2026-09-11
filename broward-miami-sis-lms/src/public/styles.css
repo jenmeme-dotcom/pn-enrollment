@@ -9701,6 +9701,31 @@ button.small {
   line-height: 1.2;
 }
 
+.gradebook-final-grade-note {
+  color: #54717a;
+  display: block;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.gradebook-empty-note {
+  background: #f4fafb;
+  border: 1px solid #c9e0e4;
+  border-radius: 6px;
+  color: #41545c;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+}
+
+.instructor-gradebook-table td.gradebook-empty-row {
+  background: #ffffff;
+  color: #53636f;
+  padding: 24px;
+  text-align: left;
+}
+
 .instructor-gradebook-table a {
   color: #2d7fd4;
   font-weight: 500;

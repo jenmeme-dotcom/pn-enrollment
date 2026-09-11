@@ -25,7 +25,8 @@ test("instructor gradebook uses complete database items and displays due dates",
     source.indexOf("function instructorGradebookItems"),
     source.indexOf("function renderInstructorGradesPage")
   );
-  assert.match(gradebookFunction, /gradeItems\.length \? gradeItems : pnDefaults/);
+  assert.match(gradebookFunction, /return gradeItems\.map/);
+  assert.doesNotMatch(gradebookFunction, /pnDefaults/);
   assert.doesNotMatch(gradebookFunction, /source\.slice\(0, 8\)/);
   assert.match(source, /Due \$\{escapeHtml\(date\(item\.due_date\)\)\}/);
 });

@@ -3493,18 +3493,7 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
 }
 
 function instructorGradebookStudents(enrollments = []) {
-  const fallback = [
-    { first_name: "Guerda", last_name: "Bien" },
-    { first_name: "Chauna", last_name: "Brown" },
-    { first_name: "Samantha", last_name: "Brunvil" },
-    { first_name: "Porledens", last_name: "Cajoux" },
-    { first_name: "Cheryl", last_name: "Echols" },
-    { first_name: "Ericka", last_name: "Morrison" },
-    { first_name: "J Laurie", last_name: "Robert" },
-    { first_name: "Rekena", last_name: "Williams" },
-    { first_name: "Test", last_name: "Student" }
-  ];
-  const roster = enrollments.map((row) => ({
+  return enrollments.map((row) => ({
     id: row.user_id,
     student_number: row.student_number,
     first_name: row.first_name,
@@ -3513,24 +3502,10 @@ function instructorGradebookStudents(enrollments = []) {
     enrollment_id: row.id,
     final_grade: row.final_grade
   }));
-  if (roster.length >= 6) return roster;
-  const existing = new Set(roster.map((row) => personName(row).toLowerCase()));
-  const additions = fallback.filter((row) => !existing.has(personName(row).toLowerCase()));
-  return [...roster, ...additions].slice(0, 9);
 }
 
 function instructorGradebookItems(course, gradeItems = []) {
-  const pnDefaults = [
-    { title: "Class Participation and Professionalism", points_possible: 100 },
-    { title: "Professional Beginning Reflection", points_possible: 50 },
-    { title: "Quiz 1: Weeks 1-2", points_possible: 50, unpublished: true },
-    { title: "Therapeutic Communication Practice", points_possible: 50, unpublished: true },
-    { title: "Quiz 2: Weeks 3-4", points_possible: 50, unpublished: true },
-    { title: "Ethics Case Response", points_possible: 75, unpublished: true },
-    { title: "Health Equity Reflection", points_possible: 50, unpublished: true }
-  ];
-  const source = gradeItems.length ? gradeItems : pnDefaults;
-  return source.map((item) => ({
+  return gradeItems.map((item) => ({
     id: item.id,
     title: item.title,
     points_possible: item.points_possible,
@@ -3577,13 +3552,15 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
         <button type="button">Apply Filters</button>
       </section>
 
+      ${assignments.length ? "" : `<p class="gradebook-empty-note">No graded assignments have been added to this course yet.</p>`}
+
       <section class="instructor-gradebook-scroll" aria-label="Instructor gradebook">
         <table class="instructor-gradebook-table">
           <thead>
             <tr>
               <th>Student Name</th>
               <th class="gradebook-summary-column"><span>Overall</span><small>Posted grades</small></th>
-              <th class="gradebook-summary-column"><span>Letter Grade</span><small>Current</small></th>
+              <th class="gradebook-summary-column"><span>Letter Grade</span><small>Current or official final</small></th>
               ${assignments.map((item) => `
                 <th>
                   <span>${escapeHtml(item.title)}</span>
@@ -3595,7 +3572,7 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
             </tr>
           </thead>
           <tbody>
-            ${students.map((student, studentIndex) => {
+            ${students.length ? students.map((student) => {
               const summary = studentSummary(student);
               const officialFinalGrade = String(student.final_grade || "").trim();
               const letterGrade = officialFinalGrade || summary.letterGrade || "—";
@@ -3603,16 +3580,17 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
                 <tr>
                   <td>${student.id ? `<a href="/admin/students/${student.id}/registrar-checklist">${escapeHtml(personName(student))}</a>` : `<a href="${escapeHtml(baseHref)}?view=grades&mode=edit">${escapeHtml(personName(student))}</a>`}</td>
                   <td class="gradebook-summary-cell">${summary.percentage === null ? "Not graded" : `${escapeHtml(summary.percentage.toFixed(2))}%`}</td>
-                  <td class="gradebook-letter-cell">${escapeHtml(letterGrade)}</td>
-                  ${assignments.map((item, itemIndex) => {
+                  <td class="gradebook-letter-cell">${escapeHtml(letterGrade)}${officialFinalGrade ? `<small class="gradebook-final-grade-note">official final</small>` : ""}</td>
+                  ${assignments.map((item) => {
                     const grade = gradeByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
-                    const iconCell = itemIndex === 0 && [1, 5].includes(studentIndex) ? "⊞" : "";
-                    if (!grade) return `<td>${iconCell || "-"}</td>`;
-                    return `<td>${escapeHtml(grade.score)}${isAutoGradeApprovalPending(grade.note) ? `<small class="gradebook-pending-score">pending review</small>` : ""}</td>`;
+                    if (!grade) return `<td>-</td>`;
+                    const pendingReview = isAutoGradeApprovalPending(grade.note);
+                    const score = pendingReview && readOnly ? "—" : escapeHtml(grade.score);
+                    return `<td>${score}${pendingReview ? `<small class="gradebook-pending-score">pending review</small>` : ""}</td>`;
                   }).join("")}
                 </tr>
               `;
-            }).join("")}
+            }).join("") : `<tr><td class="gradebook-empty-row" colspan="${3 + assignments.length}">No students are enrolled in this course.</td></tr>`}
           </tbody>
         </table>
       </section>
