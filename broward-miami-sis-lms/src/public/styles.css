@@ -6255,6 +6255,53 @@ button.small {
   white-space: nowrap;
 }
 
+.canvas-populi-bar .canvas-edit-button {
+  background: var(--brand-dark);
+  border-color: var(--brand-dark);
+  color: #ffffff;
+  flex: 0 0 auto;
+  font-weight: 850;
+  min-height: 44px;
+}
+
+.canvas-populi-bar .canvas-edit-button:hover,
+.canvas-populi-bar .canvas-edit-button:focus-visible {
+  background: #073f49;
+  border-color: #073f49;
+  color: #ffffff;
+}
+
+.instructor-preview .canvas-top-signout {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .instructor-preview .student-canvas-topbar {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+
+  .instructor-preview .canvas-top-spacer,
+  .instructor-preview .student-canvas-topbar > .canvas-top-button:not(.canvas-edit-button) {
+    display: none;
+  }
+
+  .instructor-preview .canvas-crumbs {
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+
+  .instructor-preview .canvas-crumbs a,
+  .instructor-preview .canvas-crumbs strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 .canvas-populi-bar button.canvas-top-button:hover,
 .canvas-populi-bar button.canvas-top-button:focus-visible {
   background: #edf6f7;

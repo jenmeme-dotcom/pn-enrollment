@@ -135,6 +135,44 @@ async function getHtml(route, cookie) {
   return html;
 }
 
+function formSubmission(html, pattern, description) {
+  const form = html.match(pattern);
+  assert.ok(form, `Expected ${description}`);
+  const body = new URLSearchParams();
+  for (const input of form[2].matchAll(/<input\b[^>]*\btype="hidden"[^>]*>/g)) {
+    const name = input[0].match(/\bname="([^"]+)"/);
+    const value = input[0].match(/\bvalue="([^"]*)"/);
+    if (name) body.append(name[1], (value?.[1] || "").replaceAll("&amp;", "&"));
+  }
+  return {
+    action: form[1].replaceAll("&amp;", "&"),
+    body
+  };
+}
+
+async function postForm(action, body, cookie) {
+  return fetch(`${baseUrl}${action}`, {
+    body,
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      cookie
+    },
+    method: "POST",
+    redirect: "manual"
+  });
+}
+
+function assertEditRedirect(response, { courseId, view, hash = "" }) {
+  assert.equal(response.status, 302);
+  const location = response.headers.get("location");
+  assert.ok(location, "Expected a redirect location");
+  const destination = new URL(location, baseUrl);
+  assert.equal(destination.pathname, `/admin/courses/${courseId}/student-view`);
+  assert.equal(destination.searchParams.get("view"), view);
+  assert.equal(destination.searchParams.get("mode"), "edit");
+  assert.equal(destination.hash, hash);
+}
+
 async function setVisibleCourseSections(courseId, visibleSections) {
   const body = new URLSearchParams({ redirectTo: `/admin/courses/${courseId}` });
   visibleSections.forEach((section) => body.append("visibleSections", section));
@@ -157,6 +195,12 @@ function decodeText(value) {
     .replaceAll("&gt;", ">")
     .replaceAll("&lt;", "<")
     .trim();
+}
+
+function assertPageHref(html, expectedHref, description) {
+  const hrefs = [...html.matchAll(/<a\b[^>]*\bhref="([^"]+)"[^>]*>/g)]
+    .map((match) => match[1].replaceAll("&amp;", "&"));
+  assert.ok(hrefs.includes(expectedHref), `Expected ${description} to link to ${expectedHref}`);
 }
 
 function courseNavigation(html) {
@@ -190,7 +234,7 @@ function assertCourseShellClasses(html, expectedClasses) {
   });
 }
 
-function assertInstructorPreviewEditButton(html, courseId) {
+function assertInstructorPreviewEditButton(html, expectedHref) {
   const header = html.match(/<header class="[^"]*\bcanvas-populi-bar\b[^"]*">([\s\S]*?)<\/header>/);
   assert.ok(header, "Expected the course top bar");
   assert.match(header[0], /\bstudent-canvas-topbar\b/, "Instructor preview should use the student course top bar");
@@ -204,13 +248,29 @@ function assertInstructorPreviewEditButton(html, courseId) {
     }));
   const editLinks = links.filter((link) => link.label === "Edit Course");
   assert.equal(editLinks.length, 1, "Expected exactly one Edit Course button in the instructor preview top bar");
-  assert.equal(editLinks[0].href, `/admin/courses/${courseId}`);
+  assert.equal(editLinks[0].href, expectedHref);
   assert.ok(editLinks[0].classes.includes("canvas-top-button"), "Edit Course should use the top-bar button style");
   assert.ok(
     editLinks[0].offset > header[1].indexOf('class="canvas-top-spacer"'),
     "Edit Course should appear in the upper-right action area after the top-bar spacer"
   );
   assert.doesNotMatch(header[0], />\s*View as Student\s*</, "The preview should not link back to itself");
+}
+
+function assertReadOnlyAssignmentSubmissionPreview(html, assignmentId) {
+  const card = html.match(/<section class="lesson-action-card assignment-submission-card">([\s\S]*?)<\/section>/);
+  assert.ok(card, "Expected the student assignment submission layout in instructor preview");
+  assert.match(card[0], /Student submission form/);
+  assert.match(card[0], /Instructor preview/);
+  assert.match(card[0], /<input type="file" disabled>/);
+  assert.match(card[0], /<button class="button" type="button" disabled>Submit Assignment<\/button>/);
+  assert.doesNotMatch(card[0], /<form\b/i, "Preview submission controls must not be wrapped in a form");
+  assert.doesNotMatch(card[0], /\baction=/i, "Preview submission controls must not have a POST target");
+  assert.doesNotMatch(
+    html,
+    new RegExp(`action="/student/enrollments/[^"]+/assignments/${assignmentId}/submit"`),
+    "Instructor preview must not expose an actionable student submission endpoint"
+  );
 }
 
 function studentPortalNavigation(html) {
@@ -308,6 +368,7 @@ test("instructor student view matches the student course chrome and exposes one 
           studentRoute: studentBaseRoute,
           activeLabel: "Home",
           shellClasses: ["student-course-shell", "student-course-home"],
+          editHref: `/admin/courses/${course.id}`,
           sharedLandmarks: ["course-outline-panel", "course-welcome-banner", "welcoming-course-intro", "weekly-pattern", "canvas-rightbar"]
         },
         {
@@ -315,6 +376,7 @@ test("instructor student view matches the student course chrome and exposes one 
           studentRoute: `${studentBaseRoute}?view=modules`,
           activeLabel: "Modules",
           shellClasses: ["student-course-shell", "canvas-modules-shell"],
+          editHref: `${adminBaseRoute}?view=modules&mode=edit`,
           sharedLandmarks: ["course-outline-panel", "canvas-modules-main", "canvas-module-list"]
         },
         {
@@ -322,6 +384,7 @@ test("instructor student view matches the student course chrome and exposes one 
           studentRoute: `${studentBaseRoute}?lesson=${course.lesson_id}`,
           activeLabel: "Modules",
           shellClasses: ["student-course-shell", "canvas-lesson-shell"],
+          editHref: `${adminBaseRoute}?lesson=${course.lesson_id}&mode=edit`,
           sharedLandmarks: ["course-outline-panel", "canvas-page-main"]
         }
       ];
@@ -334,7 +397,7 @@ test("instructor student view matches the student course chrome and exposes one 
         assertCourseShellClasses(studentHtml, routeCase.shellClasses);
         assertNavigation(instructorHtml, expectedStudentLabels, routeCase.activeLabel);
         assertNavigation(studentHtml, expectedStudentLabels, routeCase.activeLabel);
-        assertInstructorPreviewEditButton(instructorHtml, course.id);
+        assertInstructorPreviewEditButton(instructorHtml, routeCase.editHref);
         assert.doesNotMatch(studentHtml, new RegExp(`href="/admin/courses/${course.id}"`));
         assert.doesNotMatch(instructorHtml, /\bpreview-ribbon\b/, "The student-style preview should not show the legacy instructor ribbon");
 
@@ -353,6 +416,229 @@ test("instructor student view matches the student course chrome and exposes one 
       }
     });
   }
+});
+
+test("instructor student preview keeps student actions read-only", async () => {
+  const quizLesson = database.prepare(`
+    SELECT c.id AS course_id, l.id AS lesson_id
+    FROM courses c
+    JOIN modules m ON m.course_id = c.id AND m.published = 1
+    JOIN lessons l ON l.module_id = m.id AND l.published = 1 AND l.instructor_only = 0
+    WHERE LOWER(l.title) LIKE '%quiz%'
+    ORDER BY c.id, m.position, l.position
+    LIMIT 1
+  `).get();
+  assert.ok(quizLesson, "Expected a published quiz lesson for preview testing");
+
+  const quizHtml = await getHtml(
+    `/admin/courses/${quizLesson.course_id}/student-view?lesson=${quizLesson.lesson_id}`,
+    adminCookie
+  );
+  assert.match(quizHtml, /Student preview/);
+  assert.match(quizHtml, /<button class="button exam-start-button" type="button" disabled>Start Now<\/button>/);
+  assert.doesNotMatch(quizHtml, /action="\/student\/enrollments\/(?:null|undefined)\//);
+
+  const discussion = database.prepare(`
+    SELECT c.id AS course_id, dt.id AS topic_id
+    FROM discussion_topics dt
+    JOIN courses c ON c.id = dt.course_id
+    ORDER BY c.id, dt.id
+    LIMIT 1
+  `).get();
+  assert.ok(discussion, "Expected a discussion topic for preview testing");
+
+  const discussionHtml = await getHtml(
+    `/admin/courses/${discussion.course_id}/student-view?view=discussions&topicId=${discussion.topic_id}`,
+    adminCookie
+  );
+  assert.doesNotMatch(discussionHtml, /discussion-reply-form/);
+  assert.doesNotMatch(discussionHtml, /id="add-discussion"/);
+});
+
+test("instructor preview preserves the scheduled exam availability state", async () => {
+  const closedExam = database.prepare(`
+    SELECT c.id AS course_id, l.id AS lesson_id
+    FROM courses c
+    JOIN modules m ON m.course_id = c.id AND m.published = 1
+    JOIN lessons l ON l.module_id = m.id AND l.published = 1 AND l.instructor_only = 0
+    WHERE l.title = 'Midterm Exam: Weeks 1-6'
+    LIMIT 1
+  `).get();
+  assert.ok(closedExam, "Expected the scheduled PN 102 midterm lesson");
+
+  const html = await getHtml(
+    `/admin/courses/${closedExam.course_id}/student-view?lesson=${closedExam.lesson_id}`,
+    adminCookie
+  );
+  assert.match(html, /Exam closed/);
+  assert.doesNotMatch(html, />Start Now</);
+});
+
+test("instructor preview shows read-only assignment submission controls on detail and lesson pages", async () => {
+  const fixture = database.prepare(`
+    SELECT c.id AS course_id, m.id AS module_id,
+      COALESCE(MAX(l.position), 0) + 1 AS next_position
+    FROM courses c
+    JOIN modules m ON m.course_id = c.id AND m.published = 1
+    LEFT JOIN lessons l ON l.module_id = m.id
+    WHERE c.published = 1
+    GROUP BY c.id, m.id
+    ORDER BY c.id, m.position
+    LIMIT 1
+  `).get();
+  assert.ok(fixture, "Expected a published course module for assignment preview testing");
+
+  const title = `Instructor Preview Assignment ${Date.now()}`;
+  const gradeItemId = Number(database.prepare(`
+    INSERT INTO grade_items (course_id, title, points_possible, due_date)
+    VALUES (?, ?, 25, '2026-09-30')
+  `).run(fixture.course_id, title).lastInsertRowid);
+  const lessonId = Number(database.prepare(`
+    INSERT INTO lessons (
+      module_id, title, content, duration_minutes, position,
+      published, instructor_only, item_type, grade_item_id
+    ) VALUES (?, ?, ?, 30, ?, 1, 0, 'assignment', ?)
+  `).run(
+    fixture.module_id,
+    title,
+    "Complete the assignment and submit your written response or file.",
+    fixture.next_position,
+    gradeItemId
+  ).lastInsertRowid);
+
+  try {
+    const baseRoute = `/admin/courses/${fixture.course_id}/student-view`;
+    const detailHtml = await getHtml(`${baseRoute}?assignment=${gradeItemId}`, adminCookie);
+    assertReadOnlyAssignmentSubmissionPreview(detailHtml, gradeItemId);
+
+    const lessonHtml = await getHtml(`${baseRoute}?lesson=${lessonId}`, adminCookie);
+    assertReadOnlyAssignmentSubmissionPreview(lessonHtml, gradeItemId);
+  } finally {
+    database.prepare("DELETE FROM lessons WHERE id = ?").run(lessonId);
+    database.prepare("DELETE FROM grade_items WHERE id = ?").run(gradeItemId);
+  }
+});
+
+test("contextual edit form stays in edit mode after a successful submission", async () => {
+  const course = database.prepare(`
+    SELECT c.id
+    FROM courses c
+    JOIN modules m ON m.course_id = c.id
+    WHERE c.published = 1
+    GROUP BY c.id
+    ORDER BY c.id
+    LIMIT 1
+  `).get();
+  assert.ok(course, "Expected a seeded course for contextual edit redirects");
+  const baseRoute = `/admin/courses/${course.id}/student-view`;
+
+  const modulesHtml = await getHtml(`${baseRoute}?view=modules&mode=edit`, adminCookie);
+  const moduleForm = formSubmission(
+    modulesHtml,
+    /<details class="canvas-module-create">[\s\S]*?<form method="post" action="([^"]+)">([\s\S]*?)<\/form>/,
+    "the contextual add-module form"
+  );
+  const moduleTitle = `Context Redirect Module ${Date.now()}`;
+  moduleForm.body.set("title", moduleTitle);
+  moduleForm.body.set("published", "1");
+  const moduleResponse = await postForm(moduleForm.action, moduleForm.body, adminCookie);
+  try {
+    assertEditRedirect(moduleResponse, { courseId: course.id, view: "modules" });
+  } finally {
+    const createdModule = database.prepare("SELECT id FROM modules WHERE course_id = ? AND title = ?").get(course.id, moduleTitle);
+    if (createdModule) database.prepare("DELETE FROM modules WHERE id = ?").run(createdModule.id);
+  }
+});
+
+test("contextual edit form stays in edit mode after validation failure", async () => {
+  const course = database.prepare("SELECT id FROM courses WHERE published = 1 ORDER BY id LIMIT 1").get();
+  assert.ok(course, "Expected a seeded course for contextual edit redirects");
+  const baseRoute = `/admin/courses/${course.id}/student-view`;
+  const announcementsHtml = await getHtml(`${baseRoute}?view=announcements&mode=edit`, adminCookie);
+  const announcementForm = formSubmission(
+    announcementsHtml,
+    /<form class="announcement-form" id="add-announcement" method="post" action="([^"]+)">([\s\S]*?)<\/form>/,
+    "the contextual announcement form"
+  );
+  announcementForm.body.set("title", "");
+  announcementForm.body.set("body", "");
+  const validationResponse = await postForm(announcementForm.action, announcementForm.body, adminCookie);
+  assertEditRedirect(validationResponse, {
+    courseId: course.id,
+    view: "announcements",
+    hash: "#add-announcement"
+  });
+});
+
+test("upper-right edit action restores contextual instructor tools", async () => {
+  const editableCourse = database.prepare(`
+    SELECT c.id, MIN(dt.id) AS topic_id, MIN(gi.id) AS rubric_item_id
+    FROM courses c
+    JOIN discussion_topics dt ON dt.course_id = c.id
+    JOIN modules m ON m.course_id = c.id
+    JOIN lessons l ON l.module_id = m.id
+    JOIN grade_items gi ON gi.course_id = c.id
+      AND gi.points_possible > 0
+      AND LOWER(gi.title) NOT LIKE '%quiz%'
+      AND LOWER(gi.title) NOT LIKE '%exam%'
+      AND LOWER(gi.title) NOT LIKE '%midterm%'
+      AND LOWER(gi.title) NOT LIKE '%final%'
+      AND LOWER(gi.title) NOT LIKE '%discussion%'
+      AND LOWER(gi.title) NOT LIKE '%acknowledg%'
+    GROUP BY c.id
+    ORDER BY c.id
+    LIMIT 1
+  `).get();
+  assert.ok(editableCourse, "Expected a seeded course with editable content");
+  const baseRoute = `/admin/courses/${editableCourse.id}/student-view`;
+
+  const modulesHtml = await getHtml(`${baseRoute}?view=modules&mode=edit`, adminCookie);
+  assert.match(modulesHtml, /class="canvas-module-create"/);
+  assert.match(modulesHtml, /class="canvas-module-item-create"/);
+  assert.match(modulesHtml, /class="module-action-button/);
+  assert.match(modulesHtml, new RegExp(`href="${baseRoute.replaceAll("/", "\\/")}\\?view=modules">Done<\\/a>`));
+  assertPageHref(modulesHtml, `${baseRoute}?view=grades&mode=edit`, "module progress");
+
+  const assignmentsHtml = await getHtml(`${baseRoute}?view=assignments&mode=edit`, adminCookie);
+  assertPageHref(assignmentsHtml, `${baseRoute}?view=modules&mode=edit`, "Manage Modules");
+  assertPageHref(assignmentsHtml, `${baseRoute}?view=grades&mode=edit`, "Open Gradebook");
+
+  const announcementsHtml = await getHtml(`${baseRoute}?view=announcements&mode=edit`, adminCookie);
+  assert.match(announcementsHtml, /id="add-announcement"/);
+
+  const discussionsHtml = await getHtml(
+    `${baseRoute}?view=discussions&topicId=${editableCourse.topic_id}&mode=edit`,
+    adminCookie
+  );
+  assert.match(discussionsHtml, /id="add-discussion"/);
+  assert.match(discussionsHtml, /discussion-reply-form/);
+  assertPageHref(
+    discussionsHtml,
+    `${baseRoute}?view=discussions&topicId=${editableCourse.topic_id}&mode=edit`,
+    "discussion topic selection"
+  );
+
+  const calendarHtml = await getHtml(`${baseRoute}?view=calendar&mode=edit`, adminCookie);
+  assert.match(calendarHtml, /id="add-calendar-event"/);
+
+  const rubricsHtml = await getHtml(`${baseRoute}?view=rubrics&mode=edit`, adminCookie);
+  assert.ok(
+    rubricsHtml.includes(
+      `<a class="button ghost small" href="${baseRoute}?assignment=${editableCourse.rubric_item_id}&amp;mode=edit">Edit Rubric</a>`
+    ),
+    "Expected Edit Rubric to open the contextual assignment editor directly"
+  );
+  const rubricEditorHtml = await getHtml(
+    `${baseRoute}?assignment=${editableCourse.rubric_item_id}&mode=edit`,
+    adminCookie
+  );
+  assert.match(rubricEditorHtml, /class="rubric-editor"/);
+  assertPageHref(rubricEditorHtml, `${baseRoute}?view=grades&mode=edit`, "assignment Open Gradebook");
+
+  const gradesHtml = await getHtml(`${baseRoute}?view=grades&mode=edit`, adminCookie);
+  assertCourseShellClasses(gradesHtml, ["instructor-preview", "instructor-gradebook-shell"]);
+  assert.match(gradesHtml, /class="instructor-gradebook-main"/);
+  assertPageHref(gradesHtml, `${baseRoute}?view=grades&mode=edit`, "gradebook switch");
 });
 
 test("student course menus keep identical labels and order on home, modules, and lesson routes", async (t) => {
@@ -556,7 +842,7 @@ test("course calendar routes render complete month grids in the responsive cours
   const adminHtml = await getHtml(`/admin/courses/${course.id}/student-view?view=calendar`, adminCookie);
   assertCourseShellClasses(adminHtml, ["canvas-course-calendar-shell", "student-course-shell", "instructor-preview"]);
   assertNavigation(adminHtml, expectedStudentLabels, "Calendar");
-  assertInstructorPreviewEditButton(adminHtml, course.id);
+  assertInstructorPreviewEditButton(adminHtml, `/admin/courses/${course.id}/student-view?view=calendar&mode=edit`);
   assertCalendarStructure(adminHtml);
   assert.doesNotMatch(adminHtml, /<form class="calendar-event-form" id="add-calendar-event"/, "Preview mode should not expose the instructor calendar form");
 
