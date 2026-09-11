@@ -181,6 +181,38 @@ function assertNavigation(html, expectedLabels, activeLabel) {
   return navigation;
 }
 
+function assertCourseShellClasses(html, expectedClasses) {
+  const shell = html.match(/<section class="([^"]*\bcanvas-course-shell\b[^"]*)">/);
+  assert.ok(shell, "Expected the Canvas course shell");
+  const classes = new Set(shell[1].split(/\s+/));
+  expectedClasses.forEach((className) => {
+    assert.ok(classes.has(className), `Expected course shell class ${className}`);
+  });
+}
+
+function assertInstructorPreviewEditButton(html, courseId) {
+  const header = html.match(/<header class="[^"]*\bcanvas-populi-bar\b[^"]*">([\s\S]*?)<\/header>/);
+  assert.ok(header, "Expected the course top bar");
+  assert.match(header[0], /\bstudent-canvas-topbar\b/, "Instructor preview should use the student course top bar");
+
+  const links = [...header[1].matchAll(/<a class="([^"]*)" href="([^"]*)">([\s\S]*?)<\/a>/g)]
+    .map((match) => ({
+      classes: match[1].split(/\s+/),
+      href: match[2].replaceAll("&amp;", "&"),
+      label: decodeText(match[3]),
+      offset: match.index
+    }));
+  const editLinks = links.filter((link) => link.label === "Edit Course");
+  assert.equal(editLinks.length, 1, "Expected exactly one Edit Course button in the instructor preview top bar");
+  assert.equal(editLinks[0].href, `/admin/courses/${courseId}`);
+  assert.ok(editLinks[0].classes.includes("canvas-top-button"), "Edit Course should use the top-bar button style");
+  assert.ok(
+    editLinks[0].offset > header[1].indexOf('class="canvas-top-spacer"'),
+    "Edit Course should appear in the upper-right action area after the top-bar spacer"
+  );
+  assert.doesNotMatch(header[0], />\s*View as Student\s*</, "The preview should not link back to itself");
+}
+
 function studentPortalNavigation(html) {
   const sidebar = html.match(/<aside class="student-sidebar">([\s\S]*?)<\/aside>/);
   assert.ok(sidebar, "Expected the student portal sidebar");
@@ -248,25 +280,77 @@ after(async () => {
   fs.rmSync(temporaryDirectory, { force: true, recursive: true });
 });
 
-test("admin course menus keep identical labels and order on home, modules, and lesson routes", async (t) => {
+test("instructor student view matches the student course chrome and exposes one upper-right edit action", async (t) => {
   const courses = database.prepare(`
-    SELECT c.id, c.slug, MIN(l.id) AS lesson_id
-    FROM courses c
+    SELECT c.id, c.slug, e.id AS enrollment_id, MIN(l.id) AS lesson_id
+    FROM enrollments e
+    JOIN users u ON u.id = e.user_id
+    JOIN courses c ON c.id = e.course_id
     JOIN modules m ON m.course_id = c.id AND m.published = 1
-    JOIN lessons l ON l.module_id = m.id AND l.published = 1
-    WHERE c.published = 1
-    GROUP BY c.id, c.slug
+    JOIN lessons l ON l.module_id = m.id AND l.published = 1 AND l.instructor_only = 0
+    WHERE u.email = 'student@browardmiamihi.com'
+      AND e.status = 'active'
+      AND e.withdrawn_at IS NULL
+      AND c.published = 1
+    GROUP BY c.id, c.slug, e.id
     ORDER BY c.id
     LIMIT 3
   `).all();
-  assert.ok(courses.length >= 2, "Expected at least two seeded courses with lessons");
+  assert.ok(courses.length >= 2, "Expected at least two seeded courses shared by the student and instructor previews");
 
   for (const course of courses) {
     await t.test(course.slug, async () => {
-      const baseRoute = `/admin/courses/${course.id}/student-view`;
-      assertNavigation(await getHtml(baseRoute, adminCookie), expectedAdminLabels, "Home");
-      assertNavigation(await getHtml(`${baseRoute}?view=modules`, adminCookie), expectedAdminLabels, "Modules");
-      assertNavigation(await getHtml(`${baseRoute}?lesson=${course.lesson_id}`, adminCookie), expectedAdminLabels, "Modules");
+      const adminBaseRoute = `/admin/courses/${course.id}/student-view`;
+      const studentBaseRoute = `/student/enrollments/${course.enrollment_id}`;
+      const routeCases = [
+        {
+          adminRoute: adminBaseRoute,
+          studentRoute: studentBaseRoute,
+          activeLabel: "Home",
+          shellClasses: ["student-course-shell", "student-course-home"],
+          sharedLandmarks: ["course-outline-panel", "course-welcome-banner", "welcoming-course-intro", "weekly-pattern", "canvas-rightbar"]
+        },
+        {
+          adminRoute: `${adminBaseRoute}?view=modules`,
+          studentRoute: `${studentBaseRoute}?view=modules`,
+          activeLabel: "Modules",
+          shellClasses: ["student-course-shell", "canvas-modules-shell"],
+          sharedLandmarks: ["course-outline-panel", "canvas-modules-main", "canvas-module-list"]
+        },
+        {
+          adminRoute: `${adminBaseRoute}?lesson=${course.lesson_id}`,
+          studentRoute: `${studentBaseRoute}?lesson=${course.lesson_id}`,
+          activeLabel: "Modules",
+          shellClasses: ["student-course-shell", "canvas-lesson-shell"],
+          sharedLandmarks: ["course-outline-panel", "canvas-page-main"]
+        }
+      ];
+
+      for (const routeCase of routeCases) {
+        const instructorHtml = await getHtml(routeCase.adminRoute, adminCookie);
+        const studentHtml = await getHtml(routeCase.studentRoute, studentCookie);
+
+        assertCourseShellClasses(instructorHtml, ["instructor-preview", ...routeCase.shellClasses]);
+        assertCourseShellClasses(studentHtml, routeCase.shellClasses);
+        assertNavigation(instructorHtml, expectedStudentLabels, routeCase.activeLabel);
+        assertNavigation(studentHtml, expectedStudentLabels, routeCase.activeLabel);
+        assertInstructorPreviewEditButton(instructorHtml, course.id);
+        assert.doesNotMatch(studentHtml, new RegExp(`href="/admin/courses/${course.id}"`));
+        assert.doesNotMatch(instructorHtml, /\bpreview-ribbon\b/, "The student-style preview should not show the legacy instructor ribbon");
+
+        if (routeCase.adminRoute.includes("view=modules")) {
+          assert.doesNotMatch(
+            instructorHtml,
+            /\b(?:canvas-module-create|canvas-module-item-create|module-action-button)\b/,
+            "Preview mode should not mix module editing controls into the student layout"
+          );
+        }
+
+        for (const landmark of routeCase.sharedLandmarks) {
+          assert.match(instructorHtml, new RegExp(`\\b${landmark}\\b`), `Instructor preview should include student landmark ${landmark}`);
+          assert.match(studentHtml, new RegExp(`\\b${landmark}\\b`), `Student course should include landmark ${landmark}`);
+        }
+      }
     });
   }
 });
@@ -470,10 +554,11 @@ test("course calendar routes render complete month grids in the responsive cours
   assert.ok(course && enrollment, "Expected seeded calendar fixtures");
 
   const adminHtml = await getHtml(`/admin/courses/${course.id}/student-view?view=calendar`, adminCookie);
-  assert.match(adminHtml, /<section class="canvas-course-shell canvas-course-calendar-shell instructor-preview">/);
-  assertNavigation(adminHtml, expectedAdminLabels, "Calendar");
+  assertCourseShellClasses(adminHtml, ["canvas-course-calendar-shell", "student-course-shell", "instructor-preview"]);
+  assertNavigation(adminHtml, expectedStudentLabels, "Calendar");
+  assertInstructorPreviewEditButton(adminHtml, course.id);
   assertCalendarStructure(adminHtml);
-  assert.match(adminHtml, /<form class="calendar-event-form" id="add-calendar-event"/);
+  assert.doesNotMatch(adminHtml, /<form class="calendar-event-form" id="add-calendar-event"/, "Preview mode should not expose the instructor calendar form");
 
   const studentHtml = await getHtml(`/student/enrollments/${enrollment.id}?view=calendar`, studentCookie);
   assert.match(studentHtml, /<section class="canvas-course-shell canvas-course-calendar-shell student-course-shell">/);
