@@ -8,6 +8,7 @@ const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const nodemailer = require("nodemailer");
+const { createCourseSyllabusPdfBuffer, syllabusPdfFilename } = require("./syllabusPdf");
 const quickbooks = require("./quickbooks");
 const { adminAccessAccounts, adminAccessDefaultPassword } = require("./adminAccess");
 const { db, initialize, databaseFile } = require("./db");
@@ -3085,7 +3086,7 @@ function renderIntroNursingNclexHint(lesson = {}) {
   `;
 }
 
-function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false, preview = false, gradeItems = [], grades = [], completedLessonIds = new Set(), courseId = null }) {
+function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false, preview = false, gradeItems = [], grades = [], completedLessonIds = new Set(), courseId = null, syllabusPdfHref = "" }) {
   const firstLesson = lessons[0];
   const selectedLesson = lessons.find((lesson) => lesson.id === Number(lessonId)) || firstLesson;
   const editingSuffix = instructor ? "&mode=edit" : "";
@@ -3099,10 +3100,13 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
         courseCode,
         courseHours: syllabusCourse.hours,
         courseCategory: syllabusCourse.category,
+        courseCredential: syllabusCourse.credential_type,
+        courseDelivery: syllabusCourse.delivery_mode,
         courseSlug: syllabusCourse.slug,
         gradeItems,
         lessons,
-        baseHref
+        baseHref,
+        pdfHref: syllabusPdfHref
       });
     }
   }
@@ -4559,22 +4563,89 @@ function renderMonthCalendarPage({ events = [], courses = [], currentCourseId = 
   `;
 }
 
-function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, courseHours, courseCategory, courseSlug = "", gradeItems = [], lessons = [], baseHref }) {
+function syllabusPolicyLabel(value = "") {
+  return String(value)
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function buildCourseSyllabusModel({
+  courseTitle,
+  courseDescription,
+  courseCode,
+  courseHours,
+  courseCategory,
+  courseCredential = "",
+  courseDelivery = "",
+  courseSlug = "",
+  gradeItems = [],
+  lessons = []
+}) {
   const courseDefinition = courses.find((course) => course.slug === courseSlug);
   const objectives = courseDefinition?.objectives || [];
   const requiredTitles = courseDefinition?.requiredTitles || [];
-  const policies = Object.entries(courseDefinition?.policies || {});
+  const policies = Object.entries(courseDefinition?.policies || {}).map(([key, value]) => [syllabusPolicyLabel(key), value]);
   const weeklySchedule = courseDefinition?.weeks || [];
   const discussions = courseDefinition?.discussions || [];
-  const syllabusDetails = courseDefinition?.syllabus || {};
+  const syllabusDetails = {
+    ...(courseDefinition?.syllabus || {}),
+    // Editable course settings are authoritative; catalog content is the
+    // fallback for older records that do not yet carry a delivery value.
+    delivery: courseDelivery || courseDefinition?.syllabus?.delivery || ""
+  };
   const tallyRows = gradeTallyRows(gradeItems);
   const totalPoints = gradeItems.reduce((sum, item) => sum + Number(item.points_possible || 0), 0);
-  const assignmentRows = gradeItems.length ? gradeItems : [
-    { title: "Module Quiz", points_possible: 100, due_date: null },
-    { title: "Skills Competency", points_possible: 100, due_date: null },
-    { title: "Final Assessment", points_possible: 100, due_date: null }
-  ];
-  const upcomingRows = lessons.slice(0, 6);
+  return {
+    instituteName,
+    instituteAddress,
+    institutePhone,
+    instituteEmail,
+    courseTitle,
+    courseDescription,
+    courseCode,
+    courseHours,
+    courseCategory,
+    courseCredential,
+    courseDelivery,
+    courseSlug,
+    objectives,
+    requiredTitles,
+    policies,
+    weeklySchedule,
+    discussions,
+    syllabusDetails,
+    tallyRows,
+    totalPoints,
+    assignmentRows: gradeItems,
+    upcomingRows: lessons.slice(0, 6)
+  };
+}
+
+function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, courseHours, courseCategory, courseCredential = "", courseDelivery = "", courseSlug = "", gradeItems = [], lessons = [], baseHref, pdfHref = "" }) {
+  const model = buildCourseSyllabusModel({
+    courseTitle,
+    courseDescription,
+    courseCode,
+    courseHours,
+    courseCategory,
+    courseCredential,
+    courseDelivery,
+    courseSlug,
+    gradeItems,
+    lessons
+  });
+  const {
+    objectives,
+    requiredTitles,
+    policies,
+    weeklySchedule,
+    discussions,
+    syllabusDetails,
+    tallyRows,
+    totalPoints,
+    assignmentRows,
+    upcomingRows
+  } = model;
   return `
     <main class="canvas-course-main canvas-syllabus-main">
       <div class="canvas-mini-head">
@@ -4585,21 +4656,24 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
         <article class="syllabus-content">
           <div class="syllabus-title-row">
             <h1>Course Syllabus</h1>
-            <a class="button ghost small" href="${escapeHtml(baseHref)}">Jump to Today</a>
+            <div class="syllabus-title-actions">
+              ${pdfHref ? `<a class="button syllabus-pdf-download" href="${escapeHtml(pdfHref)}" download aria-label="Download ${escapeHtml(courseCode)} syllabus as PDF">Download Syllabus PDF</a>` : ""}
+              <a class="button ghost small" href="${escapeHtml(baseHref)}">Jump to Today</a>
+            </div>
           </div>
 
           <section class="syllabus-card" id="course-assignments">
             <h2>Course Assignments and Grade Tally</h2>
             <p>This syllabus section summarizes the assignments currently built in the BMHI LMS. Students should use the weekly Modules and course Calendar for detailed directions, opening dates, and due dates.</p>
-            <p><strong>Total course points currently listed:</strong> ${escapeHtml(totalPoints || 300)} points</p>
+            <p><strong>Total course points currently listed:</strong> ${escapeHtml(totalPoints)} points</p>
 
             <h3>Grade Tally by Assignment Type</h3>
             <table class="syllabus-table">
               <thead><tr><th>Assignment Type</th><th>Points</th></tr></thead>
               <tbody>
-                ${(tallyRows.length ? tallyRows : gradeTallyRows(assignmentRows)).map((row) => `
+                ${tallyRows.map((row) => `
                   <tr><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.points)}</td></tr>
-                `).join("")}
+                `).join("") || `<tr><td colspan="2" class="empty">No graded assignments are currently listed.</td></tr>`}
               </tbody>
             </table>
 
@@ -4613,7 +4687,7 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
                     <td>${item.due_date ? date(item.due_date) : "Posted in course modules"}</td>
                     <td>${escapeHtml(item.points_possible || 0)}</td>
                   </tr>
-                `).join("")}
+                `).join("") || `<tr><td colspan="3" class="empty">No graded assignments are currently listed. Refer to course modules for the latest requirements.</td></tr>`}
               </tbody>
             </table>
           </section>
@@ -4625,6 +4699,7 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
               <p><strong>Course code</strong><span>${escapeHtml(courseCode)}</span></p>
               <p><strong>Clock hours</strong><span>${escapeHtml(courseHours)}</span></p>
               <p><strong>Program area</strong><span>${escapeHtml(courseCategory)}</span></p>
+              ${courseCredential ? `<p><strong>Credential</strong><span>${escapeHtml(courseCredential)}</span></p>` : ""}
               ${syllabusDetails.length ? `<p><strong>Course length</strong><span>${escapeHtml(syllabusDetails.length)}</span></p>` : ""}
               ${syllabusDetails.delivery ? `<p><strong>Delivery</strong><span>${escapeHtml(syllabusDetails.delivery)}</span></p>` : ""}
             </div>
@@ -4684,7 +4759,7 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
             <section class="syllabus-card">
               <h2>Course Policies and Expectations</h2>
               ${policies.map(([key, value]) => `
-                <h3>${escapeHtml(key.replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase()))}</h3>
+                <h3>${escapeHtml(key)}</h3>
                 <p>${escapeHtml(value)}</p>
               `).join("")}
             </section>
@@ -4716,6 +4791,19 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
       </div>
     </main>
   `;
+}
+
+async function sendCourseSyllabusPdf(res, syllabusOptions) {
+  const model = buildCourseSyllabusModel(syllabusOptions);
+  const pdf = await createCourseSyllabusPdfBuffer(model);
+  const filename = syllabusPdfFilename(model.courseCode, model.courseTitle);
+  res.status(200).set({
+    "Cache-Control": "private, no-store, max-age=0",
+    "Content-Disposition": `attachment; filename="${filename}"`,
+    "Content-Length": String(pdf.length),
+    "Content-Type": "application/pdf",
+    "X-Content-Type-Options": "nosniff"
+  }).send(pdf);
 }
 
 function normalizedTitle(value = "") {
@@ -11870,6 +11958,46 @@ app.get("/admin/courses/:id/tools", requireAuth, requireRole("admin", "instructo
   render(req, res, `${course.title} Tools`, body);
 });
 
+app.get("/admin/courses/:id/syllabus.pdf", requireAuth, requireRole("admin", "instructor"), async (req, res) => {
+  const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!course) return res.status(404).send("Course not found");
+  const lessons = db.prepare(`
+    SELECT l.*, m.id AS module_id, m.title AS module_title, m.position AS module_position
+    FROM lessons l
+    JOIN modules m ON m.id = l.module_id
+    WHERE m.course_id = ?
+      AND COALESCE(m.published, 1) = 1
+      AND COALESCE(l.published, 1) = 1
+      AND COALESCE(l.instructor_only, 0) = 0
+      AND l.allowed_student_email IS NULL
+    ORDER BY m.position, l.position
+  `).all(course.id);
+  const gradeItems = db.prepare(`
+    SELECT *
+    FROM grade_items
+    WHERE course_id = ? AND allowed_student_email IS NULL
+    ORDER BY due_date IS NULL, due_date, id
+  `).all(course.id);
+
+  try {
+    return await sendCourseSyllabusPdf(res, {
+      courseTitle: course.title,
+      courseDescription: course.description,
+      courseCode: canvasCourseCode(course),
+      courseHours: course.hours,
+      courseCategory: course.category,
+      courseCredential: course.credential_type,
+      courseDelivery: course.delivery_mode,
+      courseSlug: course.slug,
+      gradeItems,
+      lessons
+    });
+  } catch (error) {
+    console.error(`Unable to generate syllabus PDF for course ${course.id}:`, error);
+    return res.status(500).send("The syllabus PDF could not be generated.");
+  }
+});
+
 app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(req.params.id));
   if (!course) return res.status(404).send("Course not found");
@@ -12268,10 +12396,13 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         courseCode,
         courseHours: course.hours,
         courseCategory: course.category,
+        courseCredential: course.credential_type,
+        courseDelivery: course.delivery_mode,
         courseSlug: course.slug,
         gradeItems,
         lessons,
-        baseHref: adminCourseBaseHref
+        baseHref: adminCourseBaseHref,
+        pdfHref: `/admin/courses/${course.id}/syllabus.pdf`
       })}
     </section>
   ` : req.query.lesson ? `
@@ -12299,6 +12430,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         moduleGroups,
         lessonId: req.query.lesson,
         gradeItems,
+        syllabusPdfHref: `/admin/courses/${course.id}/syllabus.pdf`,
         instructor: editing,
         preview: !editing
       })}
@@ -14897,6 +15029,54 @@ app.post("/student/financial-aid/:id/status", requireAuth, requireRole("student"
   res.redirect("/student/financial");
 });
 
+app.get("/student/enrollments/:id/syllabus.pdf", requireAuth, requireRole("student"), async (req, res) => {
+  const enrollment = db.prepare(`
+    SELECT e.*, c.title, c.slug, c.category, c.description, c.hours, c.credential_type, c.delivery_mode
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    WHERE e.id = ? AND e.user_id = ? AND e.status IN ('active','completed') AND e.withdrawn_at IS NULL
+  `).get(Number(req.params.id), req.user.id);
+  if (!enrollment) return res.status(404).send("Enrollment not found");
+  if (isClassLocked(req.user)) return res.status(403).send("Course access is locked");
+
+  const lessons = db.prepare(`
+    SELECT l.*, m.id AS module_id, m.title AS module_title, m.position AS module_position
+    FROM lessons l
+    JOIN modules m ON m.id = l.module_id
+    WHERE m.course_id = ?
+      AND COALESCE(m.published, 1) = 1
+      AND COALESCE(l.published, 1) = 1
+      AND COALESCE(l.instructor_only, 0) = 0
+      AND (l.allowed_student_email IS NULL OR lower(l.allowed_student_email) = lower(?))
+    ORDER BY m.position, l.position
+  `).all(enrollment.course_id, req.user.email);
+  const gradeItems = db.prepare(`
+    SELECT *
+    FROM grade_items
+    WHERE course_id = ?
+      AND (allowed_student_email IS NULL OR lower(allowed_student_email) = lower(?))
+    ORDER BY due_date IS NULL, due_date, id
+  `).all(enrollment.course_id, req.user.email);
+
+  try {
+    return await sendCourseSyllabusPdf(res, {
+      courseTitle: enrollment.title,
+      courseDescription: enrollment.description,
+      courseCode: canvasCourseCode(enrollment),
+      courseHours: enrollment.hours,
+      courseCategory: enrollment.category,
+      courseCredential: enrollment.credential_type,
+      courseDelivery: enrollment.delivery_mode,
+      courseSlug: enrollment.slug,
+      gradeItems,
+      lessons
+    });
+  } catch (error) {
+    console.error(`Unable to generate syllabus PDF for enrollment ${enrollment.id}:`, error);
+    return res.status(500).send("The syllabus PDF could not be generated.");
+  }
+});
+
 app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, res) => {
   const enrollment = db.prepare(`
     SELECT e.*, c.title, c.slug, c.category, c.description, c.hours, c.credential_type, c.delivery_mode, c.hidden_sections
@@ -14987,7 +15167,10 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
           <h1>${escapeHtml(enrollment.title)}</h1>
           <p>${escapeHtml(enrollment.description)}</p>
         </div>
-        <a class="button ghost" href="/student">Back</a>
+        <div class="page-head-actions">
+          <a class="button syllabus-pdf-download" href="/student/enrollments/${enrollment.id}/syllabus.pdf" download>Download Syllabus PDF</a>
+          <a class="button ghost" href="/student">Back</a>
+        </div>
       </div>
       <section class="card"><p class="empty">No lessons have been added to this course yet.</p></section>
     `;
@@ -15263,10 +15446,13 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         courseCode,
         courseHours: enrollment.hours,
         courseCategory: enrollment.category,
+        courseCredential: enrollment.credential_type,
+        courseDelivery: enrollment.delivery_mode,
         courseSlug: enrollment.slug,
         gradeItems,
         lessons,
-        baseHref: courseBaseHref
+        baseHref: courseBaseHref,
+        pdfHref: `/student/enrollments/${enrollment.id}/syllabus.pdf`
       })}
     </section>
   ` : req.query.lesson ? `
@@ -15296,6 +15482,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         gradeItems,
         grades,
         completedLessonIds,
+        syllabusPdfHref: `/student/enrollments/${enrollment.id}/syllabus.pdf`,
         instructor: false
       })}
     </section>

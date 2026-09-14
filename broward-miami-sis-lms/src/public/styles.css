@@ -4972,6 +4972,13 @@ button.danger {
   margin-bottom: 24px;
 }
 
+.page-head-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .dashboard-filter-card {
   margin-bottom: 18px;
   padding: 14px;
@@ -7952,6 +7959,21 @@ button.small {
   font-weight: 400;
   line-height: 1.15;
   margin: 0;
+}
+
+.syllabus-title-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.syllabus-pdf-download {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 .syllabus-card {
@@ -12305,6 +12327,26 @@ button.small {
   .syllabus-title-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .syllabus-title-actions {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .syllabus-title-actions .button {
+    width: 100%;
+  }
+
+  .page-head-actions {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .page-head-actions .button {
+    width: 100%;
   }
 
   .syllabus-layout {
