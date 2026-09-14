@@ -56,6 +56,7 @@ let database;
 let temporaryDirectory;
 let baseUrl;
 let adminCookie;
+let instructorCookie;
 let studentCookie;
 
 function reservePort() {
@@ -325,6 +326,7 @@ before(async () => {
   `).run(photoStorageName);
 
   adminCookie = await login("admin@browardmiamihi.com", "AdminPass123!", "faculty");
+  instructorCookie = await login("instructor@browardmiamihi.com", "InstructorPass123!", "faculty");
   studentCookie = await login("student@browardmiamihi.com", "StudentPass123!", "student");
 });
 
@@ -368,7 +370,7 @@ test("instructor student view matches the student course chrome and exposes one 
           studentRoute: studentBaseRoute,
           activeLabel: "Home",
           shellClasses: ["student-course-shell", "student-course-home"],
-          editHref: `/admin/courses/${course.id}`,
+          editHref: `${adminBaseRoute}?mode=edit`,
           sharedLandmarks: ["course-outline-panel", "course-welcome-banner", "welcoming-course-intro", "weekly-pattern", "canvas-rightbar"]
         },
         {
@@ -416,6 +418,66 @@ test("instructor student view matches the student course chrome and exposes one 
       }
     });
   }
+});
+
+test("canonical instructor course view matches the student home and keeps editing controls instructor-only", async () => {
+  const course = database.prepare(`
+    SELECT c.id, e.id AS enrollment_id
+    FROM enrollments e
+    JOIN users u ON u.id = e.user_id
+    JOIN courses c ON c.id = e.course_id
+    JOIN modules m ON m.course_id = c.id AND m.published = 1
+    JOIN lessons l ON l.module_id = m.id AND l.published = 1 AND l.instructor_only = 0
+    WHERE u.email = 'student@browardmiamihi.com'
+      AND e.status = 'active'
+      AND e.withdrawn_at IS NULL
+      AND c.published = 1
+    GROUP BY c.id, e.id
+    ORDER BY c.id
+    LIMIT 1
+  `).get();
+  assert.ok(course, "Expected a published course shared by the seeded instructor and student");
+
+  const canonicalInstructorRoute = `/admin/courses/${course.id}`;
+  const instructorEditorRoute = `/admin/courses/${course.id}/student-view?mode=edit`;
+  const studentRoute = `/student/enrollments/${course.enrollment_id}`;
+  const canonicalResponse = await fetch(`${baseUrl}${canonicalInstructorRoute}`, {
+    headers: { cookie: instructorCookie },
+    redirect: "manual"
+  });
+  assert.equal(canonicalResponse.status, 302, "The canonical instructor URL should enter the shared course view");
+  const canonicalDestination = new URL(canonicalResponse.headers.get("location"), baseUrl);
+  assert.equal(canonicalDestination.pathname, `/admin/courses/${course.id}/student-view`);
+  assert.equal(canonicalDestination.search, "");
+
+  const [instructorHtml, studentHtml] = await Promise.all([
+    getHtml(`${canonicalDestination.pathname}${canonicalDestination.search}`, instructorCookie),
+    getHtml(studentRoute, studentCookie)
+  ]);
+
+  assertCourseShellClasses(instructorHtml, ["student-course-shell", "student-course-home", "instructor-preview"]);
+  assertCourseShellClasses(studentHtml, ["student-course-shell", "student-course-home"]);
+  assertNavigation(instructorHtml, expectedStudentLabels, "Home");
+  assertNavigation(studentHtml, expectedStudentLabels, "Home");
+  assertInstructorPreviewEditButton(instructorHtml, instructorEditorRoute);
+
+  for (const landmark of ["course-outline-panel", "course-welcome-banner", "welcoming-course-intro", "weekly-pattern", "canvas-rightbar"]) {
+    assert.match(instructorHtml, new RegExp(`\\b${landmark}\\b`), `Instructor course should include student landmark ${landmark}`);
+    assert.match(studentHtml, new RegExp(`\\b${landmark}\\b`), `Student course should include landmark ${landmark}`);
+  }
+
+  assert.doesNotMatch(instructorHtml, /Course Construction Toolkit/, "The instructor landing page should no longer use the legacy toolkit layout");
+  assert.doesNotMatch(studentHtml, />\s*Edit Course\s*</, "Students must not receive the instructor edit action");
+  assert.doesNotMatch(studentHtml, />\s*Course Settings\s*</, "Students must not receive course settings");
+  assert.doesNotMatch(studentHtml, /\/admin\/courses\//, "Students must not receive links to instructor course routes");
+  assert.doesNotMatch(studentHtml, /[?&]mode=edit\b/, "Students must not receive edit-mode links");
+
+  const editorHtml = await getHtml(instructorEditorRoute, instructorCookie);
+  assertCourseShellClasses(editorHtml, ["student-course-shell", "student-course-home", "instructor-preview"]);
+  assertNavigation(editorHtml, expectedStudentLabels, "Home");
+  assertPageHref(editorHtml, `/admin/courses/${course.id}/manage`, "Course Settings");
+  assert.match(editorHtml, />\s*Course Settings\s*</, "Edit mode should expose the full instructor course settings");
+  assert.match(editorHtml, />\s*Done\s*</, "Edit mode should allow the instructor to return to the student-style preview");
 });
 
 test("instructor student preview keeps student actions read-only", async () => {

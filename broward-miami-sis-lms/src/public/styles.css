@@ -6282,7 +6282,7 @@ button.small {
   display: none;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1300px) {
   .instructor-preview .student-canvas-topbar {
     display: grid;
     gap: 10px;
@@ -6551,6 +6551,79 @@ button.small {
 .canvas-home-card {
   margin: 0 auto 34px;
   max-width: 850px;
+}
+
+.instructor-home-editor {
+  align-items: start;
+  background: #f4fafb;
+  border: 1px solid #cfe3e6;
+  border-left: 5px solid var(--brand);
+  border-radius: 10px;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(210px, .75fr) minmax(0, 1.8fr);
+  margin: 0 auto 28px;
+  max-width: 1120px;
+  padding: 20px;
+}
+
+.instructor-home-editor > div > span {
+  color: var(--brand);
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.instructor-home-editor h2 {
+  color: #243342;
+  font-size: 22px;
+  line-height: 1.2;
+  margin: 0 0 7px;
+}
+
+.instructor-home-editor p {
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.instructor-home-editor nav {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.instructor-home-editor nav a {
+  background: #ffffff;
+  border: 1px solid #d7e4e7;
+  border-radius: 7px;
+  color: #243342;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 11px 12px;
+}
+
+.instructor-home-editor nav a:hover,
+.instructor-home-editor nav a:focus-visible {
+  background: #e8f5f6;
+  border-color: #86bdc3;
+  text-decoration: none;
+}
+
+.instructor-home-editor nav a strong,
+.instructor-home-editor nav a span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.instructor-home-editor nav a span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .course-welcome-banner {
@@ -8244,6 +8317,12 @@ button.small {
   .student-course-home .student-actions,
   .student-course-home .canvas-task-panel {
     margin-top: 0;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 821px) {
+  .instructor-home-editor {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -12429,6 +12508,20 @@ button.small {
 
   .canvas-rightbar {
     padding: 0 16px 28px;
+  }
+
+  .instructor-home-editor,
+  .instructor-home-editor nav {
+    grid-template-columns: 1fr;
+  }
+
+  .instructor-home-editor {
+    gap: 15px;
+    padding: 16px;
+  }
+
+  .welcoming-course-intro {
+    grid-template-columns: 1fr;
   }
 
   .student-welcome,

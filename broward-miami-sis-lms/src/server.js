@@ -1758,7 +1758,11 @@ function renderInstructorCanvasRail(user, active = "courses") {
   `;
 }
 
-function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = [], { editHref = "", editLabel = "Edit Course" } = {}) {
+function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = [], {
+  editHref = "",
+  editLabel = "Edit Course",
+  manageHref = ""
+} = {}) {
   const crumbTrail = breadcrumbs.length ? breadcrumbs : [{ label: courseCode, href: baseHref }];
   const courseMenuItems = studentCourseNavItems.map((label) => ({
     label,
@@ -1775,6 +1779,7 @@ function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = [], { edi
       </nav>
       <span class="canvas-top-spacer"></span>
       ${breadcrumbs.length ? "" : `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=syllabus">Immersive Reader</a>`}
+      ${manageHref ? `<a class="canvas-top-button canvas-manage-button" href="${escapeHtml(manageHref)}">Course Settings</a>` : ""}
       ${editHref ? `<a class="canvas-top-button canvas-edit-button" href="${escapeHtml(editHref)}">${escapeHtml(editLabel)}</a>` : ""}
       <form class="canvas-top-signout" method="post" action="/logout">
         <button class="canvas-top-button" type="submit">Sign out</button>
@@ -11624,6 +11629,12 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
 });
 
 app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const course = db.prepare("SELECT id FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!course) return res.status(404).send("Course not found");
+  return res.redirect(`/admin/courses/${course.id}/student-view`);
+});
+
+app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(req.params.id));
   if (!course) return res.status(404).send("Course not found");
 
@@ -11683,9 +11694,8 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
       </div>
       <div class="actions">
         <a class="button" href="/admin/courses/${course.id}/tools">Course Tools</a>
-        <a class="button" href="/admin/courses/${course.id}/student-view">Student View</a>
-        <a class="button ghost" href="/admin/courses/${course.id}">Instructor View</a>
-        <a class="button ghost" href="/admin/courses">Back</a>
+        <a class="button" href="/admin/courses/${course.id}/student-view">Return to Course</a>
+        <a class="button ghost" href="/admin/courses">All Courses</a>
       </div>
     </div>
     <section class="grid cols-3">
@@ -11715,7 +11725,7 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
           </div>
           <a class="button small ghost" href="/admin/courses/${course.id}/student-view?view=conferences">Open Conferences</a>
         </div>
-        ${renderLiveClassAdminForm(course, liveClass, `/admin/courses/${course.id}#zoom-sync`)}
+        ${renderLiveClassAdminForm(course, liveClass, `/admin/courses/${course.id}/manage#zoom-sync`)}
       </section>
     ` : ""}
     ${childCourses.length ? `
@@ -11743,7 +11753,7 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
         </div>
       </section>
     ` : ""}
-    <section class="card" style="margin-top:18px">
+    <section class="card" id="course-details" style="margin-top:18px">
       <h2>Edit course details</h2>
       <form method="post" action="/admin/courses/${course.id}/details">
         <div class="form-grid">
@@ -11802,7 +11812,7 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
         `).join("")}
       </div>
     </section>
-    <section class="card video-assignment-builder" style="margin-top:18px">
+    <section class="card video-assignment-builder" id="video-assignment-builder" style="margin-top:18px">
       <h2>Create video assignment</h2>
       <p class="muted">Students can upload an existing video or record with their camera and microphone inside the portal. Submissions remain private to the student and instructors.</p>
       <form method="post" action="/admin/courses/${course.id}/video-assignments">
@@ -11820,7 +11830,7 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
         <button type="submit">Create Video Assignment</button>
       </form>
     </section>
-    <section class="card" style="margin-top:18px">
+    <section class="card" id="course-roster" style="margin-top:18px">
       <h2>Enroll a student</h2>
       <form method="post" action="/admin/enrollments" class="actions">
         <input type="hidden" name="courseId" value="${course.id}">
@@ -12082,16 +12092,11 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   const previewContextHref = `${adminCourseBaseHref}${contextQuery ? `?${contextQuery}` : ""}`;
   const editParams = new URLSearchParams(contextParams);
   editParams.set("mode", "edit");
-  const inlineEditorAvailable = Boolean(
-    req.query.lesson || req.query.assignment ||
-    ["modules", "assignments", "quizzes", "rubrics", "announcements", "discussions", "calendar", "conferences", "grades"].includes(activeView)
-  );
-  const editCourseHref = inlineEditorAvailable
-    ? `${adminCourseBaseHref}?${editParams.toString()}`
-    : `/admin/courses/${course.id}`;
+  const editCourseHref = `${adminCourseBaseHref}?${editParams.toString()}`;
   const previewHeader = (breadcrumbs = []) => renderStudentCanvasHeader(courseCode, adminCourseBaseHref, breadcrumbs, {
     editHref: editing ? previewContextHref : editCourseHref,
-    editLabel: editing ? "Done" : "Edit Course"
+    editLabel: editing ? "Done" : "Edit Course",
+    manageHref: editing ? `/admin/courses/${course.id}/manage` : ""
   });
   const courseHomeTitle = course.slug === "introduction-to-nursing-practical-nursing"
     ? "Introduction to Nursing for Practical Nursing Students"
@@ -12146,8 +12151,26 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     ...(courseLiveClassConfig(course) ? [{ icon: "video", label: "Live Zoom Class", href: `${adminCourseBaseHref}?view=conferences`, image: "/assets/start-tile-qa.svg" }] : [])
   ];
   if (["people", "settings", "details"].includes(activeView)) {
-    return res.redirect(`/admin/courses/${course.id}`);
+    const destination = activeView === "people" ? "course-roster" : "course-details";
+    return res.redirect(`/admin/courses/${course.id}/manage#${destination}`);
   }
+  const instructorHomeEditor = editing ? `
+    <section class="instructor-home-editor" aria-labelledby="instructor-home-editor-title">
+      <div>
+        <span>Instructor editing</span>
+        <h2 id="instructor-home-editor-title">Choose what you want to edit</h2>
+        <p>The course stays in the student layout while instructor-only tools are available.</p>
+      </div>
+      <nav aria-label="Instructor course editing options">
+        <a href="${adminCourseBaseHref}?view=modules&amp;mode=edit"><strong>Modules &amp; content</strong><span>Add, publish, reorder, or remove module items.</span></a>
+        <a href="${adminCourseBaseHref}?view=assignments&amp;mode=edit"><strong>Assignments &amp; quizzes</strong><span>Create graded work and update assignment settings.</span></a>
+        <a href="${adminCourseBaseHref}?view=announcements&amp;mode=edit"><strong>Announcements</strong><span>Post course news and updates.</span></a>
+        <a href="${adminCourseBaseHref}?view=discussions&amp;mode=edit"><strong>Discussions</strong><span>Create and manage class discussions.</span></a>
+        <a href="${adminCourseBaseHref}?view=grades&amp;mode=edit"><strong>Gradebook</strong><span>Review submissions and enter grades.</span></a>
+        <a href="/admin/courses/${course.id}/manage"><strong>Course settings &amp; roster</strong><span>Edit course details, enrollment, and advanced options.</span></a>
+      </nav>
+    </section>
+  ` : "";
   const selectedAssignmentId = Number(req.query.assignment || 0);
   const selectedAssignment = selectedAssignmentId ? gradeItems.find((item) => item.id === selectedAssignmentId) : null;
   const selectedAssignmentNav = selectedAssignment && assignmentTypeLabel(selectedAssignment) === "Quiz" ? "Quizzes" : "Assignments";
@@ -12447,6 +12470,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
       ${courseOutlinePanel}
 
       <main class="canvas-course-main">
+        ${instructorHomeEditor}
         <section class="course-welcome-banner" aria-labelledby="course-welcome-title">
           <img src="/assets/healthcare-students-login.png" alt="Healthcare students learning together in a classroom">
           <div class="course-welcome-overlay"></div>
@@ -12606,7 +12630,7 @@ app.post("/admin/courses/:id/details", requireAuth, requireRole("admin", "instru
   );
   flash(req, "Course details updated.");
   const redirectTo = String(req.body.redirectTo || "");
-  res.redirect(redirectTo.startsWith(`/admin/courses/${course.id}`) ? redirectTo : `/admin/courses/${course.id}`);
+  res.redirect(redirectTo.startsWith(`/admin/courses/${course.id}`) ? redirectTo : `/admin/courses/${course.id}/manage#course-details`);
 });
 
 app.post("/admin/courses/:id/live-class", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -12615,7 +12639,7 @@ app.post("/admin/courses/:id/live-class", requireAuth, requireRole("admin", "ins
   const liveClass = courseLiveClassConfig(course);
   if (!liveClass) {
     flash(req, "This course does not have a live Zoom class configured.");
-    return res.redirect(`/admin/courses/${course.id}`);
+    return res.redirect(`/admin/courses/${course.id}/manage#zoom-sync`);
   }
 
   const redirectTo = String(req.body.redirectTo || "");
@@ -12734,7 +12758,7 @@ app.post("/admin/courses/:id/video-assignments", requireAuth, requireRole("admin
   const allowRecording = req.body.allowRecording ? 1 : 0;
   if (!module || !title || !instructions || (!allowUpload && !allowRecording)) {
     flash(req, "Choose a valid module, enter instructions, and enable upload or recording.");
-    return res.redirect(`/admin/courses/${courseId}`);
+    return res.redirect(`/admin/courses/${courseId}/manage#video-assignment-builder`);
   }
   const maxMinutes = Math.max(1, Math.min(30, Number(req.body.maxDurationMinutes || 5)));
   const points = Math.max(0, Number(req.body.points || 100));
@@ -12752,7 +12776,7 @@ app.post("/admin/courses/:id/video-assignments", requireAuth, requireRole("admin
     courseId, title, points, String(req.body.dueDate || "").trim() || null
   );
   flash(req, "Video assignment created. Students can now upload or record their submission.");
-  res.redirect(`/admin/courses/${courseId}/student-view?lesson=${lessonId}`);
+  res.redirect(`/admin/courses/${courseId}/student-view?lesson=${lessonId}&mode=edit`);
 });
 
 app.post("/admin/courses/:courseId/video-assignments/:assignmentId", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -12824,7 +12848,7 @@ app.post("/admin/courses/:id/lessons", requireAuth, requireRole("admin", "instru
     req.body.instructorOnly ? 1 : 0
   );
   flash(req, "Lesson added.");
-  res.redirect(`/admin/courses/${Number(req.params.id)}`);
+  res.redirect(`/admin/courses/${Number(req.params.id)}/student-view?view=modules&mode=edit`);
 });
 
 app.post("/admin/courses/:courseId/modules", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -12995,7 +13019,7 @@ app.post("/admin/enrollments", requireAuth, requireRole("admin", "instructor"), 
   const student = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'student' AND status = 'active'").get(userId);
   if (!student) {
     flash(req, "Only an active student account can be enrolled. Review any school withdrawal first.");
-    return res.redirect(`/admin/courses/${courseId}`);
+    return res.redirect(`/admin/courses/${courseId}/manage#course-roster`);
   }
   const existing = db.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").get(userId, courseId);
   if (existing) {
@@ -13004,7 +13028,7 @@ app.post("/admin/enrollments", requireAuth, requireRole("admin", "instructor"), 
     db.prepare("INSERT INTO enrollments (user_id, course_id, source) VALUES (?, ?, 'manual')").run(userId, courseId);
     flash(req, "Student enrolled.");
   }
-  res.redirect(`/admin/courses/${Number(req.body.courseId)}`);
+  res.redirect(`/admin/courses/${Number(req.body.courseId)}/manage#course-roster`);
 });
 
 app.post("/admin/enrollments/:id/status", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -13020,7 +13044,7 @@ app.post("/admin/enrollments/:id/status", requireAuth, requireRole("admin", "ins
     WHERE id = ?
   `).run(status, Number(req.body.progress || 0), String(req.body.finalGrade || "").trim(), completionDate, Number(req.params.id));
   flash(req, "Enrollment updated.");
-  res.redirect(`/admin/courses/${enrollment.course_id}`);
+  res.redirect(`/admin/courses/${enrollment.course_id}/manage#course-roster`);
 });
 
 app.post("/admin/enrollments/:id/issue-credential", requireAuth, requireRole("admin", "instructor"), (req, res) => {
