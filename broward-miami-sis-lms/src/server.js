@@ -1728,6 +1728,30 @@ function renderStudentCanvasRail(active = "courses") {
   `;
 }
 
+function renderGradedAssignmentNotifications(studentId) {
+  const messages = db.prepare(`
+    SELECT id, thread_id, subject, created_at
+    FROM messages
+    WHERE recipient_id = ? AND read_at IS NULL AND subject LIKE 'Assignment graded:%'
+    ORDER BY created_at DESC, id DESC
+    LIMIT 5
+  `).all(studentId);
+  if (!messages.length) return "";
+  return `
+    <section class="student-grade-notification" role="status" aria-label="New assignment grades">
+      <strong>${messages.length === 1 ? "An assignment has been graded" : "New assignment grades"}</strong>
+      <div class="student-grade-notification-list">
+        ${messages.map((message) => `
+          <a href="/student/email?threadId=${encodeURIComponent(message.thread_id || message.id)}">
+            ${escapeHtml(message.subject.replace(/^Assignment graded:\s*/i, ""))}
+            <span>View grade and feedback</span>
+          </a>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderInstructorCanvasRail(user, active = "courses") {
   const items = [
     { key: "dashboard", label: "Dashboard", href: "/admin", icon: "⌂" },
@@ -4238,6 +4262,7 @@ function renderCanvasDashboardPage({ user, data }) {
         <h1>Dashboard</h1>
         <a class="canvas-top-button" href="/student">Home</a>
       </div>
+      ${renderGradedAssignmentNotifications(user.id)}
       <section class="recent-activity">
         <h2>Recent Activity</h2>
         <article class="activity-group expanded" data-activity-group>
@@ -12826,6 +12851,16 @@ app.post("/admin/courses/:courseId/video-submissions/:submissionId/review", requ
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET score = excluded.score, note = excluded.note, updated_at = CURRENT_TIMESTAMP
     `).run(submission.enrollment_id, submission.grade_item_id, score, feedback || "Video assignment graded by instructor.");
+    const enrollment = db.prepare("SELECT user_id FROM enrollments WHERE id = ?").get(submission.enrollment_id);
+    if (enrollment) {
+      savePortalMessage({
+        senderId: req.user.id,
+        recipientId: enrollment.user_id,
+        courseId,
+        subject: `Assignment graded: ${submission.title}`,
+        body: `Your video assignment ${submission.title} was graded ${score} out of ${submission.points_possible}.${feedback ? ` Feedback: ${feedback}` : ""}`
+      });
+    }
   }
   flash(req, score === null ? "Instructor feedback saved." : "Video grade and feedback saved to the gradebook.");
   res.redirect(`/admin/courses/${courseId}/student-view?lesson=${submission.lesson_id}&mode=edit`);
@@ -13154,6 +13189,7 @@ app.get("/student", requireAuth, (req, res) => {
   const body = `
     <section class="student-dashboard">
       ${lockNotice}
+      ${renderGradedAssignmentNotifications(req.user.id)}
       <article class="student-welcome">
         <img class="student-photo has-photo" src="/students/${req.user.id}/photo" alt="${escapeHtml(studentName || "Student")} profile photo">
         <div>

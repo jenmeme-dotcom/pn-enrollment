@@ -187,3 +187,27 @@ test("completed quizzes record grades even when the gradebook item is missing", 
   assert.equal(grade.score, grade.points_possible);
   assert.match(grade.note, /^Auto-graded:/);
 });
+
+test("students see and can clear an unread assignment-grade notification", async () => {
+  const student = database.prepare("SELECT id FROM users WHERE email = 'student@browardmiamihi.com'").get();
+  const instructor = database.prepare("SELECT id FROM users WHERE email = 'instructor@browardmiamihi.com'").get();
+  const result = database.prepare(`
+    INSERT INTO messages (sender_id, recipient_id, subject, body)
+    VALUES (?, ?, 'Assignment graded: Clinical Reflection', 'Your work was graded.')
+  `).run(instructor.id, student.id);
+  database.prepare("UPDATE messages SET thread_id = ? WHERE id = ?").run(result.lastInsertRowid, result.lastInsertRowid);
+
+  for (const route of ["/student", "/student/dashboard"]) {
+    const response = await fetch(`${baseUrl}${route}`, { headers: { cookie: studentCookie } });
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.match(html, /An assignment has been graded/);
+    assert.match(html, /Clinical Reflection/);
+    assert.match(html, new RegExp(`/student/email\\?threadId=${result.lastInsertRowid}`));
+  }
+
+  const inbox = await fetch(`${baseUrl}/student/email?threadId=${result.lastInsertRowid}`, { headers: { cookie: studentCookie } });
+  assert.equal(inbox.status, 200);
+  const dashboard = await fetch(`${baseUrl}/student/dashboard`, { headers: { cookie: studentCookie } });
+  assert.doesNotMatch(await dashboard.text(), /An assignment has been graded/);
+});
