@@ -521,6 +521,37 @@ nav a {
   text-decoration: none;
 }
 
+@keyframes assignment-review-pulse {
+  0%, 100% { background-color: #fff2c9; box-shadow: inset 0 0 0 2px #db9e16; }
+  50% { background-color: #ffd875; box-shadow: inset 0 0 0 2px #a46b00; }
+}
+
+.sis-subnav a.assignment-review-alert,
+.student-canvas-rail a.assignment-review-alert {
+  animation: assignment-review-pulse 1.8s ease-in-out infinite;
+  color: #3d2a08;
+}
+
+.assignment-review-count {
+  align-items: center;
+  background: #8d3b0b;
+  border-radius: 999px;
+  color: white;
+  display: inline-flex;
+  font-size: 11px;
+  justify-content: center;
+  line-height: 1;
+  margin-left: 4px;
+  min-height: 20px;
+  min-width: 20px;
+  padding: 0 5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sis-subnav a.assignment-review-alert,
+  .student-canvas-rail a.assignment-review-alert { animation: none; background-color: #fff2c9; }
+}
+
 .sis-session {
   color: #5d6b78;
   flex: 0 0 auto;
@@ -6002,6 +6033,10 @@ button.small {
   font-size: 10px;
   font-weight: 500;
   line-height: 1.15;
+}
+
+.student-canvas-rail a.assignment-review-alert .assignment-review-count {
+  margin: 2px 0 0;
 }
 
 .instructor-canvas-rail .instructor-rail-avatar {

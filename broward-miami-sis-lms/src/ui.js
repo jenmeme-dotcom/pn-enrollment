@@ -23,8 +23,11 @@ function percent(value = 0) {
   return `${Math.max(0, Math.min(100, Number(value) || 0))}%`;
 }
 
-function navFor(user) {
+function navFor(user, pendingAssignmentReviewCount = 0) {
   if (!user) return "";
+  const reviewCount = user.role === "instructor" && String(user.email || "").toLowerCase() === "dayana.diaz@browardmiamihi.com"
+    ? Math.max(0, Number(pendingAssignmentReviewCount) || 0) : 0;
+  const assignmentInboxLink = `<a class="${reviewCount ? "assignment-review-alert" : ""}" href="/admin/assignment-submissions">Assignment Inbox${reviewCount ? ` <b class="assignment-review-count" aria-label="${escapeHtml(reviewCount)} assignments need review">${escapeHtml(reviewCount)}</b>` : ""}</a>`;
   const adminLinks = `
     <a href="/admin">Dashboard</a>
     <a href="/admin/admissions">Admissions</a>
@@ -33,7 +36,7 @@ function navFor(user) {
     <a href="/admin/instructor-roles">Instructor Roles</a>
     <a href="/admin/students">Students</a>
     <a href="/admin/student-evaluations">Student Evals</a>
-    <a href="/admin/assignment-submissions">Assignment Inbox</a>
+    ${assignmentInboxLink}
     <a href="/admin/help">SOPs</a>
     <a href="/admin/schedule">Schedule</a>
     <a href="/admin/hesi">HESI Scores</a>
@@ -51,7 +54,7 @@ function navFor(user) {
     <a href="/admin">Dashboard</a>
     <a href="/admin/students">Students</a>
     <a href="/admin/student-evaluations">Student Evals</a>
-    <a href="/admin/assignment-submissions">Assignment Inbox</a>
+    ${assignmentInboxLink}
     <a href="/admin/help">SOPs</a>
     <a href="/admin/schedule">Schedule</a>
     <a href="/admin/hesi">HESI Scores</a>
@@ -102,7 +105,7 @@ function studentPortalLinks(activeStudentNav) {
   return studentNavItems.map((item) => studentPortalLink(activeStudentNav, item)).join("");
 }
 
-function layout({ title, user, flash, body, full = false, studentPortal = false, activeStudentNav = "dashboard", courseCanvas = false }) {
+function layout({ title, user, flash, body, full = false, studentPortal = false, activeStudentNav = "dashboard", courseCanvas = false, pendingAssignmentReviewCount = 0 }) {
   const institute = escapeHtml(process.env.INSTITUTE_NAME || "Broward-Miami Health Institute");
   const isSis = Boolean(user && user.role !== "student" && !full);
   const isStudentPortal = Boolean(user && user.role === "student" && studentPortal && !full && !courseCanvas);
@@ -229,7 +232,7 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
       </div>
       <div class="sis-subbar">
         <nav class="sis-subnav" aria-label="Admin portal menu">
-          ${navFor(user)}
+          ${navFor(user, pendingAssignmentReviewCount)}
         </nav>
         <span class="sis-session">Current session: 2026-27</span>
       </div>
@@ -269,7 +272,7 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
         <img class="brand-logo" src="/assets/bmhi-wordmark.jpeg" alt="${institute}">
         <span class="brand-text"><strong>${institute}</strong><small>SIS + LMS</small></span>
       </a>
-      <nav>${navFor(user)}</nav>
+      <nav>${navFor(user, pendingAssignmentReviewCount)}</nav>
       ${user ? `
         <form method="post" action="/logout">
           <button class="button ghost" type="submit">Sign out</button>

@@ -503,7 +503,19 @@ function takeFlash(req) {
 }
 
 function render(req, res, title, body, options = {}) {
-  res.send(layout({ title, user: currentUser(req), flash: takeFlash(req), body, ...options }));
+  const user = currentUser(req);
+  res.send(layout({ title, user, flash: takeFlash(req), body,
+    pendingAssignmentReviewCount: pendingAssignmentReviewCount(user), ...options }));
+}
+
+function pendingAssignmentReviewCount(user) {
+  if (user?.role !== "instructor" || String(user.email || "").toLowerCase() !== "dayana.diaz@browardmiamihi.com") return 0;
+  return db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM assignment_submissions s
+    LEFT JOIN grades g ON g.enrollment_id = s.enrollment_id AND g.grade_item_id = s.grade_item_id
+    WHERE g.id IS NULL OR COALESCE(g.note, '') LIKE ?
+  `).get(`${AUTO_GRADE_PENDING_PREFIX}%`).count;
 }
 
 function requireAuth(req, res, next) {
@@ -1753,11 +1765,15 @@ function renderGradedAssignmentNotifications(studentId) {
 }
 
 function renderInstructorCanvasRail(user, active = "courses") {
+  const reviewCount = pendingAssignmentReviewCount(user);
   const items = [
     { key: "dashboard", label: "Dashboard", href: "/admin", icon: "⌂" },
     { key: "courses", label: "Courses", href: "/admin/courses", icon: "▤" },
     { key: "schedule", label: "Schedule", href: "/admin/schedule", icon: "▦" },
     { key: "inbox", label: "Inbox", href: "/admin/messages", icon: "▧" },
+    ...(String(user?.email || "").toLowerCase() === "dayana.diaz@browardmiamihi.com"
+      ? [{ key: "assignment-inbox", label: "Assignment Inbox", href: "/admin/assignment-submissions", icon: "▤", reviewCount }]
+      : []),
     { key: "help", label: "Help", href: "/admin/help", icon: "?" }
   ];
   return `
@@ -1766,9 +1782,10 @@ function renderInstructorCanvasRail(user, active = "courses") {
       <span class="instructor-rail-avatar" aria-label="Signed in as ${escapeHtml(initialsFor(user))}">${escapeHtml(initialsFor(user))}</span>
       <nav aria-label="Instructor global navigation">
         ${items.map((item) => `
-          <a class="${item.key === active ? "active" : ""}" href="${escapeHtml(item.href)}">
+          <a class="${item.key === active ? "active" : ""} ${item.reviewCount ? "assignment-review-alert" : ""}" href="${escapeHtml(item.href)}">
             <span aria-hidden="true">${escapeHtml(item.icon)}</span>
             <strong>${escapeHtml(item.label)}</strong>
+            ${item.reviewCount ? `<b class="assignment-review-count" aria-label="${escapeHtml(item.reviewCount)} assignments need review">${escapeHtml(item.reviewCount)}</b>` : ""}
           </a>
         `).join("")}
         <form class="canvas-rail-signout" method="post" action="/logout">
