@@ -13,7 +13,7 @@ test("PN102 midterm is due Friday August 21", () => {
 
 test("PN102 midterm remains available through its new deadline", () => {
   const source = fs.readFileSync(path.join(__dirname, "../src/server.js"), "utf8");
-  const settingsLine = source.split("\n").find((line) => line.includes('title === "Midterm Exam: Weeks 1-6"'));
+  const settingsLine = source.split("\n").find((line) => line.includes('label: "PN 102 Midterm Exam"'));
   assert.ok(settingsLine);
   assert.match(settingsLine, /minutes: 60/);
   assert.match(settingsLine, /2026-08-21T23:59:59-04:00/);

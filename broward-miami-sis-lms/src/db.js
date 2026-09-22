@@ -10,6 +10,15 @@ const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 const { ensureIntroNursingQuizQuestionMinimum } = require("./introNursingQuizQuestions");
 const { chapterTitles: medicalTerminologyChapterTitles } = require("./medicalTerminologyBuildout");
 const samanthaMidterm = require("./pn104SamanthaMidterm");
+const {
+  PN_COURSE_SLUGS,
+  PN_COURSEWORK_REOPEN_SEED_KEY,
+  PN102_DISCUSSION_TITLES,
+  canonicalReopenableTasks,
+  canonicalReopenableTaskTitles,
+  isProtectedMajorAssessmentTitle,
+  normalizedAssessmentTitle
+} = require("./courseworkAvailability");
 
 const rootDir = path.resolve(__dirname, "..");
 const databaseFile = path.resolve(rootDir, process.env.DATABASE_FILE || "./data/bmhi.sqlite");
@@ -75,6 +84,119 @@ function fallbackWrittenAssignmentContent(title = "", existingContent = "") {
     "",
     writtenAssignmentMarker(config)
   ].join("\n");
+}
+
+function reopenPnCourseworkForCompletion() {
+  const findCourse = db.prepare("SELECT id FROM courses WHERE slug = ?");
+  const migrationApplied = db.prepare("SELECT 1 FROM course_seed_versions WHERE course_id = ? AND seed_key = ?");
+  const recordMigration = db.prepare("INSERT OR IGNORE INTO course_seed_versions (course_id, seed_key) VALUES (?, ?)");
+  const publishCourse = db.prepare("UPDATE courses SET published = 1 WHERE id = ?");
+  const courseLessons = db.prepare(`
+    SELECT l.*, m.id AS module_id, m.title AS module_title,
+      linked_grade_item.title AS linked_grade_item_title
+    FROM lessons l
+    JOIN modules m ON m.id = l.module_id
+    LEFT JOIN grade_items linked_grade_item ON linked_grade_item.id = l.grade_item_id
+    WHERE m.course_id = ?
+  `);
+  const publishLesson = db.prepare("UPDATE lessons SET published = 1, instructor_only = 0 WHERE id = ?");
+  const publishModule = db.prepare("UPDATE modules SET published = 1 WHERE id = ? AND course_id = ?");
+  const courseTopics = db.prepare("SELECT id, title, source_external_id FROM discussion_topics WHERE course_id = ?");
+  const publishTopic = db.prepare("UPDATE discussion_topics SET status = 'published' WHERE id = ?");
+  const endedAttempts = db.prepare(`
+    SELECT ea.id, ea.enrollment_id, l.id AS lesson_id, l.grade_item_id, l.title
+    FROM exam_attempts ea
+    JOIN lessons l ON l.id = ea.lesson_id
+    JOIN modules m ON m.id = l.module_id
+    WHERE m.course_id = ? AND ea.status IN ('submitted', 'expired')
+  `);
+  const matchingGrade = db.prepare(`
+    SELECT g.id
+    FROM grades g
+    JOIN grade_items gi ON gi.id = g.grade_item_id
+    WHERE g.enrollment_id = ? AND gi.course_id = ?
+      AND (gi.id = ? OR lower(trim(gi.title)) = lower(trim(?)))
+    LIMIT 1
+  `);
+  const matchingCompletion = db.prepare(`
+    SELECT id FROM lesson_completions
+    WHERE enrollment_id = ? AND lesson_id = ?
+    LIMIT 1
+  `);
+  const deleteAttempt = db.prepare("DELETE FROM exam_attempts WHERE id = ?");
+
+  PN_COURSE_SLUGS.forEach((slug) => {
+    const courseRow = findCourse.get(slug);
+    if (!courseRow || migrationApplied.get(courseRow.id, PN_COURSEWORK_REOPEN_SEED_KEY)) return;
+
+    const definition = courses.find((course) => course.slug === slug);
+    const canonicalTaskKeys = new Set(canonicalReopenableTasks(definition).map((task) => (
+      `${normalizedAssessmentTitle(task.moduleTitle)}\u0000${normalizedAssessmentTitle(task.lessonTitle)}`
+    )));
+    const canonicalTitles = new Set(
+      canonicalReopenableTaskTitles(definition).map((title) => normalizedAssessmentTitle(title))
+    );
+    const lessons = courseLessons.all(courseRow.id);
+    const lessonTitleCounts = lessons.reduce((counts, lesson) => {
+      const title = normalizedAssessmentTitle(lesson.title);
+      counts.set(title, (counts.get(title) || 0) + 1);
+      return counts;
+    }, new Map());
+    const catalogCandidatesByKey = lessons.reduce((candidates, lesson) => {
+      const taskKey = `${normalizedAssessmentTitle(lesson.module_title)}\u0000${normalizedAssessmentTitle(lesson.title)}`;
+      if (!canonicalTaskKeys.has(taskKey)
+        || isProtectedMajorAssessmentTitle(lesson.title)
+        || isProtectedMajorAssessmentTitle(lesson.linked_grade_item_title)) return candidates;
+      if (!candidates.has(taskKey)) candidates.set(taskKey, []);
+      candidates.get(taskKey).push(lesson);
+      return candidates;
+    }, new Map());
+    const canonicalLessonIds = new Set([...catalogCandidatesByKey.values()].map((candidates) => (
+      candidates.sort((left, right) => {
+        const leftLinked = normalizedAssessmentTitle(left.linked_grade_item_title) === normalizedAssessmentTitle(left.title) ? 1 : 0;
+        const rightLinked = normalizedAssessmentTitle(right.linked_grade_item_title) === normalizedAssessmentTitle(right.title) ? 1 : 0;
+        return rightLinked - leftLinked
+          || Number(left.position || 0) - Number(right.position || 0)
+          || Number(left.id) - Number(right.id);
+      })[0].id
+    )));
+    const reopenableLessons = lessons.filter((lesson) => {
+      if (isProtectedMajorAssessmentTitle(lesson.title)
+        || isProtectedMajorAssessmentTitle(lesson.linked_grade_item_title)) return false;
+      const normalizedTitle = normalizedAssessmentTitle(lesson.title);
+      const exactCatalogLocation = canonicalLessonIds.has(lesson.id);
+      const uniqueLegacyLocation = canonicalTitles.has(normalizedTitle)
+        && lessonTitleCounts.get(normalizedTitle) === 1;
+      return exactCatalogLocation || uniqueLegacyLocation;
+    });
+    const reopenableLessonIds = new Set(reopenableLessons.map((lesson) => Number(lesson.id)));
+
+    publishCourse.run(courseRow.id);
+    reopenableLessons.forEach((lesson) => {
+      publishModule.run(lesson.module_id, courseRow.id);
+      publishLesson.run(lesson.id);
+    });
+    const pn102DiscussionTitles = new Set(PN102_DISCUSSION_TITLES.map(normalizedAssessmentTitle));
+    courseTopics.all(courseRow.id).forEach((topic) => {
+      const normalizedTitle = normalizedAssessmentTitle(topic.title);
+      const isCurrentPn102Topic = slug === "introduction-to-nursing-practical-nursing"
+        && pn102DiscussionTitles.has(normalizedTitle);
+      const isCanonicalTopic = canonicalTitles.has(normalizedTitle) || isCurrentPn102Topic;
+      if (isCanonicalTopic && !isProtectedMajorAssessmentTitle(topic.title)) {
+        publishTopic.run(topic.id);
+      }
+    });
+
+    endedAttempts.all(courseRow.id).forEach((attempt) => {
+      if (!reopenableLessonIds.has(Number(attempt.lesson_id))) return;
+      const gradeItemId = Number(attempt.grade_item_id || 0);
+      const grade = matchingGrade.get(attempt.enrollment_id, courseRow.id, gradeItemId, attempt.title);
+      const completion = matchingCompletion.get(attempt.enrollment_id, attempt.lesson_id);
+      if (!grade && !completion) deleteAttempt.run(attempt.id);
+    });
+
+    recordMigration.run(courseRow.id, PN_COURSEWORK_REOPEN_SEED_KEY);
+  });
 }
 
 function migrate() {
@@ -3067,6 +3189,11 @@ function seed() {
   unmarkedWrittenAssignments.forEach((lesson) => {
     standardizeWrittenAssignment.run(fallbackWrittenAssignmentContent(lesson.title, lesson.content), lesson.id);
   });
+
+  // Reopen the current PN 101-104 coursework once without changing due dates,
+  // completed work, or the protected midterm/final schedules. The marker keeps
+  // later instructor publish choices from being overwritten on every restart.
+  reopenPnCourseworkForCompletion();
 }
 
 function initialize() {
@@ -3075,4 +3202,4 @@ function initialize() {
   return db;
 }
 
-module.exports = { db, initialize, databaseFile };
+module.exports = { db, initialize, databaseFile, reopenPnCourseworkForCompletion };

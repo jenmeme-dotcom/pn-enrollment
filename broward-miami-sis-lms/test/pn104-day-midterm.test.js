@@ -45,6 +45,16 @@ test("PN104 day midterm access window opens August 31 and closes September 4", (
   assert.match(source, /PN 104 Day Course Midterm Exam", minutes: 60/);
 });
 
+test("PN104 final remains on its Week 12 window while regular coursework reopens", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/server.js"), "utf8");
+  const settingsLine = source.split("\n").find((line) => line.includes('label: "PN 104 Final Examination"'));
+  assert.ok(settingsLine);
+  assert.match(settingsLine, /minutes: 90/);
+  assert.match(settingsLine, /2026-09-28T00:00:00-04:00/);
+  assert.match(settingsLine, /2026-10-04T23:59:59-04:00/);
+  assert.match(source, /isPn104 && \/Final\/i/);
+});
+
 test("timed exams enforce full-screen focus and submit when secure mode ends", () => {
   const serverSource = fs.readFileSync(path.join(__dirname, "../src/server.js"), "utf8");
   const styles = fs.readFileSync(path.join(__dirname, "../src/public/styles.css"), "utf8");

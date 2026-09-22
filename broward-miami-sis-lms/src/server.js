@@ -12,6 +12,7 @@ const { createCourseSyllabusPdfBuffer, syllabusPdfFilename } = require("./syllab
 const quickbooks = require("./quickbooks");
 const { adminAccessAccounts, adminAccessDefaultPassword } = require("./adminAccess");
 const { db, initialize, databaseFile } = require("./db");
+const { isMidtermTitle, isProtectedMajorAssessmentTitle } = require("./courseworkAvailability");
 const {
   courses,
   feeSchedule,
@@ -2433,16 +2434,60 @@ function renderWrittenAutogradeFeedback(grade = null) {
 }
 
 function examSettingsForLesson(lesson = {}) {
-  const title = String(lesson.title || "");
-  if (/\[PN104 DAY 2026\] (?:Midterm —|Official Midterm|Practice Midterm|Samantha Brunvil Midterm)/i.test(title)) return { label: "PN 104 Midterm", minutes: 60, opensAt: "2026-09-03T00:00:00-04:00", closesAt: "2026-09-04T23:59:59-04:00" };
-  if (/\[PN104 DAY 2026\] Midterm Exam/i.test(title)) return { label: "PN 104 Day Course Midterm Exam", minutes: 60, opensAt: "2026-08-31T00:00:00-04:00", closesAt: "2026-09-04T23:59:59-04:00" };
-  if (title === "Midterm Exam: Weeks 1-6") return { label: "PN 102 Midterm Exam", minutes: 60, opensAt: "2026-07-27T00:00:00-04:00", closesAt: "2026-08-21T23:59:59-04:00" };
-  if (title === "Cumulative Final Exam") return { label: "PN 102 Cumulative Final Exam", minutes: 90, opensAt: "2026-09-07T00:00:00-04:00", closesAt: "2026-09-13T23:59:59-04:00" };
-  if (/\[PN103 2026\] Midterm - Chapters 14-19/i.test(title)) return { label: "PN 103 Midterm Exam", minutes: 60, opensAt: "2026-07-27T00:00:00-04:00", closesAt: "2026-08-02T23:59:59-04:00" };
-  if (/\[PN103 2026\] Final Comprehensive Exam/i.test(title)) return { label: "PN 103 Final Comprehensive Exam", minutes: 90, opensAt: "2026-09-03T00:00:00-04:00", closesAt: "2026-09-09T23:59:59-04:00" };
-  if (/Midterm Exam 1/i.test(title)) return { label: "Midterm Exam 1", minutes: 30, opensAt: "2026-07-29T00:00:00-04:00", closesAt: "2026-08-05T23:59:59-04:00" };
-  if (/Midterm Exam 2/i.test(title)) return { label: "Midterm Exam 2", minutes: 30, opensAt: "2026-09-02T00:00:00-04:00", closesAt: "2026-09-08T23:59:59-04:00" };
-  if (/Final Comprehensive Exam/i.test(title)) return { label: "Final Comprehensive Exam", minutes: 50, opensAt: "2026-09-09T00:00:00-04:00", closesAt: "2026-09-09T23:59:59-04:00" };
+  const lessonId = Number(lesson?.id || 0);
+  const linkedGradeItemId = Number(lesson?.grade_item_id || 0);
+  let context = null;
+  if (lessonId) {
+    context = db.prepare(`
+      SELECT c.slug AS course_slug, gi.title AS linked_grade_item_title
+      FROM lessons l
+      JOIN modules m ON m.id = l.module_id
+      JOIN courses c ON c.id = m.course_id
+      LEFT JOIN grade_items gi ON gi.id = l.grade_item_id
+      WHERE l.id = ?
+    `).get(lessonId);
+  } else if (linkedGradeItemId) {
+    context = db.prepare(`
+      SELECT c.slug AS course_slug, gi.title AS linked_grade_item_title
+      FROM grade_items gi
+      JOIN courses c ON c.id = gi.course_id
+      WHERE gi.id = ?
+    `).get(linkedGradeItemId);
+  }
+  const lessonTitle = String(lesson?.title || "");
+  const linkedGradeItemTitle = String(context?.linked_grade_item_title || lesson?.linked_grade_item_title || "");
+  const courseSlug = String(context?.course_slug || lesson?.course_slug || "");
+  const settingsForTitle = (title) => {
+    if (!isProtectedMajorAssessmentTitle(title)) return null;
+    const isPn101 = courseSlug
+      ? courseSlug === "medical-terminology"
+      : /\[PN101(?:\s+2026)?\]/i.test(title);
+    const isPn102 = courseSlug
+      ? courseSlug === "introduction-to-nursing-practical-nursing"
+      : /\[PN102(?:\s+2026)?\]/i.test(title);
+    const isPn103 = courseSlug
+      ? courseSlug === "long-term-care-nursing-pn103"
+      : /\[PN103(?:\s+2026)?\]/i.test(title);
+    const isPn104 = courseSlug
+      ? courseSlug === "anatomy-and-physiology"
+      : /\[PN104(?:\s+(?:DAY\s+)?2026)?\]/i.test(title);
+    if (/\[PN104 DAY 2026\] (?:Midterm —|Official Midterm|Practice Midterm|Samantha Brunvil Midterm)/i.test(title)) return { label: "PN 104 Midterm", minutes: 60, opensAt: "2026-09-03T00:00:00-04:00", closesAt: "2026-09-04T23:59:59-04:00" };
+    if (/\[PN104 DAY 2026\] Midterm Exam/i.test(title)) return { label: "PN 104 Day Course Midterm Exam", minutes: 60, opensAt: "2026-08-31T00:00:00-04:00", closesAt: "2026-09-04T23:59:59-04:00" };
+    if (isPn102 && /Midterm/i.test(title)) return { label: "PN 102 Midterm Exam", minutes: 60, opensAt: "2026-07-27T00:00:00-04:00", closesAt: "2026-08-21T23:59:59-04:00" };
+    if (isPn102 && /Final/i.test(title)) return { label: "PN 102 Cumulative Final Exam", minutes: 90, opensAt: "2026-09-07T00:00:00-04:00", closesAt: "2026-09-13T23:59:59-04:00" };
+    if (isPn103 && /Midterm/i.test(title)) return { label: "PN 103 Midterm Exam", minutes: 60, opensAt: "2026-07-27T00:00:00-04:00", closesAt: "2026-08-02T23:59:59-04:00" };
+    if (isPn103 && /Final/i.test(title)) return { label: "PN 103 Final Comprehensive Exam", minutes: 90, opensAt: "2026-09-03T00:00:00-04:00", closesAt: "2026-09-09T23:59:59-04:00" };
+    if (isPn101 && /Midterm Exam 1/i.test(title)) return { label: "Midterm Exam 1", minutes: 30, opensAt: "2026-07-29T00:00:00-04:00", closesAt: "2026-08-05T23:59:59-04:00" };
+    if (isPn101 && /Midterm Exam 2/i.test(title)) return { label: "Midterm Exam 2", minutes: 30, opensAt: "2026-09-02T00:00:00-04:00", closesAt: "2026-09-08T23:59:59-04:00" };
+    if (isPn101 && /Final/i.test(title)) return { label: "Final Comprehensive Exam", minutes: 50, opensAt: "2026-09-09T00:00:00-04:00", closesAt: "2026-09-09T23:59:59-04:00" };
+    if (isPn104 && /Midterm/i.test(title)) return { label: "PN 104 Midterm", minutes: 60, opensAt: "2026-09-03T00:00:00-04:00", closesAt: "2026-09-04T23:59:59-04:00" };
+    if (isPn104 && /Final/i.test(title)) return { label: "PN 104 Final Examination", minutes: 90, opensAt: "2026-09-28T00:00:00-04:00", closesAt: "2026-10-04T23:59:59-04:00" };
+    return null;
+  };
+  for (const title of [...new Set([lessonTitle, linkedGradeItemTitle].filter(Boolean))]) {
+    const settings = settingsForTitle(title);
+    if (settings) return settings;
+  }
   return null;
 }
 
@@ -4938,8 +4983,8 @@ function lessonIndexForGradeItem(item = {}, lessons = []) {
 
 function assignmentTypeLabel(item = {}) {
   const title = String(item.title || "").toLowerCase();
-  if (title.includes("midterm")) return "Midterm";
-  if (title.includes("final")) return "Final";
+  if (isProtectedMajorAssessmentTitle(title)) return isMidtermTitle(title) ? "Midterm" : "Final";
+  if (title.includes("study guide") || /\breview\b/.test(title)) return item.group || "Assignment";
   if (title.includes("quiz")) return "Quiz";
   if (title.includes("discussion")) return "Discussion";
   if (title.includes("exam")) return "Exam";
@@ -4983,7 +5028,7 @@ function gradeItemInstructions(item = {}) {
   if (title.includes("skills")) {
     return "Use this checklist to track required hands-on skills. The instructor will verify each competency after demonstration, practice, or skills lab review.";
   }
-  if (title.includes("final") || title.includes("completion")) {
+  if (isProtectedMajorAssessmentTitle(title) || title.includes("completion")) {
     return "This item is used for final course completion review. The instructor confirms required coursework, attendance, skills, and file readiness before completion is posted.";
   }
   if (title.includes("quiz") || title.includes("exam") || title.includes("midterm")) {
@@ -13435,8 +13480,7 @@ app.get("/student/homework", requireAuth, requireRole("student"), (req, res) => 
     ORDER BY gi.due_date IS NULL, gi.due_date, c.title, gi.id
   `).all(req.user.id);
   const assignmentRows = rows.filter((row) => {
-    const title = String(row.title || "").toLowerCase();
-    return !title.includes("quiz") && !title.includes("exam") && !title.includes("midterm") && !title.includes("final");
+    return !isAssessmentType(assignmentTypeLabel(row));
   });
   const homeworkRows = assignmentRows.length ? assignmentRows : rows;
   const pendingCount = homeworkRows.filter((row) => row.score === null || row.score === undefined).length;
