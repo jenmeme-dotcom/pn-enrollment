@@ -30,6 +30,16 @@ const adminAccessAccounts = [
     firstName: "Danny",
     lastName: "Chery",
     email: "danny2010culo@yahoo.com"
+  },
+  {
+    firstName: "Gamarha",
+    lastName: "Joseph",
+    email: "gamarha.joseph@gmail.com"
+  },
+  {
+    firstName: "Gaynelle",
+    lastName: "White",
+    email: "royaltrini1@yahoo.com"
   }
 ];
 
