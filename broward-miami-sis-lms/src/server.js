@@ -31,11 +31,13 @@ const {
 const instructorAccessDefaultPassword = "InstructorPass123!";
 const instructorLoginRepairs = new Map([
   ["dayana.diaz@browardmiamihi.com", { firstName: "Dayana", lastName: "Diaz" }],
-  ["natacha.aleman@browardmiamihi.com", { firstName: "Natacha Andrea", lastName: "Aleman" }]
+  ["natacha.aleman@browardmiamihi.com", { firstName: "Natacha Andrea", lastName: "Aleman" }],
+  ["ashleypadilla226@yahoo.com", { firstName: "Ashley", lastName: "Anaya" }]
 ]);
 const instructorAccessAccounts = [
   { firstName: "Dayana", lastName: "Diaz", email: "dayana.diaz@browardmiamihi.com", phone: "" },
-  { firstName: "Natacha Andrea", lastName: "Aleman", email: "natacha.aleman@browardmiamihi.com", phone: "" }
+  { firstName: "Natacha Andrea", lastName: "Aleman", email: "natacha.aleman@browardmiamihi.com", phone: "" },
+  { firstName: "Ashley", lastName: "Anaya", email: "ashleypadilla226@yahoo.com", phone: "" }
 ];
 const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = require("./ui");
