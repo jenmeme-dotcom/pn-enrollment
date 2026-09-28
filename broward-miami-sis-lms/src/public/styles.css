@@ -9871,6 +9871,19 @@ button.small {
   line-height: 1.2;
 }
 
+.exam-reset-form {
+  margin-top: 6px;
+}
+
+.exam-reset-form .button,
+.exam-reset-form button {
+  font-size: 10px;
+  line-height: 1.1;
+  min-height: 28px;
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+
 .gradebook-final-grade-note {
   color: #54717a;
   display: block;

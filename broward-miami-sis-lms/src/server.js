@@ -3611,10 +3611,11 @@ function instructorGradebookItems(course, gradeItems = []) {
   }));
 }
 
-function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems = [], enrollments = [], grades = [], readOnly = false }) {
+function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems = [], enrollments = [], grades = [], examAttempts = [], readOnly = false }) {
   const students = instructorGradebookStudents(enrollments);
   const assignments = instructorGradebookItems(course, gradeItems);
   const gradeByEnrollmentAndItem = new Map(grades.map((grade) => [`${grade.enrollment_id}:${grade.grade_item_id}`, grade]));
+  const attemptByEnrollmentAndItem = new Map(examAttempts.map((attempt) => [`${attempt.enrollment_id}:${attempt.grade_item_id}`, attempt]));
   const studentSummary = (student) => postedGradeSummary(assignments.map((item) => {
     const grade = gradeByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
     return {
@@ -3683,7 +3684,15 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
                     if (!grade) return `<td>-</td>`;
                     const pendingReview = isAutoGradeApprovalPending(grade.note);
                     const score = pendingReview && readOnly ? "—" : escapeHtml(grade.score);
-                    return `<td>${score}${pendingReview ? `<small class="gradebook-pending-score">pending review</small>` : ""}</td>`;
+                    const attempt = attemptByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
+                    const resetControl = !readOnly && attempt && /\b(?:midterm|final)\b/i.test(item.title)
+                      ? `<form method="post" action="/admin/courses/${course.id}/exam-attempts/reset" class="exam-reset-form" onsubmit="return window.confirm('Reset this exam attempt? The current exam score will be removed and the student will be allowed to start again.')">
+                          <input type="hidden" name="enrollmentId" value="${escapeHtml(student.enrollment_id)}">
+                          <input type="hidden" name="lessonId" value="${escapeHtml(attempt.lesson_id)}">
+                          <button class="small ghost" type="submit">Reset attempt</button>
+                        </form>`
+                      : "";
+                    return `<td>${score}${pendingReview ? `<small class="gradebook-pending-score">pending review</small>` : ""}${resetControl}</td>`;
                   }).join("")}
                 </tr>
               `;
@@ -12146,6 +12155,13 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     JOIN enrollments e ON e.id = g.enrollment_id
     WHERE e.course_id = ?
   `).all(course.id) : [];
+  const examAttempts = editing || reviewingGrades ? db.prepare(`
+    SELECT ea.*, l.grade_item_id
+    FROM exam_attempts ea
+    JOIN lessons l ON l.id = ea.lesson_id
+    JOIN modules m ON m.id = l.module_id
+    WHERE m.course_id = ? AND l.grade_item_id IS NOT NULL
+  `).all(course.id) : [];
 
   const moduleGroups = editing
     ? courseModules.map((module) => ({
@@ -12489,6 +12505,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         gradeItems,
         enrollments,
         grades,
+        examAttempts,
         readOnly: !editing
       })}
     </section>
@@ -13110,6 +13127,51 @@ app.post("/admin/courses/:id/rubrics/:gradeItemId", requireAuth, requireRole("ad
   `).run(gradeItemId, JSON.stringify(rubric), req.user.id);
   flash(req, "Rubric saved and published to students.");
   res.redirect(`/admin/courses/${courseId}/student-view?assignment=${gradeItemId}&mode=edit`);
+});
+
+app.post("/admin/courses/:id/exam-attempts/reset", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const courseId = Number(req.params.id);
+  const enrollmentId = Number(req.body.enrollmentId);
+  const lessonId = Number(req.body.lessonId);
+  const record = db.prepare(`
+    SELECT e.id AS enrollment_id, e.user_id, c.title AS course_title,
+      u.first_name, u.last_name, l.id AS lesson_id, l.title AS lesson_title, l.grade_item_id
+    FROM enrollments e
+    JOIN users u ON u.id = e.user_id
+    JOIN courses c ON c.id = e.course_id
+    JOIN modules m ON m.course_id = c.id
+    JOIN lessons l ON l.module_id = m.id
+    WHERE c.id = ? AND e.id = ? AND l.id = ? AND l.grade_item_id IS NOT NULL
+  `).get(courseId, enrollmentId, lessonId);
+  if (!record || !/\b(?:midterm|final)\b/i.test(record.lesson_title)) {
+    flash(req, "The selected exam attempt could not be reset.");
+    return res.redirect(`/admin/courses/${courseId}/student-view?view=grades&mode=edit`);
+  }
+  const attempt = db.prepare("SELECT id FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollmentId, lessonId);
+  if (!attempt) {
+    flash(req, "No stored attempt was found for this student and exam.");
+    return res.redirect(`/admin/courses/${courseId}/student-view?view=grades&mode=edit`);
+  }
+
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    db.prepare("DELETE FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").run(enrollmentId, record.grade_item_id);
+    db.prepare("DELETE FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").run(enrollmentId, lessonId);
+    db.prepare("DELETE FROM lesson_completions WHERE enrollment_id = ? AND lesson_id = ?").run(enrollmentId, lessonId);
+    savePortalMessage({
+      senderId: req.user.id,
+      recipientId: record.user_id,
+      courseId,
+      subject: `${record.lesson_title} attempt reset`,
+      body: `Your ${record.lesson_title} attempt in ${record.course_title} was reset by ${personName(req.user)}. You may open the exam and begin a new attempt while it is available.`
+    });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  flash(req, `${personName(record)} can now begin a new ${record.lesson_title} attempt.`);
+  res.redirect(`/admin/courses/${courseId}/student-view?view=grades&mode=edit`);
 });
 
 app.post("/admin/enrollments", requireAuth, requireRole("admin", "instructor"), (req, res) => {
