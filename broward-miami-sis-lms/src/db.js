@@ -2051,7 +2051,7 @@ function seed() {
       ORDER BY grade_count DESC, submission_count DESC, lesson_count DESC, gi.id
     `);
     const pn101LessonsByTitle = db.prepare(`
-      SELECT l.* FROM lessons l
+      SELECT l.*, m.title AS module_title FROM lessons l
       JOIN modules m ON m.id = l.module_id
       WHERE m.course_id = ? AND l.title = ?
       ORDER BY l.id
@@ -2245,7 +2245,17 @@ function seed() {
         if (!keeper) return;
         linkPn101Assessment.run(canonicalGradeItem.id, keeper.id);
 
-        matchingLessons.slice(1).forEach((duplicate) => {
+        // Only consolidate duplicates created inside the canonical weekly
+        // module or an old generated Chapter Quiz Bank. An instructor may
+        // intentionally keep an unpublished copy in another module; matching
+        // its title alone is not sufficient authorization to delete it.
+        matchingLessons.slice(1).filter((candidate) => (
+          /chapter quiz bank/i.test(String(candidate.module_title || ""))
+          || (
+            candidate.module_id === keeper.module_id
+            && (candidate.published || candidate.grade_item_id)
+          )
+        )).forEach((duplicate) => {
           pn101CompletionRows.all(duplicate.id).forEach((sourceCompletion) => {
             const targetCompletion = pn101CompletionForEnrollment.get(keeper.id, sourceCompletion.enrollment_id);
             if (!targetCompletion) {

@@ -232,7 +232,7 @@ test("student Grades shows saved posted scores and calculates overall grade from
 });
 
 test("an official final grade overrides the calculated letter grade in both grade views", async () => {
-  database.prepare("UPDATE enrollments SET final_grade = ? WHERE id = ?").run("B+", enrollment.id);
+  database.prepare("UPDATE enrollments SET final_grade = ?, status = 'completed' WHERE id = ?").run("B+", enrollment.id);
 
   try {
     const studentHtml = await getGradesHtml();
@@ -240,7 +240,7 @@ test("an official final grade overrides the calculated letter grade in both grad
     assert.match(visibleText(studentHtml), /Letter Grade B\+/, "Student should see the official final letter grade");
     assert.match(gradeRow(instructorHtml, "Demo Student"), /Demo Student 50\.00% B\+/, "Instructor should see the official final letter grade");
   } finally {
-    database.prepare("UPDATE enrollments SET final_grade = NULL WHERE id = ?").run(enrollment.id);
+    database.prepare("UPDATE enrollments SET final_grade = NULL, status = 'active' WHERE id = ?").run(enrollment.id);
   }
 });
 
