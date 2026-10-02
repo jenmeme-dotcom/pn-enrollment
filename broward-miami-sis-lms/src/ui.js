@@ -91,7 +91,7 @@ const studentNavItems = [
   { key: "evaluations", href: "/student/evaluations", label: "Student Evaluations" },
   { key: "fees", href: "/student/financial", label: "Fees" },
   { key: "registration", href: "/student/registration", label: "Registration" },
-  { key: "transcript", href: "/student/transcript", label: "Transcript" },
+  { key: "transcript", href: "/student/transcript", label: "Unofficial Transcript" },
   { key: "help", href: "/help/browser-cache", label: "Help" },
   { key: "download", href: "/catalog", label: "Download Center" },
   { key: "attendance", href: "/student/profile#attendance", label: "Attendance" }

@@ -168,16 +168,22 @@ const readingFocusExplanations = {
   ]
 };
 
-const introQuizByWeek = {
-  1: { title: "[PN102 2026] Quiz 1 - Chapter 1", questions: quizBanks.introChapter1 },
-  2: { title: "[PN102 2026] Quiz 2 - Chapter 2", questions: quizBanks.introChapter2 },
-  3: { title: "[PN102 2026] Quiz 3 - Chapter 3", questions: quizBanks.introChapter3 },
-  4: { title: "[PN102 2026] Quiz 4 - Chapter 4", questions: quizBanks.introChapter4 },
-  5: { title: "[PN102 2026] Quiz 5 - Chapter 5", questions: quizBanks.introChapter5 },
-  6: { title: "[PN102 2026] Quiz 6 - Chapter 6", questions: quizBanks.introChapter6 },
-  9: { title: "[PN102 2026] Quiz - Chapters 7-9", questions: quizBanks.introChapters7to9 },
-  12: { title: "[PN102 2026] Quiz - Chapters 10-13", questions: quizBanks.introChapters10to13 }
+const chapterQuizDueDates = {
+  1: "2026-07-05 23:59:00", 2: "2026-07-12 23:59:00", 3: "2026-07-19 23:59:00",
+  4: "2026-07-26 23:59:00", 5: "2026-08-02 23:59:00", 6: "2026-08-09 23:59:00",
+  7: "2026-08-16 23:59:00", 8: "2026-08-23 23:59:00", 9: "2026-08-30 23:59:00",
+  10: "2026-09-06 23:59:00", 11: "2026-09-13 23:59:00", 12: "2026-09-13 23:59:00",
+  13: "2026-09-13 23:59:00"
 };
+
+const introQuizByChapter = Object.fromEntries(Array.from({ length: 13 }, (_, index) => {
+  const chapter = index + 1;
+  return [chapter, {
+    title: `[PN102 2026] Quiz ${chapter} - Chapter ${chapter}`,
+    questions: quizBanks[`introChapter${chapter}`],
+    dueDate: chapterQuizDueDates[chapter]
+  }];
+}));
 
 const chapterAssignments = {
   1: { title: "[PN102 2026] Chapter 1 Applied Nursing Assignment", dueDate: "2026-07-05 23:59:00" },
@@ -1008,18 +1014,19 @@ function buildTextbookChapterContent(chapter) {
 const gradeItems = [
   { title: "Class Participation and Professionalism", pointsPossible: 100 },
   { title: "Professional Beginning Reflection", pointsPossible: 50 },
-  { title: "Quiz 1: Weeks 1-2", pointsPossible: 50 },
   { title: "Therapeutic Communication Practice", pointsPossible: 50 },
-  { title: "Quiz 2: Weeks 3-4", pointsPossible: 50 },
   { title: "Ethics Case Response", pointsPossible: 75 },
   { title: "Midterm Exam: Weeks 1-6", pointsPossible: 150, dueDate: "2026-08-21 23:59:59" },
   { title: "Health Equity Reflection", pointsPossible: 50, dueDate: "2026-08-09 23:59:00" },
-  { title: "[PN102 2026] Quiz - Chapters 7-9", pointsPossible: 50, dueDate: "2026-08-23 23:59:00" },
   { title: "Clinical Judgment Worksheet", pointsPossible: 75, dueDate: "2026-08-23 23:59:00" },
-  { title: "[PN102 2026] Quiz - Chapters 10-13", pointsPossible: 50, dueDate: "2026-09-13 23:59:00" },
   { title: "Professional Development Plan", pointsPossible: 50, dueDate: "2026-09-06 23:59:00" },
   { title: "Final Impact Presentation", pointsPossible: 50, dueDate: "2026-09-13 23:59:00" },
   { title: "Cumulative Final Exam", pointsPossible: 200, dueDate: "2026-09-13 23:59:00" },
+  ...Object.values(introQuizByChapter).map((quiz) => ({
+    title: quiz.title,
+    pointsPossible: 50,
+    dueDate: quiz.dueDate
+  })),
   ...Object.values(chapterAssignments).map((assignment) => ({
     title: assignment.title,
     pointsPossible: 25,
@@ -1104,7 +1111,6 @@ const modules = [
   },
   ...weeklyModules.map((week) => {
     const chapters = extendedWeekChapters[week.week] || [];
-    const quiz = introQuizByWeek[week.week];
     const moduleTitle = chapters.length
       ? `Week ${week.week}: ${chapters.length === 1 ? `Chapter ${chapters[0].number}` : `Chapters ${chapters[0].number}-${chapters[chapters.length - 1].number}`} - ${extendedWeekModuleTitles[week.week]}`
       : `Week ${week.week}: ${week.title}`;
@@ -1136,11 +1142,11 @@ const modules = [
           : buildWeeklyAssignmentContent(week),
         durationMinutes: 60
       },
-      ...(quiz ? [{
+      ...chapters.map((chapter) => introQuizByChapter[chapter.number]).filter(Boolean).map((quiz) => ({
         title: quiz.title,
         content: quizContent(`${quiz.title} assessment instructions.`, quiz.questions),
         durationMinutes: 45
-      }] : []),
+      })),
       ...(week.week === 6 ? [{
         title: "Midterm Exam: Weeks 1-6",
         content: quizContent("PN 102 midterm examination covering Chapters 1-6.", quizBanks.introMidterm),
@@ -1202,7 +1208,7 @@ const introNursingCourse = {
       chapters: chapters.map((chapter) => `Chapter ${chapter.number}: ${chapter.title} (pp. ${chapter.pages})`).join("; "),
       assessment: week.week === 6
         ? "[PN102 2026] Quiz 6 - Chapter 6; Midterm Exam: Weeks 1-6"
-        : introQuizByWeek[week.week]?.title || `Week ${week.week} Applied Assignment`
+        : chapters.map((chapter) => introQuizByChapter[chapter.number]?.title).filter(Boolean).join("; ") || `Week ${week.week} Applied Assignment`
     };
   }),
   modules,

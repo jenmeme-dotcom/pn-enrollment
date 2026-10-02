@@ -19,6 +19,7 @@ test("assignment type labels distinguish midterms and finals from quizzes", () =
   assert.equal(assignmentTypeLabel({ title: "Unit Exam" }), "Exam");
   assert.equal(assignmentTypeLabel({ title: "Final Impact Presentation" }), "Assignment");
   assert.equal(assignmentTypeLabel({ title: "Final Examination Study Guide" }), "Assignment");
+  assert.equal(assignmentTypeLabel({ title: "Comprehensive IV Therapy Final Examination", assessment_type: "Quiz" }), "Quiz");
 });
 
 test("only actual midterm and final assessments are protected from reopening", () => {
@@ -47,6 +48,8 @@ test("the quizzes page separates practice work from actual exams", () => {
   assert.match(serverSource, /renderAssignmentTable\("Exams"/);
   assert.match(serverSource, /practiceRows = rows\.filter/);
   assert.match(serverSource, /examRows = rows\.filter/);
-  assert.match(serverSource, /\["Midterm", "Final"\]\.includes\(assignmentTypeLabel\(item\)\)/);
-  assert.match(serverSource, /quizzesOnly \? isAssessmentType\(assignmentTypeLabel\(item\)\) : true/);
+  assert.match(serverSource, /\["Exam", "Midterm", "Final"\]\.includes\(assignmentTypeLabel\(item\)\)/);
+  assert.match(serverSource, /quizzesOnly \? Boolean\(item\.assessment_type\) : true/);
+  assert.match(serverSource, /lessons\.filter\(\(lesson\) => lessonQuizQuestions\(lesson\)\.length > 0\)/);
+  assert.match(serverSource, /supplementalRows = fallbackItems\.filter/);
 });

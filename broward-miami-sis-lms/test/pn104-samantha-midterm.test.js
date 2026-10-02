@@ -30,7 +30,7 @@ test("Samantha's PN104 midterm has 50 original four-option questions", () => {
   assert.equal(samanthaMidterm.questions.filter((question) => originalPrompts.has(question.prompt.toLowerCase())).length, 0);
 });
 
-test("the legacy Samantha exam becomes a fresh Midterm", () => {
+test("renaming the legacy Samantha exam preserves the academic record", () => {
   const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "bmhi-samantha-practice-reset-"));
   const databaseFile = path.join(temporaryDirectory, "practice-midterm.sqlite");
   const initialize = () => execFileSync(process.execPath, ["--no-warnings", "-e", "require('./src/db').initialize()"], {
@@ -55,9 +55,9 @@ test("the legacy Samantha exam becomes a fresh Midterm", () => {
     initialize();
     database = new DatabaseSync(databaseFile);
     assert.ok(database.prepare("SELECT id FROM lessons WHERE id = ? AND title = ?").get(lesson.id, samanthaMidterm.title));
-    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollment.id, lesson.id).count, 0);
-    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").get(enrollment.id, lesson.grade_item_id).count, 0);
-    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM lesson_completions WHERE enrollment_id = ? AND lesson_id = ?").get(enrollment.id, lesson.id).count, 0);
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").get(enrollment.id, lesson.id).count, 1);
+    assert.equal(database.prepare("SELECT score FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").get(enrollment.id, lesson.grade_item_id).score, 120);
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM lesson_completions WHERE enrollment_id = ? AND lesson_id = ?").get(enrollment.id, lesson.id).count, 1);
     database.close();
   } finally {
     fs.rmSync(temporaryDirectory, { force: true, recursive: true });

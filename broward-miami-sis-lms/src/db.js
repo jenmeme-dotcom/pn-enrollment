@@ -396,11 +396,56 @@ function migrate() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
       lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+      access_override_id INTEGER REFERENCES exam_access_overrides(id) ON DELETE SET NULL,
+      questions_json TEXT,
+      question_set_hash TEXT,
       started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       expires_at TEXT NOT NULL,
       submitted_at TEXT,
       status TEXT NOT NULL DEFAULT 'in_progress' CHECK(status IN ('in_progress','submitted','expired')),
       UNIQUE(enrollment_id, lesson_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS exam_access_overrides (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+      lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+      opens_at TEXT NOT NULL,
+      closes_at TEXT NOT NULL,
+      minutes INTEGER,
+      reason TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(enrollment_id, lesson_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS assessment_reopen_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE RESTRICT,
+      lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE RESTRICT,
+      grade_item_id INTEGER REFERENCES grade_items(id) ON DELETE SET NULL,
+      previous_score REAL,
+      previous_note TEXT,
+      previous_attempt_status TEXT,
+      previous_attempt_started_at TEXT,
+      previous_attempt_expires_at TEXT,
+      previous_attempt_submitted_at TEXT,
+      reopened_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      closes_at TEXT NOT NULL,
+      reason TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS quiz_attempt_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE RESTRICT,
+      lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE RESTRICT,
+      grade_item_id INTEGER REFERENCES grade_items(id) ON DELETE SET NULL,
+      attempt_number INTEGER NOT NULL,
+      score REAL NOT NULL,
+      correct_answers INTEGER NOT NULL,
+      total_questions INTEGER NOT NULL,
+      submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(enrollment_id, lesson_id, attempt_number)
     );
 
     CREATE TABLE IF NOT EXISTS assignment_rubrics (
@@ -942,6 +987,29 @@ function migrate() {
   const gradeItemColumns = db.prepare("PRAGMA table_info(grade_items)").all().map((column) => column.name);
   if (!gradeItemColumns.includes("allowed_student_email")) {
     db.exec("ALTER TABLE grade_items ADD COLUMN allowed_student_email TEXT;");
+  }
+  const assessmentReopenAuditColumns = db.prepare("PRAGMA table_info(assessment_reopen_audit)").all().map((column) => column.name);
+  if (!assessmentReopenAuditColumns.includes("previous_attempt_status")) {
+    db.exec("ALTER TABLE assessment_reopen_audit ADD COLUMN previous_attempt_status TEXT;");
+  }
+  if (!assessmentReopenAuditColumns.includes("previous_attempt_started_at")) {
+    db.exec("ALTER TABLE assessment_reopen_audit ADD COLUMN previous_attempt_started_at TEXT;");
+  }
+  if (!assessmentReopenAuditColumns.includes("previous_attempt_expires_at")) {
+    db.exec("ALTER TABLE assessment_reopen_audit ADD COLUMN previous_attempt_expires_at TEXT;");
+  }
+  if (!assessmentReopenAuditColumns.includes("previous_attempt_submitted_at")) {
+    db.exec("ALTER TABLE assessment_reopen_audit ADD COLUMN previous_attempt_submitted_at TEXT;");
+  }
+  const examAttemptColumns = db.prepare("PRAGMA table_info(exam_attempts)").all().map((column) => column.name);
+  if (!examAttemptColumns.includes("access_override_id")) {
+    db.exec("ALTER TABLE exam_attempts ADD COLUMN access_override_id INTEGER REFERENCES exam_access_overrides(id) ON DELETE SET NULL;");
+  }
+  if (!examAttemptColumns.includes("questions_json")) {
+    db.exec("ALTER TABLE exam_attempts ADD COLUMN questions_json TEXT;");
+  }
+  if (!examAttemptColumns.includes("question_set_hash")) {
+    db.exec("ALTER TABLE exam_attempts ADD COLUMN question_set_hash TEXT;");
   }
   const moduleColumns = db.prepare("PRAGMA table_info(modules)").all().map((column) => column.name);
   if (!moduleColumns.includes("published")) {
@@ -1774,7 +1842,6 @@ function seed() {
         WHERE course_id = ? AND title IN (?, ?, ?, ?)
         ORDER BY CASE WHEN title = ? THEN 0 ELSE 1 END LIMIT 1
       `).get(pn104CourseRow.id, samanthaMidterm.title, samanthaMidterm.officialTitle, samanthaMidterm.previousTitle, samanthaMidterm.legacyTitle, samanthaMidterm.title);
-      const isPracticeMidtermMigration = gradeItem?.title === samanthaMidterm.legacyTitle;
       if (!gradeItem) {
         const result = db.prepare(`
           INSERT INTO grade_items (course_id, title, points_possible, due_date, allowed_student_email)
@@ -1794,17 +1861,6 @@ function seed() {
           UPDATE lessons SET title = ?, content = ?, duration_minutes = 60, published = 1, instructor_only = 0,
             item_type = 'quiz', grade_item_id = ?, allowed_student_email = ? WHERE id = ?
         `).run(samanthaMidterm.title, samanthaMidterm.content, gradeItem.id, samanthaMidterm.studentEmail, lesson.id);
-        if (isPracticeMidtermMigration) {
-          const enrollment = db.prepare(`
-            SELECT e.id FROM enrollments e JOIN users u ON u.id = e.user_id
-            WHERE e.course_id = ? AND lower(u.email) = lower(?) LIMIT 1
-          `).get(pn104CourseRow.id, samanthaMidterm.studentEmail);
-          if (enrollment) {
-            db.prepare("DELETE FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?").run(enrollment.id, lesson.id);
-            db.prepare("DELETE FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").run(enrollment.id, gradeItem.id);
-            db.prepare("DELETE FROM lesson_completions WHERE enrollment_id = ? AND lesson_id = ?").run(enrollment.id, lesson.id);
-          }
-        }
       } else {
         const position = db.prepare("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM lessons WHERE module_id = ?").get(week6Module.id).next;
         db.prepare(`
@@ -1968,6 +2024,413 @@ function seed() {
         );
       });
     });
+
+    // Give every published PN 101 quiz and exam a permanent gradebook link.
+    // Title matching at submission time is retained as a fallback, but storing
+    // the relationship here guarantees that completed quiz scores always open
+    // against the same grade item on both the lesson and Grades pages.
+    const pn101AssessmentTitles = new Set(
+      pn101CourseDefinition.modules
+        .flatMap((module) => module.lessons || [])
+        .filter((lesson) => String(lesson.content || "").includes("QUIZ_DATA_BASE64:"))
+        .map((lesson) => lesson.title)
+    );
+    // Consolidate exact duplicate gradebook items and lessons atomically. Live
+    // imports sometimes created one lesson/grade item in the weekly module and
+    // another in a quiz bank. The row with real grades is the canonical grade
+    // item; the first lesson remains the stable module URL. Every dependent row
+    // is moved before a duplicate is removed so a seed refresh cannot erase a
+    // score, submission, attempt, override, or audit record.
+    const pn101GradeItemsByTitle = db.prepare(`
+      SELECT gi.*,
+        (SELECT COUNT(*) FROM grades g WHERE g.grade_item_id = gi.id) AS grade_count,
+        (SELECT COUNT(*) FROM assignment_submissions s WHERE s.grade_item_id = gi.id) AS submission_count,
+        (SELECT COUNT(*) FROM lessons l WHERE l.grade_item_id = gi.id) AS lesson_count
+      FROM grade_items gi
+      WHERE gi.course_id = ? AND gi.title = ?
+      ORDER BY grade_count DESC, submission_count DESC, lesson_count DESC, gi.id
+    `);
+    const pn101LessonsByTitle = db.prepare(`
+      SELECT l.* FROM lessons l
+      JOIN modules m ON m.id = l.module_id
+      WHERE m.course_id = ? AND l.title = ?
+      ORDER BY l.id
+    `);
+    const pn101GradeRows = db.prepare("SELECT * FROM grades WHERE grade_item_id = ? ORDER BY id");
+    const pn101GradeForEnrollment = db.prepare("SELECT * FROM grades WHERE grade_item_id = ? AND enrollment_id = ?");
+    const movePn101Grade = db.prepare("UPDATE grades SET grade_item_id = ? WHERE id = ?");
+    const updatePn101Grade = db.prepare("UPDATE grades SET score = ?, note = ?, updated_at = ? WHERE id = ?");
+    const deletePn101Grade = db.prepare("DELETE FROM grades WHERE id = ?");
+    const pn101SubmissionRows = db.prepare("SELECT * FROM assignment_submissions WHERE grade_item_id = ? ORDER BY id");
+    const pn101SubmissionForEnrollment = db.prepare("SELECT * FROM assignment_submissions WHERE grade_item_id = ? AND enrollment_id = ?");
+    const movePn101Submission = db.prepare("UPDATE assignment_submissions SET grade_item_id = ? WHERE id = ?");
+    const updatePn101Submission = db.prepare(`
+      UPDATE assignment_submissions
+      SET file_storage_name = ?, file_original_name = ?, file_mime_type = ?, file_size = ?,
+        student_note = ?, submitted_at = ?, updated_at = ?
+      WHERE id = ?
+    `);
+    const deletePn101Submission = db.prepare("DELETE FROM assignment_submissions WHERE id = ?");
+    const pn101Rubric = db.prepare("SELECT * FROM assignment_rubrics WHERE grade_item_id = ?");
+    const movePn101Rubric = db.prepare("UPDATE assignment_rubrics SET grade_item_id = ? WHERE grade_item_id = ?");
+    const updatePn101Rubric = db.prepare(`
+      UPDATE assignment_rubrics SET rubric_json = ?, updated_by = ?, updated_at = ? WHERE grade_item_id = ?
+    `);
+    const deletePn101Rubric = db.prepare("DELETE FROM assignment_rubrics WHERE grade_item_id = ?");
+    const repointPn101LessonGradeItem = db.prepare("UPDATE lessons SET grade_item_id = ? WHERE grade_item_id = ?");
+    const repointPn101AuditGradeItem = db.prepare("UPDATE assessment_reopen_audit SET grade_item_id = ? WHERE grade_item_id = ?");
+    const repointPn101HistoryGradeItem = db.prepare("UPDATE quiz_attempt_history SET grade_item_id = ? WHERE grade_item_id = ?");
+    const deletePn101GradeItem = db.prepare("DELETE FROM grade_items WHERE id = ?");
+
+    const pn101CompletionRows = db.prepare("SELECT * FROM lesson_completions WHERE lesson_id = ? ORDER BY id");
+    const pn101CompletionForEnrollment = db.prepare("SELECT * FROM lesson_completions WHERE lesson_id = ? AND enrollment_id = ?");
+    const movePn101Completion = db.prepare("UPDATE lesson_completions SET lesson_id = ? WHERE id = ?");
+    const updatePn101Completion = db.prepare("UPDATE lesson_completions SET completed_at = ? WHERE id = ?");
+    const deletePn101Completion = db.prepare("DELETE FROM lesson_completions WHERE id = ?");
+    const pn101AttemptRows = db.prepare("SELECT * FROM exam_attempts WHERE lesson_id = ? ORDER BY id");
+    const pn101AttemptForEnrollment = db.prepare("SELECT * FROM exam_attempts WHERE lesson_id = ? AND enrollment_id = ?");
+    const movePn101Attempt = db.prepare("UPDATE exam_attempts SET lesson_id = ? WHERE id = ?");
+    const updatePn101Attempt = db.prepare(`
+      UPDATE exam_attempts
+      SET access_override_id = ?, questions_json = ?, question_set_hash = ?,
+        started_at = ?, expires_at = ?, submitted_at = ?, status = ?
+      WHERE id = ?
+    `);
+    const deletePn101Attempt = db.prepare("DELETE FROM exam_attempts WHERE id = ?");
+    const pn101OverrideRows = db.prepare("SELECT * FROM exam_access_overrides WHERE lesson_id = ? ORDER BY id");
+    const pn101OverrideForEnrollment = db.prepare("SELECT * FROM exam_access_overrides WHERE lesson_id = ? AND enrollment_id = ?");
+    const movePn101Override = db.prepare("UPDATE exam_access_overrides SET lesson_id = ? WHERE id = ?");
+    const updatePn101Override = db.prepare(`
+      UPDATE exam_access_overrides
+      SET opens_at = ?, closes_at = ?, minutes = ?, reason = ?, created_at = ?
+      WHERE id = ?
+    `);
+    const deletePn101Override = db.prepare("DELETE FROM exam_access_overrides WHERE id = ?");
+    const repointPn101AttemptOverride = db.prepare("UPDATE exam_attempts SET access_override_id = ? WHERE access_override_id = ?");
+    const pn101HistoryRows = db.prepare("SELECT * FROM quiz_attempt_history WHERE lesson_id = ? ORDER BY enrollment_id, attempt_number, id");
+    const pn101HistoryCollision = db.prepare(`
+      SELECT id FROM quiz_attempt_history WHERE enrollment_id = ? AND lesson_id = ? AND attempt_number = ?
+    `);
+    const nextPn101HistoryNumber = db.prepare(`
+      SELECT COALESCE(MAX(attempt_number), 0) + 1 AS next
+      FROM quiz_attempt_history WHERE enrollment_id = ? AND lesson_id = ?
+    `);
+    const movePn101History = db.prepare("UPDATE quiz_attempt_history SET lesson_id = ?, attempt_number = ? WHERE id = ?");
+    const repointPn101AuditLesson = db.prepare("UPDATE assessment_reopen_audit SET lesson_id = ? WHERE lesson_id = ?");
+    const pn101VideoAssignment = db.prepare("SELECT * FROM video_assignments WHERE lesson_id = ?");
+    const movePn101VideoAssignment = db.prepare("UPDATE video_assignments SET lesson_id = ? WHERE id = ?");
+    const updatePn101VideoAssignment = db.prepare(`
+      UPDATE video_assignments
+      SET instructions = ?, allow_upload = ?, allow_recording = ?, max_duration_seconds = ?,
+        max_file_size_mb = ?, created_at = ?, updated_at = ?
+      WHERE id = ?
+    `);
+    const pn101VideoSubmissionRows = db.prepare("SELECT * FROM video_submissions WHERE video_assignment_id = ? ORDER BY id");
+    const pn101VideoSubmissionForEnrollment = db.prepare(`
+      SELECT * FROM video_submissions WHERE video_assignment_id = ? AND enrollment_id = ?
+    `);
+    const movePn101VideoSubmission = db.prepare("UPDATE video_submissions SET video_assignment_id = ? WHERE id = ?");
+    const updatePn101VideoSubmission = db.prepare(`
+      UPDATE video_submissions
+      SET file_storage_name = ?, file_original_name = ?, mime_type = ?, file_size = ?,
+        submission_method = ?, student_note = ?, instructor_feedback = ?, score = ?,
+        submitted_at = ?, updated_at = ?
+      WHERE id = ?
+    `);
+    const deletePn101VideoSubmission = db.prepare("DELETE FROM video_submissions WHERE id = ?");
+    const deletePn101VideoAssignment = db.prepare("DELETE FROM video_assignments WHERE id = ?");
+    const linkPn101Assessment = db.prepare(`
+      UPDATE lessons
+      SET grade_item_id = ?, item_type = 'quiz'
+      WHERE id = ?
+    `);
+    const deletePn101Lesson = db.prepare("DELETE FROM lessons WHERE id = ?");
+
+    const timestampValue = (value) => {
+      if (!value) return 0;
+      const normalized = /(?:Z|[+-]\d\d:\d\d)$/.test(String(value))
+        ? String(value)
+        : `${String(value).replace(" ", "T")}Z`;
+      const parsed = Date.parse(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const newerTimestamp = (candidate, current) =>
+      timestampValue(candidate) > timestampValue(current);
+    const attemptRank = (attempt) => {
+      const activeInProgress = attempt.status === "in_progress"
+        && Number.isFinite(Date.parse(attempt.expires_at))
+        && Date.parse(attempt.expires_at) > Date.now();
+      if (activeInProgress) return 4;
+      return ({ submitted: 3, in_progress: 2, expired: 1 }[attempt.status] || 0);
+    };
+    const sourceAttemptWins = (source, target) => {
+      const sourceRank = attemptRank(source);
+      const targetRank = attemptRank(target);
+      if (sourceRank !== targetRank) return sourceRank > targetRank;
+      return newerTimestamp(source.submitted_at || source.started_at, target.submitted_at || target.started_at);
+    };
+
+    db.exec("SAVEPOINT pn101_assessment_dedup");
+    try {
+      pn101AssessmentTitles.forEach((title) => {
+        const gradeItems = pn101GradeItemsByTitle.all(pn101CourseRow.id, title);
+        const canonicalGradeItem = gradeItems[0];
+        if (!canonicalGradeItem) return;
+        const regularChapterQuiz = /^\[PN101 2026\] Quiz \d+ - Chapter \d+:/i.test(title);
+
+        gradeItems.slice(1).forEach((duplicateGradeItem) => {
+          pn101GradeRows.all(duplicateGradeItem.id).forEach((sourceGrade) => {
+            const targetGrade = pn101GradeForEnrollment.get(canonicalGradeItem.id, sourceGrade.enrollment_id);
+            if (!targetGrade) {
+              movePn101Grade.run(canonicalGradeItem.id, sourceGrade.id);
+              return;
+            }
+            const sourceWins = regularChapterQuiz
+              ? Number(sourceGrade.score) > Number(targetGrade.score)
+                || (Number(sourceGrade.score) === Number(targetGrade.score)
+                  && newerTimestamp(sourceGrade.updated_at, targetGrade.updated_at))
+              : newerTimestamp(sourceGrade.updated_at, targetGrade.updated_at);
+            if (sourceWins) {
+              updatePn101Grade.run(sourceGrade.score, sourceGrade.note, sourceGrade.updated_at, targetGrade.id);
+            }
+            deletePn101Grade.run(sourceGrade.id);
+          });
+
+          pn101SubmissionRows.all(duplicateGradeItem.id).forEach((sourceSubmission) => {
+            const targetSubmission = pn101SubmissionForEnrollment.get(canonicalGradeItem.id, sourceSubmission.enrollment_id);
+            if (!targetSubmission) {
+              movePn101Submission.run(canonicalGradeItem.id, sourceSubmission.id);
+              return;
+            }
+            if (newerTimestamp(sourceSubmission.updated_at, targetSubmission.updated_at)) {
+              updatePn101Submission.run(
+                sourceSubmission.file_storage_name,
+                sourceSubmission.file_original_name,
+                sourceSubmission.file_mime_type,
+                sourceSubmission.file_size,
+                sourceSubmission.student_note,
+                sourceSubmission.submitted_at,
+                sourceSubmission.updated_at,
+                targetSubmission.id
+              );
+            }
+            deletePn101Submission.run(sourceSubmission.id);
+          });
+
+          const sourceRubric = pn101Rubric.get(duplicateGradeItem.id);
+          if (sourceRubric) {
+            const targetRubric = pn101Rubric.get(canonicalGradeItem.id);
+            if (!targetRubric) {
+              movePn101Rubric.run(canonicalGradeItem.id, duplicateGradeItem.id);
+            } else {
+              if (newerTimestamp(sourceRubric.updated_at, targetRubric.updated_at)) {
+                updatePn101Rubric.run(
+                  sourceRubric.rubric_json,
+                  sourceRubric.updated_by,
+                  sourceRubric.updated_at,
+                  canonicalGradeItem.id
+                );
+              }
+              deletePn101Rubric.run(duplicateGradeItem.id);
+            }
+          }
+          repointPn101LessonGradeItem.run(canonicalGradeItem.id, duplicateGradeItem.id);
+          repointPn101AuditGradeItem.run(canonicalGradeItem.id, duplicateGradeItem.id);
+          repointPn101HistoryGradeItem.run(canonicalGradeItem.id, duplicateGradeItem.id);
+          deletePn101GradeItem.run(duplicateGradeItem.id);
+        });
+
+        const matchingLessons = pn101LessonsByTitle.all(pn101CourseRow.id, title);
+        const keeper = matchingLessons[0];
+        if (!keeper) return;
+        linkPn101Assessment.run(canonicalGradeItem.id, keeper.id);
+
+        matchingLessons.slice(1).forEach((duplicate) => {
+          pn101CompletionRows.all(duplicate.id).forEach((sourceCompletion) => {
+            const targetCompletion = pn101CompletionForEnrollment.get(keeper.id, sourceCompletion.enrollment_id);
+            if (!targetCompletion) {
+              movePn101Completion.run(keeper.id, sourceCompletion.id);
+              return;
+            }
+            if (String(sourceCompletion.completed_at) < String(targetCompletion.completed_at)) {
+              updatePn101Completion.run(sourceCompletion.completed_at, targetCompletion.id);
+            }
+            deletePn101Completion.run(sourceCompletion.id);
+          });
+
+          pn101AttemptRows.all(duplicate.id).forEach((sourceAttempt) => {
+            const targetAttempt = pn101AttemptForEnrollment.get(keeper.id, sourceAttempt.enrollment_id);
+            if (!targetAttempt) {
+              movePn101Attempt.run(keeper.id, sourceAttempt.id);
+              return;
+            }
+            if (sourceAttemptWins(sourceAttempt, targetAttempt)) {
+              updatePn101Attempt.run(
+                sourceAttempt.access_override_id,
+                sourceAttempt.questions_json,
+                sourceAttempt.question_set_hash,
+                sourceAttempt.started_at,
+                sourceAttempt.expires_at,
+                sourceAttempt.submitted_at,
+                sourceAttempt.status,
+                targetAttempt.id
+              );
+            }
+            deletePn101Attempt.run(sourceAttempt.id);
+          });
+
+          pn101OverrideRows.all(duplicate.id).forEach((sourceOverride) => {
+            const targetOverride = pn101OverrideForEnrollment.get(keeper.id, sourceOverride.enrollment_id);
+            if (!targetOverride) {
+              movePn101Override.run(keeper.id, sourceOverride.id);
+              return;
+            }
+            const sourceOverrideIsNewer = newerTimestamp(sourceOverride.created_at, targetOverride.created_at)
+              || (String(sourceOverride.created_at) === String(targetOverride.created_at)
+                && Number(sourceOverride.id) > Number(targetOverride.id));
+            if (sourceOverrideIsNewer) {
+              updatePn101Override.run(
+                sourceOverride.opens_at,
+                sourceOverride.closes_at,
+                sourceOverride.minutes,
+                sourceOverride.reason,
+                sourceOverride.created_at,
+                targetOverride.id
+              );
+            }
+            repointPn101AttemptOverride.run(targetOverride.id, sourceOverride.id);
+            deletePn101Override.run(sourceOverride.id);
+          });
+
+          repointPn101AuditLesson.run(keeper.id, duplicate.id);
+          pn101HistoryRows.all(duplicate.id).forEach((sourceHistory) => {
+            const collision = pn101HistoryCollision.get(
+              sourceHistory.enrollment_id,
+              keeper.id,
+              sourceHistory.attempt_number
+            );
+            const attemptNumber = collision
+              ? nextPn101HistoryNumber.get(sourceHistory.enrollment_id, keeper.id).next
+              : sourceHistory.attempt_number;
+            movePn101History.run(keeper.id, attemptNumber, sourceHistory.id);
+          });
+
+          const sourceVideoAssignment = pn101VideoAssignment.get(duplicate.id);
+          if (sourceVideoAssignment) {
+            const targetVideoAssignment = pn101VideoAssignment.get(keeper.id);
+            if (!targetVideoAssignment) {
+              movePn101VideoAssignment.run(keeper.id, sourceVideoAssignment.id);
+            } else {
+              if (newerTimestamp(sourceVideoAssignment.updated_at, targetVideoAssignment.updated_at)) {
+                updatePn101VideoAssignment.run(
+                  sourceVideoAssignment.instructions,
+                  sourceVideoAssignment.allow_upload,
+                  sourceVideoAssignment.allow_recording,
+                  sourceVideoAssignment.max_duration_seconds,
+                  sourceVideoAssignment.max_file_size_mb,
+                  sourceVideoAssignment.created_at,
+                  sourceVideoAssignment.updated_at,
+                  targetVideoAssignment.id
+                );
+              }
+              pn101VideoSubmissionRows.all(sourceVideoAssignment.id).forEach((sourceSubmission) => {
+                const targetSubmission = pn101VideoSubmissionForEnrollment.get(
+                  targetVideoAssignment.id,
+                  sourceSubmission.enrollment_id
+                );
+                if (!targetSubmission) {
+                  movePn101VideoSubmission.run(targetVideoAssignment.id, sourceSubmission.id);
+                  return;
+                }
+                if (newerTimestamp(sourceSubmission.updated_at, targetSubmission.updated_at)) {
+                  updatePn101VideoSubmission.run(
+                    sourceSubmission.file_storage_name,
+                    sourceSubmission.file_original_name,
+                    sourceSubmission.mime_type,
+                    sourceSubmission.file_size,
+                    sourceSubmission.submission_method,
+                    sourceSubmission.student_note,
+                    sourceSubmission.instructor_feedback,
+                    sourceSubmission.score,
+                    sourceSubmission.submitted_at,
+                    sourceSubmission.updated_at,
+                    targetSubmission.id
+                  );
+                }
+                deletePn101VideoSubmission.run(sourceSubmission.id);
+              });
+              deletePn101VideoAssignment.run(sourceVideoAssignment.id);
+            }
+          }
+          deletePn101Lesson.run(duplicate.id);
+        });
+      });
+      db.exec("RELEASE SAVEPOINT pn101_assessment_dedup");
+    } catch (error) {
+      db.exec("ROLLBACK TO SAVEPOINT pn101_assessment_dedup");
+      db.exec("RELEASE SAVEPOINT pn101_assessment_dedup");
+      throw error;
+    }
+
+    // Archive only the known combined weekly assessments from older builds.
+    // Do not blanket-hide future instructor-authored PN 101 quizzes.
+    db.prepare(`
+      UPDATE lessons
+      SET published = 0, instructor_only = 1
+      WHERE id IN (
+        SELECT l.id FROM lessons l
+        JOIN modules m ON m.id = l.module_id
+        WHERE m.course_id = ?
+          AND l.item_type = 'quiz'
+          AND (
+            l.title LIKE '[PN101 2026] Week % Quiz - Chapters %'
+            OR l.title = '[PN101 2026] Comprehensive Final Examination - Chapters 1-22'
+          )
+          AND l.title NOT IN (${Array.from(pn101AssessmentTitles).map(() => "?").join(", ")})
+      )
+    `).run(pn101CourseRow.id, ...pn101AssessmentTitles);
+
+    // Unused combined weekly quizzes from earlier builds are not part of the
+    // current chapter-by-chapter course. Remove them completely so they cannot
+    // surface as duplicate Chapter 9/10 (or other chapter) quizzes in admin
+    // and instructor views. Rows with student history remain archived above.
+    db.prepare(`
+      DELETE FROM lessons
+      WHERE id IN (
+        SELECT l.id FROM lessons l
+        JOIN modules m ON m.id = l.module_id
+        WHERE m.course_id = ?
+          AND l.item_type = 'quiz'
+          AND (
+            l.title LIKE '[PN101 2026] Week % Quiz - Chapters %'
+            OR l.title = '[PN101 2026] Comprehensive Final Examination - Chapters 1-22'
+          )
+          AND l.title NOT IN (${Array.from(pn101AssessmentTitles).map(() => "?").join(", ")})
+          AND NOT EXISTS (SELECT 1 FROM exam_attempts ea WHERE ea.lesson_id = l.id)
+          AND NOT EXISTS (SELECT 1 FROM lesson_completions lc WHERE lc.lesson_id = l.id)
+          AND NOT EXISTS (SELECT 1 FROM video_assignments va WHERE va.lesson_id = l.id)
+          AND NOT EXISTS (SELECT 1 FROM exam_access_overrides eao WHERE eao.lesson_id = l.id)
+          AND NOT EXISTS (SELECT 1 FROM assessment_reopen_audit ara WHERE ara.lesson_id = l.id)
+          AND NOT EXISTS (SELECT 1 FROM quiz_attempt_history qah WHERE qah.lesson_id = l.id)
+      )
+    `).run(pn101CourseRow.id, ...pn101AssessmentTitles);
+
+    // Remove only unused legacy quiz columns. Any item with a saved grade or
+    // submission remains intact so historical student results always show.
+    db.prepare(`
+      DELETE FROM grade_items
+      WHERE course_id = ?
+        AND (title LIKE '[PN101 2026] Week % Quiz - Chapters %'
+          OR title = '[PN101 2026] Comprehensive Final Examination - Chapters 1-22')
+        AND title NOT IN (${Array.from(pn101AssessmentTitles).map(() => "?").join(", ")})
+        AND NOT EXISTS (SELECT 1 FROM grades g WHERE g.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM assignment_submissions s WHERE s.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM lessons l WHERE l.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM assignment_rubrics ar WHERE ar.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM assessment_reopen_audit ara WHERE ara.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM quiz_attempt_history qah WHERE qah.grade_item_id = grade_items.id)
+    `).run(pn101CourseRow.id, ...pn101AssessmentTitles);
+
     db.prepare(`
       DELETE FROM modules
       WHERE course_id = ?
@@ -3054,6 +3517,77 @@ function seed() {
       if (!existingGradeItem.get(introductionCourse.id, item.title)) {
         appendGradeItem.run(introductionCourse.id, item.title, item.pointsPossible, item.dueDate || null);
       }
+    });
+
+    // Every PN 102 chapter quiz and major exam is a first-class gradebook
+    // item. Synchronize and link them without replacing lesson/grade IDs, so
+    // existing attempts remain intact and every future score is visible in
+    // both the student Grades page and instructor gradebook.
+    const pn102AssessmentDefinitions = (introductionCatalogCourse?.modules || [])
+      .flatMap((module) => module.lessons || [])
+      .filter((lesson) => String(lesson.content || "").includes("QUIZ_DATA_BASE64:"));
+    const pn102GradeDefinitionByTitle = new Map(
+      (introductionCatalogCourse?.gradeItems || []).map((item) => [item.title, item])
+    );
+    const findPn102Lesson = db.prepare(`
+      SELECT l.id FROM lessons l
+      JOIN modules m ON m.id = l.module_id
+      WHERE m.course_id = ? AND l.title = ?
+      ORDER BY l.id LIMIT 1
+    `);
+    const updatePn102GradeItem = db.prepare(`
+      UPDATE grade_items SET points_possible = ?, due_date = ?
+      WHERE course_id = ? AND title = ?
+    `);
+    const linkPn102Assessment = db.prepare(`
+      UPDATE lessons
+      SET grade_item_id = ?, item_type = 'quiz'
+      WHERE id = ?
+    `);
+    pn102AssessmentDefinitions.forEach((assessment) => {
+      const definition = pn102GradeDefinitionByTitle.get(assessment.title);
+      if (!definition) return;
+      const updated = updatePn102GradeItem.run(
+        definition.pointsPossible,
+        definition.dueDate || null,
+        introductionCourse.id,
+        assessment.title
+      );
+      if (!updated.changes) {
+        appendGradeItem.run(
+          introductionCourse.id,
+          assessment.title,
+          definition.pointsPossible,
+          definition.dueDate || null
+        );
+      }
+      const gradeItem = existingGradeItem.get(introductionCourse.id, assessment.title);
+      const lesson = findPn102Lesson.get(introductionCourse.id, assessment.title);
+      if (gradeItem && lesson) linkPn102Assessment.run(gradeItem.id, lesson.id);
+    });
+
+    // Retain historical combined-quiz records only when they contain student
+    // work. Otherwise hide/remove them now that Chapters 7-13 each have their
+    // own assessment and grade column.
+    const legacyPn102Titles = [
+      "[PN102 2026] Quiz - Chapters 7-9",
+      "[PN102 2026] Quiz - Chapters 10-13"
+    ];
+    legacyPn102Titles.forEach((title) => {
+      db.prepare(`
+        UPDATE lessons SET published = 0, instructor_only = 1, grade_item_id = NULL
+        WHERE title = ?
+          AND module_id IN (SELECT id FROM modules WHERE course_id = ?)
+          AND NOT EXISTS (SELECT 1 FROM exam_attempts ea WHERE ea.lesson_id = lessons.id)
+          AND NOT EXISTS (SELECT 1 FROM lesson_completions lc WHERE lc.lesson_id = lessons.id)
+      `).run(title, introductionCourse.id);
+      db.prepare(`
+        DELETE FROM grade_items
+        WHERE course_id = ? AND title = ?
+          AND NOT EXISTS (SELECT 1 FROM grades g WHERE g.grade_item_id = grade_items.id)
+          AND NOT EXISTS (SELECT 1 FROM assignment_submissions s WHERE s.grade_item_id = grade_items.id)
+          AND NOT EXISTS (SELECT 1 FROM lessons l WHERE l.grade_item_id = grade_items.id)
+      `).run(introductionCourse.id, title);
     });
 
     // Remove legacy credit references and repair any old six-week/48-hour

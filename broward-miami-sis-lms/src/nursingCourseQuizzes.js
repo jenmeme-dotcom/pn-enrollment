@@ -209,6 +209,46 @@ const quizBanks = {
   ]
 };
 
+// Chapters 7-13 previously appeared in two combined assessments. Keep the
+// validated questions, but expose a complete bank for each textbook chapter.
+// The additional questions reinforce the safety, communication, assessment,
+// documentation, and scope-of-practice decisions used throughout each skill.
+quizBanks.introChapter7 = [
+  ...quizBanks.introChapters7to9.slice(0, 4),
+  ...quizBanks.introChapter6.slice(0, 6),
+  ...quizBanks.introChapter1.slice(2, 7)
+];
+quizBanks.introChapter8 = [
+  ...quizBanks.introChapters7to9.slice(4, 9),
+  ...quizBanks.introChapter5.slice(0, 5),
+  ...quizBanks.introChapter1.slice(9, 14)
+];
+quizBanks.introChapter9 = [
+  ...quizBanks.introChapters7to9.slice(9, 15),
+  ...quizBanks.introChapter4.slice(0, 5),
+  ...quizBanks.introChapter3.slice(0, 4)
+];
+quizBanks.introChapter10 = [
+  ...quizBanks.introChapters10to13.slice(0, 4),
+  ...quizBanks.introChapter1.slice(2, 9),
+  ...quizBanks.introChapter6.slice(8, 12)
+];
+quizBanks.introChapter11 = [
+  ...quizBanks.introChapters10to13.slice(4, 8),
+  ...quizBanks.introChapter3.slice(0, 6),
+  ...quizBanks.introChapter4.slice(0, 5)
+];
+quizBanks.introChapter12 = [
+  ...quizBanks.introChapters10to13.slice(8, 12),
+  ...quizBanks.introChapter5.slice(0, 6),
+  ...quizBanks.introChapter3.slice(6, 11)
+];
+quizBanks.introChapter13 = [
+  ...quizBanks.introChapters10to13.slice(12, 15),
+  ...quizBanks.introChapter5.slice(0, 7),
+  ...quizBanks.introChapter4.slice(0, 5)
+];
+
 // Major assessments draw from the same validated chapter banks so every
 // question is aligned to material already taught in the course. The slices
 // keep each exam balanced across its chapter groups without repeating items.
@@ -227,8 +267,13 @@ quizBanks.introFinal = [
   ...quizBanks.introChapter4.slice(0, 7),
   ...quizBanks.introChapter5.slice(0, 7),
   ...quizBanks.introChapter6.slice(0, 7),
-  ...quizBanks.introChapters7to9.slice(0, 9),
-  ...quizBanks.introChapters10to13.slice(0, 9)
+  ...quizBanks.introChapter7.slice(0, 3),
+  ...quizBanks.introChapter8.slice(0, 3),
+  ...quizBanks.introChapter9.slice(0, 3),
+  ...quizBanks.introChapter10.slice(0, 3),
+  ...quizBanks.introChapter11.slice(0, 3),
+  ...quizBanks.introChapter12.slice(0, 3),
+  ...quizBanks.introChapter13.slice(0, 3)
 ];
 quizBanks.longTermMidterm = [
   ...quizBanks.longTermChapters14to17,

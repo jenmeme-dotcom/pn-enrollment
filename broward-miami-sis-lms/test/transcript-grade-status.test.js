@@ -1,0 +1,302 @@
+const assert = require("node:assert/strict");
+const { spawn } = require("node:child_process");
+const fs = require("node:fs");
+const net = require("node:net");
+const os = require("node:os");
+const path = require("node:path");
+const { after, before, test } = require("node:test");
+const { DatabaseSync } = require("node:sqlite");
+
+const projectRoot = path.resolve(__dirname, "..");
+
+let serverProcess;
+let database;
+let temporaryDirectory;
+let baseUrl;
+let adminCookie;
+let studentCookie;
+let transcriptStudent;
+let statusEnrollment;
+const transcriptEnrollments = new Map();
+
+function reservePort() {
+  return new Promise((resolve, reject) => {
+    const socket = net.createServer();
+    socket.once("error", reject);
+    socket.listen(0, "127.0.0.1", () => {
+      const { port } = socket.address();
+      socket.close((error) => error ? reject(error) : resolve(port));
+    });
+  });
+}
+
+function startServer(port, databaseFile) {
+  return new Promise((resolve, reject) => {
+    let output = "";
+    const timeout = setTimeout(() => reject(new Error(`Server did not start in time.\n${output}`)), 120_000);
+    serverProcess = spawn(process.execPath, ["--no-warnings", "src/server.js"], {
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        DATABASE_FILE: databaseFile,
+        EMAIL_DELIVERY_ENABLED: "false",
+        NODE_ENV: "test",
+        PORT: String(port),
+        PUBLIC_APP_URL: `http://127.0.0.1:${port}`,
+        SESSION_SECRET: "transcript-grade-status-test-secret"
+      },
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const onOutput = (chunk) => {
+      output += chunk.toString();
+      if (!output.includes("SIS/LMS running at")) return;
+      clearTimeout(timeout);
+      resolve();
+    };
+    serverProcess.stdout.on("data", onOutput);
+    serverProcess.stderr.on("data", onOutput);
+    serverProcess.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    serverProcess.once("exit", (code, signal) => {
+      if (output.includes("SIS/LMS running at")) return;
+      clearTimeout(timeout);
+      reject(new Error(`Server exited before startup (${code ?? signal}).\n${output}`));
+    });
+  });
+}
+
+async function login(email, password, loginRole) {
+  const response = await fetch(`${baseUrl}/login`, {
+    body: new URLSearchParams({ email, password, loginRole }),
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    method: "POST",
+    redirect: "manual"
+  });
+  assert.equal(response.status, 302, `Expected ${email} to sign in`);
+  const setCookie = response.headers.getSetCookie?.()[0] || response.headers.get("set-cookie") || "";
+  const cookie = setCookie.split(";", 1)[0];
+  assert.match(cookie, /^bmhi\.sid=/);
+  return cookie;
+}
+
+async function getHtml(route, cookie) {
+  const response = await fetch(`${baseUrl}${route}`, { headers: { cookie }, redirect: "manual" });
+  const html = await response.text();
+  assert.equal(response.status, 200, `Expected ${route} to render.\n${html.slice(0, 800)}`);
+  return html;
+}
+
+async function updateEnrollmentStatus(enrollmentId, { status, finalGrade, progress = 100 }) {
+  return fetch(`${baseUrl}/admin/enrollments/${enrollmentId}/status`, {
+    body: new URLSearchParams({ status, progress: String(progress), finalGrade }),
+    headers: { "content-type": "application/x-www-form-urlencoded", cookie: adminCookie },
+    method: "POST",
+    redirect: "manual"
+  });
+}
+
+function htmlText(value) {
+  return value
+    .replace(/<[^>]*>/g, " ")
+    .replaceAll("&amp;", "&")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&#39;", "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tableRowContaining(html, text) {
+  const row = [...html.matchAll(/<tr[^>]*>[\s\S]*?<\/tr>/g)]
+    .map((match) => match[0])
+    .find((candidate) => htmlText(candidate).includes(text));
+  assert.ok(row, `Expected a table row containing ${text}`);
+  return row;
+}
+
+function rowCells(row) {
+  return [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((match) => htmlText(match[1]));
+}
+
+before(async () => {
+  temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "bmhi-transcript-grade-status-"));
+  const databaseFile = path.join(temporaryDirectory, "transcript.sqlite");
+  const port = await reservePort();
+  baseUrl = `http://127.0.0.1:${port}`;
+  await startServer(port, databaseFile);
+
+  database = new DatabaseSync(databaseFile);
+  database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+  const demo = database.prepare("SELECT password_hash FROM users WHERE email = 'student@browardmiamihi.com'").get();
+  assert.ok(demo?.password_hash);
+  const insertUser = database.prepare(`
+    INSERT INTO users (
+      role, student_number, first_name, last_name, email, password_hash,
+      status, organization_status, photo_review_status
+    ) VALUES ('student', ?, ?, ?, ?, ?, 'active', 'organized', 'approved')
+  `);
+  transcriptStudent = insertUser.run(
+    "TRANSCRIPT-001",
+    "Transcript",
+    "Student",
+    "transcript-status@example.test",
+    demo.password_hash
+  ).lastInsertRowid;
+  const photoStorageName = "transcript-status-student.png";
+  fs.writeFileSync(
+    path.join(temporaryDirectory, "uploads", photoStorageName),
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  );
+  database.prepare(`
+    UPDATE users
+    SET photo_storage_name = ?, photo_original_name = 'transcript-status-student.png'
+    WHERE id = ?
+  `).run(photoStorageName, transcriptStudent);
+  const statusStudent = insertUser.run(
+    "TRANSCRIPT-002",
+    "Status",
+    "Student",
+    "enrollment-status@example.test",
+    demo.password_hash
+  ).lastInsertRowid;
+
+  const courses = database.prepare("SELECT id FROM courses WHERE published = 1 ORDER BY id LIMIT 10").all();
+  assert.equal(courses.length, 10, "Expected ten published courses for transcript fixtures");
+  const fixtures = [
+    ["A", "completed", "A"],
+    ["F", "completed", "F"],
+    ["P", "completed", "P"],
+    ["PASS", "completed", "PASS"],
+    ["W", "withdrawn", "A"],
+    ["I", "completed", "I"],
+    ["INC", "completed", "INC"],
+    ["IP", "completed", "IP"],
+    ["ACTIVE", "active", "A"],
+    ["INVALID", "completed", "not-a-grade"]
+  ];
+  const updateCourse = database.prepare("UPDATE courses SET title = ?, category = 'Category must not become program', hours = 1 WHERE id = ?");
+  const insertEnrollment = database.prepare(`
+    INSERT INTO enrollments (user_id, course_id, status, start_date, completion_date, progress, final_grade, source)
+    VALUES (?, ?, ?, '2026-09-01', ?, 100, ?, 'manual')
+  `);
+  fixtures.forEach(([key, status, finalGrade], index) => {
+    const title = `Transcript Test ${key}`;
+    updateCourse.run(title, courses[index].id);
+    const result = insertEnrollment.run(
+      transcriptStudent,
+      courses[index].id,
+      status,
+      status === "completed" ? "2026-09-30" : null,
+      finalGrade
+    );
+    transcriptEnrollments.set(key, { courseId: courses[index].id, enrollmentId: result.lastInsertRowid, title });
+  });
+
+  const insertGradeItem = database.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, 100, '2026-09-30')");
+  const insertGrade = database.prepare("INSERT INTO grades (enrollment_id, grade_item_id, score, note) VALUES (?, ?, ?, NULL)");
+  for (const [key, score] of [["A", 80], ["ACTIVE", 80], ["INVALID", 100]]) {
+    const fixture = transcriptEnrollments.get(key);
+    const gradeItem = insertGradeItem.run(fixture.courseId, `Transcript fixture ${key}`).lastInsertRowid;
+    insertGrade.run(fixture.enrollmentId, gradeItem, score);
+  }
+
+  const statusResult = insertEnrollment.run(statusStudent, courses[0].id, "completed", "2025-01-02", "A");
+  statusEnrollment = statusResult.lastInsertRowid;
+
+  adminCookie = await login("admin@browardmiamihi.com", "AdminPass123!", "faculty");
+  studentCookie = await login("transcript-status@example.test", "StudentPass123!", "student");
+});
+
+after(async () => {
+  database?.close();
+  if (serverProcess && serverProcess.exitCode === null) {
+    await new Promise((resolve) => {
+      serverProcess.once("exit", resolve);
+      serverProcess.kill("SIGTERM");
+      setTimeout(resolve, 5_000).unref();
+    });
+  }
+  fs.rmSync(temporaryDirectory, { force: true, recursive: true });
+});
+
+test("transcript separates earned credit from GPA credit and ignores stale active finals", async () => {
+  const html = await getHtml("/student/transcript", studentCookie);
+  assert.match(html, /<span>Attempted hours<\/span><strong>10<\/strong>/);
+  assert.match(html, /<span>Completed hours<\/span><strong>3<\/strong>/);
+  assert.match(html, /<span>Cumulative GPA<\/span><strong>2\.00<\/strong>/);
+  assert.match(html, /<span>Program \/ Major<\/span><strong>Program not recorded<\/strong>/);
+
+  assert.equal(rowCells(tableRowContaining(html, "Transcript Test P"))[3], "P");
+  assert.equal(rowCells(tableRowContaining(html, "Transcript Test PASS"))[3], "P");
+  for (const code of ["I", "INC", "IP"]) {
+    assert.equal(rowCells(tableRowContaining(html, `Transcript Test ${code}`))[3], code);
+  }
+  assert.equal(rowCells(tableRowContaining(html, "Transcript Test W"))[3], "W");
+
+  const activeCells = rowCells(tableRowContaining(html, "Transcript Test ACTIVE"));
+  assert.equal(activeCells[2], "80.0%");
+  assert.equal(activeCells[3], "IP", "An active enrollment must not expose a saved final grade");
+  const invalidCells = rowCells(tableRowContaining(html, "Transcript Test INVALID"));
+  assert.equal(invalidCells[2], "—");
+  assert.equal(invalidCells[3], "—", "An invalid saved final must not fall back to the current percentage");
+});
+
+test("print transcript uses neutral labeling and the same earned-credit rules", async () => {
+  const html = await getHtml("/student/transcript/print", studentCookie);
+  assert.match(html, /<span>Academic Transcript<\/span>/);
+  assert.doesNotMatch(html, /Undergraduate Academic Transcript/);
+  assert.match(html, /<dt>Degree \/ Program<\/dt><dd>Program not recorded<\/dd>/);
+  assert.match(html, /<dt>Major<\/dt><dd>Program not recorded<\/dd>/);
+
+  assert.equal(rowCells(tableRowContaining(html, "Transcript Test P"))[2], "1");
+  assert.equal(rowCells(tableRowContaining(html, "Transcript Test PASS"))[2], "1");
+  for (const key of ["F", "W", "I", "INC", "IP", "ACTIVE", "INVALID"]) {
+    assert.equal(rowCells(tableRowContaining(html, `Transcript Test ${key}`))[2], "0");
+  }
+  const termEarned = [...html.matchAll(/<tr class="transcript-term-total">([\s\S]*?)<\/tr>/g)]
+    .map((match) => Number(rowCells(match[0])[2]));
+  assert.equal(termEarned.reduce((sum, hours) => sum + hours, 0), 3);
+});
+
+test("instructor gradebook uses final grades only for completed enrollments", async () => {
+  const active = transcriptEnrollments.get("ACTIVE");
+  const activeHtml = await getHtml(`/admin/courses/${active.courseId}/student-view?view=grades`, adminCookie);
+  const activeRow = tableRowContaining(activeHtml, "Transcript Student");
+  assert.match(activeRow, /<td>80\.00%<\/td>/);
+  assert.match(activeRow, /<td><strong>B-<\/strong><\/td>/);
+  assert.doesNotMatch(activeRow, /<td><strong>A<\/strong><\/td>/);
+
+  const completed = transcriptEnrollments.get("A");
+  const completedHtml = await getHtml(`/admin/courses/${completed.courseId}/student-view?view=grades`, adminCookie);
+  const completedRow = tableRowContaining(completedHtml, "Transcript Student");
+  assert.match(completedRow, /<td>80\.00%<\/td>/);
+  assert.match(completedRow, /<td><strong>A<\/strong><\/td>/);
+});
+
+test("admin status updates validate final grades and clear non-completion dates", async () => {
+  for (const finalGrade of ["", "a-", "P", "PASS", "W", "I", "INC", "IP", "0", "92.5", "100%"] ) {
+    const response = await updateEnrollmentStatus(statusEnrollment, { status: "completed", finalGrade });
+    assert.equal(response.status, 302, `Expected ${finalGrade || "blank"} to be accepted`);
+  }
+
+  for (const finalGrade of ["A+", "101", "-1", "92oops"]) {
+    const beforeRow = database.prepare("SELECT status, progress, final_grade, completion_date FROM enrollments WHERE id = ?").get(statusEnrollment);
+    const response = await updateEnrollmentStatus(statusEnrollment, { status: "hold", finalGrade, progress: 12 });
+    assert.equal(response.status, 422, `Expected ${finalGrade} to be rejected`);
+    const afterRow = database.prepare("SELECT status, progress, final_grade, completion_date FROM enrollments WHERE id = ?").get(statusEnrollment);
+    assert.deepEqual(afterRow, beforeRow, "Invalid final grades must not partially update an enrollment");
+  }
+
+  database.prepare("UPDATE enrollments SET status = 'completed', completion_date = '2025-01-02' WHERE id = ?").run(statusEnrollment);
+  assert.equal((await updateEnrollmentStatus(statusEnrollment, { status: "active", finalGrade: "A" })).status, 302);
+  assert.equal(database.prepare("SELECT completion_date FROM enrollments WHERE id = ?").get(statusEnrollment).completion_date, null);
+
+  database.prepare("UPDATE enrollments SET status = 'completed', completion_date = '2025-01-02' WHERE id = ?").run(statusEnrollment);
+  assert.equal((await updateEnrollmentStatus(statusEnrollment, { status: "hold", finalGrade: "IP" })).status, 302);
+  assert.equal(database.prepare("SELECT completion_date FROM enrollments WHERE id = ?").get(statusEnrollment).completion_date, null);
+
+  assert.equal((await updateEnrollmentStatus(statusEnrollment, { status: "completed", finalGrade: "A" })).status, 302);
+  assert.match(database.prepare("SELECT completion_date FROM enrollments WHERE id = ?").get(statusEnrollment).completion_date, /^\d{4}-\d{2}-\d{2}$/);
+});

@@ -4247,6 +4247,92 @@ button.danger {
   min-height: auto;
 }
 
+.transcript-school-head {
+  align-items: center;
+  border-bottom: 1px solid #dfe4e8;
+  display: flex;
+  gap: 14px;
+  padding: 16px;
+}
+
+.transcript-school-head img {
+  height: 64px;
+  object-fit: contain;
+  width: 64px;
+}
+
+.transcript-school-head strong,
+.transcript-school-head span {
+  display: block;
+}
+
+.transcript-school-head strong {
+  color: var(--brand-dark);
+  font-family: Georgia, serif;
+  font-size: 21px;
+}
+
+.transcript-school-head span {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.transcript-details-grid {
+  background: #f8fbfc;
+  border-bottom: 1px solid #dfe4e8;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 14px 16px;
+}
+
+.transcript-details-grid p {
+  margin: 0;
+}
+
+.transcript-details-grid span,
+.transcript-details-grid strong {
+  display: block;
+}
+
+.transcript-details-grid span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+}
+
+.transcript-term-row th {
+  background: #e8f1f3;
+  color: var(--brand-dark);
+  font-size: 12px;
+  letter-spacing: .04em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.transcript-record-note {
+  align-items: flex-start;
+  background: #fff8e8;
+  border-top: 1px solid #ead9aa;
+  display: flex;
+  gap: 12px;
+  padding: 13px 16px;
+}
+
+.transcript-record-note strong {
+  color: #8a5a00;
+  white-space: nowrap;
+}
+
+.transcript-record-note span {
+  color: #66583b;
+  font-size: 13px;
+}
+
 .registration-documents-panel {
   margin-top: 12px;
   min-height: auto;
@@ -9391,6 +9477,29 @@ button.small {
   margin: 0;
 }
 
+.grades-title-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.canvas-transcript-button {
+  background: #0e727c;
+  border: 1px solid #0e727c;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 8px 13px;
+}
+
+.canvas-transcript-button:hover {
+  background: #095963;
+  color: #fff;
+  text-decoration: none;
+}
+
 .canvas-print-button,
 .grades-side-panel button {
   background: #f1f3f5;
@@ -9614,6 +9723,32 @@ button.small {
 .overall-grade-card > small {
   color: #53666e;
   line-height: 1.4;
+}
+
+.current-grade-summary {
+  background: #eef8f8;
+  border: 1px solid #b8dfe1;
+  border-left: 5px solid #0e727c;
+  border-radius: 6px;
+  display: grid;
+  gap: 3px;
+  padding: 14px 16px;
+}
+
+.current-grade-summary span,
+.current-grade-summary small {
+  color: #5c6d7c;
+}
+
+.current-grade-summary strong {
+  color: #0d5660;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.current-grade-summary b {
+  color: #2d3b48;
+  font-size: 16px;
 }
 
 .grades-side-panel > p {
@@ -11620,6 +11755,257 @@ button.small {
   color: #5d6b78;
 }
 
+.print-table .transcript-term-row th {
+  background: #dfeaed;
+  color: #173f46;
+  font-size: 11px;
+  letter-spacing: .08em;
+}
+
+.transcript-print-summary {
+  border: 1px solid #cfd8df;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 18px;
+  padding: 12px;
+}
+
+.transcript-print-summary p,
+.transcript-certification {
+  margin: 0;
+}
+
+.transcript-print {
+  max-width: 1380px;
+}
+
+.transcript-registrar-head {
+  align-items: start;
+  border-bottom: 1px solid #263640;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 1fr 2fr 1fr;
+  padding-bottom: 12px;
+}
+
+.transcript-document-title span,
+.transcript-document-title strong,
+.transcript-document-title small,
+.transcript-page-meta span,
+.transcript-page-meta small {
+  display: block;
+}
+
+.transcript-document-title span {
+  font-size: 10px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.transcript-document-title strong {
+  font-size: 14px;
+  margin-top: 16px;
+  text-transform: uppercase;
+}
+
+.transcript-institution {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  text-align: left;
+}
+
+.transcript-institution img {
+  height: 54px;
+  object-fit: contain;
+  width: 54px;
+}
+
+.transcript-institution h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 27px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.transcript-institution p,
+.transcript-page-meta {
+  font-size: 10px;
+  margin: 2px 0 0;
+}
+
+.transcript-page-meta {
+  text-align: right;
+}
+
+.transcript-page-meta small {
+  margin-top: 5px;
+}
+
+.transcript-identity-row {
+  border-bottom: 1px solid #9aa6ad;
+  display: grid;
+  gap: 26px;
+  grid-template-columns: 1fr 1fr .9fr;
+  padding: 12px 0;
+}
+
+.transcript-identity-row dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.transcript-identity-row dl div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 86px 1fr;
+}
+
+.transcript-identity-row dt,
+.transcript-identity-row dd {
+  font-size: 10px;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.transcript-identity-row dt {
+  color: #52606b;
+}
+
+.transcript-identity-row dd {
+  font-weight: 700;
+}
+
+.transcript-record-heading {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 14px;
+  margin: 12px 0 6px;
+}
+
+.transcript-course-columns {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.transcript-compact-table {
+  font-size: 9px;
+}
+
+.transcript-compact-table th,
+.transcript-compact-table td {
+  border: 0;
+  border-bottom: 1px solid #d4d9dc;
+  padding: 4px 3px;
+}
+
+.transcript-compact-table thead th {
+  background: transparent;
+  border-bottom: 1px solid #263640;
+  color: #17212b;
+  font-size: 8px;
+  padding-top: 0;
+}
+
+.transcript-compact-table th:not(:first-child),
+.transcript-compact-table td:not(:first-child) {
+  text-align: right;
+  width: 46px;
+}
+
+.transcript-compact-table td:first-child span,
+.transcript-compact-table td:nth-child(4) span {
+  color: #66737c;
+  display: block;
+  font-size: 8px;
+}
+
+.transcript-compact-table .transcript-term-row th {
+  background: #eef1f2;
+  border: 0;
+  font-size: 9px;
+  padding: 5px;
+  text-align: left;
+}
+
+.transcript-term-total td {
+  border-bottom: 1px solid #263640;
+  font-weight: 800;
+}
+
+.transcript-awards-line {
+  border-bottom: 1px solid #9aa6ad;
+  font-size: 9px;
+  margin-top: 10px;
+  padding: 7px 0;
+}
+
+.transcript-registrar-footer {
+  align-items: end;
+  display: grid;
+  gap: 40px;
+  grid-template-columns: 1.35fr 1fr;
+  margin-top: 18px;
+}
+
+.transcript-cert-block > strong {
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.transcript-cert-block > p,
+.transcript-registrar-footer address {
+  font-size: 9px;
+  font-style: normal;
+  line-height: 1.4;
+  margin: 4px 0;
+}
+
+.transcript-seal-signature {
+  align-items: end;
+  display: flex;
+  gap: 24px;
+  margin-top: 8px;
+}
+
+.transcript-seal-signature img {
+  height: 68px;
+  object-fit: contain;
+  width: 68px;
+}
+
+.transcript-seal-signature span {
+  border-top: 1px solid #263640;
+  font-size: 9px;
+  min-width: 140px;
+  padding-top: 4px;
+}
+
+.transcript-registrar-footer address {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto 1fr;
+}
+
+.transcript-unofficial-mark {
+  color: #a4acb2;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: .18em;
+  margin: 28px 0 8px;
+  text-align: center;
+}
+
+.transcript-certification {
+  color: #52606b;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .print-signature {
   display: grid;
   gap: 36px;
@@ -12713,6 +13099,11 @@ button.small {
 }
 
 @media print {
+  @page {
+    margin: .35in;
+    size: landscape;
+  }
+
   .print-actions,
   .no-print,
   .topbar,
@@ -12724,6 +13115,19 @@ button.small {
     margin: 0;
     max-width: none;
     padding: 0;
+  }
+
+  .transcript-print {
+    font-family: Georgia, "Times New Roman", serif;
+    min-height: 7.3in;
+  }
+
+  .transcript-print .print-document-head {
+    border-bottom-color: #173f46;
+  }
+
+  .transcript-print .print-table {
+    font-size: 8px;
   }
 
   .credential {
