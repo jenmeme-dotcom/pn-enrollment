@@ -418,17 +418,40 @@ function migrate() {
       UNIQUE(enrollment_id, lesson_id)
     );
 
+    CREATE TABLE IF NOT EXISTS assessment_reopen_batches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      request_token TEXT NOT NULL UNIQUE,
+      course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE RESTRICT,
+      lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE RESTRICT,
+      scope TEXT NOT NULL CHECK(scope IN ('one','all')),
+      requested_enrollment_id INTEGER REFERENCES enrollments(id) ON DELETE SET NULL,
+      requested_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      closes_at TEXT NOT NULL,
+      reason TEXT,
+      affected_count INTEGER NOT NULL DEFAULT 0,
+      skipped_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS assessment_reopen_audit (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE RESTRICT,
       lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE RESTRICT,
       grade_item_id INTEGER REFERENCES grade_items(id) ON DELETE SET NULL,
+      batch_id INTEGER REFERENCES assessment_reopen_batches(id) ON DELETE SET NULL,
       previous_score REAL,
       previous_note TEXT,
       previous_attempt_status TEXT,
       previous_attempt_started_at TEXT,
       previous_attempt_expires_at TEXT,
       previous_attempt_submitted_at TEXT,
+      previous_attempt_questions_json TEXT,
+      previous_attempt_question_set_hash TEXT,
+      previous_attempt_access_override_id INTEGER,
+      previous_override_opens_at TEXT,
+      previous_override_closes_at TEXT,
+      previous_override_minutes INTEGER,
+      previous_override_reason TEXT,
       reopened_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       closes_at TEXT NOT NULL,
       reason TEXT,
@@ -1026,6 +1049,30 @@ function migrate() {
   }
   if (!assessmentReopenAuditColumns.includes("previous_attempt_submitted_at")) {
     db.exec("ALTER TABLE assessment_reopen_audit ADD COLUMN previous_attempt_submitted_at TEXT;");
+  }
+  if (!assessmentReopenAuditColumns.includes("batch_id")) {
+    db.exec("ALTER TABLE assessment_reopen_audit ADD COLUMN batch_id INTEGER REFERENCES assessment_reopen_batches(id) ON DELETE SET NULL;");
+  }
+  if (!assessmentReopenAuditColumns.includes("previous_attempt_questions_json")) {
+    db.exec("ALTER TABLE assessment_reopen_audit ADD COLUMN previous_attempt_questions_json TEXT;");
+  }
+  if (!assessmentReopenAuditColumns.includes("previous_attempt_question_set_hash")) {
+    db.exec("ALTER TABLE assessment_reopen_audit ADD COLUMN previous_attempt_question_set_hash TEXT;");
+  }
+  if (!assessmentReopenAuditColumns.includes("previous_attempt_access_override_id")) {
+    db.exec("ALTER TABLE assessment_reopen_audit ADD COLUMN previous_attempt_access_override_id INTEGER;");
+  }
+  if (!assessmentReopenAuditColumns.includes("previous_override_opens_at")) {
+    db.exec("ALTER TABLE assessment_reopen_audit ADD COLUMN previous_override_opens_at TEXT;");
+  }
+  if (!assessmentReopenAuditColumns.includes("previous_override_closes_at")) {
+    db.exec("ALTER TABLE assessment_reopen_audit ADD COLUMN previous_override_closes_at TEXT;");
+  }
+  if (!assessmentReopenAuditColumns.includes("previous_override_minutes")) {
+    db.exec("ALTER TABLE assessment_reopen_audit ADD COLUMN previous_override_minutes INTEGER;");
+  }
+  if (!assessmentReopenAuditColumns.includes("previous_override_reason")) {
+    db.exec("ALTER TABLE assessment_reopen_audit ADD COLUMN previous_override_reason TEXT;");
   }
   const examAttemptColumns = db.prepare("PRAGMA table_info(exam_attempts)").all().map((column) => column.name);
   if (!examAttemptColumns.includes("access_override_id")) {
@@ -2143,6 +2190,7 @@ function seed() {
     `);
     const movePn101History = db.prepare("UPDATE quiz_attempt_history SET lesson_id = ?, attempt_number = ? WHERE id = ?");
     const repointPn101AuditLesson = db.prepare("UPDATE assessment_reopen_audit SET lesson_id = ? WHERE lesson_id = ?");
+    const repointPn101BatchLesson = db.prepare("UPDATE assessment_reopen_batches SET lesson_id = ? WHERE lesson_id = ?");
     const pn101VideoAssignment = db.prepare("SELECT * FROM video_assignments WHERE lesson_id = ?");
     const movePn101VideoAssignment = db.prepare("UPDATE video_assignments SET lesson_id = ? WHERE id = ?");
     const updatePn101VideoAssignment = db.prepare(`
@@ -2386,6 +2434,7 @@ function seed() {
           });
 
           repointPn101AuditLesson.run(keeper.id, duplicate.id);
+          repointPn101BatchLesson.run(keeper.id, duplicate.id);
           pn101HistoryRows.all(duplicate.id).forEach((sourceHistory) => {
             const collision = pn101HistoryCollision.get(
               sourceHistory.enrollment_id,
@@ -2494,6 +2543,7 @@ function seed() {
           AND NOT EXISTS (SELECT 1 FROM video_assignments va WHERE va.lesson_id = l.id)
           AND NOT EXISTS (SELECT 1 FROM exam_access_overrides eao WHERE eao.lesson_id = l.id)
           AND NOT EXISTS (SELECT 1 FROM assessment_reopen_audit ara WHERE ara.lesson_id = l.id)
+          AND NOT EXISTS (SELECT 1 FROM assessment_reopen_batches arb WHERE arb.lesson_id = l.id)
           AND NOT EXISTS (SELECT 1 FROM quiz_attempt_history qah WHERE qah.lesson_id = l.id)
       )
     `).run(pn101CourseRow.id, ...pn101AssessmentTitles);

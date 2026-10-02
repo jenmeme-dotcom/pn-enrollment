@@ -26,7 +26,7 @@ test("PN101 three-way duplicate assessments retain grades, attempts, and audit h
 
     const title = "[PN101 2026] Quiz 1 - Chapter 1: Basic Word Structure";
     const originalLesson = database.prepare(`
-      SELECT l.*
+      SELECT l.*, c.id AS course_id
       FROM lessons l
       JOIN modules m ON m.id = l.module_id
       JOIN courses c ON c.id = m.course_id
@@ -79,6 +79,13 @@ test("PN101 three-way duplicate assessments retain grades, attempts, and audit h
       FROM lessons
       WHERE id = ?
     `).run(thirdGradeItemId, originalLesson.id).lastInsertRowid);
+    const legacyLessonId = Number(database.prepare(`
+      INSERT INTO lessons (
+        module_id, title, content, duration_minutes, position,
+        published, instructor_only, item_type
+      ) VALUES (?, '[PN101 2026] Week 1 Quiz - Chapters 1-2',
+        'Legacy combined quiz retained for reopen history.', 30, 999, 1, 0, 'quiz')
+    `).run(originalLesson.module_id).lastInsertRowid);
 
     const firstWinningSourceGradeId = Number(database.prepare(`
       INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
@@ -156,12 +163,26 @@ test("PN101 three-way duplicate assessments retain grades, attempts, and audit h
       ) VALUES (?, ?, '2026-09-30T00:00:00-04:00', '2026-10-15T23:59:59-04:00', 30,
         'Completion extension', '2026-10-01 09:00:00')
     `).run(firstEnrollment.id, duplicateLessonId);
+    const duplicateBatchId = Number(database.prepare(`
+      INSERT INTO assessment_reopen_batches (
+        request_token, course_id, lesson_id, scope, requested_enrollment_id,
+        closes_at, reason, affected_count
+      ) VALUES ('pn101-duplicate-batch', ?, ?, 'one', ?,
+        '2026-10-15T23:59:59-04:00', 'Completion extension', 1)
+    `).run(originalLesson.course_id, duplicateLessonId, firstEnrollment.id).lastInsertRowid);
+    const legacyBatchId = Number(database.prepare(`
+      INSERT INTO assessment_reopen_batches (
+        request_token, course_id, lesson_id, scope, requested_enrollment_id,
+        closes_at, reason, affected_count
+      ) VALUES ('pn101-legacy-batch', ?, ?, 'one', ?,
+        '2026-10-15T23:59:59-04:00', 'Preserve legacy reopen history', 1)
+    `).run(originalLesson.course_id, legacyLessonId, firstEnrollment.id).lastInsertRowid);
     database.prepare(`
       INSERT INTO assessment_reopen_audit (
-        enrollment_id, lesson_id, grade_item_id, previous_score, previous_note,
+        enrollment_id, lesson_id, grade_item_id, batch_id, previous_score, previous_note,
         previous_attempt_status, closes_at, reason
-      ) VALUES (?, ?, ?, 9, 'higher retake score', 'submitted', '2026-10-15T23:59:59-04:00', 'Completion extension')
-    `).run(firstEnrollment.id, duplicateLessonId, originalLesson.grade_item_id);
+      ) VALUES (?, ?, ?, ?, 9, 'higher retake score', 'submitted', '2026-10-15T23:59:59-04:00', 'Completion extension')
+    `).run(firstEnrollment.id, duplicateLessonId, originalLesson.grade_item_id, duplicateBatchId);
     database.prepare(`
       INSERT INTO quiz_attempt_history (
         enrollment_id, lesson_id, grade_item_id, attempt_number, score, correct_answers, total_questions
@@ -250,9 +271,28 @@ test("PN101 three-way duplicate assessments retain grades, attempts, and audit h
     });
 
     const audit = database.prepare(`
-      SELECT lesson_id, grade_item_id FROM assessment_reopen_audit WHERE enrollment_id = ?
+      SELECT lesson_id, grade_item_id, batch_id FROM assessment_reopen_audit WHERE enrollment_id = ?
     `).get(firstEnrollment.id);
-    assert.deepEqual({ ...audit }, { lesson_id: originalLesson.id, grade_item_id: duplicateGradeItemId });
+    assert.deepEqual({ ...audit }, {
+      lesson_id: originalLesson.id,
+      grade_item_id: duplicateGradeItemId,
+      batch_id: duplicateBatchId
+    });
+    assert.deepEqual(
+      database.prepare(`
+        SELECT id, lesson_id FROM assessment_reopen_batches WHERE id IN (?, ?) ORDER BY id
+      `).all(duplicateBatchId, legacyBatchId).map((row) => ({ ...row })),
+      [
+        { id: duplicateBatchId, lesson_id: originalLesson.id },
+        { id: legacyBatchId, lesson_id: legacyLessonId }
+      ]
+    );
+    assert.deepEqual(
+      { ...database.prepare(`
+        SELECT published, instructor_only FROM lessons WHERE id = ?
+      `).get(legacyLessonId) },
+      { published: 0, instructor_only: 1 }
+    );
     const history = database.prepare(`
       SELECT lesson_id, grade_item_id, attempt_number, score
       FROM quiz_attempt_history

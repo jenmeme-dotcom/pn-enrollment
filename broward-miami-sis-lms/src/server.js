@@ -45,6 +45,7 @@ const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = requ
 initialize();
 
 const AUTO_GRADE_PENDING_PREFIX = "[AUTO_GRADE_PENDING_APPROVAL]";
+const EXAM_SUBMISSION_GRACE_MS = 5_000;
 
 function withImmediateTransaction(work) {
   db.exec("BEGIN IMMEDIATE");
@@ -659,6 +660,26 @@ function validWithdrawalCsrfToken(req, suppliedToken) {
   const expectedBuffer = Buffer.from(expectedToken, "hex");
   const receivedBuffer = Buffer.from(receivedToken, "hex");
   return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
+function issueAssessmentReopenRequestToken(req) {
+  const token = crypto.randomBytes(32).toString("hex");
+  const issuedTokens = Array.isArray(req.session.assessmentReopenRequestTokens)
+    ? req.session.assessmentReopenRequestTokens.filter((value) => /^[a-f0-9]{64}$/.test(String(value)))
+    : [];
+  req.session.assessmentReopenRequestTokens = [...issuedTokens.slice(-19), token];
+  return token;
+}
+
+function validAssessmentReopenRequestToken(req, suppliedToken) {
+  const receivedToken = String(suppliedToken || "");
+  if (!/^[a-f0-9]{64}$/.test(receivedToken)) return false;
+  const receivedBuffer = Buffer.from(receivedToken, "hex");
+  return (req.session.assessmentReopenRequestTokens || []).some((expectedToken) => {
+    if (!/^[a-f0-9]{64}$/.test(String(expectedToken))) return false;
+    const expectedBuffer = Buffer.from(expectedToken, "hex");
+    return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+  });
 }
 
 function enrollmentAccessAllowed(enrollment) {
@@ -2636,7 +2657,7 @@ function finalizeExpiredExamAttempt({ attempt, enrollmentId, lesson, gradeItem =
     storedDateMilliseconds(attempt.expires_at),
     new Date(settings.closesAt).getTime()
   );
-  if (!Number.isFinite(deadline) || Date.now() <= deadline) return false;
+  if (!Number.isFinite(deadline) || Date.now() <= deadline + EXAM_SUBMISSION_GRACE_MS) return false;
   const questions = quizQuestionsForAttempt(lesson, attempt);
   return withImmediateTransaction(() => {
     const expired = db.prepare(`
@@ -2736,10 +2757,16 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, e
     const opensAt = new Date(examSettings.opensAt).getTime();
     const closesAt = new Date(examSettings.closesAt).getTime();
     const attemptExpiresAt = storedDateMilliseconds(activeExamAttempt?.expires_at);
+    const attemptDeadline = Math.min(attemptExpiresAt, closesAt);
+    const inProgressWithinGrace = Boolean(
+      activeExamAttempt?.status === "in_progress"
+        && Number.isFinite(attemptDeadline)
+        && now <= attemptDeadline + EXAM_SUBMISSION_GRACE_MS
+    );
     if (now < opensAt) {
       return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Exam not open</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}${renderExamInstructions(examSettings)}<p class="exam-gate-message">Return during the availability period to begin.</p></div>`;
     }
-    if (now > closesAt) {
+    if (now > closesAt && !inProgressWithinGrace) {
       return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Exam closed</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}<p>This examination closed on ${escapeHtml(examDateTimeLabel(examSettings.closesAt))}. Contact your instructor if you need assistance.</p></div>`;
     }
     if (!activeExamAttempt) {
@@ -2756,7 +2783,7 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, e
         </div>
       `;
     }
-    if (activeExamAttempt.status !== "in_progress" || now >= attemptExpiresAt) {
+    if (!inProgressWithinGrace) {
       return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Attempt ended</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}<p>This one-sitting examination attempt has ended and cannot be reopened. View Grades for the recorded result or contact your instructor.</p><a class="button" href="${escapeHtml(baseHref)}?view=grades">View Grades</a></div>`;
     }
   }
@@ -3773,7 +3800,6 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
   const students = instructorGradebookStudents(enrollments);
   const assignments = instructorGradebookItems(course, gradeItems);
   const gradeByEnrollmentAndItem = new Map(grades.map((grade) => [`${grade.enrollment_id}:${grade.grade_item_id}`, grade]));
-  const attemptByEnrollmentAndItem = new Map(examAttempts.map((attempt) => [`${attempt.enrollment_id}:${attempt.grade_item_id}`, attempt]));
   const studentSummary = (student) => postedGradeSummary(assignments.map((item) => {
     const grade = gradeByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
     return {
@@ -3790,6 +3816,7 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
           <p>${readOnly ? "View posted scores and current overall grades. Select Edit Course to open grading tools." : "Review posted scores and current overall grades for every student."}</p>
         </div>
         <div class="gradebook-actions">
+          ${readOnly ? "" : `<a class="button small" href="/admin/courses/${course.id}/manage#assessment-access">Reset exam access</a>`}
           <button type="button" title="Calendar">▦</button>
           <button type="button">Import</button>
           <button type="button">Export⌄</button>
@@ -3844,8 +3871,7 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
                   <td><strong>${escapeHtml(letterGrade)}</strong></td>
                   ${assignments.map((item) => {
                     const grade = gradeByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
-                    const attempt = attemptByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
-                    const reopenControl = !readOnly && attempt && isProtectedMajorAssessmentTitle(item.title)
+                    const reopenControl = !readOnly && isProtectedMajorAssessmentTitle(item.title)
                       ? `<a class="button small ghost" href="/admin/courses/${course.id}/manage#assessment-access">Reopen assessment</a>`
                       : "";
                     if (!grade) return `<td>-${reopenControl}</td>`;
@@ -11952,7 +11978,7 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
   `).all(course.id);
 
   const moduleLessons = db.prepare(`
-    SELECT l.*, m.title AS module_title
+    SELECT l.*, m.title AS module_title, m.published AS module_published
     FROM lessons l
     JOIN modules m ON m.id = l.module_id
     WHERE m.course_id = ?
@@ -11960,7 +11986,8 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
   `).all(course.id);
 
   const enrollments = db.prepare(`
-    SELECT e.*, u.first_name, u.last_name, u.email, u.student_number, cr.id AS credential_id
+    SELECT e.*, u.first_name, u.last_name, u.email, u.student_number,
+      u.status AS user_status, cr.id AS credential_id
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
     LEFT JOIN credentials cr ON cr.enrollment_id = e.id
@@ -11978,7 +12005,9 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
   const scheduledAssessments = moduleLessons.filter((lesson) =>
     lessonQuizQuestions(lesson).length > 0
       && Boolean(examSettingsForLesson(lesson))
-      && !String(lesson.allowed_student_email || "").trim()
+      && Number(lesson.module_published ?? 1) === 1
+      && Number(lesson.published ?? 1) === 1
+      && Number(lesson.instructor_only || 0) === 0
   );
   const assessmentAccessOverrides = db.prepare(`
     SELECT o.*, u.first_name, u.last_name, l.title AS lesson_title
@@ -11990,6 +12019,10 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
     ORDER BY o.closes_at DESC, u.last_name, u.first_name
   `).all(course.id);
   const defaultAssessmentClosesOn = new Date(Date.now() + (14 * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+  const assessmentReopenRequestToken = issueAssessmentReopenRequestToken(req);
+  const eligibleAssessmentEnrollments = enrollments.filter((row) =>
+    enrollmentAccessAllowed(row) && row.user_status === "active"
+  );
   const liveClass = courseLiveClassConfig(course);
   const childCourses = course.slug === "practical-nursing"
     ? db.prepare(`
@@ -12159,27 +12192,55 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
     </section>
     ${scheduledAssessments.length ? `
       <section class="card" style="margin-top:18px" id="assessment-access">
-        <h2>Reopen a midterm or final for one student</h2>
-        <p class="muted">Regular quizzes already allow unlimited attempts and keep the highest score. Use this form only for a scheduled midterm or final. The previous attempt and score are preserved in the audit history, and the visible score remains in place until the student submits the fresh attempt.</p>
-        <form method="post" action="/admin/courses/${course.id}/assessment-access">
+        <h2>Reset or reopen a midterm or final</h2>
+        <p class="muted">Choose one student or all eligible students in this course. Regular quizzes already allow unlimited attempts and keep the highest score. The previous exam attempt and score are preserved in the audit history, and the visible score remains in place until each student submits the fresh attempt.</p>
+        <form id="assessment-reopen-form" method="post" action="/admin/courses/${course.id}/assessment-access" onsubmit="const studentLabel = this.enrollmentId.options[this.enrollmentId.selectedIndex].text; const examLabel = this.lessonId.options[this.lessonId.selectedIndex].text; if (!confirm('Reopen ' + examLabel + ' for ' + studentLabel + '? Existing grades and attempts will remain in the audit history.')) return false; this.querySelector('button[type=submit]').disabled = true;">
+          <input type="hidden" name="requestToken" value="${assessmentReopenRequestToken}">
           <div class="form-grid">
             <div>
-              <label>Student</label>
+              <label>Student access</label>
               <select name="enrollmentId" required>
-                ${enrollments.filter(enrollmentAccessAllowed).map((row) => `<option value="${row.id}">${escapeHtml(row.last_name)}, ${escapeHtml(row.first_name)} · ${escapeHtml(row.email)}</option>`).join("")}
+                <option value="" selected disabled>Choose a student</option>
+                ${eligibleAssessmentEnrollments.map((row) => `<option value="${row.id}" data-student-email="${escapeHtml(String(row.email || "").toLowerCase())}">${escapeHtml(row.last_name)}, ${escapeHtml(row.first_name)} · ${escapeHtml(row.email)}</option>`).join("")}
+                ${req.user.role === "admin" ? `<option value="all">All eligible students (${eligibleAssessmentEnrollments.length})</option>` : ""}
               </select>
             </div>
             <div>
               <label>Midterm or final</label>
               <select name="lessonId" required>
-                ${scheduledAssessments.map((lesson) => `<option value="${lesson.id}">${escapeHtml(lesson.title)}</option>`).join("")}
+                <option value="" selected disabled>Choose an exam</option>
+                ${scheduledAssessments.map((lesson) => {
+                  const allowedEmail = String(lesson.allowed_student_email || "").trim().toLowerCase();
+                  const restrictionLabel = allowedEmail ? ` — Individual only: ${allowedEmail}` : "";
+                  return `<option value="${lesson.id}" data-allowed-email="${escapeHtml(allowedEmail)}">${escapeHtml(lesson.title + restrictionLabel)}</option>`;
+                }).join("")}
               </select>
             </div>
             <div><label>Available through</label><input name="closesOn" type="date" min="${new Date().toISOString().slice(0, 10)}" value="${defaultAssessmentClosesOn}" required></div>
             <div class="span-2"><label>Reason / staff note</label><input name="reason" value="Course-completion extension" maxlength="240" required></div>
           </div>
-          <button type="submit">Reopen Assessment</button>
+          <button type="submit">Reset / Reopen Exam</button>
         </form>
+        <script>
+          (() => {
+            const form = document.getElementById("assessment-reopen-form");
+            if (!form) return;
+            const studentSelect = form.elements.enrollmentId;
+            const examSelect = form.elements.lessonId;
+            const syncPersonalizedAssessment = () => {
+              const examOption = examSelect.options[examSelect.selectedIndex];
+              const allowedEmail = String(examOption?.dataset.allowedEmail || "").toLowerCase();
+              [...studentSelect.options].forEach((option) => {
+                if (!option.value) return;
+                const studentEmail = String(option.dataset.studentEmail || "").toLowerCase();
+                option.disabled = Boolean(allowedEmail && (option.value === "all" || studentEmail !== allowedEmail));
+              });
+              if (studentSelect.selectedOptions[0]?.disabled) studentSelect.value = "";
+            };
+            examSelect.addEventListener("change", syncPersonalizedAssessment);
+            syncPersonalizedAssessment();
+          })();
+        </script>
         ${assessmentAccessOverrides.length ? `
           <div class="table-card" style="margin-top:16px">
             <table>
@@ -12238,16 +12299,22 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
 
 app.post("/admin/courses/:id/assessment-access", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const courseId = Number(req.params.id);
-  const enrollmentId = Number(req.body.enrollmentId);
+  const enrollmentSelection = String(req.body.enrollmentId || "").trim();
+  const resetAll = enrollmentSelection === "all";
+  const enrollmentId = resetAll ? null : Number(enrollmentSelection);
   const lessonId = Number(req.body.lessonId);
   const closesOn = String(req.body.closesOn || "").trim();
   const reason = String(req.body.reason || "Course-completion extension").trim().slice(0, 240);
-  const enrollment = db.prepare(`
-    SELECT e.*, u.first_name, u.last_name, u.email
-    FROM enrollments e
-    JOIN users u ON u.id = e.user_id
-    WHERE e.id = ? AND e.course_id = ? AND e.status IN ('active', 'completed') AND e.withdrawn_at IS NULL
-  `).get(enrollmentId, courseId);
+  const requestToken = String(req.body.requestToken || "").trim();
+  if (!validAssessmentReopenRequestToken(req, requestToken)) {
+    return res.status(403).send("This exam reset form expired. Reload the course management page and try again.");
+  }
+  if (resetAll && req.user.role !== "admin") {
+    return res.status(403).send("Only an administrator can reopen an exam for all students");
+  }
+  if (!resetAll && (!Number.isInteger(enrollmentId) || enrollmentId <= 0)) {
+    return res.status(422).send("Choose one student or all eligible students");
+  }
   const lesson = db.prepare(`
     SELECT l.*
     FROM lessons l
@@ -12257,74 +12324,224 @@ app.post("/admin/courses/:id/assessment-access", requireAuth, requireRole("admin
       AND COALESCE(l.published, 1) = 1
       AND COALESCE(l.instructor_only, 0) = 0
   `).get(lessonId, courseId);
-  if (!enrollment || !lesson) return res.status(404).send("Student enrollment or assessment not found");
-  if (!studentCanAccessLesson(lesson, enrollment)) return res.status(422).send("This assessment is restricted to a different student");
+  if (!lesson) return res.status(404).send("Assessment not found");
+  if (resetAll && String(lesson.allowed_student_email || "").trim()) {
+    return res.status(422).send("This personalized examination can only be reopened for its assigned student");
+  }
   const settings = examSettingsForLesson(lesson);
   if (!settings || !lessonQuizQuestions(lesson).length) return res.status(422).send("Only a published midterm or final can be reopened here");
   const closesAt = newYorkEndOfDayIso(closesOn);
   if (!closesAt) return res.status(422).send("Choose a valid closing date");
   if (new Date(closesAt).getTime() <= Date.now()) return res.status(422).send("The new closing date must be in the future");
-  const gradeItem = resolveLessonGradeItem(lesson, courseId, { createIfMissing: true, pointsPossible: lessonQuizQuestions(lesson).length });
-  const previousGrade = gradeItem
-    ? db.prepare("SELECT score, note FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").get(enrollmentId, gradeItem.id)
-    : null;
-  const previousAttempt = db.prepare("SELECT * FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?")
-    .get(enrollmentId, lessonId);
   const opensAt = new Date().toISOString();
+  const selectPreviousAttempt = db.prepare("SELECT * FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?");
+  const selectPreviousOverride = db.prepare("SELECT * FROM exam_access_overrides WHERE enrollment_id = ? AND lesson_id = ?");
+  const insertReopenAudit = db.prepare(`
+    INSERT INTO assessment_reopen_audit (
+      batch_id, enrollment_id, lesson_id, grade_item_id, previous_score, previous_note,
+      previous_attempt_status, previous_attempt_started_at, previous_attempt_expires_at,
+      previous_attempt_submitted_at, previous_attempt_questions_json,
+      previous_attempt_question_set_hash, previous_attempt_access_override_id,
+      previous_override_opens_at, previous_override_closes_at,
+      previous_override_minutes, previous_override_reason,
+      reopened_by, closes_at, reason
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const upsertAccessOverride = db.prepare(`
+    INSERT INTO exam_access_overrides (enrollment_id, lesson_id, opens_at, closes_at, minutes, reason)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(enrollment_id, lesson_id) DO UPDATE SET
+      opens_at = excluded.opens_at,
+      closes_at = excluded.closes_at,
+      minutes = excluded.minutes,
+      reason = excluded.reason,
+      created_at = CURRENT_TIMESTAMP
+  `);
+  const clearPriorAttemptGeneration = db.prepare(`
+    UPDATE exam_attempts
+    SET access_override_id = NULL
+    WHERE enrollment_id = ? AND lesson_id = ?
+  `);
+  let operationResult;
   try {
-    db.exec("BEGIN IMMEDIATE");
-    db.prepare(`
-      INSERT INTO assessment_reopen_audit (
-        enrollment_id, lesson_id, grade_item_id, previous_score, previous_note,
-        previous_attempt_status, previous_attempt_started_at, previous_attempt_expires_at,
-        previous_attempt_submitted_at, reopened_by, closes_at, reason
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      enrollmentId,
-      lessonId,
-      gradeItem?.id || null,
-      previousGrade?.score ?? null,
-      previousGrade?.note || null,
-      previousAttempt?.status || null,
-      previousAttempt?.started_at || null,
-      previousAttempt?.expires_at || null,
-      previousAttempt?.submitted_at || null,
-      req.user.id,
-      closesAt,
-      reason
-    );
-    db.prepare(`
-      INSERT INTO exam_access_overrides (enrollment_id, lesson_id, opens_at, closes_at, minutes, reason)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(enrollment_id, lesson_id) DO UPDATE SET
-        opens_at = excluded.opens_at,
-        closes_at = excluded.closes_at,
-        minutes = excluded.minutes,
-        reason = excluded.reason,
-        created_at = CURRENT_TIMESTAMP
-    `).run(enrollmentId, lessonId, opensAt, closesAt, settings.minutes, reason);
-    // Mark any earlier sitting as belonging to a prior reopen generation. The
-    // override row is intentionally upserted, so clearing this reference is
-    // what makes a second (or later) instructor reopen produce a fresh,
-    // one-sitting attempt without deleting the previous grade or audit trail.
-    db.prepare(`
-      UPDATE exam_attempts
-      SET access_override_id = NULL
-      WHERE enrollment_id = ? AND lesson_id = ?
-    `).run(enrollmentId, lessonId);
-    savePortalMessage({
-      senderId: req.user.id,
-      recipientId: enrollment.user_id,
-      courseId,
-      subject: `Assessment reopened: ${lesson.title}`,
-      body: `${personName(req.user)} reopened ${lesson.title} for one new attempt. It is available through ${examDateTimeLabel(closesAt)}. Your previous attempt and grade remain in the course audit history.`
+    operationResult = withImmediateTransaction(() => {
+      const existingBatch = db.prepare(`
+        SELECT id, course_id, lesson_id, scope, requested_enrollment_id,
+          requested_by, closes_at, reason, affected_count, skipped_count
+        FROM assessment_reopen_batches
+        WHERE request_token = ?
+      `).get(requestToken);
+      if (existingBatch) {
+        const sameRequest = Number(existingBatch.course_id) === courseId
+          && Number(existingBatch.lesson_id) === lessonId
+          && existingBatch.scope === (resetAll ? "all" : "one")
+          && Number(existingBatch.requested_enrollment_id || 0) === Number(enrollmentId || 0)
+          && Number(existingBatch.requested_by || 0) === Number(req.user.id || 0)
+          && existingBatch.closes_at === closesAt
+          && String(existingBatch.reason || "") === reason;
+        if (!sameRequest) {
+          const conflict = new Error("This reset request token has already been used for different reset details");
+          conflict.statusCode = 409;
+          throw conflict;
+        }
+        return {
+          duplicate: true,
+          affectedCount: Number(existingBatch.affected_count || 0),
+          skippedCount: Number(existingBatch.skipped_count || 0),
+          targetLabel: `${Number(existingBatch.affected_count || 0)} student${Number(existingBatch.affected_count || 0) === 1 ? "" : "s"}`
+        };
+      }
+
+      const batchResult = db.prepare(`
+        INSERT INTO assessment_reopen_batches (
+          request_token, course_id, lesson_id, scope, requested_enrollment_id,
+          requested_by, closes_at, reason
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        requestToken,
+        courseId,
+        lessonId,
+        resetAll ? "all" : "one",
+        enrollmentId,
+        req.user.id,
+        closesAt,
+        reason
+      );
+      const batchId = Number(batchResult.lastInsertRowid);
+      const eligibleEnrollments = db.prepare(`
+        SELECT e.*, u.first_name, u.last_name, u.email
+        FROM enrollments e
+        JOIN users u ON u.id = e.user_id
+        WHERE e.course_id = ?
+          AND e.status IN ('active', 'completed')
+          AND e.withdrawn_at IS NULL
+          AND u.status = 'active'
+        ORDER BY u.last_name, u.first_name
+      `).all(courseId);
+      const selectedEnrollments = resetAll
+        ? eligibleEnrollments.filter((row) => studentCanAccessLesson(lesson, row))
+        : eligibleEnrollments.filter((row) => Number(row.id) === enrollmentId);
+      if (!resetAll && !selectedEnrollments.length) {
+        const notFound = new Error("Student enrollment not found");
+        notFound.statusCode = 404;
+        throw notFound;
+      }
+      if (!resetAll && !studentCanAccessLesson(lesson, selectedEnrollments[0])) {
+        const restricted = new Error("This assessment is restricted to a different student");
+        restricted.statusCode = 422;
+        throw restricted;
+      }
+      if (!selectedEnrollments.length) {
+        const noTargets = new Error("No eligible students can access this assessment");
+        noTargets.statusCode = 422;
+        throw noTargets;
+      }
+
+      const targetEnrollments = [];
+      let skippedCount = 0;
+      const resetRequestedAt = Date.now();
+      for (const enrollment of selectedEnrollments) {
+        const currentAttempt = selectPreviousAttempt.get(enrollment.id, lessonId);
+        const previousOverride = selectPreviousOverride.get(enrollment.id, lessonId);
+        const attemptExpiresAt = storedDateMilliseconds(currentAttempt?.expires_at);
+        const attemptUsesCurrentOverride = Boolean(
+          previousOverride
+            && Number(currentAttempt?.access_override_id || 0) === Number(previousOverride.id || 0)
+        );
+        const applicableClosesAt = attemptUsesCurrentOverride
+          ? storedDateMilliseconds(previousOverride.closes_at)
+          : storedDateMilliseconds(settings.closesAt);
+        const applicableDeadline = Math.min(attemptExpiresAt, applicableClosesAt);
+        const liveAttempt = Boolean(
+          currentAttempt?.status === "in_progress"
+            && Number.isFinite(applicableDeadline)
+            && resetRequestedAt <= applicableDeadline + EXAM_SUBMISSION_GRACE_MS
+        );
+        if (liveAttempt) {
+          if (!resetAll) {
+            const activeAttempt = new Error("This student is currently taking the examination. Wait until the attempt ends before resetting it.");
+            activeAttempt.statusCode = 409;
+            throw activeAttempt;
+          }
+          skippedCount += 1;
+          continue;
+        }
+        targetEnrollments.push({ enrollment, previousAttempt: currentAttempt, previousOverride });
+      }
+
+      const gradeItem = resolveLessonGradeItem(lesson, courseId, {
+        createIfMissing: true,
+        pointsPossible: lessonQuizQuestions(lesson).length
+      });
+      const selectPreviousGrade = gradeItem
+        ? db.prepare("SELECT score, note FROM grades WHERE enrollment_id = ? AND grade_item_id = ?")
+        : null;
+      for (const { enrollment, previousAttempt, previousOverride } of targetEnrollments) {
+        const previousGrade = selectPreviousGrade?.get(enrollment.id, gradeItem.id) || null;
+        insertReopenAudit.run(
+          batchId,
+          enrollment.id,
+          lessonId,
+          gradeItem?.id || null,
+          previousGrade?.score ?? null,
+          previousGrade?.note || null,
+          previousAttempt?.status || null,
+          previousAttempt?.started_at || null,
+          previousAttempt?.expires_at || null,
+          previousAttempt?.submitted_at || null,
+          previousAttempt?.questions_json || null,
+          previousAttempt?.question_set_hash || null,
+          previousAttempt?.access_override_id || null,
+          previousOverride?.opens_at || null,
+          previousOverride?.closes_at || null,
+          previousOverride?.minutes ?? null,
+          previousOverride?.reason || null,
+          req.user.id,
+          closesAt,
+          reason
+        );
+        const resetMinutes = Number(previousOverride?.minutes || settings.minutes);
+        upsertAccessOverride.run(enrollment.id, lessonId, opensAt, closesAt, resetMinutes, reason);
+        // Mark any earlier sitting as belonging to a prior reopen generation. The
+        // override row is intentionally upserted, so clearing this reference is
+        // what makes a later deliberate reset produce a fresh, one-sitting attempt
+        // without deleting the previous grade or audit trail.
+        clearPriorAttemptGeneration.run(enrollment.id, lessonId);
+        savePortalMessage({
+          senderId: req.user.id,
+          recipientId: enrollment.user_id,
+          courseId,
+          subject: `Assessment reopened: ${lesson.title}`,
+          body: `${personName(req.user)} reopened ${lesson.title} for one new attempt. It is available through ${examDateTimeLabel(closesAt)}. Your previous attempt and grade remain in the course audit history.`
+        });
+      }
+      db.prepare(`
+        UPDATE assessment_reopen_batches
+        SET affected_count = ?, skipped_count = ?
+        WHERE id = ?
+      `).run(targetEnrollments.length, skippedCount, batchId);
+      const targetLabel = resetAll
+        ? `${targetEnrollments.length} eligible student${targetEnrollments.length === 1 ? "" : "s"}`
+        : `${targetEnrollments[0].enrollment.first_name} ${targetEnrollments[0].enrollment.last_name}`;
+      return {
+        duplicate: false,
+        affectedCount: targetEnrollments.length,
+        skippedCount,
+        targetLabel
+      };
     });
-    db.exec("COMMIT");
   } catch (error) {
-    try { db.exec("ROLLBACK"); } catch {}
+    if (error.statusCode) return res.status(error.statusCode).send(error.message);
     throw error;
   }
-  flash(req, `${lesson.title} reopened for ${enrollment.first_name} ${enrollment.last_name} through ${closesOn}.`);
+  if (operationResult.duplicate) {
+    flash(req, `This ${lesson.title} reset was already processed. No additional attempts or messages were created.`);
+  } else {
+    const skippedLabel = operationResult.skippedCount
+      ? ` ${operationResult.skippedCount} in-progress attempt${operationResult.skippedCount === 1 ? " was" : "s were"} left unchanged.`
+      : "";
+    flash(req, `${lesson.title} reopened for ${operationResult.targetLabel} through ${closesOn}.${skippedLabel}`);
+  }
   res.redirect(`/admin/courses/${courseId}/manage#assessment-access`);
 });
 
@@ -16694,7 +16911,7 @@ app.post("/student/enrollments/:id/quiz-submit", requireAuth, requireRole("stude
       return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);
     }
     const deadline = Math.min(storedDateMilliseconds(attempt.expires_at), new Date(examSettings.closesAt).getTime());
-    if (Date.now() > deadline + 5000) {
+    if (Date.now() > deadline + EXAM_SUBMISSION_GRACE_MS) {
       finalizeExpiredExamAttempt({ attempt, enrollmentId, lesson, gradeItem, settings: examSettings });
       flash(req, "Time expired. The examination attempt has ended and unanswered questions were scored as incorrect.");
       return res.redirect(`/student/enrollments/${enrollmentId}?lesson=${lessonId}`);

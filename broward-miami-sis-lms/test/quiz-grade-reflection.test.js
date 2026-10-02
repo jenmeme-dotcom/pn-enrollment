@@ -114,6 +114,17 @@ async function submitQuiz(lesson, answers) {
   });
 }
 
+async function assessmentResetToken(courseId) {
+  const response = await fetch(`${baseUrl}/admin/courses/${courseId}/manage`, {
+    headers: { cookie: adminCookie }
+  });
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  const token = html.match(/name="requestToken" value="([a-f0-9]{64})"/)?.[1];
+  assert.ok(token, "Expected a session-bound exam reset request token");
+  return token;
+}
+
 before(async () => {
   temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "bmhi-quiz-grades-"));
   const databaseFile = path.join(temporaryDirectory, "quiz-grades.sqlite");
@@ -562,6 +573,25 @@ test("loading an abandoned timed exam finalizes the expired attempt and records 
   });
   assert.ok([302, 303].includes(started.status));
   database.prepare("UPDATE exam_attempts SET expires_at = ? WHERE enrollment_id = ? AND lesson_id = ?")
+    .run(new Date(Date.now() - 1_000).toISOString(), finalLesson.enrollment_id, finalLesson.lesson_id);
+
+  const gracePage = await fetch(`${baseUrl}/student/enrollments/${finalLesson.enrollment_id}?lesson=${finalLesson.lesson_id}`, {
+    headers: { cookie: studentCookie }
+  });
+  assert.equal(gracePage.status, 200);
+  assert.doesNotMatch(await gracePage.text(), /Attempt ended|Exam closed/);
+  assert.equal(
+    database.prepare("SELECT status FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?")
+      .get(finalLesson.enrollment_id, finalLesson.lesson_id).status,
+    "in_progress"
+  );
+  assert.equal(
+    database.prepare("SELECT score FROM grades WHERE enrollment_id = ? AND grade_item_id = ?")
+      .get(finalLesson.enrollment_id, gradeItem.id),
+    undefined
+  );
+
+  database.prepare("UPDATE exam_attempts SET expires_at = ? WHERE enrollment_id = ? AND lesson_id = ?")
     .run(new Date(Date.now() - 60_000).toISOString(), finalLesson.enrollment_id, finalLesson.lesson_id);
 
   const page = await fetch(`${baseUrl}/student/enrollments/${finalLesson.enrollment_id}?lesson=${finalLesson.lesson_id}`, {
@@ -649,11 +679,13 @@ test("assessment reopening preserves prior records until the selected student st
   seedPriorState(control.id, 72, "Control prior final");
 
   const closesOn = new Date(Date.now() + (14 * 86_400_000)).toISOString().slice(0, 10);
+  const reopenRequestToken = await assessmentResetToken(finalLesson.course_id);
   const reopenResponse = await fetch(`${baseUrl}/admin/courses/${finalLesson.course_id}/assessment-access`, {
     body: new URLSearchParams({
       enrollmentId: String(selected.id),
       lessonId: String(finalLesson.lesson_id),
       closesOn,
+      requestToken: reopenRequestToken,
       reason: "Targeted regression test"
     }),
     headers: {
@@ -764,11 +796,13 @@ test("assessment reopening preserves prior records until the selected student st
       .get(selected.id, finalLesson.lesson_id)
   );
 
+  const secondReopenRequestToken = await assessmentResetToken(finalLesson.course_id);
   const secondReopenResponse = await fetch(`${baseUrl}/admin/courses/${finalLesson.course_id}/assessment-access`, {
     body: new URLSearchParams({
       enrollmentId: String(selected.id),
       lessonId: String(finalLesson.lesson_id),
       closesOn,
+      requestToken: secondReopenRequestToken,
       reason: "Second targeted reopen"
     }),
     headers: {
