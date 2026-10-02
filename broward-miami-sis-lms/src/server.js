@@ -2667,7 +2667,7 @@ function finalizeExpiredExamAttempt({ attempt, enrollmentId, lesson, gradeItem =
   });
 }
 
-function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, instructor = false, preview = false, baseHref = "#", quizGrade = null, courseId = null, examAttempt = null }) {
+function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, enrollmentStatus = "active", instructor = false, preview = false, baseHref = "#", quizGrade = null, courseId = null, examAttempt = null }) {
   const quizMeta = quizDueAndPoints(lesson, gradeItems);
   const topic = quizChapterLabel(lesson.title);
   const examSettings = examSettingsForLesson(lesson, enrollmentId);
@@ -2722,7 +2722,7 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
         <p>Your score was saved immediately in the course gradebook.</p>
         <div class="actions">
           <a class="button" href="${escapeHtml(baseHref)}?view=grades">View Grade</a>
-          ${examSettings ? "" : `
+          ${examSettings || enrollmentStatus !== "active" ? "" : `
             <form method="post" action="/student/enrollments/${enrollmentId}/quizzes/${lesson.id}/start">
               <button class="button ghost" type="submit">Retake Quiz</button>
             </form>
@@ -2759,6 +2759,16 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, i
     if (activeExamAttempt.status !== "in_progress" || now >= attemptExpiresAt) {
       return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Attempt ended</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}<p>This one-sitting examination attempt has ended and cannot be reopened. View Grades for the recorded result or contact your instructor.</p><a class="button" href="${escapeHtml(baseHref)}?view=grades">View Grades</a></div>`;
     }
+  }
+  if (!instructor && !examSettings && !examAttempt && enrollmentStatus !== "active") {
+    return `
+      <div class="lesson-action-card exam-gate-card quiz-start-card">
+        <span class="quiz-submitted-kicker">Course completed</span>
+        <h2>${escapeHtml(topic)}</h2>
+        <p>Ask your instructor to reactivate this enrollment before starting or retaking regular coursework.</p>
+        <a class="button ghost" href="${escapeHtml(baseHref)}?view=grades">View Grades</a>
+      </div>
+    `;
   }
   if (!instructor && !examSettings && !examAttempt) {
     return `
@@ -3096,7 +3106,7 @@ function renderVideoAssignmentPanel({ lesson, enrollmentId = null, instructor = 
   `;
 }
 
-function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instructor = false, preview = false, gradeItems = [], quizGrade = null, courseId = null, examAttempt = null, assignmentSubmission = null }) {
+function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, enrollmentStatus = "active", instructor = false, preview = false, gradeItems = [], quizGrade = null, courseId = null, examAttempt = null, assignmentSubmission = null }) {
   const title = String(lesson.title || "");
   const lower = title.toLowerCase();
   const kind = lessonItemKind(lesson);
@@ -3152,7 +3162,7 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, instru
   }
 
   if (kind === "quiz") {
-    return renderQuizActionPanel({ lesson, gradeItems, enrollmentId, instructor, preview, baseHref, quizGrade, courseId, examAttempt });
+    return renderQuizActionPanel({ lesson, gradeItems, enrollmentId, enrollmentStatus, instructor, preview, baseHref, quizGrade, courseId, examAttempt });
   }
 
   if (kind === "discussion") {
@@ -3304,7 +3314,7 @@ function renderIntroNursingNclexHint(lesson = {}) {
   `;
 }
 
-function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, instructor = false, preview = false, gradeItems = [], grades = [], completedLessonIds = new Set(), courseId = null, syllabusPdfHref = "" }) {
+function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons = [], moduleGroups = [], lessonId, enrollmentId = null, enrollmentStatus = "active", instructor = false, preview = false, gradeItems = [], grades = [], completedLessonIds = new Set(), courseId = null, syllabusPdfHref = "" }) {
   const firstLesson = lessons[0];
   const selectedLesson = lessons.find((lesson) => lesson.id === Number(lessonId)) || firstLesson;
   const editingSuffix = instructor ? "&mode=edit" : "";
@@ -3417,7 +3427,7 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
           ` : ""}
           ${showLessonSourceContent ? renderCanvasLessonContent(lessonContentForViewer, [selectedLesson.title, selectedLessonDisplayTitle, selectedLessonHeading.title]) : ""}
         </div>
-        ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, instructor, preview, gradeItems, quizGrade, courseId, examAttempt, assignmentSubmission: selectedAssignmentSubmission })}
+        ${renderLessonActionPanel({ lesson: selectedLesson, baseHref, enrollmentId, enrollmentStatus, instructor, preview, gradeItems, quizGrade, courseId, examAttempt, assignmentSubmission: selectedAssignmentSubmission })}
         ${selectedGradeItem && rubricEligible(selectedGradeItem)
           ? renderAssignmentRubric({ item: selectedGradeItem, instructor, courseId })
           : ""}
@@ -16163,6 +16173,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         moduleGroups,
         lessonId: req.query.lesson,
         enrollmentId: enrollment.id,
+        enrollmentStatus: enrollment.status,
         gradeItems,
         grades,
         completedLessonIds,

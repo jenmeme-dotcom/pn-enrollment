@@ -64,14 +64,14 @@ test("PN101 duplicate assessments retain grades, submissions, attempts, and audi
       WHERE id = ?
     `).run(duplicateGradeItemId, originalLesson.id).lastInsertRowid);
 
-    database.prepare(`
+    const losingGradeId = Number(database.prepare(`
       INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
       VALUES (?, ?, 7, 'older score', '2026-09-01 12:00:00')
-    `).run(firstEnrollment.id, originalLesson.grade_item_id);
-    database.prepare(`
+    `).run(firstEnrollment.id, originalLesson.grade_item_id).lastInsertRowid);
+    const survivorGradeId = Number(database.prepare(`
       INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
       VALUES (?, ?, 9, 'higher retake score', '2026-09-30 12:00:00')
-    `).run(firstEnrollment.id, duplicateGradeItemId);
+    `).run(firstEnrollment.id, duplicateGradeItemId).lastInsertRowid);
     database.prepare(`
       INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
       VALUES (?, ?, 8, 'second student score', '2026-09-30 13:00:00')
@@ -92,18 +92,24 @@ test("PN101 duplicate assessments retain grades, submissions, attempts, and audi
       INSERT INTO lesson_completions (enrollment_id, lesson_id, completed_at)
       VALUES (?, ?, '2026-09-30 12:30:00')
     `).run(firstEnrollment.id, duplicateLessonId);
-    database.prepare(`
-      INSERT INTO exam_attempts (enrollment_id, lesson_id, started_at, expires_at, status)
-      VALUES (?, ?, '2026-09-01 10:00:00', '2026-09-01 10:30:00', 'in_progress')
-    `).run(firstEnrollment.id, originalLesson.id);
+    const firstLosingAttemptId = Number(database.prepare(`
+      INSERT INTO exam_attempts (
+        enrollment_id, lesson_id, questions_json, question_set_hash,
+        started_at, expires_at, status
+      ) VALUES (?, ?, '[{"id":"first-losing-question"}]', 'first-losing-hash',
+        '2026-09-01 10:00:00', '2026-09-01 10:30:00', 'in_progress')
+    `).run(firstEnrollment.id, originalLesson.id).lastInsertRowid);
     database.prepare(`
       INSERT INTO exam_attempts (enrollment_id, lesson_id, started_at, expires_at, submitted_at, status)
       VALUES (?, ?, '2026-09-30 10:00:00', '2026-09-30 10:30:00', '2026-09-30 10:15:00', 'submitted')
     `).run(firstEnrollment.id, duplicateLessonId);
-    database.prepare(`
-      INSERT INTO exam_attempts (enrollment_id, lesson_id, started_at, expires_at, submitted_at, status)
-      VALUES (?, ?, '2026-09-01 10:00:00', '2026-09-01 10:30:00', '2026-09-01 10:15:00', 'submitted')
-    `).run(secondEnrollment.id, originalLesson.id);
+    const secondLosingAttemptId = Number(database.prepare(`
+      INSERT INTO exam_attempts (
+        enrollment_id, lesson_id, questions_json, question_set_hash,
+        started_at, expires_at, submitted_at, status
+      ) VALUES (?, ?, '[{"id":"second-losing-question"}]', 'second-losing-hash',
+        '2026-09-01 10:00:00', '2026-09-01 10:30:00', '2026-09-01 10:15:00', 'submitted')
+    `).run(secondEnrollment.id, originalLesson.id).lastInsertRowid);
     database.prepare(`
       INSERT INTO exam_attempts (enrollment_id, lesson_id, started_at, expires_at, status)
       VALUES (?, ?, '2026-10-01 10:00:00', '2099-10-01 10:30:00', 'in_progress')
@@ -222,6 +228,81 @@ test("PN101 duplicate assessments retain grades, submissions, attempts, and audi
       { lesson_id: originalLesson.id, grade_item_id: duplicateGradeItemId, attempt_number: 2, score: 9 },
       { lesson_id: originalLesson.id, grade_item_id: duplicateGradeItemId, attempt_number: 3, score: 8 }
     ]);
+
+    const archivedGrade = database.prepare(`
+      SELECT source_record_id, source_parent_id, survivor_record_id,
+        survivor_parent_id, payload_json, reason
+      FROM dedup_record_archives
+      WHERE entity_type = 'grades'
+    `).get();
+    assert.deepEqual(
+      {
+        source_record_id: archivedGrade.source_record_id,
+        source_parent_id: archivedGrade.source_parent_id,
+        survivor_record_id: archivedGrade.survivor_record_id,
+        survivor_parent_id: archivedGrade.survivor_parent_id
+      },
+      {
+        source_record_id: losingGradeId,
+        source_parent_id: originalLesson.grade_item_id,
+        survivor_record_id: survivorGradeId,
+        survivor_parent_id: duplicateGradeItemId
+      }
+    );
+    assert.match(archivedGrade.reason, /duplicate grade conflict/i);
+    assert.deepEqual(
+      JSON.parse(archivedGrade.payload_json),
+      {
+        id: losingGradeId,
+        enrollment_id: firstEnrollment.id,
+        grade_item_id: originalLesson.grade_item_id,
+        score: 7,
+        note: "older score",
+        updated_at: "2026-09-01 12:00:00"
+      }
+    );
+
+    const archivedAttempts = database.prepare(`
+      SELECT source_record_id, source_parent_id, survivor_parent_id, payload_json, reason
+      FROM dedup_record_archives
+      WHERE entity_type = 'exam_attempts'
+      ORDER BY source_record_id
+    `).all().map((row) => ({ ...row, payload: JSON.parse(row.payload_json) }));
+    assert.deepEqual(
+      archivedAttempts.map((row) => row.source_record_id),
+      [firstLosingAttemptId, secondLosingAttemptId]
+    );
+    assert.ok(archivedAttempts.every((row) => row.source_parent_id === originalLesson.id));
+    assert.ok(archivedAttempts.every((row) => row.survivor_parent_id === originalLesson.id));
+    assert.ok(archivedAttempts.every((row) => /duplicate exam attempt conflict/i.test(row.reason)));
+    assert.deepEqual(
+      archivedAttempts.map((row) => ({
+        id: row.payload.id,
+        enrollment_id: row.payload.enrollment_id,
+        lesson_id: row.payload.lesson_id,
+        questions_json: row.payload.questions_json,
+        question_set_hash: row.payload.question_set_hash,
+        status: row.payload.status
+      })),
+      [
+        {
+          id: firstLosingAttemptId,
+          enrollment_id: firstEnrollment.id,
+          lesson_id: originalLesson.id,
+          questions_json: '[{"id":"first-losing-question"}]',
+          question_set_hash: "first-losing-hash",
+          status: "in_progress"
+        },
+        {
+          id: secondLosingAttemptId,
+          enrollment_id: secondEnrollment.id,
+          lesson_id: originalLesson.id,
+          questions_json: '[{"id":"second-losing-question"}]',
+          question_set_hash: "second-losing-hash",
+          status: "submitted"
+        }
+      ]
+    );
     database.close();
   } finally {
     fs.rmSync(temporaryDirectory, { force: true, recursive: true });

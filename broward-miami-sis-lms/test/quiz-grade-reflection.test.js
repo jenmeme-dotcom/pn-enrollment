@@ -309,6 +309,49 @@ test("ordinary quizzes can be retaken and keep the highest submitted score", asy
   assert.ok(attempts[1].score < perfectScore);
 });
 
+test("completed enrollments do not show regular quiz controls until an instructor reactivates the course", async () => {
+  const quizLesson = database.prepare(`
+    SELECT e.id AS enrollment_id, l.id AS lesson_id
+    FROM enrollments e
+    JOIN users u ON u.id = e.user_id
+    JOIN courses c ON c.id = e.course_id
+    JOIN modules m ON m.course_id = c.id
+    JOIN lessons l ON l.module_id = m.id
+    WHERE u.email = 'student@browardmiamihi.com'
+      AND c.slug = 'medical-terminology'
+      AND l.title LIKE '[PN101 2026] Quiz 2 - Chapter 2:%'
+      AND l.content LIKE '%QUIZ_DATA_BASE64:%'
+      AND lower(l.title) NOT LIKE '%midterm%'
+      AND lower(l.title) NOT LIKE '%final%'
+    ORDER BY m.position, l.position, l.id
+    LIMIT 1
+  `).get();
+  assert.ok(quizLesson);
+  database.prepare("DELETE FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?")
+    .run(quizLesson.enrollment_id, quizLesson.lesson_id);
+  database.prepare("UPDATE enrollments SET status = 'completed' WHERE id = ?").run(quizLesson.enrollment_id);
+  try {
+    const page = await fetch(
+      `${baseUrl}/student/enrollments/${quizLesson.enrollment_id}?lesson=${quizLesson.lesson_id}`,
+      { headers: { cookie: studentCookie } }
+    );
+    assert.equal(page.status, 200);
+    const html = await page.text();
+    assert.match(html, /Course completed/);
+    assert.match(html, /reactivate this enrollment/i);
+    assert.doesNotMatch(html, />Start Now</);
+    assert.doesNotMatch(html, />Retake Quiz</);
+
+    const blockedStart = await fetch(
+      `${baseUrl}/student/enrollments/${quizLesson.enrollment_id}/quizzes/${quizLesson.lesson_id}/start`,
+      { headers: { cookie: studentCookie }, method: "POST", redirect: "manual" }
+    );
+    assert.equal(blockedStart.status, 404);
+  } finally {
+    database.prepare("UPDATE enrollments SET status = 'active' WHERE id = ?").run(quizLesson.enrollment_id);
+  }
+});
+
 test("an in-progress quiz is graded against the question snapshot saved at start", async () => {
   const quizLesson = database.prepare(`
     SELECT e.id AS enrollment_id, c.id AS course_id, l.id AS lesson_id,

@@ -448,6 +448,31 @@ function migrate() {
       UNIQUE(enrollment_id, lesson_id, attempt_number)
     );
 
+    CREATE TABLE IF NOT EXISTS dedup_record_archives (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entity_type TEXT NOT NULL,
+      source_record_id INTEGER NOT NULL,
+      source_parent_id INTEGER,
+      survivor_record_id INTEGER,
+      survivor_parent_id INTEGER,
+      payload_json TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(entity_type, source_record_id, reason)
+    );
+
+    CREATE TRIGGER IF NOT EXISTS dedup_record_archives_immutable_update
+    BEFORE UPDATE ON dedup_record_archives
+    BEGIN
+      SELECT RAISE(ABORT, 'dedup record archives are immutable');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS dedup_record_archives_immutable_delete
+    BEFORE DELETE ON dedup_record_archives
+    BEGIN
+      SELECT RAISE(ABORT, 'dedup record archives are immutable');
+    END;
+
     CREATE TABLE IF NOT EXISTS assignment_rubrics (
       grade_item_id INTEGER PRIMARY KEY REFERENCES grade_items(id) ON DELETE CASCADE,
       rubric_json TEXT NOT NULL,
@@ -2169,6 +2194,30 @@ function seed() {
       if (sourceRank !== targetRank) return sourceRank > targetRank;
       return newerTimestamp(source.submitted_at || source.started_at, target.submitted_at || target.started_at);
     };
+    const archivePn101DedupRecord = db.prepare(`
+      INSERT OR IGNORE INTO dedup_record_archives (
+        entity_type, source_record_id, source_parent_id,
+        survivor_record_id, survivor_parent_id, payload_json, reason
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const archivePn101Conflict = ({
+      entityType,
+      losingRecord,
+      sourceParentId,
+      survivorRecordId,
+      survivorParentId,
+      reason
+    }) => {
+      archivePn101DedupRecord.run(
+        entityType,
+        losingRecord.id,
+        sourceParentId ?? null,
+        survivorRecordId ?? null,
+        survivorParentId ?? null,
+        JSON.stringify(losingRecord),
+        reason
+      );
+    };
 
     db.exec("SAVEPOINT pn101_assessment_dedup");
     try {
@@ -2190,6 +2239,15 @@ function seed() {
                 || (Number(sourceGrade.score) === Number(targetGrade.score)
                   && newerTimestamp(sourceGrade.updated_at, targetGrade.updated_at))
               : newerTimestamp(sourceGrade.updated_at, targetGrade.updated_at);
+            const losingGrade = sourceWins ? targetGrade : sourceGrade;
+            archivePn101Conflict({
+              entityType: "grades",
+              losingRecord: losingGrade,
+              sourceParentId: losingGrade.grade_item_id,
+              survivorRecordId: targetGrade.id,
+              survivorParentId: canonicalGradeItem.id,
+              reason: "PN101 duplicate grade conflict: lower-priority payload preserved before consolidation"
+            });
             if (sourceWins) {
               updatePn101Grade.run(sourceGrade.score, sourceGrade.note, sourceGrade.updated_at, targetGrade.id);
             }
@@ -2274,7 +2332,17 @@ function seed() {
               movePn101Attempt.run(keeper.id, sourceAttempt.id);
               return;
             }
-            if (sourceAttemptWins(sourceAttempt, targetAttempt)) {
+            const sourceWins = sourceAttemptWins(sourceAttempt, targetAttempt);
+            const losingAttempt = sourceWins ? targetAttempt : sourceAttempt;
+            archivePn101Conflict({
+              entityType: "exam_attempts",
+              losingRecord: losingAttempt,
+              sourceParentId: losingAttempt.lesson_id,
+              survivorRecordId: targetAttempt.id,
+              survivorParentId: keeper.id,
+              reason: "PN101 duplicate exam attempt conflict: lower-priority payload preserved before consolidation"
+            });
+            if (sourceWins) {
               updatePn101Attempt.run(
                 sourceAttempt.access_override_id,
                 sourceAttempt.questions_json,
