@@ -309,7 +309,7 @@ test("ordinary quizzes can be retaken and keep the highest submitted score", asy
   assert.ok(attempts[1].score < perfectScore);
 });
 
-test("completed enrollments do not show regular quiz controls until an instructor reactivates the course", async () => {
+test("completed enrollments hide an in-progress regular quiz until an instructor reactivates the course", async () => {
   const quizLesson = database.prepare(`
     SELECT e.id AS enrollment_id, l.id AS lesson_id
     FROM enrollments e
@@ -329,6 +329,17 @@ test("completed enrollments do not show regular quiz controls until an instructo
   assert.ok(quizLesson);
   database.prepare("DELETE FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?")
     .run(quizLesson.enrollment_id, quizLesson.lesson_id);
+  database.prepare("UPDATE enrollments SET status = 'active' WHERE id = ?").run(quizLesson.enrollment_id);
+  const startedQuiz = await fetch(
+    `${baseUrl}/student/enrollments/${quizLesson.enrollment_id}/quizzes/${quizLesson.lesson_id}/start`,
+    { headers: { cookie: studentCookie }, method: "POST", redirect: "manual" }
+  );
+  assert.ok([302, 303].includes(startedQuiz.status));
+  assert.equal(
+    database.prepare("SELECT status FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?")
+      .get(quizLesson.enrollment_id, quizLesson.lesson_id)?.status,
+    "in_progress"
+  );
   database.prepare("UPDATE enrollments SET status = 'completed' WHERE id = ?").run(quizLesson.enrollment_id);
   try {
     const page = await fetch(
@@ -341,6 +352,7 @@ test("completed enrollments do not show regular quiz controls until an instructo
     assert.match(html, /reactivate this enrollment/i);
     assert.doesNotMatch(html, />Start Now</);
     assert.doesNotMatch(html, />Retake Quiz</);
+    assert.doesNotMatch(html, /name="q1"/);
 
     const blockedStart = await fetch(
       `${baseUrl}/student/enrollments/${quizLesson.enrollment_id}/quizzes/${quizLesson.lesson_id}/start`,
@@ -349,6 +361,8 @@ test("completed enrollments do not show regular quiz controls until an instructo
     assert.equal(blockedStart.status, 404);
   } finally {
     database.prepare("UPDATE enrollments SET status = 'active' WHERE id = ?").run(quizLesson.enrollment_id);
+    database.prepare("DELETE FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?")
+      .run(quizLesson.enrollment_id, quizLesson.lesson_id);
   }
 });
 

@@ -453,12 +453,13 @@ function migrate() {
       entity_type TEXT NOT NULL,
       source_record_id INTEGER NOT NULL,
       source_parent_id INTEGER,
+      competing_record_id INTEGER NOT NULL,
       survivor_record_id INTEGER,
       survivor_parent_id INTEGER,
       payload_json TEXT NOT NULL,
       reason TEXT NOT NULL,
       archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(entity_type, source_record_id, reason)
+      UNIQUE(entity_type, source_record_id, competing_record_id, reason)
     );
 
     CREATE TRIGGER IF NOT EXISTS dedup_record_archives_immutable_update
@@ -2196,14 +2197,15 @@ function seed() {
     };
     const archivePn101DedupRecord = db.prepare(`
       INSERT OR IGNORE INTO dedup_record_archives (
-        entity_type, source_record_id, source_parent_id,
+        entity_type, source_record_id, source_parent_id, competing_record_id,
         survivor_record_id, survivor_parent_id, payload_json, reason
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const archivePn101Conflict = ({
       entityType,
       losingRecord,
       sourceParentId,
+      competingRecordId,
       survivorRecordId,
       survivorParentId,
       reason
@@ -2212,6 +2214,7 @@ function seed() {
         entityType,
         losingRecord.id,
         sourceParentId ?? null,
+        competingRecordId,
         survivorRecordId ?? null,
         survivorParentId ?? null,
         JSON.stringify(losingRecord),
@@ -2244,6 +2247,7 @@ function seed() {
               entityType: "grades",
               losingRecord: losingGrade,
               sourceParentId: losingGrade.grade_item_id,
+              competingRecordId: sourceWins ? sourceGrade.id : targetGrade.id,
               survivorRecordId: targetGrade.id,
               survivorParentId: canonicalGradeItem.id,
               reason: "PN101 duplicate grade conflict: lower-priority payload preserved before consolidation"
@@ -2338,6 +2342,7 @@ function seed() {
               entityType: "exam_attempts",
               losingRecord: losingAttempt,
               sourceParentId: losingAttempt.lesson_id,
+              competingRecordId: sourceWins ? sourceAttempt.id : targetAttempt.id,
               survivorRecordId: targetAttempt.id,
               survivorParentId: keeper.id,
               reason: "PN101 duplicate exam attempt conflict: lower-priority payload preserved before consolidation"

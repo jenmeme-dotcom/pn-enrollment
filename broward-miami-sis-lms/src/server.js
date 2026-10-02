@@ -2760,7 +2760,7 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, e
       return `<div class="lesson-action-card exam-gate-card"><span class="quiz-submitted-kicker">Attempt ended</span><h2>${escapeHtml(examSettings.label)}</h2>${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}<p>This one-sitting examination attempt has ended and cannot be reopened. View Grades for the recorded result or contact your instructor.</p><a class="button" href="${escapeHtml(baseHref)}?view=grades">View Grades</a></div>`;
     }
   }
-  if (!instructor && !examSettings && !examAttempt && enrollmentStatus !== "active") {
+  if (!instructor && !examSettings && enrollmentStatus !== "active") {
     return `
       <div class="lesson-action-card exam-gate-card quiz-start-card">
         <span class="quiz-submitted-kicker">Course completed</span>
