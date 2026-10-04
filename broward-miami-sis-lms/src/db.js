@@ -1307,7 +1307,8 @@ function seed() {
           'roney.hernandez@browardmiamihi.com',
           'roney.hernandez.instructor@browardmiamihi.com',
           'roney.hernandez.instructor-retired@browardmiamihi.com',
-          'roney.hernandez.admin-removed@browardmiamihi.com'
+          'roney.hernandez.admin-removed@browardmiamihi.com',
+          'ashleypadilla226@yahoo.com'
         )
         OR (lower(first_name) = 'roney' AND lower(last_name) = 'hernandez')
       )
