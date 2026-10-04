@@ -11,3 +11,14 @@ test("Gamarha Joseph and Gaynelle White have approved admin logins", () => {
     ]
   );
 });
+
+test("Dorothy Joy Borsoto Boongaling has an approved admin login", () => {
+  assert.deepEqual(
+    adminAccessAccounts.find((account) => account.email === "dorothyjoyboongaling@gmail.com"),
+    {
+      firstName: "Dorothy Joy",
+      lastName: "Borsoto Boongaling",
+      email: "dorothyjoyboongaling@gmail.com"
+    }
+  );
+});
