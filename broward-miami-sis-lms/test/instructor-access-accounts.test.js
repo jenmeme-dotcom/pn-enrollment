@@ -10,7 +10,8 @@ test("Natacha Andrea Aleman has an approved instructor login", () => {
   assert.match(serverSource, /\["natacha\.aleman@browardmiamihi\.com", \{ firstName: "Natacha Andrea", lastName: "Aleman" \}\]/);
 });
 
-test("Ashley Anaya has an approved instructor login", () => {
-  assert.match(serverSource, /firstName: "Ashley", lastName: "Anaya", email: "ashleypadilla226@yahoo\.com"/);
-  assert.match(serverSource, /\["ashleypadilla226@yahoo\.com", \{ firstName: "Ashley", lastName: "Anaya" \}\]/);
+test("Ashley Anaya is removed from approved instructor access", () => {
+  assert.doesNotMatch(serverSource, /firstName: "Ashley", lastName: "Anaya", email: "ashleypadilla226@yahoo\.com"/);
+  assert.doesNotMatch(serverSource, /\["ashleypadilla226@yahoo\.com", \{ firstName: "Ashley", lastName: "Anaya" \}\]/);
+  assert.match(serverSource, /'ashleypadilla226@yahoo\.com'/);
 });

@@ -31,13 +31,11 @@ const {
 const instructorAccessDefaultPassword = "InstructorPass123!";
 const instructorLoginRepairs = new Map([
   ["dayana.diaz@browardmiamihi.com", { firstName: "Dayana", lastName: "Diaz" }],
-  ["natacha.aleman@browardmiamihi.com", { firstName: "Natacha Andrea", lastName: "Aleman" }],
-  ["ashleypadilla226@yahoo.com", { firstName: "Ashley", lastName: "Anaya" }]
+  ["natacha.aleman@browardmiamihi.com", { firstName: "Natacha Andrea", lastName: "Aleman" }]
 ]);
 const instructorAccessAccounts = [
   { firstName: "Dayana", lastName: "Diaz", email: "dayana.diaz@browardmiamihi.com", phone: "" },
-  { firstName: "Natacha Andrea", lastName: "Aleman", email: "natacha.aleman@browardmiamihi.com", phone: "" },
-  { firstName: "Ashley", lastName: "Anaya", email: "ashleypadilla226@yahoo.com", phone: "" }
+  { firstName: "Natacha Andrea", lastName: "Aleman", email: "natacha.aleman@browardmiamihi.com", phone: "" }
 ];
 const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = require("./ui");
@@ -71,7 +69,8 @@ function ensureInstructorAccessAccounts() {
           'roney.hernandez@browardmiamihi.com',
           'roney.hernandez.instructor@browardmiamihi.com',
           'roney.hernandez.instructor-retired@browardmiamihi.com',
-          'roney.hernandez.admin-removed@browardmiamihi.com'
+          'roney.hernandez.admin-removed@browardmiamihi.com',
+          'ashleypadilla226@yahoo.com'
         )
         OR (lower(first_name) = 'roney' AND lower(last_name) = 'hernandez')
       )
