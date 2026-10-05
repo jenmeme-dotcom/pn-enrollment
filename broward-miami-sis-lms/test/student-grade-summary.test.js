@@ -104,6 +104,15 @@ async function getInstructorGradesHtml() {
   return html;
 }
 
+function assertPrivateNoStore(response, route) {
+  const cacheControl = response.headers.get("cache-control") || "";
+  assert.match(cacheControl, /(?:^|,)\s*private(?:\s*,|$)/i, `Expected ${route} to be private`);
+  assert.match(cacheControl, /(?:^|,)\s*no-store(?:\s*,|$)/i, `Expected ${route} to disable browser storage`);
+  assert.match(cacheControl, /(?:^|,)\s*max-age=0(?:\s*,|$)/i, `Expected ${route} to expire immediately`);
+  assert.equal(response.headers.get("pragma"), "no-cache", `Expected ${route} to disable legacy caches`);
+  assert.equal(response.headers.get("expires"), "0", `Expected ${route} to be immediately expired`);
+}
+
 function visibleText(html) {
   return html
     .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
@@ -229,6 +238,28 @@ test("student Grades shows saved posted scores and calculates overall grade from
   assert.doesNotMatch(instructorHtml, /Student Preview/);
   assert.match(instructorStudentRow, /Demo Student 50\.00% F\b/, "Instructor should see the student's current percentage and letter grade");
   assert.match(instructorStudentRow, /100 0 — pending review -/, "Instructor should show posted scores while withholding provisional pending scores");
+});
+
+test("authenticated student and instructor grade pages cannot be served from browser cache", async () => {
+  const routes = [
+    {
+      cookie: studentCookie,
+      path: `/student/enrollments/${enrollment.id}?view=grades`
+    },
+    {
+      cookie: adminCookie,
+      path: `/admin/courses/${enrollment.course_id}/student-view?view=grades`
+    }
+  ];
+
+  for (const route of routes) {
+    const response = await fetch(`${baseUrl}${route.path}`, {
+      headers: { cookie: route.cookie },
+      redirect: "manual"
+    });
+    assert.equal(response.status, 200, `Expected ${route.path} to render successfully`);
+    assertPrivateNoStore(response, route.path);
+  }
 });
 
 test("an official final grade overrides the calculated letter grade in both grade views", async () => {

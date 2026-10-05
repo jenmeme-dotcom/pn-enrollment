@@ -86,6 +86,34 @@ function fallbackWrittenAssignmentContent(title = "", existingContent = "") {
   ].join("\n");
 }
 
+function linkQuizLessonsToExactGradeItems() {
+  const unlinkedQuizLessons = db.prepare(`
+    SELECT l.id, l.title, m.course_id
+    FROM lessons l
+    JOIN modules m ON m.id = l.module_id
+    WHERE l.grade_item_id IS NULL
+      AND l.content LIKE '%QUIZ_DATA_BASE64:%'
+      AND COALESCE(l.published, 1) = 1
+      AND COALESCE(l.instructor_only, 0) = 0
+  `).all();
+  const exactGradeItems = db.prepare(`
+    SELECT id
+    FROM grade_items
+    WHERE course_id = ? AND title = ?
+    ORDER BY id
+  `);
+  const linkLesson = db.prepare(`
+    UPDATE lessons
+    SET grade_item_id = ?, item_type = 'quiz'
+    WHERE id = ? AND grade_item_id IS NULL
+  `);
+
+  unlinkedQuizLessons.forEach((lesson) => {
+    const matches = exactGradeItems.all(lesson.course_id, lesson.title);
+    if (matches.length === 1) linkLesson.run(matches[0].id, lesson.id);
+  });
+}
+
 function reopenPnCourseworkForCompletion() {
   const findCourse = db.prepare("SELECT id FROM courses WHERE slug = ?");
   const migrationApplied = db.prepare("SELECT 1 FROM course_seed_versions WHERE course_id = ? AND seed_key = ?");
@@ -4257,6 +4285,13 @@ function seed() {
   unmarkedWrittenAssignments.forEach((lesson) => {
     standardizeWrittenAssignment.run(fallbackWrittenAssignmentContent(lesson.title, lesson.content), lesson.id);
   });
+
+  // Keep every assessment attached to its permanent gradebook column. Older
+  // PN 103/104 seeds created the lesson and grade item separately, which made
+  // the first student submission responsible for discovering and storing the
+  // link at runtime. Repair only unlinked, unambiguous exact-title matches so
+  // existing instructor links and all academic records remain untouched.
+  linkQuizLessonsToExactGradeItems();
 
   // Reopen the current PN 101-104 coursework once without changing due dates,
   // completed work, or the protected midterm/final schedules. The marker keeps

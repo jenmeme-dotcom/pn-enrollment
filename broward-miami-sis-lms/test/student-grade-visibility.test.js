@@ -13,6 +13,7 @@ test("student gradebook renders every saved course grade item", () => {
 });
 
 test("posted grades remain visible while pending auto-grades remain hidden", () => {
-  assert.match(gradebookFunction, /!isAutoGradeApprovalPending/);
-  assert.match(gradebookFunction, /status: isAutoGradeApprovalPending[^\n]*\? "pending"/);
+  assert.match(gradebookFunction, /const approvalPending = isAutoGradeApprovalPending/);
+  assert.match(gradebookFunction, /score: grade && !approvalPending \? grade\.score : null/);
+  assert.match(gradebookFunction, /status: approvalPending \? "pending" : undefined/);
 });

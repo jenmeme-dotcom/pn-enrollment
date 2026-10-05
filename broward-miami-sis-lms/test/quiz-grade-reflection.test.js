@@ -102,6 +102,18 @@ function quizAnswers(lesson, { correct = true } = {}) {
   return { answers, questions };
 }
 
+function htmlRowContaining(html, needle) {
+  let matchIndex = html.indexOf(needle);
+  while (matchIndex >= 0) {
+    const rowStart = html.lastIndexOf("<tr", matchIndex);
+    const priorRowEnd = html.lastIndexOf("</tr>", matchIndex);
+    const rowEnd = html.indexOf("</tr>", matchIndex);
+    if (rowStart > priorRowEnd && rowEnd > matchIndex) return html.slice(rowStart, rowEnd + 5);
+    matchIndex = html.indexOf(needle, matchIndex + needle.length);
+  }
+  assert.fail(`Expected ${needle} to appear inside a table row`);
+}
+
 async function submitQuiz(lesson, answers) {
   return fetch(`${baseUrl}/student/enrollments/${lesson.enrollment_id}/quiz-submit`, {
     body: answers,
@@ -230,7 +242,7 @@ test("completed quizzes record grades even when the gradebook item is missing", 
 test("ordinary quizzes can be retaken and keep the highest submitted score", async () => {
   const quizLesson = database.prepare(`
     SELECT e.id AS enrollment_id, c.id AS course_id, l.id AS lesson_id,
-      l.title, l.content, l.grade_item_id
+      l.title, l.content, l.grade_item_id, u.first_name, u.last_name
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
     JOIN courses c ON c.id = e.course_id
@@ -264,6 +276,24 @@ test("ordinary quizzes can be retaken and keep the highest submitted score", asy
   });
   assert.ok([302, 303].includes(firstStart.status));
 
+  const [startedStudentGradesResponse, startedInstructorGradesResponse] = await Promise.all([
+    fetch(`${baseUrl}/student/enrollments/${quizLesson.enrollment_id}?view=grades`, {
+      headers: { cookie: studentCookie }
+    }),
+    fetch(`${baseUrl}/admin/courses/${quizLesson.course_id}/student-view?view=grades`, {
+      headers: { cookie: adminCookie }
+    })
+  ]);
+  assert.equal(startedStudentGradesResponse.status, 200);
+  assert.equal(startedInstructorGradesResponse.status, 200);
+  const startedStudentGradeRow = htmlRowContaining(await startedStudentGradesResponse.text(), quizLesson.title);
+  const startedInstructorGradeRow = htmlRowContaining(
+    await startedInstructorGradesResponse.text(),
+    `${quizLesson.first_name} ${quizLesson.last_name}`
+  );
+  assert.match(startedStudentGradeRow, /Started — not submitted/);
+  assert.match(startedInstructorGradeRow, /Started — not submitted/);
+
   const firstAttempt = quizAnswers(quizLesson, { correct: true });
   const firstSubmit = await submitQuiz(quizLesson, firstAttempt.answers);
   assert.ok([302, 303].includes(firstSubmit.status));
@@ -292,6 +322,34 @@ test("ordinary quizzes can be retaken and keep the highest submitted score", asy
       .get(quizLesson.enrollment_id, quizLesson.lesson_id).status,
     "in_progress"
   );
+  assert.equal(
+    database.prepare("SELECT score FROM grades WHERE enrollment_id = ? AND grade_item_id = ?")
+      .get(quizLesson.enrollment_id, gradeItem.id).score,
+    perfectScore,
+    "Expected starting a retake to preserve the posted grade"
+  );
+
+  const [retakeStudentGradesResponse, retakeInstructorGradesResponse] = await Promise.all([
+    fetch(`${baseUrl}/student/enrollments/${quizLesson.enrollment_id}?view=grades`, {
+      headers: { cookie: studentCookie }
+    }),
+    fetch(`${baseUrl}/admin/courses/${quizLesson.course_id}/student-view?view=grades`, {
+      headers: { cookie: adminCookie }
+    })
+  ]);
+  assert.equal(retakeStudentGradesResponse.status, 200);
+  assert.equal(retakeInstructorGradesResponse.status, 200);
+  const retakeStudentGradeRow = htmlRowContaining(await retakeStudentGradesResponse.text(), quizLesson.title);
+  const retakeInstructorGradeRow = htmlRowContaining(
+    await retakeInstructorGradesResponse.text(),
+    `${quizLesson.first_name} ${quizLesson.last_name}`
+  );
+  assert.match(retakeStudentGradeRow, /Retake in progress — saved grade retained/);
+  assert.ok(
+    retakeStudentGradeRow.includes(`>${perfectScore} / ${gradeItem.points_possible}</td>`),
+    "Expected the student grade row to keep showing the posted score"
+  );
+  assert.match(retakeInstructorGradeRow, /Retake in progress — saved grade retained/);
 
   const retakePage = await fetch(
     `${baseUrl}/student/enrollments/${quizLesson.enrollment_id}?lesson=${quizLesson.lesson_id}`,
@@ -857,4 +915,119 @@ test("students see and can clear an unread assignment-grade notification", async
   assert.equal(inbox.status, 200);
   const dashboard = await fetch(`${baseUrl}/student/dashboard`, { headers: { cookie: studentCookie } });
   assert.doesNotMatch(await dashboard.text(), /An assignment has been graded/);
+});
+
+test("an in-progress ordinary quiz renders browser-only draft recovery and a leave warning", async () => {
+  const quizLesson = database.prepare(`
+    SELECT e.id AS enrollment_id, c.id AS course_id, l.id AS lesson_id, l.title
+    FROM enrollments e
+    JOIN users u ON u.id = e.user_id
+    JOIN courses c ON c.id = e.course_id
+    JOIN modules m ON m.course_id = c.id
+    JOIN lessons l ON l.module_id = m.id
+    WHERE u.email = 'student@browardmiamihi.com'
+      AND c.slug = 'medical-terminology'
+      AND l.title LIKE '[PN101 2026] Quiz 1 - Chapter 1:%'
+    LIMIT 1
+  `).get();
+  assert.ok(quizLesson);
+  database.prepare("UPDATE enrollments SET status = 'active', withdrawn_at = NULL WHERE id = ?")
+    .run(quizLesson.enrollment_id);
+  database.prepare("DELETE FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?")
+    .run(quizLesson.enrollment_id, quizLesson.lesson_id);
+
+  const startResponse = await fetch(
+    `${baseUrl}/student/enrollments/${quizLesson.enrollment_id}/quizzes/${quizLesson.lesson_id}/start`,
+    { headers: { cookie: studentCookie }, method: "POST", redirect: "manual" }
+  );
+  assert.ok([302, 303].includes(startResponse.status));
+  const attempt = database.prepare(`
+    SELECT started_at, expires_at, status
+    FROM exam_attempts
+    WHERE enrollment_id = ? AND lesson_id = ?
+  `).get(quizLesson.enrollment_id, quizLesson.lesson_id);
+  assert.equal(attempt.status, "in_progress");
+
+  const response = await fetch(
+    `${baseUrl}/student/enrollments/${quizLesson.enrollment_id}?lesson=${quizLesson.lesson_id}`,
+    { headers: { cookie: studentCookie } }
+  );
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  const expectedDraftKey = [
+    "bmhi:quiz-draft",
+    quizLesson.enrollment_id,
+    quizLesson.lesson_id,
+    attempt.started_at,
+    attempt.expires_at
+  ].join(":");
+  assert.ok(html.includes(`data-quiz-draft-key="${expectedDraftKey}"`));
+  assert.match(html, /Draft protection is on\./);
+  assert.match(html, /No grade is recorded until you select <strong>Submit Quiz<\/strong>/);
+  assert.match(html, /window\.localStorage\.getItem\(quizDraftKey\)/);
+  assert.match(html, /window\.localStorage\.setItem\(quizDraftKey/);
+  assert.match(html, /window\.addEventListener\('beforeunload'/);
+
+  const previewResponse = await fetch(
+    `${baseUrl}/admin/courses/${quizLesson.course_id}/student-view?lesson=${quizLesson.lesson_id}`,
+    { headers: { cookie: adminCookie } }
+  );
+  assert.equal(previewResponse.status, 200);
+  const previewHtml = await previewResponse.text();
+  assert.doesNotMatch(previewHtml, /data-quiz-draft-key/);
+  assert.doesNotMatch(previewHtml, /Draft protection is on/);
+  assert.doesNotMatch(previewHtml, /bmhi:quiz-draft/);
+});
+
+test("secure midterms and finals do not render ordinary quiz draft storage", async () => {
+  const finalLesson = database.prepare(`
+    SELECT e.id AS enrollment_id, c.id AS course_id, l.id AS lesson_id
+    FROM enrollments e
+    JOIN users u ON u.id = e.user_id
+    JOIN courses c ON c.id = e.course_id
+    JOIN modules m ON m.course_id = c.id
+    JOIN lessons l ON l.module_id = m.id
+    WHERE u.email = 'student@browardmiamihi.com'
+      AND c.slug = 'anatomy-and-physiology'
+      AND l.title = '[PN104 2026] Quiz: Final Examination'
+    LIMIT 1
+  `).get();
+  assert.ok(finalLesson);
+  database.prepare("UPDATE enrollments SET status = 'active', withdrawn_at = NULL WHERE id = ?")
+    .run(finalLesson.enrollment_id);
+  database.prepare("DELETE FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?")
+    .run(finalLesson.enrollment_id, finalLesson.lesson_id);
+  const now = Date.now();
+  database.prepare(`
+    INSERT INTO exam_access_overrides (enrollment_id, lesson_id, opens_at, closes_at, minutes, reason)
+    VALUES (?, ?, ?, ?, 90, 'Draft isolation regression test')
+    ON CONFLICT(enrollment_id, lesson_id) DO UPDATE SET
+      opens_at = excluded.opens_at,
+      closes_at = excluded.closes_at,
+      minutes = excluded.minutes,
+      reason = excluded.reason,
+      created_at = CURRENT_TIMESTAMP
+  `).run(
+    finalLesson.enrollment_id,
+    finalLesson.lesson_id,
+    new Date(now - 60_000).toISOString(),
+    new Date(now + 86_400_000).toISOString()
+  );
+
+  const startResponse = await fetch(
+    `${baseUrl}/student/enrollments/${finalLesson.enrollment_id}/exams/${finalLesson.lesson_id}/start`,
+    { headers: { cookie: studentCookie }, method: "POST", redirect: "manual" }
+  );
+  assert.ok([302, 303].includes(startResponse.status));
+  const response = await fetch(
+    `${baseUrl}/student/enrollments/${finalLesson.enrollment_id}?lesson=${finalLesson.lesson_id}`,
+    { headers: { cookie: studentCookie } }
+  );
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /data-secure-exam-form/);
+  assert.doesNotMatch(html, /data-quiz-draft-key/);
+  assert.doesNotMatch(html, /Draft protection is on/);
+  assert.doesNotMatch(html, /bmhi:quiz-draft/);
+  assert.doesNotMatch(html, /window\.addEventListener\('beforeunload'/);
 });

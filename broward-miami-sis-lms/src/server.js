@@ -441,6 +441,16 @@ app.use(
     }
   })
 );
+app.use((req, res, next) => {
+  if (req.session?.userId) {
+    res.set({
+      "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+      Expires: "0",
+      Pragma: "no-cache"
+    });
+  }
+  next();
+});
 
 function currentUser(req) {
   if (!req.session.userId) return null;
@@ -2707,6 +2717,19 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, e
       && overrideAttemptIsCurrent
       && activeExamAttempt?.status === "in_progress"
   );
+  const ordinaryQuizDraftKey = !instructor
+    && !preview
+    && !examSettings
+    && enrollmentId
+    && activeExamAttempt?.status === "in_progress"
+    ? [
+      "bmhi:quiz-draft",
+      Number(enrollmentId),
+      Number(lesson.id),
+      String(activeExamAttempt.started_at || "unknown-start"),
+      String(activeExamAttempt.expires_at || "unknown-expiry")
+    ].join(":")
+    : "";
   if (preview) {
     if (examSettings) {
       const now = Date.now();
@@ -2833,6 +2856,11 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, e
         </dl>
       </div>
       ${examSettings ? `${renderExamOverview({ lesson, settings: examSettings, quizMeta, questions })}${renderExamInstructions(examSettings)}${!instructor && activeExamAttempt ? `<div class="exam-timer" role="timer" aria-live="polite" data-exam-expires="${escapeHtml(activeExamAttempt.expires_at)}"><span>Time remaining</span><strong data-exam-countdown>--:--</strong></div>` : ""}` : `<p class="quiz-instructions">${instructor ? "Read each question and select the best answer. This quiz page stays with the module item so students do not get redirected to grades." : "Quiz in progress. Read each question and select the best answer."}</p>`}
+      ${ordinaryQuizDraftKey ? `
+        <p class="quiz-instructions quiz-draft-notice" role="status" data-quiz-draft-notice>
+          <strong>Draft protection is on.</strong> Selected answers are saved only in this browser while this attempt is in progress. No grade is recorded until you select <strong>Submit Quiz</strong> on the final question.
+        </p>
+      ` : ""}
       ${examSettings && !instructor ? `
         <div class="secure-exam-gate" data-secure-exam-gate>
           <div>
@@ -2842,7 +2870,7 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, e
           </div>
         </div>
       ` : ""}
-      <form class="quiz-preview-form" method="post" action="${enrollmentId ? `/student/enrollments/${enrollmentId}/quiz-submit` : "#"}" ${examSettings && !instructor ? "data-secure-exam-form" : ""}>
+      <form class="quiz-preview-form" method="post" action="${enrollmentId ? `/student/enrollments/${enrollmentId}/quiz-submit` : "#"}" ${examSettings && !instructor ? "data-secure-exam-form" : ""} ${ordinaryQuizDraftKey ? `data-quiz-draft-key="${escapeHtml(ordinaryQuizDraftKey)}"` : ""}>
         ${enrollmentId ? `<input type="hidden" name="lessonId" value="${escapeHtml(lesson.id)}">` : ""}
         ${examSettings ? `<input type="hidden" name="timedExam" value="1">` : ""}
         ${examSettings && !instructor ? `<input type="hidden" name="integrityExit" value="" data-integrity-exit>` : ""}
@@ -2875,6 +2903,43 @@ function renderQuizActionPanel({ lesson, gradeItems = [], enrollmentId = null, e
             const examTimer = card.querySelector('[data-exam-expires]');
             const countdown = card.querySelector('[data-exam-countdown]');
             let page = 0;
+            ${ordinaryQuizDraftKey ? `
+              const quizDraftForm = card.querySelector('[data-quiz-draft-key]');
+              const quizDraftKey = quizDraftForm.dataset.quizDraftKey;
+              let quizSubmissionStarted = false;
+              try {
+                const storedDraft = JSON.parse(window.localStorage.getItem(quizDraftKey) || 'null');
+                const storedAnswers = storedDraft && typeof storedDraft.answers === 'object' ? storedDraft.answers : {};
+                pages.forEach((item) => {
+                  const inputs = [...item.querySelectorAll('input[type="radio"]')];
+                  const inputName = inputs[0] && inputs[0].name;
+                  const storedValue = inputName ? storedAnswers[inputName] : undefined;
+                  const storedInput = inputs.find((input) => input.value === String(storedValue));
+                  if (storedInput) storedInput.checked = true;
+                });
+              } catch {
+                // Storage can be disabled by browser privacy settings; the quiz still works normally.
+              }
+              const saveQuizDraft = () => {
+                const answers = {};
+                pages.forEach((item) => {
+                  const selected = item.querySelector('input[type="radio"]:checked');
+                  if (selected) answers[selected.name] = selected.value;
+                });
+                try {
+                  window.localStorage.setItem(quizDraftKey, JSON.stringify({ answers, savedAt: new Date().toISOString() }));
+                } catch {
+                  // Storage can be disabled by browser privacy settings; the quiz still works normally.
+                }
+              };
+              pages.forEach((item) => item.addEventListener('change', saveQuizDraft));
+              quizDraftForm.addEventListener('submit', () => { quizSubmissionStarted = true; });
+              window.addEventListener('beforeunload', (event) => {
+                if (quizSubmissionStarted) return;
+                event.preventDefault();
+                event.returnValue = '';
+              });
+            ` : ""}
             const showPage = (newPage) => {
               page = newPage;
               pages.forEach((item, index) => { item.hidden = index !== page; });
@@ -3624,14 +3689,29 @@ function pnDiscussionGradeRows() {
   }));
 }
 
-function studentGradebookRows(enrollment, gradeItems = [], grades = []) {
+function studentGradebookRows(enrollment, gradeItems = [], grades = [], examAttempts = []) {
   const gradeByItemId = new Map(grades.map((grade) => [grade.grade_item_id, grade]));
-  const savedRows = gradeItems.map((item) => ({
-    ...item,
-    group: item.title.toLowerCase().includes("elsevier") ? "Imported Assignments" : "Assignments",
-    score: gradeByItemId.has(item.id) && !isAutoGradeApprovalPending(gradeByItemId.get(item.id)?.note) ? gradeByItemId.get(item.id).score : null,
-    status: isAutoGradeApprovalPending(gradeByItemId.get(item.id)?.note) ? "pending" : undefined
-  }));
+  const attemptByItemId = new Map(
+    examAttempts
+      .filter((attempt) => attempt.status === "in_progress")
+      .map((attempt) => [attempt.grade_item_id, attempt])
+  );
+  const savedRows = gradeItems.map((item) => {
+    const grade = gradeByItemId.get(item.id);
+    const attempt = attemptByItemId.get(item.id);
+    const approvalPending = isAutoGradeApprovalPending(grade?.note);
+    return {
+      ...item,
+      group: item.title.toLowerCase().includes("elsevier") ? "Imported Assignments" : "Assignments",
+      score: grade && !approvalPending ? grade.score : null,
+      status: approvalPending ? "pending" : undefined,
+      attempt_status: !grade && attempt
+        ? "started"
+        : grade && !approvalPending && attempt?.ordinary_quiz
+          ? "retake"
+          : undefined
+    };
+  });
   return savedRows.map((item) => {
     if (item.title === "Class Participation and Professionalism") return { ...item, title: "Class Participation and Professionalism Acknowledgement" };
     if (enrollment.slug === "introduction-to-nursing-practical-nursing" && item.title === "Quiz 1: Weeks 1-2") {
@@ -3663,8 +3743,8 @@ function postedGradeSummary(rows = []) {
   };
 }
 
-function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems = [], grades = [], student }) {
-  const rows = studentGradebookRows(enrollment, gradeItems, grades);
+function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems = [], grades = [], examAttempts = [], student }) {
+  const rows = studentGradebookRows(enrollment, gradeItems, grades, examAttempts);
   const summary = postedGradeSummary(rows);
   const totalLabel = summary.possible ? `${summary.earned.toFixed(2)} / ${summary.possible.toFixed(2)}` : "N/A (N/A)";
   const overallPercentage = summary.percentage === null ? "N/A" : `${summary.percentage.toFixed(2)}%`;
@@ -3734,8 +3814,18 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
                 </td>
                 <td data-label="Due" class="${row.due_date ? "" : "grade-cell-empty"}">${escapeHtml(formatGradeDue(row.due_date))}</td>
                 <td data-label="Submitted" class="grade-cell-empty"></td>
-                <td data-label="Status" class="${row.status ? "" : "grade-cell-empty"}">
-                  ${row.status === "missing" ? `<span class="grade-status missing">missing</span>` : row.status === "info" ? `<span class="grade-status info">!</span>` : row.status === "pending" ? `<span class="grade-status info">pending review</span>` : ""}
+                <td data-label="Status" class="${row.status || row.attempt_status ? "" : "grade-cell-empty"}">
+                  ${row.status === "missing"
+                    ? `<span class="grade-status missing">missing</span>`
+                    : row.status === "info"
+                      ? `<span class="grade-status info">!</span>`
+                      : row.status === "pending"
+                        ? `<span class="grade-status info">pending review</span>`
+                        : row.attempt_status === "started"
+                          ? `<span class="gradebook-attempt-status">Started — not submitted</span>`
+                          : row.attempt_status === "retake"
+                            ? `<span class="gradebook-attempt-status">Retake in progress — saved grade retained</span>`
+                            : ""}
                 </td>
                 <td data-label="Score">${row.points_possible ? `${row.score === null || row.score === undefined ? "-" : escapeHtml(row.score)} / ${escapeHtml(row.points_possible)}` : "-"}</td>
               </tr>
@@ -3799,6 +3889,17 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
   const students = instructorGradebookStudents(enrollments);
   const assignments = instructorGradebookItems(course, gradeItems);
   const gradeByEnrollmentAndItem = new Map(grades.map((grade) => [`${grade.enrollment_id}:${grade.grade_item_id}`, grade]));
+  const attemptByEnrollmentAndItem = new Map(
+    examAttempts
+      .filter((attempt) => attempt.status === "in_progress")
+      .map((attempt) => [`${attempt.enrollment_id}:${attempt.grade_item_id}`, {
+        ...attempt,
+        ordinary_quiz: !examSettingsForLesson({
+          id: attempt.lesson_id,
+          grade_item_id: attempt.grade_item_id
+        })
+      }])
+  );
   const studentSummary = (student) => postedGradeSummary(assignments.map((item) => {
     const grade = gradeByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
     return {
@@ -3870,15 +3971,19 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
                   <td><strong>${escapeHtml(letterGrade)}</strong></td>
                   ${assignments.map((item) => {
                     const grade = gradeByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
+                    const attempt = attemptByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
                     const reopenControl = !readOnly && isProtectedMajorAssessmentTitle(item.title)
                       ? `<a class="button small ghost" href="/admin/courses/${course.id}/manage#assessment-access">Reopen assessment</a>`
                       : "";
-                    if (!grade) return `<td>-${reopenControl}</td>`;
+                    if (!grade) return `<td>${attempt ? `<span class="gradebook-attempt-status">Started — not submitted</span>` : "-"}${reopenControl}</td>`;
                     const pendingReview = isAutoGradeApprovalPending(grade.note);
                     const score = pendingReview
                       ? `— <small class="gradebook-pending-score">pending review</small>`
                       : escapeHtml(grade.score);
-                    return `<td>${score}${reopenControl}</td>`;
+                    const retakeStatus = !pendingReview && attempt?.ordinary_quiz
+                      ? `<small class="gradebook-attempt-status">Retake in progress — saved grade retained</small>`
+                      : "";
+                    return `<td>${score}${retakeStatus}${reopenControl}</td>`;
                   }).join("")}
                 </tr>
               `;
@@ -16038,6 +16143,22 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     JOIN grade_items gi ON gi.id = g.grade_item_id
     WHERE g.enrollment_id = ? AND gi.course_id = ?
   `).all(enrollment.id, enrollment.course_id);
+  const examAttempts = db.prepare(`
+    SELECT ea.*, l.grade_item_id
+    FROM exam_attempts ea
+    JOIN lessons l ON l.id = ea.lesson_id
+    JOIN modules m ON m.id = l.module_id
+    WHERE ea.enrollment_id = ?
+      AND m.course_id = ?
+      AND ea.status = 'in_progress'
+      AND l.grade_item_id IS NOT NULL
+  `).all(enrollment.id, enrollment.course_id).map((attempt) => ({
+    ...attempt,
+    ordinary_quiz: !examSettingsForLesson({
+      id: attempt.lesson_id,
+      grade_item_id: attempt.grade_item_id
+    })
+  }));
   const completedLessonIds = new Set(db.prepare(`
     SELECT lc.lesson_id
     FROM lesson_completions lc
@@ -16355,6 +16476,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         baseHref: courseBaseHref,
         gradeItems,
         grades,
+        examAttempts,
         student: req.user
       })}
     </section>

@@ -9647,6 +9647,20 @@ button.small {
   width: 20px;
 }
 
+.gradebook-attempt-status {
+  color: #526576;
+  display: block;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+  margin-top: 3px;
+  white-space: normal;
+}
+
+.gradebook-attempt-status:first-child {
+  margin-top: 0;
+}
+
 .grade-summary-row td {
   border-bottom-color: #d5dce2;
   font-weight: 850;
