@@ -199,6 +199,400 @@ function reopenPnCourseworkForCompletion() {
   });
 }
 
+function mergeDuplicateCohortTwoPn103Enrollments() {
+  const course = db.prepare("SELECT id FROM courses WHERE slug = 'long-term-care-nursing-pn103'").get();
+  if (!course) return 0;
+
+  const duplicateUsers = db.prepare(`
+    SELECT u.id AS user_id
+    FROM users u
+    JOIN enrollments e ON e.user_id = u.id
+    WHERE u.role = 'student'
+      AND u.cohort_name = 'Cohort 2'
+      AND e.course_id = ?
+      AND e.status = 'active'
+      AND e.withdrawn_at IS NULL
+    GROUP BY u.id
+    HAVING COUNT(*) > 1
+  `).all(course.id);
+  if (!duplicateUsers.length) return 0;
+
+  const archiveRecord = db.prepare(`
+    INSERT OR IGNORE INTO dedup_record_archives (
+      entity_type, source_record_id, source_parent_id, competing_record_id,
+      survivor_record_id, survivor_parent_id, payload_json, reason
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const activityTables = [
+    "grades",
+    "lesson_completions",
+    "exam_attempts",
+    "exam_access_overrides",
+    "quiz_attempt_history",
+    "assignment_submissions",
+    "video_submissions",
+    "attendance",
+    "assessment_reopen_audit",
+    "course_survey_responses",
+    "student_course_evaluations",
+    "student_self_evaluations",
+    "credentials"
+  ];
+  const activityCounts = new Map(activityTables.map((table) => [
+    table,
+    db.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE enrollment_id = ?`)
+  ]));
+  const tableColumns = new Map();
+
+  const timestampValue = (value) => {
+    if (!value) return 0;
+    const normalized = /(?:Z|[+-]\d\d:\d\d)$/.test(String(value))
+      ? String(value)
+      : `${String(value).replace(" ", "T")}Z`;
+    const parsed = Date.parse(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const newerRecord = (source, target, timestampColumn) => {
+    const sourceTime = timestampValue(source[timestampColumn]);
+    const targetTime = timestampValue(target[timestampColumn]);
+    return sourceTime > targetTime
+      || (sourceTime === targetTime && Number(source.id) > Number(target.id));
+  };
+  const attemptRank = (attempt) => {
+    const activeInProgress = attempt.status === "in_progress"
+      && timestampValue(attempt.expires_at) > Date.now();
+    if (activeInProgress) return 4;
+    return ({ submitted: 3, in_progress: 2, expired: 1 }[attempt.status] || 0);
+  };
+  const sourceAttemptWins = (source, target) => {
+    const sourceRank = attemptRank(source);
+    const targetRank = attemptRank(target);
+    if (sourceRank !== targetRank) return sourceRank > targetRank;
+    const sourceSubmittedAt = timestampValue(source.submitted_at);
+    const targetSubmittedAt = timestampValue(target.submitted_at);
+    if (sourceSubmittedAt !== targetSubmittedAt) return sourceSubmittedAt > targetSubmittedAt;
+    return newerRecord(source, target, "started_at");
+  };
+  const archiveConflict = (table, losingRecord, competingRecordId, survivorRecordId, survivorEnrollmentId) => {
+    archiveRecord.run(
+      table,
+      losingRecord.id,
+      losingRecord.enrollment_id,
+      competingRecordId,
+      survivorRecordId,
+      survivorEnrollmentId,
+      JSON.stringify(losingRecord),
+      `Cohort 2 PN103 duplicate enrollment ${table} conflict: lower-priority payload preserved before consolidation`
+    );
+  };
+  const copyPayload = (table, source, targetId) => {
+    let columns = tableColumns.get(table);
+    if (!columns) {
+      columns = db.prepare(`PRAGMA table_info(${table})`).all()
+        .map((column) => column.name)
+        .filter((column) => column !== "id" && column !== "enrollment_id");
+      tableColumns.set(table, columns);
+    }
+    db.prepare(`
+      UPDATE ${table}
+      SET ${columns.map((column) => `${column} = ?`).join(", ")}
+      WHERE id = ?
+    `).run(...columns.map((column) => source[column]), targetId);
+  };
+  const mergeUniqueRows = ({
+    table,
+    keyColumns,
+    sourceEnrollmentId,
+    survivorEnrollmentId,
+    sourceWins,
+    beforeSourceDelete
+  }) => {
+    const sourceRows = db.prepare(`SELECT * FROM ${table} WHERE enrollment_id = ? ORDER BY id`)
+      .all(sourceEnrollmentId);
+    const findTarget = db.prepare(`
+      SELECT * FROM ${table}
+      WHERE enrollment_id = ?
+        AND ${keyColumns.map((column) => `${column} = ?`).join(" AND ")}
+      LIMIT 1
+    `);
+    const moveSource = db.prepare(`UPDATE ${table} SET enrollment_id = ? WHERE id = ?`);
+    const deleteSource = db.prepare(`DELETE FROM ${table} WHERE id = ?`);
+
+    sourceRows.forEach((source) => {
+      const target = findTarget.get(
+        survivorEnrollmentId,
+        ...keyColumns.map((column) => source[column])
+      );
+      if (!target) {
+        moveSource.run(survivorEnrollmentId, source.id);
+        return;
+      }
+
+      const sourceIsWinner = sourceWins(source, target);
+      const losingRecord = sourceIsWinner ? target : source;
+      archiveConflict(
+        table,
+        losingRecord,
+        sourceIsWinner ? source.id : target.id,
+        target.id,
+        survivorEnrollmentId
+      );
+      if (sourceIsWinner) copyPayload(table, source, target.id);
+      if (beforeSourceDelete) beforeSourceDelete(source, target);
+      deleteSource.run(source.id);
+    });
+  };
+
+  let mergedCount = 0;
+  db.exec("SAVEPOINT cohort_two_pn103_enrollment_dedup");
+  try {
+    duplicateUsers.forEach(({ user_id: userId }) => {
+      const enrollments = db.prepare(`
+        SELECT * FROM enrollments
+        WHERE user_id = ? AND course_id = ?
+          AND status = 'active' AND withdrawn_at IS NULL
+        ORDER BY id
+      `).all(userId, course.id).map((enrollment) => ({
+        ...enrollment,
+        activityCount: activityTables.reduce((total, table) => (
+          total + Number(activityCounts.get(table).get(enrollment.id).count)
+        ), 0)
+      }));
+      enrollments.sort((left, right) => (
+        right.activityCount - left.activityCount
+        || Number(Boolean(right.final_grade)) - Number(Boolean(left.final_grade))
+        || Number(right.progress || 0) - Number(left.progress || 0)
+        || Number(left.source === "cohort_seed") - Number(right.source === "cohort_seed")
+        || String(left.created_at).localeCompare(String(right.created_at))
+        || Number(left.id) - Number(right.id)
+      ));
+      const survivor = enrollments[0];
+      const duplicates = enrollments.slice(1);
+      if (!survivor || !duplicates.length) return;
+
+      const startDates = enrollments.map((enrollment) => enrollment.start_date).filter(Boolean).sort();
+      const completionDates = enrollments.map((enrollment) => enrollment.completion_date).filter(Boolean).sort();
+      const finalGradeSource = enrollments.filter((enrollment) => (
+        String(enrollment.final_grade || "").trim()
+      )).sort((left, right) => (
+        Number(right.progress || 0) - Number(left.progress || 0)
+        || Number(left.source === "cohort_seed") - Number(right.source === "cohort_seed")
+        || Number(Boolean(right.completion_date)) - Number(Boolean(left.completion_date))
+        || timestampValue(right.completion_date) - timestampValue(left.completion_date)
+        || right.activityCount - left.activityCount
+        || Number(left.id) - Number(right.id)
+      ))[0];
+      const mergedFinalGrade = finalGradeSource?.final_grade || null;
+      db.prepare(`
+        UPDATE enrollments
+        SET status = 'active',
+          withdrawal_effective_date = NULL,
+          withdrawal_reason = NULL,
+          withdrawn_at = NULL,
+          start_date = ?,
+          completion_date = ?,
+          progress = ?,
+          final_grade = ?
+        WHERE id = ?
+      `).run(
+        startDates[0] || survivor.start_date,
+        completionDates[0] || null,
+        Math.max(...enrollments.map((enrollment) => Number(enrollment.progress || 0))),
+        mergedFinalGrade,
+        survivor.id
+      );
+
+      duplicates.forEach((duplicate) => {
+        archiveRecord.run(
+          "enrollments",
+          duplicate.id,
+          userId,
+          survivor.id,
+          survivor.id,
+          userId,
+          JSON.stringify(duplicate),
+          "Cohort 2 PN103 duplicate active enrollment consolidated into the canonical enrollment"
+        );
+
+        mergeUniqueRows({
+          table: "grades",
+          keyColumns: ["grade_item_id"],
+          sourceEnrollmentId: duplicate.id,
+          survivorEnrollmentId: survivor.id,
+          sourceWins: (source, target) => newerRecord(source, target, "updated_at")
+        });
+        mergeUniqueRows({
+          table: "lesson_completions",
+          keyColumns: ["lesson_id"],
+          sourceEnrollmentId: duplicate.id,
+          survivorEnrollmentId: survivor.id,
+          sourceWins: (source, target) => (
+            timestampValue(source.completed_at) < timestampValue(target.completed_at)
+          )
+        });
+        mergeUniqueRows({
+          table: "exam_access_overrides",
+          keyColumns: ["lesson_id"],
+          sourceEnrollmentId: duplicate.id,
+          survivorEnrollmentId: survivor.id,
+          sourceWins: (source, target) => newerRecord(source, target, "created_at"),
+          beforeSourceDelete: (source, target) => {
+            db.prepare("UPDATE exam_attempts SET access_override_id = ? WHERE access_override_id = ?")
+              .run(target.id, source.id);
+          }
+        });
+        mergeUniqueRows({
+          table: "exam_attempts",
+          keyColumns: ["lesson_id"],
+          sourceEnrollmentId: duplicate.id,
+          survivorEnrollmentId: survivor.id,
+          sourceWins: sourceAttemptWins
+        });
+        mergeUniqueRows({
+          table: "assignment_submissions",
+          keyColumns: ["grade_item_id"],
+          sourceEnrollmentId: duplicate.id,
+          survivorEnrollmentId: survivor.id,
+          sourceWins: (source, target) => newerRecord(source, target, "updated_at")
+        });
+        mergeUniqueRows({
+          table: "video_submissions",
+          keyColumns: ["video_assignment_id"],
+          sourceEnrollmentId: duplicate.id,
+          survivorEnrollmentId: survivor.id,
+          sourceWins: (source, target) => newerRecord(source, target, "updated_at")
+        });
+        mergeUniqueRows({
+          table: "course_survey_responses",
+          keyColumns: ["week_number"],
+          sourceEnrollmentId: duplicate.id,
+          survivorEnrollmentId: survivor.id,
+          sourceWins: (source, target) => newerRecord(source, target, "submitted_at")
+        });
+        mergeUniqueRows({
+          table: "student_course_evaluations",
+          keyColumns: ["week_number"],
+          sourceEnrollmentId: duplicate.id,
+          survivorEnrollmentId: survivor.id,
+          sourceWins: (source, target) => newerRecord(source, target, "updated_at")
+        });
+        mergeUniqueRows({
+          table: "student_self_evaluations",
+          keyColumns: ["week_number"],
+          sourceEnrollmentId: duplicate.id,
+          survivorEnrollmentId: survivor.id,
+          sourceWins: (source, target) => newerRecord(source, target, "submitted_at")
+        });
+
+        const historyRows = db.prepare(`
+          SELECT * FROM quiz_attempt_history
+          WHERE enrollment_id = ?
+          ORDER BY lesson_id, attempt_number, id
+        `).all(duplicate.id);
+        const maxHistoryNumber = db.prepare(`
+          SELECT COALESCE(MAX(attempt_number), 0) AS maximum
+          FROM quiz_attempt_history
+          WHERE enrollment_id = ? AND lesson_id = ?
+        `);
+        const moveHistory = db.prepare(`
+          UPDATE quiz_attempt_history
+          SET enrollment_id = ?, attempt_number = ?
+          WHERE id = ?
+        `);
+        const nextTemporaryNumberByLesson = new Map();
+        const affectedLessonIds = new Set();
+        historyRows.forEach((history) => {
+          if (!nextTemporaryNumberByLesson.has(history.lesson_id)) {
+            nextTemporaryNumberByLesson.set(
+              history.lesson_id,
+              Number(maxHistoryNumber.get(survivor.id, history.lesson_id).maximum) + 1
+            );
+          }
+          const temporaryNumber = nextTemporaryNumberByLesson.get(history.lesson_id);
+          nextTemporaryNumberByLesson.set(history.lesson_id, temporaryNumber + 1);
+          moveHistory.run(survivor.id, temporaryNumber, history.id);
+          affectedLessonIds.add(history.lesson_id);
+        });
+        affectedLessonIds.forEach((lessonId) => {
+          const mergedHistory = db.prepare(`
+            SELECT * FROM quiz_attempt_history
+            WHERE enrollment_id = ? AND lesson_id = ?
+          `).all(survivor.id, lessonId).sort((left, right) => (
+            timestampValue(left.submitted_at) - timestampValue(right.submitted_at)
+            || Number(left.id) - Number(right.id)
+          ));
+          const temporaryBase = Math.max(
+            ...mergedHistory.map((history) => Number(history.attempt_number)),
+            0
+          ) + mergedHistory.length + 1;
+          mergedHistory.forEach((history, index) => {
+            db.prepare("UPDATE quiz_attempt_history SET attempt_number = ? WHERE id = ?")
+              .run(temporaryBase + index, history.id);
+          });
+          mergedHistory.forEach((history, index) => {
+            db.prepare("UPDATE quiz_attempt_history SET attempt_number = ? WHERE id = ?")
+              .run(index + 1, history.id);
+          });
+        });
+
+        [
+          "attendance",
+          "assessment_reopen_audit"
+        ].forEach((table) => {
+          db.prepare(`UPDATE ${table} SET enrollment_id = ? WHERE enrollment_id = ?`)
+            .run(survivor.id, duplicate.id);
+        });
+        db.prepare(`
+          UPDATE assessment_reopen_batches
+          SET requested_enrollment_id = ?
+          WHERE requested_enrollment_id = ?
+        `).run(survivor.id, duplicate.id);
+        db.prepare(`
+          UPDATE student_withdrawal_events
+          SET enrollment_id = ?
+          WHERE enrollment_id = ?
+        `).run(survivor.id, duplicate.id);
+
+        const survivorCredential = db.prepare("SELECT * FROM credentials WHERE enrollment_id = ?").get(survivor.id);
+        const duplicateCredential = db.prepare("SELECT * FROM credentials WHERE enrollment_id = ?").get(duplicate.id);
+        if (duplicateCredential && !survivorCredential) {
+          db.prepare("UPDATE credentials SET enrollment_id = ? WHERE id = ?")
+            .run(survivor.id, duplicateCredential.id);
+        } else if (duplicateCredential && survivorCredential) {
+          const duplicateWins = newerRecord(duplicateCredential, survivorCredential, "issued_at");
+          const losingCredential = duplicateWins ? survivorCredential : duplicateCredential;
+          archiveConflict(
+            "credentials",
+            losingCredential,
+            duplicateWins ? duplicateCredential.id : survivorCredential.id,
+            duplicateWins ? duplicateCredential.id : survivorCredential.id,
+            survivor.id
+          );
+          if (duplicateWins) {
+            db.prepare("DELETE FROM credentials WHERE id = ?").run(survivorCredential.id);
+            db.prepare("UPDATE credentials SET enrollment_id = ? WHERE id = ?")
+              .run(survivor.id, duplicateCredential.id);
+          } else {
+            db.prepare("DELETE FROM credentials WHERE id = ?").run(duplicateCredential.id);
+          }
+        }
+        // Messages are user-level records, so they remain intact without an
+        // enrollment-key rewrite.
+
+        db.prepare("DELETE FROM enrollments WHERE id = ?").run(duplicate.id);
+        mergedCount += 1;
+      });
+    });
+    db.exec("RELEASE SAVEPOINT cohort_two_pn103_enrollment_dedup");
+  } catch (error) {
+    db.exec("ROLLBACK TO SAVEPOINT cohort_two_pn103_enrollment_dedup");
+    db.exec("RELEASE SAVEPOINT cohort_two_pn103_enrollment_dedup");
+    throw error;
+  }
+
+  return mergedCount;
+}
+
 function migrate() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -2691,6 +3085,14 @@ function seed() {
     INSERT OR IGNORE INTO enrollments (user_id, course_id, status, start_date, progress, source, external_order_id)
     VALUES (?, ?, 'active', ?, 0, 'cohort_seed', ?)
   `);
+  const ensureCohortPn103Enrollment = db.prepare(`
+    INSERT OR IGNORE INTO enrollments (user_id, course_id, status, start_date, progress, source, external_order_id)
+    SELECT ?1, ?2, 'active', ?3, 0, 'cohort_seed', ?4
+    WHERE NOT EXISTS (
+      SELECT 1 FROM enrollments
+      WHERE user_id = ?1 AND course_id = ?2
+    )
+  `);
   const cohortTwoCourses = [
     { code: "pn101", course: medicalTerminology, startDate: "2026-06-17" },
     { code: "pn102", course: introNursing, startDate: "2026-06-22" },
@@ -2711,7 +3113,9 @@ function seed() {
     const student = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
     if (student) {
       cohortTwoCourses.forEach(({ code, course, startDate }) => {
-        if (course) insertCohortEnrollment.run(student.id, course.id, startDate, `cohort-2-${code}-${student.id}`);
+        if (!course) return;
+        const insertEnrollment = code === "pn103" ? ensureCohortPn103Enrollment : insertCohortEnrollment;
+        insertEnrollment.run(student.id, course.id, startDate, `cohort-2-${code}-${student.id}`);
       });
     }
   });
@@ -2728,14 +3132,10 @@ function seed() {
     `);
     cohortTwoRoster.forEach((student) => {
       removeFundamentalsAccess.run(student.id, fundamentals.id);
-      insertCohortEnrollment.run(student.id, longTermCare.id, "2026-07-02", `cohort-2-pn103-${student.id}`);
-      db.prepare(`
-        UPDATE enrollments
-        SET status = 'active', withdrawn_at = NULL, withdrawal_effective_date = NULL, withdrawal_reason = NULL
-        WHERE user_id = ? AND course_id = ? AND external_order_id = ?
-      `).run(student.id, longTermCare.id, `cohort-2-pn103-${student.id}`);
+      ensureCohortPn103Enrollment.run(student.id, longTermCare.id, "2026-07-02", `cohort-2-pn103-${student.id}`);
     });
   }
+  mergeDuplicateCohortTwoPn103Enrollments();
   // Seeded cohort data is additive only. Operational enrollment status and
   // academic records must never be overwritten or deleted during startup.
 

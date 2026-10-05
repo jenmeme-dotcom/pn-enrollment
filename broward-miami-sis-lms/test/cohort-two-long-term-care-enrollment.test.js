@@ -20,13 +20,26 @@ test("every Cohort 2 student is active in long-term care and removed from Fundam
     const database = new DatabaseSync(databaseFile);
     const cohortCount = database.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'student' AND cohort_name = 'Cohort 2'").get().count;
     const activeLongTermCare = database.prepare(`
-      SELECT COUNT(DISTINCT u.id) AS count
+      SELECT COUNT(*) AS count
       FROM users u
       JOIN enrollments e ON e.user_id = u.id
       JOIN courses c ON c.id = e.course_id
       WHERE u.role = 'student' AND u.cohort_name = 'Cohort 2'
         AND c.slug = 'long-term-care-nursing-pn103'
         AND e.status = 'active' AND e.withdrawn_at IS NULL
+    `).get().count;
+    const mostActiveLongTermCareRowsForOneStudent = database.prepare(`
+      SELECT COALESCE(MAX(enrollment_count), 0) AS count
+      FROM (
+        SELECT COUNT(*) AS enrollment_count
+        FROM users u
+        JOIN enrollments e ON e.user_id = u.id
+        JOIN courses c ON c.id = e.course_id
+        WHERE u.role = 'student' AND u.cohort_name = 'Cohort 2'
+          AND c.slug = 'long-term-care-nursing-pn103'
+          AND e.status = 'active' AND e.withdrawn_at IS NULL
+        GROUP BY u.id
+      )
     `).get().count;
     const activeFundamentals = database.prepare(`
       SELECT COUNT(DISTINCT u.id) AS count
@@ -41,6 +54,7 @@ test("every Cohort 2 student is active in long-term care and removed from Fundam
 
     assert.ok(cohortCount > 0);
     assert.equal(activeLongTermCare, cohortCount);
+    assert.equal(mostActiveLongTermCareRowsForOneStudent, 1);
     assert.equal(activeFundamentals, 0);
   } finally {
     fs.rmSync(temporaryDirectory, { force: true, recursive: true });

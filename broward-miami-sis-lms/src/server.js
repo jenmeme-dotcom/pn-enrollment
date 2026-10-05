@@ -6611,10 +6611,24 @@ function findCourseFromPayload(payload) {
   ].filter(Boolean).map((value) => String(value).toLowerCase());
 
   const rows = db.prepare("SELECT * FROM courses WHERE published = 1").all();
-  return rows.find((course) => {
-    const keys = [course.slug, course.title, ...JSON.parse(course.ghl_product_keys || "[]")].map((value) => String(value).toLowerCase());
-    return values.some((value) => keys.some((key) => value === key || value.includes(key) || key.includes(value)));
-  });
+  const keyedCourses = rows.map((course) => ({
+    course,
+    keys: [course.slug, course.title, ...JSON.parse(course.ghl_product_keys || "[]")]
+      .map((value) => String(value).toLowerCase())
+  }));
+  const exactMatch = keyedCourses.find(({ keys }) => (
+    values.some((value) => keys.includes(value))
+  ));
+  if (exactMatch) return exactMatch.course;
+
+  return keyedCourses.map(({ course, keys }) => ({
+    course,
+    matchLength: Math.max(0, ...values.flatMap((value) => keys
+      .filter((key) => value.includes(key) || key.includes(value))
+      .map((key) => Math.min(value.length, key.length))))
+  })).filter(({ matchLength }) => matchLength > 0)
+    .sort((left, right) => right.matchLength - left.matchLength || Number(left.course.id) - Number(right.course.id))[0]
+    ?.course;
 }
 
 function ghlLocationFromPayload(payload) {
@@ -14798,7 +14812,7 @@ function studentTranscriptData(user) {
     const savedPercentage = transcriptNumericGrade(finalGrade);
     const percentage = hasOfficialFinalGrade && savedPercentage !== null
       ? savedPercentage
-      : row.status === "active"
+      : row.status === "active" || (row.status === "completed" && !finalGrade)
         ? calculatedPercentage
         : null;
     const letter = row.status === "withdrawn"
@@ -14807,8 +14821,12 @@ function studentTranscriptData(user) {
         ? transcriptLetterGrade(finalGrade, null, row.status)
         : row.status === "active"
           ? "IP"
-          : "—";
-    const gradePoints = hasOfficialFinalGrade ? transcriptGradePoints(letter) : null;
+          : row.status === "completed" && calculatedPercentage !== null
+            ? transcriptLetterGrade("", calculatedPercentage, row.status)
+            : row.status === "completed" && row.credential_id
+              ? "P"
+              : "—";
+    const gradePoints = row.status === "completed" ? transcriptGradePoints(letter) : null;
     return { ...row, percentage, letter, gradePoints, hasOfficialFinalGrade, term: transcriptTerm(row.start_date) };
   });
   const application = db.prepare(`
@@ -17104,7 +17122,23 @@ app.post("/webhooks/ghl/purchase", (req, res) => {
 
     const enrollment = db.prepare(`
       INSERT OR IGNORE INTO enrollments (user_id, course_id, source, external_order_id)
-      VALUES (?, ?, 'ghl', ?)
+      SELECT ?1, ?2, 'ghl', ?3
+      WHERE NOT EXISTS (
+        SELECT 1 FROM enrollments
+        WHERE user_id = ?1 AND course_id = ?2
+          AND (
+            (status = 'active' AND withdrawn_at IS NULL)
+            OR (?3 IS NOT NULL AND external_order_id = ?3)
+          )
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM dedup_record_archives
+        WHERE ?3 IS NOT NULL
+          AND entity_type = 'enrollments'
+          AND CAST(json_extract(payload_json, '$.user_id') AS INTEGER) = ?1
+          AND CAST(json_extract(payload_json, '$.course_id') AS INTEGER) = ?2
+          AND json_extract(payload_json, '$.external_order_id') = ?3
+      )
     `).run(user.id, course.id, externalId || null);
 
     const message = `Enrolled ${email} in ${course.title}${user.organization_status === "not_organized" ? "; class access locked pending organization" : ""}`;

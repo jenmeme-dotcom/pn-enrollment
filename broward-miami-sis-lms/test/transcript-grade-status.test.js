@@ -97,6 +97,14 @@ async function updateEnrollmentStatus(enrollmentId, { status, finalGrade, progre
   });
 }
 
+async function issueCredential(enrollmentId) {
+  return fetch(`${baseUrl}/admin/enrollments/${enrollmentId}/issue-credential`, {
+    headers: { cookie: adminCookie },
+    method: "POST",
+    redirect: "manual"
+  });
+}
+
 function htmlText(value) {
   return value
     .replace(/<[^>]*>/g, " ")
@@ -162,8 +170,8 @@ before(async () => {
     demo.password_hash
   ).lastInsertRowid;
 
-  const courses = database.prepare("SELECT id FROM courses WHERE published = 1 ORDER BY id LIMIT 10").all();
-  assert.equal(courses.length, 10, "Expected ten published courses for transcript fixtures");
+  const courses = database.prepare("SELECT id FROM courses WHERE published = 1 ORDER BY id LIMIT 12").all();
+  assert.equal(courses.length, 12, "Expected twelve published courses for transcript fixtures");
   const fixtures = [
     ["A", "completed", "A"],
     ["F", "completed", "F"],
@@ -174,7 +182,9 @@ before(async () => {
     ["INC", "completed", "INC"],
     ["IP", "completed", "IP"],
     ["ACTIVE", "active", "A"],
-    ["INVALID", "completed", "not-a-grade"]
+    ["INVALID", "completed", "not-a-grade"],
+    ["BLANK_CALCULATED", "active", null],
+    ["CREDENTIAL", "active", null]
   ];
   const updateCourse = database.prepare("UPDATE courses SET title = ?, category = 'Category must not become program', hours = 1 WHERE id = ?");
   const insertEnrollment = database.prepare(`
@@ -196,7 +206,7 @@ before(async () => {
 
   const insertGradeItem = database.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, 100, '2026-09-30')");
   const insertGrade = database.prepare("INSERT INTO grades (enrollment_id, grade_item_id, score, note) VALUES (?, ?, ?, NULL)");
-  for (const [key, score] of [["A", 80], ["ACTIVE", 80], ["INVALID", 100]]) {
+  for (const [key, score] of [["A", 80], ["ACTIVE", 80], ["INVALID", 100], ["BLANK_CALCULATED", 85]]) {
     const fixture = transcriptEnrollments.get(key);
     const gradeItem = insertGradeItem.run(fixture.courseId, `Transcript fixture ${key}`).lastInsertRowid;
     insertGrade.run(fixture.enrollmentId, gradeItem, score);
@@ -206,6 +216,11 @@ before(async () => {
   statusEnrollment = statusResult.lastInsertRowid;
 
   adminCookie = await login("admin@browardmiamihi.com", "AdminPass123!", "faculty");
+  assert.equal((await updateEnrollmentStatus(transcriptEnrollments.get("BLANK_CALCULATED").enrollmentId, {
+    status: "completed",
+    finalGrade: ""
+  })).status, 302);
+  assert.equal((await issueCredential(transcriptEnrollments.get("CREDENTIAL").enrollmentId)).status, 302);
   studentCookie = await login("transcript-status@example.test", "StudentPass123!", "student");
 });
 
@@ -221,11 +236,20 @@ after(async () => {
   fs.rmSync(temporaryDirectory, { force: true, recursive: true });
 });
 
-test("transcript separates earned credit from GPA credit and ignores stale active finals", async () => {
+test("completed enrollments retain a transcript grade when completion paths leave final_grade blank", async () => {
+  for (const key of ["BLANK_CALCULATED", "CREDENTIAL"]) {
+    const row = database.prepare(`
+      SELECT status, progress, final_grade FROM enrollments WHERE id = ?
+    `).get(transcriptEnrollments.get(key).enrollmentId);
+    assert.equal(row.status, "completed");
+    assert.equal(row.progress, 100);
+    assert.ok(row.final_grade === null || row.final_grade === "", "The regression fixture must exercise a blank stored final grade");
+  }
+
   const html = await getHtml("/student/transcript", studentCookie);
-  assert.match(html, /<span>Attempted hours<\/span><strong>10<\/strong>/);
-  assert.match(html, /<span>Completed hours<\/span><strong>3<\/strong>/);
-  assert.match(html, /<span>Cumulative GPA<\/span><strong>2\.00<\/strong>/);
+  assert.match(html, /<span>Attempted hours<\/span><strong>12<\/strong>/);
+  assert.match(html, /<span>Completed hours<\/span><strong>5<\/strong>/);
+  assert.match(html, /<span>Cumulative GPA<\/span><strong>2\.33<\/strong>/);
   assert.match(html, /<span>Program \/ Major<\/span><strong>Program not recorded<\/strong>/);
 
   assert.equal(rowCells(tableRowContaining(html, "Transcript Test P"))[3], "P");
@@ -241,6 +265,12 @@ test("transcript separates earned credit from GPA credit and ignores stale activ
   const invalidCells = rowCells(tableRowContaining(html, "Transcript Test INVALID"));
   assert.equal(invalidCells[2], "—");
   assert.equal(invalidCells[3], "—", "An invalid saved final must not fall back to the current percentage");
+  const calculatedCells = rowCells(tableRowContaining(html, "Transcript Test BLANK_CALCULATED"));
+  assert.equal(calculatedCells[2], "85.0%");
+  assert.equal(calculatedCells[3], "B", "A completed blank final should use its posted-grade calculation");
+  const credentialCells = rowCells(tableRowContaining(html, "Transcript Test CREDENTIAL"));
+  assert.equal(credentialCells[2], "—");
+  assert.equal(credentialCells[3], "P", "An issued credential should provide a pass grade when no scored work exists");
 });
 
 test("print transcript uses neutral labeling and the same earned-credit rules", async () => {
@@ -252,12 +282,14 @@ test("print transcript uses neutral labeling and the same earned-credit rules", 
 
   assert.equal(rowCells(tableRowContaining(html, "Transcript Test P"))[2], "1");
   assert.equal(rowCells(tableRowContaining(html, "Transcript Test PASS"))[2], "1");
+  assert.equal(rowCells(tableRowContaining(html, "Transcript Test BLANK_CALCULATED"))[2], "1");
+  assert.equal(rowCells(tableRowContaining(html, "Transcript Test CREDENTIAL"))[2], "1");
   for (const key of ["F", "W", "I", "INC", "IP", "ACTIVE", "INVALID"]) {
     assert.equal(rowCells(tableRowContaining(html, `Transcript Test ${key}`))[2], "0");
   }
   const termEarned = [...html.matchAll(/<tr class="transcript-term-total">([\s\S]*?)<\/tr>/g)]
     .map((match) => Number(rowCells(match[0])[2]));
-  assert.equal(termEarned.reduce((sum, hours) => sum + hours, 0), 3);
+  assert.equal(termEarned.reduce((sum, hours) => sum + hours, 0), 5);
 });
 
 test("instructor gradebook uses final grades only for completed enrollments", async () => {
