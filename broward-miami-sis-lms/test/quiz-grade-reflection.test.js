@@ -584,7 +584,7 @@ test("the PN 104 final is a protected scheduled exam and cannot restart after su
   );
 });
 
-test("loading an abandoned timed exam finalizes the expired attempt and records zero", async () => {
+test("loading an abandoned timed exam records the zero attempt without replacing a prior posted grade", async () => {
   const finalLesson = database.prepare(`
     SELECT e.id AS enrollment_id, c.id AS course_id, l.id AS lesson_id,
       l.title, l.content, l.grade_item_id
@@ -672,6 +672,54 @@ test("loading an abandoned timed exam finalizes the expired attempt and records 
     WHERE enrollment_id = ? AND lesson_id = ? ORDER BY attempt_number DESC LIMIT 1
   `).get(finalLesson.enrollment_id, finalLesson.lesson_id);
   assert.deepEqual({ ...history }, { score: 0, correct_answers: 0 });
+
+  database.prepare(`
+    UPDATE grades
+    SET score = 175, note = 'Previously posted final score', updated_at = CURRENT_TIMESTAMP
+    WHERE enrollment_id = ? AND grade_item_id = ?
+  `).run(finalLesson.enrollment_id, gradeItem.id);
+  database.prepare("DELETE FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?")
+    .run(finalLesson.enrollment_id, finalLesson.lesson_id);
+  database.prepare("DELETE FROM exam_access_overrides WHERE enrollment_id = ? AND lesson_id = ?")
+    .run(finalLesson.enrollment_id, finalLesson.lesson_id);
+  database.prepare(`
+    INSERT INTO exam_access_overrides (enrollment_id, lesson_id, opens_at, closes_at, minutes, reason)
+    VALUES (?, ?, ?, ?, 90, 'Expired retake preservation regression test')
+  `).run(
+    finalLesson.enrollment_id,
+    finalLesson.lesson_id,
+    new Date(Date.now() - 60_000).toISOString(),
+    new Date(Date.now() + 86_400_000).toISOString()
+  );
+
+  const retakeStart = await fetch(`${baseUrl}/student/enrollments/${finalLesson.enrollment_id}/exams/${finalLesson.lesson_id}/start`, {
+    headers: { cookie: studentCookie },
+    method: "POST",
+    redirect: "manual"
+  });
+  assert.ok([302, 303].includes(retakeStart.status));
+  database.prepare("UPDATE exam_attempts SET expires_at = ? WHERE enrollment_id = ? AND lesson_id = ?")
+    .run(new Date(Date.now() - 60_000).toISOString(), finalLesson.enrollment_id, finalLesson.lesson_id);
+
+  const expiredRetakePage = await fetch(`${baseUrl}/student/enrollments/${finalLesson.enrollment_id}?lesson=${finalLesson.lesson_id}`, {
+    headers: { cookie: studentCookie }
+  });
+  assert.equal(expiredRetakePage.status, 200);
+  assert.equal(
+    database.prepare("SELECT status FROM exam_attempts WHERE enrollment_id = ? AND lesson_id = ?")
+      .get(finalLesson.enrollment_id, finalLesson.lesson_id).status,
+    "expired"
+  );
+  assert.deepEqual(
+    { ...database.prepare("SELECT score, note FROM grades WHERE enrollment_id = ? AND grade_item_id = ?")
+      .get(finalLesson.enrollment_id, gradeItem.id) },
+    { score: 175, note: "Previously posted final score" }
+  );
+  const retakeHistory = database.prepare(`
+    SELECT attempt_number, score, correct_answers FROM quiz_attempt_history
+    WHERE enrollment_id = ? AND lesson_id = ? ORDER BY attempt_number DESC LIMIT 1
+  `).get(finalLesson.enrollment_id, finalLesson.lesson_id);
+  assert.deepEqual({ ...retakeHistory }, { attempt_number: 2, score: 0, correct_answers: 0 });
 });
 
 test("assessment reopening preserves prior records until the selected student starts and submits", async () => {

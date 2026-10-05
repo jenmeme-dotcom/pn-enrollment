@@ -1991,18 +1991,57 @@ function seed() {
       WHERE modules.course_id = ?
         AND lessons.title LIKE '[PN104 2026] Week % Discussion:%'
     `).all(pn104CourseRow.id);
-    const deleteDiscussionLesson = db.prepare("DELETE FROM lessons WHERE id = ?");
+    const archiveDiscussionLesson = db.prepare(`
+      UPDATE lessons SET published = 0, instructor_only = 1 WHERE id = ?
+    `);
+    const deleteUnusedDiscussionLesson = db.prepare(`
+      DELETE FROM lessons
+      WHERE id = ?
+        AND NOT EXISTS (SELECT 1 FROM exam_attempts ea WHERE ea.lesson_id = lessons.id)
+        AND NOT EXISTS (SELECT 1 FROM lesson_completions lc WHERE lc.lesson_id = lessons.id)
+        AND NOT EXISTS (SELECT 1 FROM video_assignments va WHERE va.lesson_id = lessons.id)
+        AND NOT EXISTS (SELECT 1 FROM exam_access_overrides eao WHERE eao.lesson_id = lessons.id)
+        AND NOT EXISTS (SELECT 1 FROM assessment_reopen_audit ara WHERE ara.lesson_id = lessons.id)
+        AND NOT EXISTS (SELECT 1 FROM assessment_reopen_batches arb WHERE arb.lesson_id = lessons.id)
+        AND NOT EXISTS (SELECT 1 FROM quiz_attempt_history qah WHERE qah.lesson_id = lessons.id)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM modules m
+          JOIN discussion_topics dt ON dt.course_id = m.course_id
+          JOIN discussion_entries de ON de.topic_id = dt.id
+          WHERE m.id = lessons.module_id
+            AND lower(trim(dt.title)) = lower(trim(lessons.title))
+        )
+    `);
     discussionLessons.forEach((lesson) => {
-      if (!scheduledDiscussionTitles.has(lesson.title)) deleteDiscussionLesson.run(lesson.id);
+      if (scheduledDiscussionTitles.has(lesson.title)) return;
+      archiveDiscussionLesson.run(lesson.id);
+      deleteUnusedDiscussionLesson.run(lesson.id);
     });
 
     const discussionGradeItems = db.prepare(`
       SELECT id, title FROM grade_items
       WHERE course_id = ? AND title LIKE '[PN104 2026] Week % Discussion:%'
     `).all(pn104CourseRow.id);
-    const deleteDiscussionGradeItem = db.prepare("DELETE FROM grade_items WHERE id = ?");
+    const deleteUnusedDiscussionGradeItem = db.prepare(`
+      DELETE FROM grade_items
+      WHERE id = ?
+        AND NOT EXISTS (SELECT 1 FROM grades g WHERE g.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM assignment_submissions s WHERE s.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM lessons l WHERE l.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM assignment_rubrics ar WHERE ar.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM assessment_reopen_audit ara WHERE ara.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM quiz_attempt_history qah WHERE qah.grade_item_id = grade_items.id)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM discussion_topics dt
+          JOIN discussion_entries de ON de.topic_id = dt.id
+          WHERE dt.course_id = grade_items.course_id
+            AND lower(trim(dt.title)) = lower(trim(grade_items.title))
+        )
+    `);
     discussionGradeItems.forEach((item) => {
-      if (!scheduledDiscussionTitles.has(item.title)) deleteDiscussionGradeItem.run(item.id);
+      if (!scheduledDiscussionTitles.has(item.title)) deleteUnusedDiscussionGradeItem.run(item.id);
     });
 
     const updatePn104ReferenceLesson = db.prepare(`
@@ -3513,9 +3552,16 @@ function seed() {
       WHERE course_id = ?
         AND source_external_id LIKE 'anatomy-and-physiology:discussion:%'
     `).all(pn104CourseRow.id);
-    const deleteSeededPn104Topic = db.prepare("DELETE FROM discussion_topics WHERE id = ?");
+    const archiveSeededPn104Topic = db.prepare("UPDATE discussion_topics SET status = 'closed' WHERE id = ?");
+    const deleteUnusedSeededPn104Topic = db.prepare(`
+      DELETE FROM discussion_topics
+      WHERE id = ?
+        AND NOT EXISTS (SELECT 1 FROM discussion_entries de WHERE de.topic_id = discussion_topics.id)
+    `);
     seededPn104Topics.forEach((topic) => {
-      if (!scheduledDiscussionTitles.has(topic.title)) deleteSeededPn104Topic.run(topic.id);
+      if (scheduledDiscussionTitles.has(topic.title)) return;
+      archiveSeededPn104Topic.run(topic.id);
+      deleteUnusedSeededPn104Topic.run(topic.id);
     });
   }
 
@@ -4005,7 +4051,17 @@ function seed() {
 
     const existingGradeItem = db.prepare("SELECT id FROM grade_items WHERE course_id = ? AND title = ?");
     const appendGradeItem = db.prepare("INSERT INTO grade_items (course_id, title, points_possible, due_date) VALUES (?, ?, ?, ?)");
-    db.prepare("DELETE FROM grade_items WHERE course_id = ? AND title = '[PN102 2026] Final Exam - Introduction to Nursing Chapters 1-6'").run(introductionCourse.id);
+    db.prepare(`
+      DELETE FROM grade_items
+      WHERE course_id = ?
+        AND title = '[PN102 2026] Final Exam - Introduction to Nursing Chapters 1-6'
+        AND NOT EXISTS (SELECT 1 FROM grades g WHERE g.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM assignment_submissions s WHERE s.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM lessons l WHERE l.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM assignment_rubrics ar WHERE ar.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM assessment_reopen_audit ara WHERE ara.grade_item_id = grade_items.id)
+        AND NOT EXISTS (SELECT 1 FROM quiz_attempt_history qah WHERE qah.grade_item_id = grade_items.id)
+    `).run(introductionCourse.id);
     const updateIntroExamGradeItem = db.prepare(`
       UPDATE grade_items
       SET points_possible = ?, due_date = ?

@@ -2689,8 +2689,7 @@ function finalizeExpiredExamAttempt({ attempt, enrollmentId, lesson, gradeItem =
       db.prepare(`
         INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
         VALUES (?, ?, 0, 'Timed examination expired before submission.', CURRENT_TIMESTAMP)
-        ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET
-          score = 0, note = excluded.note, updated_at = CURRENT_TIMESTAMP
+        ON CONFLICT(enrollment_id, grade_item_id) DO NOTHING
       `).run(enrollmentId, gradeItem.id);
     }
     return true;
@@ -3689,8 +3688,9 @@ function pnDiscussionGradeRows() {
   }));
 }
 
-function studentGradebookRows(enrollment, gradeItems = [], grades = [], examAttempts = []) {
+function studentGradebookRows(enrollment, gradeItems = [], grades = [], examAttempts = [], submissions = []) {
   const gradeByItemId = new Map(grades.map((grade) => [grade.grade_item_id, grade]));
+  const submissionByItemId = new Map(submissions.map((submission) => [submission.grade_item_id, submission]));
   const attemptByItemId = new Map(
     examAttempts
       .filter((attempt) => attempt.status === "in_progress")
@@ -3698,13 +3698,15 @@ function studentGradebookRows(enrollment, gradeItems = [], grades = [], examAtte
   );
   const savedRows = gradeItems.map((item) => {
     const grade = gradeByItemId.get(item.id);
+    const submission = submissionByItemId.get(item.id);
     const attempt = attemptByItemId.get(item.id);
     const approvalPending = isAutoGradeApprovalPending(grade?.note);
     return {
       ...item,
       group: item.title.toLowerCase().includes("elsevier") ? "Imported Assignments" : "Assignments",
       score: grade && !approvalPending ? grade.score : null,
-      status: approvalPending ? "pending" : undefined,
+      status: approvalPending ? "pending" : !grade && submission ? "submitted_ungraded" : undefined,
+      submitted_at: submission?.submitted_at || null,
       attempt_status: !grade && attempt
         ? "started"
         : grade && !approvalPending && attempt?.ordinary_quiz
@@ -3743,8 +3745,8 @@ function postedGradeSummary(rows = []) {
   };
 }
 
-function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems = [], grades = [], examAttempts = [], student }) {
-  const rows = studentGradebookRows(enrollment, gradeItems, grades, examAttempts);
+function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems = [], grades = [], examAttempts = [], submissions = [], student }) {
+  const rows = studentGradebookRows(enrollment, gradeItems, grades, examAttempts, submissions);
   const summary = postedGradeSummary(rows);
   const totalLabel = summary.possible ? `${summary.earned.toFixed(2)} / ${summary.possible.toFixed(2)}` : "N/A (N/A)";
   const overallPercentage = summary.percentage === null ? "N/A" : `${summary.percentage.toFixed(2)}%`;
@@ -3813,14 +3815,16 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
                   <small>${escapeHtml(row.group || "Assignments")}</small>
                 </td>
                 <td data-label="Due" class="${row.due_date ? "" : "grade-cell-empty"}">${escapeHtml(formatGradeDue(row.due_date))}</td>
-                <td data-label="Submitted" class="grade-cell-empty"></td>
+                <td data-label="Submitted" class="${row.submitted_at ? "" : "grade-cell-empty"}">${escapeHtml(formatGradeDue(row.submitted_at))}</td>
                 <td data-label="Status" class="${row.status || row.attempt_status ? "" : "grade-cell-empty"}">
                   ${row.status === "missing"
                     ? `<span class="grade-status missing">missing</span>`
                     : row.status === "info"
                       ? `<span class="grade-status info">!</span>`
                       : row.status === "pending"
-                        ? `<span class="grade-status info">pending review</span>`
+                      ? `<span class="grade-status info">pending review</span>`
+                      : row.status === "submitted_ungraded"
+                        ? `<span class="gradebook-attempt-status">Submitted — awaiting instructor grade</span>`
                         : row.attempt_status === "started"
                           ? `<span class="gradebook-attempt-status">Started — not submitted</span>`
                           : row.attempt_status === "retake"
@@ -3885,10 +3889,13 @@ function instructorGradebookItems(course, gradeItems = []) {
   }));
 }
 
-function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems = [], enrollments = [], grades = [], examAttempts = [], readOnly = false }) {
+function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems = [], enrollments = [], grades = [], examAttempts = [], submissions = [], readOnly = false }) {
   const students = instructorGradebookStudents(enrollments);
   const assignments = instructorGradebookItems(course, gradeItems);
   const gradeByEnrollmentAndItem = new Map(grades.map((grade) => [`${grade.enrollment_id}:${grade.grade_item_id}`, grade]));
+  const submissionByEnrollmentAndItem = new Map(
+    submissions.map((submission) => [`${submission.enrollment_id}:${submission.grade_item_id}`, submission])
+  );
   const attemptByEnrollmentAndItem = new Map(
     examAttempts
       .filter((attempt) => attempt.status === "in_progress")
@@ -3971,11 +3978,16 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
                   <td><strong>${escapeHtml(letterGrade)}</strong></td>
                   ${assignments.map((item) => {
                     const grade = gradeByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
+                    const submission = submissionByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
                     const attempt = attemptByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
                     const reopenControl = !readOnly && isProtectedMajorAssessmentTitle(item.title)
                       ? `<a class="button small ghost" href="/admin/courses/${course.id}/manage#assessment-access">Reopen assessment</a>`
                       : "";
-                    if (!grade) return `<td>${attempt ? `<span class="gradebook-attempt-status">Started — not submitted</span>` : "-"}${reopenControl}</td>`;
+                    if (!grade) return `<td>${submission
+                      ? `<span class="gradebook-attempt-status">Submitted — awaiting instructor grade</span>`
+                      : attempt
+                        ? `<span class="gradebook-attempt-status">Started — not submitted</span>`
+                        : "-"}${reopenControl}</td>`;
                     const pendingReview = isAutoGradeApprovalPending(grade.note);
                     const score = pendingReview
                       ? `— <small class="gradebook-pending-score">pending review</small>`
@@ -12850,6 +12862,25 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     JOIN modules m ON m.id = l.module_id
     WHERE m.course_id = ? AND l.grade_item_id IS NOT NULL
   `).all(course.id) : [];
+  const gradeSubmissions = editing || reviewingGrades ? db.prepare(`
+    SELECT enrollment_id, grade_item_id, MAX(submitted_at) AS submitted_at
+    FROM (
+      SELECT s.enrollment_id, s.grade_item_id, s.submitted_at
+      FROM assignment_submissions s
+      JOIN enrollments e ON e.id = s.enrollment_id
+      WHERE e.course_id = ?
+      UNION ALL
+      SELECT e.id AS enrollment_id, gi.id AS grade_item_id, de.posted_at AS submitted_at
+      FROM discussion_entries de
+      JOIN discussion_topics dt ON dt.id = de.topic_id
+      JOIN grade_items gi
+        ON gi.course_id = dt.course_id
+       AND lower(trim(gi.title)) = lower(trim(dt.title))
+      JOIN enrollments e ON e.course_id = dt.course_id AND e.user_id = de.user_id
+      WHERE dt.course_id = ?
+    ) AS submission_events
+    GROUP BY enrollment_id, grade_item_id
+  `).all(course.id, course.id) : [];
 
   const moduleGroups = editing
     ? courseModules.map((module) => ({
@@ -13195,6 +13226,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         enrollments,
         grades,
         examAttempts,
+        submissions: gradeSubmissions,
         readOnly: !editing
       })}
     </section>
@@ -16159,6 +16191,24 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       grade_item_id: attempt.grade_item_id
     })
   }));
+  const gradeSubmissions = db.prepare(`
+    SELECT enrollment_id, grade_item_id, MAX(submitted_at) AS submitted_at
+    FROM (
+      SELECT s.enrollment_id, s.grade_item_id, s.submitted_at
+      FROM assignment_submissions s
+      WHERE s.enrollment_id = ?
+      UNION ALL
+      SELECT e.id AS enrollment_id, gi.id AS grade_item_id, de.posted_at AS submitted_at
+      FROM enrollments e
+      JOIN discussion_topics dt ON dt.course_id = e.course_id
+      JOIN grade_items gi
+        ON gi.course_id = dt.course_id
+       AND lower(trim(gi.title)) = lower(trim(dt.title))
+      JOIN discussion_entries de ON de.topic_id = dt.id AND de.user_id = e.user_id
+      WHERE e.id = ?
+    ) AS submission_events
+    GROUP BY enrollment_id, grade_item_id
+  `).all(enrollment.id, enrollment.id);
   const completedLessonIds = new Set(db.prepare(`
     SELECT lc.lesson_id
     FROM lesson_completions lc
@@ -16477,6 +16527,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         gradeItems,
         grades,
         examAttempts,
+        submissions: gradeSubmissions,
         student: req.user
       })}
     </section>

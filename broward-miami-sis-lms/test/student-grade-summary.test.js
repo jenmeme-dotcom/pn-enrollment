@@ -161,7 +161,7 @@ before(async () => {
   `).run(photoStorageName);
 
   enrollment = database.prepare(`
-    SELECT e.id, e.course_id
+    SELECT e.id, e.course_id, e.user_id
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
     JOIN courses c ON c.id = e.course_id AND c.published = 1
@@ -192,7 +192,9 @@ before(async () => {
   const passingItemId = Number(insertItem.run(enrollment.course_id, "Posted Passing Score", 100, "2026-09-01").lastInsertRowid);
   const zeroItemId = Number(insertItem.run(enrollment.course_id, "Posted Zero Score", 100, "2026-09-02").lastInsertRowid);
   const pendingItemId = Number(insertItem.run(enrollment.course_id, "Pending Written Work", 100, "2026-09-03").lastInsertRowid);
-  insertItem.run(enrollment.course_id, "Not Yet Graded", 100, "2026-09-04");
+  const submittedFileItemId = Number(insertItem.run(enrollment.course_id, "Submitted File Awaiting Grade", 100, "2026-09-04").lastInsertRowid);
+  const submittedDiscussionItemId = Number(insertItem.run(enrollment.course_id, "Submitted Discussion Awaiting Grade", 100, "2026-09-05").lastInsertRowid);
+  insertItem.run(enrollment.course_id, "Not Yet Graded", 100, "2026-09-06");
 
   const insertGrade = database.prepare(`
     INSERT INTO grades (enrollment_id, grade_item_id, score, note)
@@ -201,6 +203,21 @@ before(async () => {
   insertGrade.run(enrollment.id, passingItemId, 100, "Posted by instructor.");
   insertGrade.run(enrollment.id, zeroItemId, 0, "Posted by instructor.");
   insertGrade.run(enrollment.id, pendingItemId, 100, `${pendingApprovalPrefix}\nAwaiting instructor approval.`);
+  database.prepare(`
+    INSERT INTO assignment_submissions (
+      grade_item_id, enrollment_id, file_storage_name, file_original_name,
+      file_mime_type, file_size, student_note, submitted_at, updated_at
+    ) VALUES (?, ?, 'submitted-test.txt', 'submitted-test.txt', 'text/plain', 12, 'Ready for grading.', ?, ?)
+  `).run(submittedFileItemId, enrollment.id, "2026-10-04 12:30:00", "2026-10-04 12:30:00");
+  const discussionTopicId = Number(database.prepare(`
+    INSERT INTO discussion_topics (course_id, title, prompt, points_possible, status)
+    VALUES (?, 'Submitted Discussion Awaiting Grade', 'Test prompt', 100, 'published')
+  `).run(enrollment.course_id).lastInsertRowid);
+  database.prepare(`
+    INSERT INTO discussion_entries (
+      topic_id, user_id, author_name, author_email, body, source, posted_at
+    ) VALUES (?, ?, 'Demo Student', 'student@browardmiamihi.com', 'Ready for grading.', 'portal', ?)
+  `).run(discussionTopicId, enrollment.user_id, "2026-10-04 13:45:00");
 
   studentCookie = await login("student@browardmiamihi.com", "StudentPass123!", "student");
   adminCookie = await login("admin@browardmiamihi.com", "AdminPass123!", "faculty");
@@ -224,7 +241,10 @@ test("student Grades shows saved posted scores and calculates overall grade from
   assert.match(gradeRow(html, "Posted Passing Score"), /100 \/ 100/, "Expected the saved passing score to be visible");
   assert.match(gradeRow(html, "Posted Zero Score"), /0 \/ 100/, "A posted zero is a grade, not an ungraded item");
   assert.match(gradeRow(html, "Pending Written Work"), /pending review.*- \/ 100/i, "Pending approval must not display as posted");
+  assert.match(gradeRow(html, "Submitted File Awaiting Grade"), /Oct 4, 2026.*Submitted — awaiting instructor grade.*- \/ 100/i);
+  assert.match(gradeRow(html, "Submitted Discussion Awaiting Grade"), /Oct 4, 2026.*Submitted — awaiting instructor grade.*- \/ 100/i);
   assert.match(gradeRow(html, "Not Yet Graded"), /- \/ 100/, "An ungraded item must remain unscored");
+  assert.doesNotMatch(gradeRow(html, "Not Yet Graded"), /awaiting instructor grade/i);
 
   const summary = gradeSummaryText(html);
   assert.match(summary, /Total: 100\.00 \/ 200\.00/, "Only the two posted scores should contribute earned and possible points");
@@ -237,7 +257,11 @@ test("student Grades shows saved posted scores and calculates overall grade from
   assert.match(instructorHtml, /Student Gradebook/);
   assert.doesNotMatch(instructorHtml, /Student Preview/);
   assert.match(instructorStudentRow, /Demo Student 50\.00% F\b/, "Instructor should see the student's current percentage and letter grade");
-  assert.match(instructorStudentRow, /100 0 — pending review -/, "Instructor should show posted scores while withholding provisional pending scores");
+  assert.match(
+    instructorStudentRow,
+    /100 0 — pending review Submitted — awaiting instructor grade Submitted — awaiting instructor grade -/,
+    "Instructor should distinguish submitted-ungraded work from an item with no submission"
+  );
 });
 
 test("authenticated student and instructor grade pages cannot be served from browser cache", async () => {
