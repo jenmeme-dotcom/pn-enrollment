@@ -8,6 +8,20 @@ const { DatabaseSync } = require("node:sqlite");
 
 const projectRoot = path.resolve(__dirname, "..");
 
+test("the Long-Term Care Nursing shell is labeled PN 103 throughout the portal", () => {
+  const source = fs.readFileSync(path.join(projectRoot, "src", "server.js"), "utf8");
+  assert.match(
+    source,
+    /const slug = course\.slug \|\| course\.course_slug;[\s\S]*?slug === "long-term-care-nursing-pn103"\) return "PN 103";/,
+    "The canonical PN 103 shell must not fall back to an internal database-based course code"
+  );
+  assert.match(
+    source,
+    /code: "PN 103",\s+slug: "long-term-care-nursing-pn103",\s+title: "Long-Term Care Nursing"/,
+    "The Cohort 2 schedule must link PN 103 to the Long-Term Care Nursing shell"
+  );
+});
+
 test("every Cohort 2 student is active in long-term care and removed from Fundamentals", () => {
   const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "bmhi-cohort-two-pn103-"));
   const databaseFile = path.join(temporaryDirectory, "cohort.sqlite");

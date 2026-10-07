@@ -1627,11 +1627,13 @@ function recentInstitutionCatalogs(limit = 5) {
 }
 
 function canvasCourseCode(course = {}) {
-  if (course.slug === "home-health-aide") return "HHA 75";
-  if (course.slug === "home-health-aide-creole") return "HHA 75 Kreyol";
-  if (course.slug === "medical-terminology") return "PN 101";
-  if (course.slug === "introduction-to-nursing-practical-nursing") return "PN 102";
-  if (course.slug === "anatomy-and-physiology") return "PN 104";
+  const slug = course.slug || course.course_slug;
+  if (slug === "home-health-aide") return "HHA 75";
+  if (slug === "home-health-aide-creole") return "HHA 75 Kreyol";
+  if (slug === "medical-terminology") return "PN 101";
+  if (slug === "introduction-to-nursing-practical-nursing") return "PN 102";
+  if (slug === "long-term-care-nursing-pn103") return "PN 103";
+  if (slug === "anatomy-and-physiology") return "PN 104";
   const id = course.course_id || course.id || 0;
   if (course.category === "Practical Nursing Course") return `PN-${String(id).padStart(3, "0")}`;
   return `BMHI-${String(id).padStart(3, "0")}`;
@@ -8617,10 +8619,10 @@ function renderAdminSchedule(req, res) {
     },
     {
       code: "PN 103",
-      slug: "fundamental-nursing-skills-and-concepts-new-cohort",
-      title: "Fundamentals of Nursing",
+      slug: "long-term-care-nursing-pn103",
+      title: "Long-Term Care Nursing",
       start: "2026-07-02",
-      meeting: "Skills lab and CoursePoint assignments",
+      meeting: "Weekly modules, skills application, and discussions",
       format: "Blended",
       status: "Current"
     },
