@@ -211,7 +211,13 @@ before(async () => {
     const gradeItem = insertGradeItem.run(fixture.courseId, `Transcript fixture ${key}`).lastInsertRowid;
     insertGrade.run(fixture.enrollmentId, gradeItem, score);
   }
-
+  const activeFixture = transcriptEnrollments.get("ACTIVE");
+  const pendingGradeItem = insertGradeItem.run(activeFixture.courseId, "Pending instructor review").lastInsertRowid;
+  database.prepare("INSERT INTO grades (enrollment_id, grade_item_id, score, note) VALUES (?, ?, 100, ?)").run(
+    activeFixture.enrollmentId,
+    pendingGradeItem,
+    "[AUTO_GRADE_PENDING_APPROVAL] Pending review must not count as posted work"
+  );
   const statusResult = insertEnrollment.run(statusStudent, courses[0].id, "completed", "2025-01-02", "A");
   statusEnrollment = statusResult.lastInsertRowid;
 
@@ -290,6 +296,87 @@ test("print transcript uses neutral labeling and the same earned-credit rules", 
   const termEarned = [...html.matchAll(/<tr class="transcript-term-total">([\s\S]*?)<\/tr>/g)]
     .map((match) => Number(rowCells(match[0])[2]));
   assert.equal(termEarned.reduce((sum, hours) => sum + hours, 0), 5);
+});
+
+test("student current grade report truthfully separates current calculations from enrollment status", async () => {
+  const before = {
+    enrollments: database.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE user_id = ?").get(transcriptStudent).count,
+    grades: database.prepare("SELECT COUNT(*) AS count FROM grades WHERE enrollment_id IN (SELECT id FROM enrollments WHERE user_id = ?)").get(transcriptStudent).count
+  };
+  const activeFixture = transcriptEnrollments.get("ACTIVE");
+  const insertRestrictedGradeItem = database.prepare(`
+    INSERT INTO grade_items (course_id, title, points_possible, due_date, allowed_student_email)
+    VALUES (?, ?, 100, '2026-09-30', ?)
+  `);
+  const crossCourseGradeItem = insertRestrictedGradeItem.run(
+    transcriptEnrollments.get("A").courseId,
+    "Cross-course item must not count",
+    null
+  ).lastInsertRowid;
+  const otherStudentGradeItem = insertRestrictedGradeItem.run(
+    activeFixture.courseId,
+    "Other student's personalized item must not count",
+    "different-student@example.test"
+  ).lastInsertRowid;
+  const insertRogueGrade = database.prepare("INSERT INTO grades (enrollment_id, grade_item_id, score, note) VALUES (?, ?, 0, NULL)");
+  insertRogueGrade.run(activeFixture.enrollmentId, crossCourseGradeItem);
+  insertRogueGrade.run(activeFixture.enrollmentId, otherStudentGradeItem);
+  const html = await getHtml("/student/current-grade-report", studentCookie);
+  database.prepare("DELETE FROM grade_items WHERE id IN (?, ?)").run(crossCourseGradeItem, otherStudentGradeItem);
+
+  assert.match(html, /Unofficial Current Progress Report/i);
+  assert.match(html, /based only on graded work that has been posted in the portal/i);
+  assert.match(html, /not an official transcript or final grade/i);
+  assert.match(html, /does not change any enrollment or academic record/i);
+  assert.match(html, /Print \/ Save as PDF/);
+
+  const activeCells = rowCells(tableRowContaining(html, "Transcript Test ACTIVE"));
+  assert.equal(activeCells[2], "active", "Enrollment status must be shown independently from the calculated letter");
+  assert.equal(activeCells[3], "1", "Pending-review grades must not count as posted graded work");
+  assert.equal(activeCells[4], "80.00 / 100.00");
+  assert.equal(activeCells[5], "80.00%");
+  assert.equal(activeCells[6], "B-", "Active courses need a current calculated letter instead of IP");
+
+  const completedCells = rowCells(tableRowContaining(html, "Transcript Test A"));
+  assert.equal(completedCells[2], "completed");
+  assert.equal(completedCells[5], "80.00%");
+  assert.equal(completedCells[6], "B-", "The current report must calculate from posted work instead of re-labeling a saved final grade");
+
+  const ungradedCells = rowCells(tableRowContaining(html, "Transcript Test P"));
+  assert.equal(ungradedCells[2], "completed");
+  assert.equal(ungradedCells[4], "Not yet graded");
+  assert.equal(ungradedCells[5], "—");
+  assert.equal(ungradedCells[6], "—");
+
+  const after = {
+    enrollments: database.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE user_id = ?").get(transcriptStudent).count,
+    grades: database.prepare("SELECT COUNT(*) AS count FROM grades WHERE enrollment_id IN (SELECT id FROM enrollments WHERE user_id = ?)").get(transcriptStudent).count
+  };
+  assert.deepEqual(after, before, "Opening a current grade report must not alter grades or enrollments");
+});
+
+test("student navigation and registrar checklist link to the appropriate current grade reports", async () => {
+  const transcriptHtml = await getHtml("/student/transcript", studentCookie);
+  assert.match(transcriptHtml, /href="\/student\/current-grade-report"[^>]*>Current Grade Report<\/a>/);
+
+  const registrarHtml = await getHtml(`/admin/students/${transcriptStudent}/registrar-checklist`, adminCookie);
+  assert.match(
+    registrarHtml,
+    new RegExp(`href="/admin/students/${transcriptStudent}/current-grade-report"[^>]*>Current Grade Report</a>`)
+  );
+
+  const adminReport = await getHtml(`/admin/students/${transcriptStudent}/current-grade-report`, adminCookie);
+  assert.match(adminReport, /Transcript Student/);
+  const activeCells = rowCells(tableRowContaining(adminReport, "Transcript Test ACTIVE"));
+  assert.equal(activeCells[2], "active");
+  assert.equal(activeCells[5], "80.00%");
+  assert.equal(activeCells[6], "B-");
+
+  const forbidden = await fetch(`${baseUrl}/admin/students/${transcriptStudent}/current-grade-report`, {
+    headers: { cookie: studentCookie },
+    redirect: "manual"
+  });
+  assert.equal(forbidden.status, 403, "A student must not be able to request another student's admin report");
 });
 
 test("instructor gradebook uses final grades only for completed enrollments", async () => {

@@ -91,6 +91,7 @@ const studentNavItems = [
   { key: "evaluations", href: "/student/evaluations", label: "Student Evaluations" },
   { key: "fees", href: "/student/financial", label: "Fees" },
   { key: "registration", href: "/student/registration", label: "Registration" },
+  { key: "current-grades", href: "/student/current-grade-report", label: "Current Grade Report" },
   { key: "transcript", href: "/student/transcript", label: "Unofficial Transcript" },
   { key: "help", href: "/help/browser-cache", label: "Help" },
   { key: "download", href: "/catalog", label: "Download Center" },

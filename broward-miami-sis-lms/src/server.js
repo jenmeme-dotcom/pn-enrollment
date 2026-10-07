@@ -3781,6 +3781,7 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
         <div class="grades-title-row">
           <h1>Grades for ${escapeHtml(studentLabel)}</h1>
           <div class="grades-title-actions">
+            <a class="canvas-transcript-button" href="/student/current-grade-report">Current Grade Report</a>
             <a class="canvas-transcript-button" href="/student/transcript">Unofficial Transcript</a>
             <button class="canvas-print-button" type="button" onclick="window.print()">Print Grades</button>
           </div>
@@ -10727,6 +10728,7 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
         <p>${escapeHtml(student.email)} · Student ID ${escapeHtml(displayStudentNumber(student))}</p>
       </div>
       <div class="actions">
+        <a class="button" href="/admin/students/${student.id}/current-grade-report" target="_blank" rel="noopener">Current Grade Report</a>
         <a class="button ghost" href="/admin/students">Students</a>
         <a class="button ghost" href="/admin/billing">Billing</a>
       </div>
@@ -14930,20 +14932,31 @@ function transcriptEarnsCredit(row) {
 
 function studentTranscriptData(user) {
   const records = db.prepare(`
-    SELECT e.*, c.title, c.category, c.hours, c.credential_type, cr.id AS credential_id,
+    SELECT e.*, c.slug, c.title, c.category, c.hours, c.credential_type, cr.id AS credential_id,
       cr.number AS credential_number,
+      SUM(CASE WHEN g.score IS NOT NULL AND gi.points_possible > 0 AND (g.note IS NULL OR g.note NOT LIKE ?) THEN 1 ELSE 0 END) AS posted_grade_count,
       SUM(CASE WHEN g.score IS NOT NULL AND gi.points_possible > 0 AND (g.note IS NULL OR g.note NOT LIKE ?) THEN g.score ELSE 0 END) AS points_earned,
       SUM(CASE WHEN g.score IS NOT NULL AND gi.points_possible > 0 AND (g.note IS NULL OR g.note NOT LIKE ?) THEN gi.points_possible ELSE 0 END) AS points_possible
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     LEFT JOIN credentials cr ON cr.enrollment_id = e.id
     LEFT JOIN grades g ON g.enrollment_id = e.id
-    LEFT JOIN grade_items gi ON gi.id = g.grade_item_id
+    LEFT JOIN grade_items gi
+      ON gi.id = g.grade_item_id
+     AND gi.course_id = e.course_id
+     AND (gi.allowed_student_email IS NULL OR lower(trim(gi.allowed_student_email)) = lower(trim(?)))
     WHERE e.user_id = ?
     GROUP BY e.id
     ORDER BY e.start_date, e.created_at
-  `).all(`${AUTO_GRADE_PENDING_PREFIX}%`, `${AUTO_GRADE_PENDING_PREFIX}%`, user.id).map((row) => {
+  `).all(
+    `${AUTO_GRADE_PENDING_PREFIX}%`,
+    `${AUTO_GRADE_PENDING_PREFIX}%`,
+    `${AUTO_GRADE_PENDING_PREFIX}%`,
+    user.email,
+    user.id
+  ).map((row) => {
     const calculatedPercentage = Number(row.points_possible) > 0 ? (Number(row.points_earned) / Number(row.points_possible)) * 100 : null;
+    const currentCalculatedLetter = calculatedPercentage === null ? null : transcriptLetterGrade("", calculatedPercentage);
     const finalGrade = String(row.final_grade || "").trim();
     const hasOfficialFinalGrade = row.status === "completed" && Boolean(finalGrade);
     const savedPercentage = transcriptNumericGrade(finalGrade);
@@ -14964,7 +14977,16 @@ function studentTranscriptData(user) {
               ? "P"
               : "—";
     const gradePoints = row.status === "completed" ? transcriptGradePoints(letter) : null;
-    return { ...row, percentage, letter, gradePoints, hasOfficialFinalGrade, term: transcriptTerm(row.start_date) };
+    return {
+      ...row,
+      percentage,
+      letter,
+      gradePoints,
+      hasOfficialFinalGrade,
+      postedPercentage: calculatedPercentage,
+      currentCalculatedLetter,
+      term: transcriptTerm(row.start_date)
+    };
   });
   const application = db.prepare(`
     SELECT date_of_birth, program_title, address, city, state, zip
@@ -14994,7 +15016,7 @@ function transcriptCourseRows(records, { printable = false } = {}) {
     <tr class="transcript-term-row"><th colspan="7">${escapeHtml(term)}</th></tr>
     ${rows.map((row) => `
       <tr>
-        <td><strong>${escapeHtml(row.title)}</strong><br><span>${escapeHtml(row.credential_type || row.category || "Course")}</span></td>
+        <td><strong>${escapeHtml(`${canvasCourseCode(row)} · ${row.title}`)}</strong><br><span>${escapeHtml(row.credential_type || row.category || "Course")}</span></td>
         <td>${escapeHtml(row.hours)}</td>
         <td>${row.percentage === null ? "—" : `${escapeHtml(row.percentage.toFixed(1))}%`}</td>
         <td><strong>${escapeHtml(row.letter)}</strong></td>
@@ -15023,6 +15045,104 @@ function transcriptCompactRows(records) {
   `).join("");
 }
 
+function currentGradeReportRows(records) {
+  if (!records.length) return `<tr><td class="empty" colspan="7">No course enrollments yet.</td></tr>`;
+  return records.map((row) => {
+    const gradedCount = Number(row.posted_grade_count || 0);
+    const hasPostedGrade = row.postedPercentage !== null && gradedCount > 0;
+    const status = String(row.status || "not recorded").replaceAll("_", " ");
+    return `
+      <tr>
+        <td><strong>${escapeHtml(`${canvasCourseCode(row)} · ${row.title}`)}</strong><br><span>${escapeHtml(row.credential_type || row.category || "Course")}</span></td>
+        <td>${escapeHtml(row.term)}</td>
+        <td><strong>${escapeHtml(status)}</strong></td>
+        <td>${gradedCount ? escapeHtml(gradedCount) : "0"}</td>
+        <td>${hasPostedGrade ? `${escapeHtml(Number(row.points_earned).toFixed(2))} / ${escapeHtml(Number(row.points_possible).toFixed(2))}` : "Not yet graded"}</td>
+        <td>${hasPostedGrade ? `${escapeHtml(row.postedPercentage.toFixed(2))}%` : "—"}</td>
+        <td><strong>${hasPostedGrade ? escapeHtml(row.currentCalculatedLetter) : "—"}</strong></td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function renderCurrentGradeReportDocument(student, { backHref, backLabel }) {
+  const report = studentTranscriptData(student);
+  const issuedDate = new Date().toISOString().slice(0, 10);
+  const reportNumber = `BMHI-PROGRESS-${new Date().getFullYear()}-${String(student.id).padStart(6, "0")}`;
+  return `
+    <section class="print-document current-grade-report">
+      <div class="print-actions no-print">
+        <button class="button" type="button" onclick="window.print()">Print / Save as PDF</button>
+        <a class="button ghost" href="${escapeHtml(backHref)}">${escapeHtml(backLabel)}</a>
+      </div>
+
+      <header class="current-grade-report-head">
+        <div class="current-grade-report-brand">
+          <img src="/assets/bmhi-logo-transparent.png" alt="${escapeHtml(instituteName)} logo">
+          <div><h1>${escapeHtml(instituteName)}</h1><p>Office of the Registrar</p></div>
+        </div>
+        <div class="current-grade-report-title">
+          <span>Unofficial Current Progress Report</span>
+          <strong>${escapeHtml(personName(student))}</strong>
+          <small>Student ID: ${escapeHtml(displayStudentNumber(student))}</small>
+        </div>
+        <div class="current-grade-report-meta">
+          <span>${escapeHtml(reportNumber)}</span>
+          <small>Issued ${escapeHtml(date(issuedDate))}</small>
+        </div>
+      </header>
+
+      <aside class="current-grade-report-notice">
+        <strong>Unofficial current progress report</strong>
+        <p>This report is based only on graded work that has been posted in the portal. Ungraded submissions, pending reviews, incomplete work, and future assignments are not included in the calculation. It is not an official transcript or final grade and does not change any enrollment or academic record.</p>
+      </aside>
+
+      <section class="current-grade-report-identity">
+        <p><span>Student</span><strong>${escapeHtml(personName(student))}</strong></p>
+        <p><span>Student ID</span><strong>${escapeHtml(displayStudentNumber(student))}</strong></p>
+        <p><span>Email</span><strong>${escapeHtml(student.email)}</strong></p>
+      </section>
+
+      <table class="print-table current-grade-report-table">
+        <thead>
+          <tr>
+            <th>Course</th>
+            <th>Term</th>
+            <th>Enrollment status</th>
+            <th>Posted graded items</th>
+            <th>Posted points</th>
+            <th>Current posted-grade percentage</th>
+            <th>Current calculated letter</th>
+          </tr>
+        </thead>
+        <tbody>${currentGradeReportRows(report.records)}</tbody>
+      </table>
+
+      <footer class="current-grade-report-footer">
+        <strong>Important:</strong> Current calculations can change as additional work is graded or corrected. Enrollment status is shown separately and must not be interpreted as course completion, graduation, or an official final grade.
+      </footer>
+    </section>
+  `;
+}
+
+app.get("/student/current-grade-report", requireAuth, requireRole("student"), (req, res) => {
+  const body = renderCurrentGradeReportDocument(req.user, {
+    backHref: "/student/transcript",
+    backLabel: "Back to student portal"
+  });
+  render(req, res, "Current Grade Report", body, { full: true });
+});
+
+app.get("/admin/students/:id/current-grade-report", requireAuth, requireRole("admin"), (req, res) => {
+  const student = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'student'").get(Number(req.params.id));
+  if (!student) return res.status(404).send("Student not found");
+  const body = renderCurrentGradeReportDocument(student, {
+    backHref: `/admin/students/${student.id}/registrar-checklist`,
+    backLabel: "Back to registrar checklist"
+  });
+  render(req, res, `Current Grade Report - ${personName(student)}`, body, { full: true });
+});
+
 app.get("/student/transcript", requireAuth, requireRole("student"), (req, res) => {
   const transcript = studentTranscriptData(req.user);
   const { records } = transcript;
@@ -15036,6 +15156,7 @@ app.get("/student/transcript", requireAuth, requireRole("student"), (req, res) =
         </div>
         <div class="financial-actions">
           <a class="button ghost" href="/student/registration">Registration</a>
+          <a class="button ghost" href="/student/current-grade-report">Current Grade Report</a>
           <a class="button" href="/student/transcript/print" target="_blank" rel="noopener">Download / Print Unofficial Transcript</a>
         </div>
       </div>
