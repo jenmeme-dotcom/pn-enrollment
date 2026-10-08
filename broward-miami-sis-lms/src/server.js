@@ -1913,7 +1913,8 @@ function moduleItemKind(title = "") {
 function lessonItemKind(lesson = {}) {
   const itemType = String(lesson.item_type || "").toLowerCase();
   if (itemType === "assignment" || itemType === "discussion" || itemType === "quiz" || itemType === "file") return itemType;
-  if (itemType === "youtube") return "video";
+  if (itemType === "youtube" || itemType === "video") return "video";
+  if (itemType === "page" || itemType === "link") return "page";
   return moduleItemKind(lesson.title);
 }
 
