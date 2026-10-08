@@ -4843,7 +4843,7 @@ function renderDiscussionGrading(course, topic, entries) {
   if (!item) return `<section><h2>Grade Discussion</h2><p>This discussion has no linked gradebook item.</p></section>`;
   const students = [...new Set(entries.filter(entry => entry.role === "student").map(entry => entry.user_id))];
   return `<section id="discussion-grading" class="announcement-form"><h2>Grade Discussion</h2><p>Review each student's replies above, then enter a score out of ${escapeHtml(item.points_possible)} and feedback.</p>${students.map(userId => {
-    const enrollment = db.prepare("SELECT e.id, u.first_name, u.last_name, u.email FROM enrollments e JOIN users u ON u.id = e.user_id WHERE e.course_id = ? AND e.user_id = ? AND e.status = 'active' ORDER BY e.id DESC LIMIT 1").get(course.id, userId);
+    const enrollment = db.prepare("SELECT e.id, u.first_name, u.last_name, u.email FROM enrollments e JOIN users u ON u.id = e.user_id WHERE e.course_id = ? AND e.user_id = ? AND e.status = 'active' AND e.withdrawn_at IS NULL AND u.status != 'withdrawn' ORDER BY e.id DESC LIMIT 1").get(course.id, userId);
     if (!enrollment || (item.allowed_student_email && item.allowed_student_email.toLowerCase() !== enrollment.email.toLowerCase())) return "";
     const grade = db.prepare("SELECT score, note FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").get(enrollment.id, item.id);
     return `<form method="post" action="/admin/courses/${course.id}/discussions/${topic.id}/grades"><h3>${escapeHtml(personName(enrollment))}</h3><p>${grade?.score == null ? "Awaiting instructor grade" : `Posted score: ${escapeHtml(grade.score)} / ${escapeHtml(item.points_possible)}`}</p><input type="hidden" name="enrollmentId" value="${enrollment.id}"><label>Score for ${escapeHtml(personName(enrollment))}<input name="score" type="number" min="0" max="${escapeHtml(item.points_possible)}" step="0.01" required value="${escapeHtml(grade?.score ?? "")}"></label><label>Feedback for ${escapeHtml(personName(enrollment))}<textarea name="note" rows="3" maxlength="5000">${escapeHtml(grade?.note || "")}</textarea></label><button type="submit">Save discussion grade</button></form>`;
@@ -12187,7 +12187,7 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
     LEFT JOIN credentials cr ON cr.enrollment_id = e.id
-    WHERE e.course_id = ?
+    WHERE e.course_id = ? AND u.status != 'withdrawn' AND e.status != 'withdrawn' AND e.withdrawn_at IS NULL
     ORDER BY u.last_name, u.first_name
   `).all(course.id);
 
@@ -12912,7 +12912,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email, u.student_number, u.cohort_name, u.cohort_start_date, u.cohort_end_date
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
-    WHERE e.course_id = ?
+    WHERE e.course_id = ? AND u.status != 'withdrawn' AND e.status != 'withdrawn' AND e.withdrawn_at IS NULL
     ORDER BY u.last_name, u.first_name
   `).all(course.id) : [];
   const grades = editing || reviewingGrades ? db.prepare(`

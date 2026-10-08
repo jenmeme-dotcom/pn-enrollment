@@ -340,3 +340,20 @@ test("discussion grading validates submissions and publishes score and feedback"
   database.prepare("DELETE FROM discussion_topics WHERE id = ?").run(topicId);
   database.prepare("DELETE FROM grade_items WHERE id = ?").run(itemId);
 });
+
+
+test("school-withdrawn students are hidden from course roster and gradebook without deleting records", async () => {
+  const student = database.prepare("SELECT * FROM users WHERE id = ?").get(enrollment.user_id);
+  database.prepare("UPDATE users SET status = 'withdrawn' WHERE id = ?").run(student.id);
+  try {
+    const grades = await getInstructorGradesHtml();
+    assert.doesNotMatch(grades, new RegExp(`/admin/students/${student.id}/registrar-checklist`));
+    const response = await fetch(`${baseUrl}/admin/courses/${enrollment.course_id}/manage`, {headers: {cookie: adminCookie}});
+    assert.equal(response.status, 200);
+    const roster = (await response.text()).split('id="course-roster"')[1];
+    assert.ok(roster);
+    assert.doesNotMatch(roster, new RegExp(`/admin/students/${student.id}/registrar-checklist`));
+    assert.ok(database.prepare("SELECT id FROM enrollments WHERE id = ?").get(enrollment.id));
+    assert.ok(database.prepare("SELECT id FROM users WHERE id = ?").get(student.id));
+  } finally { database.prepare("UPDATE users SET status = ? WHERE id = ?").run(student.status, student.id); }
+});
