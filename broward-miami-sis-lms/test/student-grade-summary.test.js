@@ -199,6 +199,7 @@ before(async () => {
   insertItem.run(enrollment.course_id, "Missing Midterm 2", 100, "2026-09-08");
   insertItem.run(enrollment.course_id, "Missing Final Exam", 100, "2026-09-09");
   insertItem.run(enrollment.course_id, "Ungraded Acknowledgment", 0, "2026-09-09");
+  insertItem.run(enrollment.course_id, "Syllabus and Course Orientation Acknowledgment", 100, "2026-09-09");
 
   const insertGrade = database.prepare(`
     INSERT INTO grades (enrollment_id, grade_item_id, score, note)
@@ -241,6 +242,7 @@ after(async () => {
 
 test("student Grades shows saved posted scores and calculates overall grade from all required work", async () => {
   const html = await getGradesHtml();
+  assert.doesNotMatch(html, /Syllabus and Course Orientation Acknowledgment/);
 
   assert.match(gradeRow(html, "Posted Passing Score"), /100 \/ 100/, "Expected the saved passing score to be visible");
   assert.match(gradeRow(html, "Posted Zero Score"), /0 \/ 100/, "A posted zero is a grade, not an ungraded item");
@@ -259,6 +261,7 @@ test("student Grades shows saved posted scores and calculates overall grade from
   const instructorHtml = await getInstructorGradesHtml();
   const instructorStudentRow = gradeRow(instructorHtml, "Demo Student");
   assert.match(instructorHtml, /Student Gradebook/);
+  assert.doesNotMatch(instructorHtml, /Syllabus and Course Orientation Acknowledgment/);
   assert.doesNotMatch(instructorHtml, /Student Preview/);
   assert.match(instructorStudentRow, /Demo Student 11\.11% F\b/, "Instructor should see the student's current percentage and letter grade");
   assert.match(

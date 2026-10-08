@@ -3707,6 +3707,10 @@ function pnDiscussionGradeRows() {
   }));
 }
 
+function isSyllabusAcknowledgment(item = {}) {
+  return /syllabus/i.test(String(item.title || "")) && /acknowledg(?:e)?ment/i.test(String(item.title || ""));
+}
+
 function studentGradebookRows(enrollment, gradeItems = [], grades = [], examAttempts = [], submissions = []) {
   const gradeByItemId = new Map(grades.map((grade) => [grade.grade_item_id, grade]));
   const submissionByItemId = new Map(submissions.map((submission) => [submission.grade_item_id, submission]));
@@ -3715,7 +3719,7 @@ function studentGradebookRows(enrollment, gradeItems = [], grades = [], examAtte
       .filter((attempt) => attempt.status === "in_progress")
       .map((attempt) => [attempt.grade_item_id, attempt])
   );
-  const savedRows = gradeItems.map((item) => {
+  const savedRows = gradeItems.filter((item) => !isSyllabusAcknowledgment(item)).map((item) => {
     const grade = gradeByItemId.get(item.id);
     const submission = submissionByItemId.get(item.id);
     const attempt = attemptByItemId.get(item.id);
@@ -3743,7 +3747,7 @@ function studentGradebookRows(enrollment, gradeItems = [], grades = [], examAtte
 }
 
 function courseGradeSummary(rows = []) {
-  const requiredRows = rows.filter((row) => Number(row.points_possible) > 0);
+  const requiredRows = rows.filter((row) => !isSyllabusAcknowledgment(row) && Number(row.points_possible) > 0);
   const scoredRows = requiredRows.filter((row) =>
     row.score !== null &&
     row.score !== undefined &&
@@ -3902,7 +3906,7 @@ function instructorGradebookStudents(enrollments = []) {
 }
 
 function instructorGradebookItems(course, gradeItems = []) {
-  return gradeItems.map((item) => ({
+  return gradeItems.filter((item) => !isSyllabusAcknowledgment(item)).map((item) => ({
     id: item.id,
     title: item.title,
     points_possible: item.points_possible,
@@ -14987,6 +14991,7 @@ function studentTranscriptData(user) {
     LEFT JOIN credentials cr ON cr.enrollment_id = e.id
     LEFT JOIN grade_items gi
       ON gi.course_id = e.course_id
+     AND NOT (lower(gi.title) LIKE '%syllabus%' AND (lower(gi.title) LIKE '%acknowledgment%' OR lower(gi.title) LIKE '%acknowledgement%'))
      AND (gi.allowed_student_email IS NULL OR lower(trim(gi.allowed_student_email)) = lower(trim(?)))
     LEFT JOIN grades g ON g.grade_item_id = gi.id AND g.enrollment_id = e.id
     WHERE e.user_id = ?
