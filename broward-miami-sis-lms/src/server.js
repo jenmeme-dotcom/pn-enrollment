@@ -3742,8 +3742,9 @@ function studentGradebookRows(enrollment, gradeItems = [], grades = [], examAtte
   });
 }
 
-function postedGradeSummary(rows = []) {
-  const scoredRows = rows.filter((row) =>
+function courseGradeSummary(rows = []) {
+  const requiredRows = rows.filter((row) => Number(row.points_possible) > 0);
+  const scoredRows = requiredRows.filter((row) =>
     row.score !== null &&
     row.score !== undefined &&
     Number.isFinite(Number(row.score)) &&
@@ -3751,7 +3752,7 @@ function postedGradeSummary(rows = []) {
     row.status !== "pending"
   );
   const earned = scoredRows.reduce((sum, row) => sum + Number(row.score), 0);
-  const possible = scoredRows.reduce((sum, row) => sum + Number(row.points_possible), 0);
+  const possible = requiredRows.reduce((sum, row) => sum + Number(row.points_possible), 0);
   const percentage = possible > 0 ? (earned / possible) * 100 : null;
   const letterGrade = percentage === null ? null : transcriptLetterGrade("", percentage);
   return {
@@ -3760,13 +3761,14 @@ function postedGradeSummary(rows = []) {
     percentage,
     letter: letterGrade || "—",
     letterGrade,
-    gradedCount: scoredRows.length
+    gradedCount: scoredRows.length,
+    requiredCount: requiredRows.length
   };
 }
 
 function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems = [], grades = [], examAttempts = [], submissions = [], student }) {
   const rows = studentGradebookRows(enrollment, gradeItems, grades, examAttempts, submissions);
-  const summary = postedGradeSummary(rows);
+  const summary = courseGradeSummary(rows);
   const totalLabel = summary.possible ? `${summary.earned.toFixed(2)} / ${summary.possible.toFixed(2)}` : "N/A (N/A)";
   const overallPercentage = summary.percentage === null ? "N/A" : `${summary.percentage.toFixed(2)}%`;
   const savedFinalGrade = String(enrollment.final_grade || "").trim().toUpperCase();
@@ -3779,6 +3781,7 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
   const groupTotals = rows.reduce((groups, row) => {
     const group = row.group || "Assignments";
     const existing = groups.get(group) || { possible: 0, earned: 0, gradedCount: 0 };
+    if (Number(row.points_possible) > 0) existing.possible += Number(row.points_possible);
     if (
       row.score !== null &&
       row.score !== undefined &&
@@ -3786,7 +3789,6 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
       Number(row.points_possible) > 0 &&
       row.status !== "pending"
     ) {
-      existing.possible += Number(row.points_possible);
       existing.earned += Number(row.score);
       existing.gradedCount += 1;
     }
@@ -3859,8 +3861,8 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
                 <td>${escapeHtml(group)}</td>
                 <td data-label="Due" class="grade-cell-empty"></td>
                 <td data-label="Submitted" class="grade-cell-empty"></td>
-                <td data-label="Status">${total.gradedCount ? "Posted" : "N/A"}</td>
-                <td data-label="Score">${total.gradedCount ? `${escapeHtml(total.earned.toFixed(2))} / ${escapeHtml(total.possible.toFixed(2))}` : "Not yet graded"}</td>
+                <td data-label="Status">${total.possible ? "All work" : "N/A"}</td>
+                <td data-label="Score">${total.possible ? `${escapeHtml(total.earned.toFixed(2))} / ${escapeHtml(total.possible.toFixed(2))}` : "Not yet graded"}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -3875,11 +3877,11 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
             <div><dt>Overall Percentage</dt><dd>${escapeHtml(overallPercentage)}</dd></div>
             <div><dt>Letter Grade</dt><dd>${escapeHtml(overallLetterGrade)}</dd></div>
           </dl>
-          <small>${officialFinalGrade ? "Official final grade posted by the school." : summary.gradedCount ? `Calculated from ${summary.gradedCount} posted grade${summary.gradedCount === 1 ? "" : "s"}.` : "No posted grades yet."}</small>
+          <small>${officialFinalGrade ? "Official final grade posted by the school." : `Includes all ${summary.requiredCount} graded course items; ${summary.gradedCount} have posted scores. Missing scores and pending reviews count as zero until graded.`}</small>
         </section>
         <button type="button">Show All Details</button>
         <p><strong>Course assignments are not weighted.</strong></p>
-        <label><input type="checkbox" checked> Calculate based only on graded assignments</label>
+        <p>All assignments, discussions, quizzes, midterms, and finals count toward the overall grade.</p>
         <p>You can view your grades based on What-If scores so that you know how grades will be affected by upcoming or resubmitted assignments. You can test scores for an assignment that already includes a score, or an assignment that has yet to be graded.</p>
       </aside>
     </main>
@@ -3905,7 +3907,8 @@ function instructorGradebookItems(course, gradeItems = []) {
     title: item.title,
     points_possible: item.points_possible,
     due_date: item.due_date,
-    unpublished: Boolean(item.unpublished)
+    unpublished: Boolean(item.unpublished),
+    allowed_student_email: item.allowed_student_email
   }));
 }
 
@@ -3927,7 +3930,7 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
         })
       }])
   );
-  const studentSummary = (student) => postedGradeSummary(assignments.map((item) => {
+  const studentSummary = (student) => courseGradeSummary(assignments.filter((item) => !item.allowed_student_email || String(item.allowed_student_email).trim().toLowerCase() === String(student.email).trim().toLowerCase()).map((item) => {
     const grade = gradeByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
     return {
       ...item,
@@ -3970,7 +3973,7 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
           <thead>
             <tr>
               <th>Student Name</th>
-              <th class="gradebook-summary-column"><span>Overall</span><small>Posted grades</small></th>
+              <th class="gradebook-summary-column"><span>Overall</span><small>All course work · missing scores count as zero</small></th>
               <th class="gradebook-summary-column"><span>Letter Grade</span><small>Current or official final</small></th>
               ${assignments.map((item) => `
                 <th>
@@ -14978,20 +14981,18 @@ function studentTranscriptData(user) {
       cr.number AS credential_number,
       SUM(CASE WHEN g.score IS NOT NULL AND gi.points_possible > 0 AND (g.note IS NULL OR g.note NOT LIKE ?) THEN 1 ELSE 0 END) AS posted_grade_count,
       SUM(CASE WHEN g.score IS NOT NULL AND gi.points_possible > 0 AND (g.note IS NULL OR g.note NOT LIKE ?) THEN g.score ELSE 0 END) AS points_earned,
-      SUM(CASE WHEN g.score IS NOT NULL AND gi.points_possible > 0 AND (g.note IS NULL OR g.note NOT LIKE ?) THEN gi.points_possible ELSE 0 END) AS points_possible
+      SUM(CASE WHEN gi.points_possible > 0 THEN gi.points_possible ELSE 0 END) AS points_possible
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     LEFT JOIN credentials cr ON cr.enrollment_id = e.id
-    LEFT JOIN grades g ON g.enrollment_id = e.id
     LEFT JOIN grade_items gi
-      ON gi.id = g.grade_item_id
-     AND gi.course_id = e.course_id
+      ON gi.course_id = e.course_id
      AND (gi.allowed_student_email IS NULL OR lower(trim(gi.allowed_student_email)) = lower(trim(?)))
+    LEFT JOIN grades g ON g.grade_item_id = gi.id AND g.enrollment_id = e.id
     WHERE e.user_id = ?
     GROUP BY e.id
     ORDER BY e.start_date, e.created_at
   `).all(
-    `${AUTO_GRADE_PENDING_PREFIX}%`,
     `${AUTO_GRADE_PENDING_PREFIX}%`,
     `${AUTO_GRADE_PENDING_PREFIX}%`,
     user.email,
@@ -15091,7 +15092,7 @@ function currentGradeReportRows(records) {
   if (!records.length) return `<tr><td class="empty" colspan="7">No course enrollments yet.</td></tr>`;
   return records.map((row) => {
     const gradedCount = Number(row.posted_grade_count || 0);
-    const hasPostedGrade = row.postedPercentage !== null && gradedCount > 0;
+    const hasPostedGrade = row.postedPercentage !== null;
     const status = String(row.status || "not recorded").replaceAll("_", " ");
     return `
       <tr>
@@ -15136,7 +15137,7 @@ function renderCurrentGradeReportDocument(student, { backHref, backLabel }) {
 
       <aside class="current-grade-report-notice">
         <strong>Unofficial current progress report</strong>
-        <p>This report is based only on graded work that has been posted in the portal. Ungraded submissions, pending reviews, incomplete work, and future assignments are not included in the calculation. It is not an official transcript or final grade and does not change any enrollment or academic record.</p>
+        <p>This report includes all graded course work, including assignments, discussions, quizzes, midterms, and finals. Missing scores, ungraded submissions, pending reviews, incomplete work, and future assignments count as zero until scores are posted. It is not an official transcript or final grade and does not change any enrollment or academic record.</p>
       </aside>
 
       <section class="current-grade-report-identity">
@@ -15152,8 +15153,8 @@ function renderCurrentGradeReportDocument(student, { backHref, backLabel }) {
             <th>Term</th>
             <th>Enrollment status</th>
             <th>Posted graded items</th>
-            <th>Posted points</th>
-            <th>Current posted-grade percentage</th>
+            <th>Points across all course work</th>
+            <th>Overall course percentage</th>
             <th>Current calculated letter</th>
           </tr>
         </thead>

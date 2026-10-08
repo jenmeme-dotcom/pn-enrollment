@@ -172,6 +172,11 @@ before(async () => {
 
   const courses = database.prepare("SELECT id FROM courses WHERE published = 1 ORDER BY id LIMIT 12").all();
   assert.equal(courses.length, 12, "Expected twelve published courses for transcript fixtures");
+  // Keep fixture course totals independent of the seeded catalog.
+  for (const course of courses) {
+    database.prepare("DELETE FROM grades WHERE grade_item_id IN (SELECT id FROM grade_items WHERE course_id = ?)").run(course.id);
+    database.prepare("DELETE FROM grade_items WHERE course_id = ?").run(course.id);
+  }
   const fixtures = [
     ["A", "completed", "A"],
     ["F", "completed", "F"],
@@ -266,7 +271,7 @@ test("completed enrollments retain a transcript grade when completion paths leav
   assert.equal(rowCells(tableRowContaining(html, "Transcript Test W"))[3], "W");
 
   const activeCells = rowCells(tableRowContaining(html, "Transcript Test ACTIVE"));
-  assert.equal(activeCells[2], "80.0%");
+  assert.equal(activeCells[2], "40.0%");
   assert.equal(activeCells[3], "IP", "An active enrollment must not expose a saved final grade");
   const invalidCells = rowCells(tableRowContaining(html, "Transcript Test INVALID"));
   assert.equal(invalidCells[2], "—");
@@ -325,7 +330,7 @@ test("student current grade report truthfully separates current calculations fro
   database.prepare("DELETE FROM grade_items WHERE id IN (?, ?)").run(crossCourseGradeItem, otherStudentGradeItem);
 
   assert.match(html, /Unofficial Current Progress Report/i);
-  assert.match(html, /based only on graded work that has been posted in the portal/i);
+  assert.match(html, /includes all graded course work/i);
   assert.match(html, /not an official transcript or final grade/i);
   assert.match(html, /does not change any enrollment or academic record/i);
   assert.match(html, /Print \/ Save as PDF/);
@@ -333,14 +338,14 @@ test("student current grade report truthfully separates current calculations fro
   const activeCells = rowCells(tableRowContaining(html, "Transcript Test ACTIVE"));
   assert.equal(activeCells[2], "active", "Enrollment status must be shown independently from the calculated letter");
   assert.equal(activeCells[3], "1", "Pending-review grades must not count as posted graded work");
-  assert.equal(activeCells[4], "80.00 / 100.00");
-  assert.equal(activeCells[5], "80.00%");
-  assert.equal(activeCells[6], "B-", "Active courses need a current calculated letter instead of IP");
+  assert.equal(activeCells[4], "80.00 / 200.00");
+  assert.equal(activeCells[5], "40.00%");
+  assert.equal(activeCells[6], "F", "Active courses need a current calculated letter instead of IP");
 
   const completedCells = rowCells(tableRowContaining(html, "Transcript Test A"));
   assert.equal(completedCells[2], "completed");
-  assert.equal(completedCells[5], "80.00%");
-  assert.equal(completedCells[6], "B-", "The current report must calculate from posted work instead of re-labeling a saved final grade");
+  assert.equal(completedCells[5], "40.00%");
+  assert.equal(completedCells[6], "F", "The current report must calculate from posted work instead of re-labeling a saved final grade");
 
   const ungradedCells = rowCells(tableRowContaining(html, "Transcript Test P"));
   assert.equal(ungradedCells[2], "completed");
@@ -369,8 +374,8 @@ test("student navigation and registrar checklist link to the appropriate current
   assert.match(adminReport, /Transcript Student/);
   const activeCells = rowCells(tableRowContaining(adminReport, "Transcript Test ACTIVE"));
   assert.equal(activeCells[2], "active");
-  assert.equal(activeCells[5], "80.00%");
-  assert.equal(activeCells[6], "B-");
+  assert.equal(activeCells[5], "40.00%");
+  assert.equal(activeCells[6], "F");
 
   const forbidden = await fetch(`${baseUrl}/admin/students/${transcriptStudent}/current-grade-report`, {
     headers: { cookie: studentCookie },
@@ -383,8 +388,8 @@ test("instructor gradebook uses final grades only for completed enrollments", as
   const active = transcriptEnrollments.get("ACTIVE");
   const activeHtml = await getHtml(`/admin/courses/${active.courseId}/student-view?view=grades`, adminCookie);
   const activeRow = tableRowContaining(activeHtml, "Transcript Student");
-  assert.match(activeRow, /<td>80\.00%<\/td>/);
-  assert.match(activeRow, /<td><strong>B-<\/strong><\/td>/);
+  assert.match(activeRow, /<td>40\.00%<\/td>/);
+  assert.match(activeRow, /<td><strong>F<\/strong><\/td>/);
   assert.doesNotMatch(activeRow, /<td><strong>A<\/strong><\/td>/);
 
   const completed = transcriptEnrollments.get("A");

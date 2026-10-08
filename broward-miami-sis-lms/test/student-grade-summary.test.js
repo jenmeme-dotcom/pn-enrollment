@@ -195,6 +195,10 @@ before(async () => {
   const submittedFileItemId = Number(insertItem.run(enrollment.course_id, "Submitted File Awaiting Grade", 100, "2026-09-04").lastInsertRowid);
   const submittedDiscussionItemId = Number(insertItem.run(enrollment.course_id, "Submitted Discussion Awaiting Grade", 100, "2026-09-05").lastInsertRowid);
   insertItem.run(enrollment.course_id, "Not Yet Graded", 100, "2026-09-06");
+  insertItem.run(enrollment.course_id, "Missing Midterm 1", 100, "2026-09-07");
+  insertItem.run(enrollment.course_id, "Missing Midterm 2", 100, "2026-09-08");
+  insertItem.run(enrollment.course_id, "Missing Final Exam", 100, "2026-09-09");
+  insertItem.run(enrollment.course_id, "Ungraded Acknowledgment", 0, "2026-09-09");
 
   const insertGrade = database.prepare(`
     INSERT INTO grades (enrollment_id, grade_item_id, score, note)
@@ -235,7 +239,7 @@ after(async () => {
   fs.rmSync(temporaryDirectory, { force: true, recursive: true });
 });
 
-test("student Grades shows saved posted scores and calculates overall grade from posted work only", async () => {
+test("student Grades shows saved posted scores and calculates overall grade from all required work", async () => {
   const html = await getGradesHtml();
 
   assert.match(gradeRow(html, "Posted Passing Score"), /100 \/ 100/, "Expected the saved passing score to be visible");
@@ -247,16 +251,16 @@ test("student Grades shows saved posted scores and calculates overall grade from
   assert.doesNotMatch(gradeRow(html, "Not Yet Graded"), /awaiting instructor grade/i);
 
   const summary = gradeSummaryText(html);
-  assert.match(summary, /Total: 100\.00 \/ 200\.00/, "Only the two posted scores should contribute earned and possible points");
-  assert.match(summary, /Overall (?:Percentage|Grade)[^%]*50(?:\.0+)?%/i, "Expected zero to count in the 50% overall percentage");
+  assert.match(summary, /Total: 100\.00 \/ 900\.00/, "All nine required items must contribute possible points");
+  assert.match(summary, /Overall (?:Percentage|Grade)[^%]*11\.11%/i, "Expected zero to count in the 50% overall percentage");
   assert.match(summary, /Letter Grade[^A-F]*F\b/i, "Expected the overall letter grade to be shown");
-  assert.doesNotMatch(summary, /100(?:\.0+)?%/, "Pending and ungraded work must not alter the posted-grade calculation");
+  assert.doesNotMatch(summary, /100(?:\.0+)?%/, "Pending scores must not be counted as earned points");
 
   const instructorHtml = await getInstructorGradesHtml();
   const instructorStudentRow = gradeRow(instructorHtml, "Demo Student");
   assert.match(instructorHtml, /Student Gradebook/);
   assert.doesNotMatch(instructorHtml, /Student Preview/);
-  assert.match(instructorStudentRow, /Demo Student 50\.00% F\b/, "Instructor should see the student's current percentage and letter grade");
+  assert.match(instructorStudentRow, /Demo Student 11\.11% F\b/, "Instructor should see the student's current percentage and letter grade");
   assert.match(
     instructorStudentRow,
     /100 0 — pending review Submitted — awaiting instructor grade Submitted — awaiting instructor grade -/,
@@ -293,21 +297,21 @@ test("an official final grade overrides the calculated letter grade in both grad
     const studentHtml = await getGradesHtml();
     const instructorHtml = await getInstructorGradesHtml();
     assert.match(visibleText(studentHtml), /Letter Grade B\+/, "Student should see the official final letter grade");
-    assert.match(gradeRow(instructorHtml, "Demo Student"), /Demo Student 50\.00% B\+/, "Instructor should see the official final letter grade");
+    assert.match(gradeRow(instructorHtml, "Demo Student"), /Demo Student 11\.11% B\+/, "Instructor should see the official final letter grade");
   } finally {
     database.prepare("UPDATE enrollments SET final_grade = NULL, status = 'active' WHERE id = ?").run(enrollment.id);
   }
 });
 
-test("student Grades uses an explicit no-grade state instead of assigning F", async () => {
+test("required work with no posted scores contributes zero", async () => {
   database.prepare("DELETE FROM grades WHERE enrollment_id = ?").run(enrollment.id);
 
   const html = await getGradesHtml();
   const summary = gradeSummaryText(html);
-  assert.match(summary, /(?:No posted grades|Not yet graded|N\/A)/i, "Expected a clear no-grade state");
-  assert.doesNotMatch(summary, /Letter Grade[^A-F]*F\b/i, "No posted grades must not be reported as F");
-  assert.doesNotMatch(summary, /Overall (?:Percentage|Grade)[^%]*0(?:\.0+)?%/i, "No posted grades must not be reported as 0%");
+  assert.match(summary, /Total: 0\.00 \/ 900\.00/);
+  assert.match(summary, /Letter Grade[^A-F]*F\b/i);
+  assert.match(summary, /Overall (?:Percentage|Grade)[^%]*0(?:\.0+)?%/i);
 
   const instructorHtml = await getInstructorGradesHtml();
-  assert.match(gradeRow(instructorHtml, "Demo Student"), /Demo Student Not graded —/, "Instructor should see an explicit ungraded state");
+  assert.match(gradeRow(instructorHtml, "Demo Student"), /Demo Student 0\.00% F/, "Instructor should see an explicit ungraded state");
 });
