@@ -1,7 +1,6 @@
 const { quizContent } = require("./nursingCourseQuizzes");
 
 const materialBase = "/course-materials/anatomy-and-physiology-pn104";
-const neurologicalExamVideoUrl = "https://ecu.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955";
 const chapterMaterialUrl = (chapter) => `${materialBase}/${chapter.studentFile}`;
 const openStaxAnatomyPhysiologyPdfUrl = "https://assets.openstax.org/oscms-prodcms/media/documents/anatomy-and-physiology-2e_-_WEB.pdf";
 const supplementalResourceBase = "https://raw.githubusercontent.com/jenmeme-dotcom/pn-enrollment/codex/pn104-resource-files/broward-miami-sis-lms/course_materials/anatomy-and-physiology-pn104";
@@ -540,10 +539,7 @@ const discussions = [
 const discussionByWeek = new Map(discussions.map((discussion) => [discussion.week, discussion]));
 
 function chapterLessonContent(chapter) {
-  const videoLine = chapter.number === 16
-    ? `\n\nAdditional reference:\n- Neurological exam video: ${neurologicalExamVideoUrl}`
-    : "";
-  return `Study this chapter PowerPoint before completing this week's assignment and, when scheduled, discussion.\n\nChapter ${chapter.number} PowerPoint:\n- Open or download: ${chapterMaterialUrl(chapter)}${videoLine}\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`;
+  return `Study this chapter PowerPoint before completing this week's assignment and, when scheduled, discussion.\n\nChapter ${chapter.number} PowerPoint:\n- Open or download: ${chapterMaterialUrl(chapter)}\n\nAs you study, explain the major structures in your own words, connect each structure to its function, and identify one patient-care observation related to this topic.`;
 }
 
 function weekModule([week, chapterNumbers, title]) {
@@ -559,24 +555,12 @@ function weekModule([week, chapterNumbers, title]) {
         durationMinutes: 30,
         content: `This week, you will study ${selected.map((chapter) => `Chapter ${chapter.number}: ${chapter.title}`).join(", ")}. Focus on normal structure, normal function, how the systems work together, and the changes you would recognize and report in practical nursing care.`
       },
-      ...selected.flatMap((chapter) => {
-        const lesson = {
-          title: `Chapter ${chapter.number}: ${chapter.title} — PowerPoint`,
-          durationMinutes: 75,
-          externalUrl: null,
-          content: chapterLessonContent(chapter)
-        };
-        if (chapter.number !== 16) return [lesson];
-        return [
-          lesson,
-          {
-            title: "Chapter 16 Additional Reference: Neurological Exam Video",
-            durationMinutes: 20,
-            externalUrl: neurologicalExamVideoUrl,
-            content: `Additional reference for Chapter 16.\n\nNeurological exam video:\n- Watch: ${neurologicalExamVideoUrl}\n\nUse this video after reviewing the Chapter 16 PowerPoint.`
-          }
-        ];
-      }),
+      ...selected.map((chapter) => ({
+        title: `Chapter ${chapter.number}: ${chapter.title} — PowerPoint`,
+        durationMinutes: 75,
+        externalUrl: null,
+        content: chapterLessonContent(chapter)
+      })),
       ...(discussion ? [{
         title: discussion.title,
         durationMinutes: 30,

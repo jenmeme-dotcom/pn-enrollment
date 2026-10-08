@@ -2265,104 +2265,34 @@ function seed() {
       }
     }
 
-    const chapter16VideoDefinition = lessonDefinitions.find((lesson) =>
-      lesson.title === "Chapter 16 Additional Reference: Neurological Exam Video"
-    );
-    if (chapter16VideoDefinition) {
-      const week6Module = db.prepare(`
-        SELECT id FROM modules
-        WHERE course_id = ? AND title LIKE 'Week 6:%'
-        ORDER BY position, id
-        LIMIT 1
-      `).get(pn104CourseRow.id);
-      if (week6Module) {
-        const existingVideoLesson = db.prepare(`
-          SELECT id FROM lessons
-          WHERE module_id = ?
-            AND (
-              title = ?
-              OR external_url LIKE '%Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955%'
-            )
-          ORDER BY id
-          LIMIT 1
-        `).get(week6Module.id, chapter16VideoDefinition.title);
-        if (existingVideoLesson) {
-          db.prepare(`
-            UPDATE lessons
-            SET title = ?, content = ?, external_url = ?, duration_minutes = ?, published = 1, instructor_only = 0, item_type = 'link'
-            WHERE id = ?
-          `).run(
-            chapter16VideoDefinition.title,
-            chapter16VideoDefinition.content,
-            chapter16VideoDefinition.externalUrl || null,
-            chapter16VideoDefinition.durationMinutes || 20,
-            existingVideoLesson.id
-          );
-        } else {
-          const chapter16Position = db.prepare(`
-            SELECT position FROM lessons
-            WHERE module_id = ?
-              AND title = 'Chapter 16: The Neurological Examination — PowerPoint'
-            ORDER BY id
-            LIMIT 1
-          `).get(week6Module.id)?.position || 3;
-          db.prepare(`
-            UPDATE lessons
-            SET position = position + 1
-            WHERE module_id = ? AND position > ?
-          `).run(week6Module.id, chapter16Position);
-          db.prepare(`
-            INSERT INTO lessons (module_id, title, content, external_url, duration_minutes, position, published, instructor_only, item_type)
-            VALUES (?, ?, ?, ?, ?, ?, 1, 0, 'link')
-          `).run(
-            week6Module.id,
-            chapter16VideoDefinition.title,
-            chapter16VideoDefinition.content,
-            chapter16VideoDefinition.externalUrl || null,
-            chapter16VideoDefinition.durationMinutes || 20,
-            chapter16Position + 1
-          );
-        }
-
-        const chapter16VideoRows = db.prepare(`
-          SELECT id
-          FROM lessons
-          WHERE module_id = ?
-            AND (
-              title = 'Chapter 16 Additional Reference: Neurological Exam Video'
-              OR external_url LIKE '%Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955%'
-            )
-          ORDER BY position, id
-        `).all(week6Module.id);
-        const chapter16VideoKeeper = chapter16VideoRows[0]?.id;
-        if (chapter16VideoKeeper) {
-          const moveCompletion = db.prepare(`
-            INSERT OR IGNORE INTO lesson_completions (enrollment_id, lesson_id, completed_at)
-            SELECT enrollment_id, ?, completed_at
-            FROM lesson_completions
-            WHERE lesson_id = ?
-          `);
-          const deleteLesson = db.prepare("DELETE FROM lessons WHERE id = ?");
-          chapter16VideoRows.slice(1).forEach((row) => {
-            moveCompletion.run(chapter16VideoKeeper, row.id);
-            deleteLesson.run(row.id);
-          });
-        }
-
-        db.prepare(`
-          UPDATE lessons
-          SET position = (
-            SELECT ordered.new_position
-            FROM (
-              SELECT id, ROW_NUMBER() OVER (ORDER BY position, id) AS new_position
-              FROM lessons
-              WHERE module_id = ?
-            ) AS ordered
-            WHERE ordered.id = lessons.id
+    const week6Module = db.prepare(`
+      SELECT id FROM modules
+      WHERE course_id = ? AND title LIKE 'Week 6:%'
+      ORDER BY position, id
+      LIMIT 1
+    `).get(pn104CourseRow.id);
+    if (week6Module) {
+      db.prepare(`
+        DELETE FROM lessons
+        WHERE module_id = ?
+          AND (
+            title = 'Chapter 16 Additional Reference: Neurological Exam Video'
+            OR external_url LIKE '%Panopto/Pages/Viewer.aspx?id=b49f0174-1ab3-498a-ae4e-ae6a018a5955%'
           )
-          WHERE module_id = ?
-        `).run(week6Module.id, week6Module.id);
-      }
+      `).run(week6Module.id);
+      db.prepare(`
+        UPDATE lessons
+        SET position = (
+          SELECT ordered.new_position
+          FROM (
+            SELECT id, ROW_NUMBER() OVER (ORDER BY position, id) AS new_position
+            FROM lessons
+            WHERE module_id = ?
+          ) AS ordered
+          WHERE ordered.id = lessons.id
+        )
+        WHERE module_id = ?
+      `).run(week6Module.id, week6Module.id);
     }
   }
 
