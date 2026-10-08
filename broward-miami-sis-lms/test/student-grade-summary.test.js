@@ -318,3 +318,25 @@ test("required work with no posted scores contributes zero", async () => {
   const instructorHtml = await getInstructorGradesHtml();
   assert.match(gradeRow(instructorHtml, "Demo Student"), /Demo Student 0\.00% F/, "Instructor should see an explicit ungraded state");
 });
+
+
+test("discussion grading validates submissions and publishes score and feedback", async () => {
+  const title = "Discussion grading integration test";
+  const itemId = Number(database.prepare("INSERT INTO grade_items (course_id, title, points_possible) VALUES (?, ?, 10)").run(enrollment.course_id, title).lastInsertRowid);
+  const topicId = Number(database.prepare("INSERT INTO discussion_topics (course_id, title, prompt, points_possible) VALUES (?, ?, 'Explain terminology', 10)").run(enrollment.course_id, title).lastInsertRowid);
+  const route = `${baseUrl}/admin/courses/${enrollment.course_id}/discussions/${topicId}/grades`;
+  const post = (score, cookie = adminCookie) => fetch(route, {method: "POST", redirect: "manual", headers: {cookie, "content-type": "application/x-www-form-urlencoded"}, body: new URLSearchParams({enrollmentId: enrollment.id, score, note: "Clear explanation."})});
+  assert.equal((await post("8")).status, 400, "must have a submission");
+  database.prepare("INSERT INTO discussion_entries (topic_id, user_id, author_name, body, source) VALUES (?, ?, 'Demo Student', 'My response', 'portal')").run(topicId, enrollment.user_id);
+  for (const score of ["", "11", "-1", "NaN"]) assert.equal((await post(score)).status, 400);
+  assert.equal((await post("8", studentCookie)).status, 403);
+  const page = await fetch(`${baseUrl}/admin/courses/${enrollment.course_id}/student-view?view=discussions&topicId=${topicId}&mode=edit`, {headers: {cookie: adminCookie}});
+  assert.match(await page.text(), /Save discussion grade/);
+  assert.equal((await post("8.5")).status, 302);
+  assert.deepEqual({...database.prepare("SELECT score, note FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").get(enrollment.id, itemId)}, {score: 8.5, note: "Clear explanation."});
+  assert.match(gradeRow(await getGradesHtml(), title), /8.5 \/ 10/);
+  database.prepare("DELETE FROM grades WHERE grade_item_id = ?").run(itemId);
+  database.prepare("DELETE FROM discussion_entries WHERE topic_id = ?").run(topicId);
+  database.prepare("DELETE FROM discussion_topics WHERE id = ?").run(topicId);
+  database.prepare("DELETE FROM grade_items WHERE id = ?").run(itemId);
+});

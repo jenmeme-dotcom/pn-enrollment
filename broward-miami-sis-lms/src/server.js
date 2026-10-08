@@ -3947,6 +3947,7 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
       <div class="instructor-gradebook-head">
         <div>
           <a class="gradebook-switch" href="${escapeHtml(baseHref)}?view=grades&mode=edit">Student Gradebook</a>
+          <a class="button" href="/admin/courses/${course.id}/student-view?view=discussions&mode=edit#discussion-grading">Grade Discussions</a>
           <p>${readOnly ? "View posted scores and current overall grades. Select Edit Course to open grading tools." : "Review posted scores and current overall grades for every student."}</p>
         </div>
         <div class="gradebook-actions">
@@ -4837,6 +4838,18 @@ function renderCourseAnnouncementsPage({ course, courseCode, baseHref, announcem
   `;
 }
 
+function renderDiscussionGrading(course, topic, entries) {
+  const item = db.prepare("SELECT * FROM grade_items WHERE course_id = ? AND title = ? ORDER BY id LIMIT 1").get(course.id, topic.title);
+  if (!item) return `<section><h2>Grade Discussion</h2><p>This discussion has no linked gradebook item.</p></section>`;
+  const students = [...new Set(entries.filter(entry => entry.role === "student").map(entry => entry.user_id))];
+  return `<section id="discussion-grading" class="announcement-form"><h2>Grade Discussion</h2><p>Review each student's replies above, then enter a score out of ${escapeHtml(item.points_possible)} and feedback.</p>${students.map(userId => {
+    const enrollment = db.prepare("SELECT e.id, u.first_name, u.last_name, u.email FROM enrollments e JOIN users u ON u.id = e.user_id WHERE e.course_id = ? AND e.user_id = ? AND e.status = 'active' ORDER BY e.id DESC LIMIT 1").get(course.id, userId);
+    if (!enrollment || (item.allowed_student_email && item.allowed_student_email.toLowerCase() !== enrollment.email.toLowerCase())) return "";
+    const grade = db.prepare("SELECT score, note FROM grades WHERE enrollment_id = ? AND grade_item_id = ?").get(enrollment.id, item.id);
+    return `<form method="post" action="/admin/courses/${course.id}/discussions/${topic.id}/grades"><h3>${escapeHtml(personName(enrollment))}</h3><p>${grade?.score == null ? "Awaiting instructor grade" : `Posted score: ${escapeHtml(grade.score)} / ${escapeHtml(item.points_possible)}`}</p><input type="hidden" name="enrollmentId" value="${enrollment.id}"><label>Score for ${escapeHtml(personName(enrollment))}<input name="score" type="number" min="0" max="${escapeHtml(item.points_possible)}" step="0.01" required value="${escapeHtml(grade?.score ?? "")}"></label><label>Feedback for ${escapeHtml(personName(enrollment))}<textarea name="note" rows="3" maxlength="5000">${escapeHtml(grade?.note || "")}</textarea></label><button type="submit">Save discussion grade</button></form>`;
+  }).join("") || "<p>No enrolled students have submitted replies yet.</p>"}</section>`;
+}
+
 function renderCourseDiscussionsPage({ course, courseCode, baseHref, topics = [], selectedTopicId = null, entries = [], instructor = false, readOnly = false, replyAction = "" }) {
   const selectedTopic = topics.find((topic) => Number(topic.id) === Number(selectedTopicId)) || topics[0] || null;
   const filteredEntries = selectedTopic ? entries.filter((entry) => Number(entry.topic_id) === Number(selectedTopic.id)) : [];
@@ -4889,6 +4902,7 @@ function renderCourseDiscussionsPage({ course, courseCode, baseHref, topics = []
             </article>
             <section class="discussion-replies">
               <h2>Replies</h2>
+              ${baseHref.startsWith("/admin/") ? `<a class="button" href="${escapeHtml(baseHref)}?view=discussions&topicId=${selectedTopic.id}&mode=edit#discussion-grading">Grade Discussion</a>` : ""}
               ${filteredEntries.map((entry) => `
                 <article class="discussion-reply">
                   <span class="announcement-avatar">${escapeHtml(initialsFor({ first_name: entry.first_name || entry.author_name?.split(" ")[0], last_name: entry.last_name || entry.author_name?.split(" ").slice(1).join(" ") }))}</span>
@@ -4902,6 +4916,7 @@ function renderCourseDiscussionsPage({ course, courseCode, baseHref, topics = []
                 </article>
               `).join("") || `<p class="empty">No replies yet. Start the conversation below.</p>`}
             </section>
+            ${instructor ? renderDiscussionGrading(course, selectedTopic, filteredEntries) : ""}
             ${readOnly ? "" : `
               <form class="announcement-form discussion-reply-form" method="post" action="${escapeHtml(replyAction || `${baseHref}/discussions/${selectedTopic.id}/replies`)}">
                 <h2>Reply</h2>
@@ -13445,6 +13460,24 @@ app.post("/admin/courses/:id/discussions", requireAuth, requireRole("admin", "in
   `).run(course.id, title, prompt, pointsPossible, dueAt ? dueAt.replace("T", " ") : null, req.user.id);
   flash(req, "Discussion published.");
   res.redirect(`/admin/courses/${course.id}/student-view?view=discussions&mode=edit`);
+});
+
+app.post("/admin/courses/:id/discussions/:topicId/grades", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const topic = discussionTopicForCourse(req.params.topicId, req.params.id);
+  if (!topic) return res.status(404).send("Discussion not found");
+  const item = db.prepare("SELECT * FROM grade_items WHERE course_id = ? AND title = ? ORDER BY id LIMIT 1").get(topic.course_id, topic.title);
+  const enrollment = db.prepare("SELECT e.*, u.email, u.role FROM enrollments e JOIN users u ON u.id = e.user_id WHERE e.id = ? AND e.course_id = ? AND e.status = 'active'").get(Number(req.body.enrollmentId), topic.course_id);
+  if (!item || !enrollment || enrollment.role !== "student" || (item.allowed_student_email && item.allowed_student_email.toLowerCase() !== enrollment.email.toLowerCase())) return res.status(400).send("Invalid discussion enrollment or grade item");
+  if (!db.prepare("SELECT id FROM discussion_entries WHERE topic_id = ? AND user_id = ? LIMIT 1").get(topic.id, enrollment.user_id)) return res.status(400).send("No discussion submission exists for this student");
+  const rawScore = String(req.body.score ?? "").trim();
+  const score = Number(rawScore);
+  if (!rawScore || !Number.isFinite(score) || score < 0 || score > item.points_possible) return res.status(400).send(`Enter a score from 0 to ${item.points_possible}`);
+  const note = String(req.body.note || "").trim();
+  if (note.length > 5000) return res.status(400).send("Feedback must be 5000 characters or less");
+  db.prepare(`INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET score = excluded.score, note = excluded.note, updated_at = CURRENT_TIMESTAMP`).run(enrollment.id, item.id, score, note);
+  flash(req, "Discussion grade saved to the gradebook.");
+  res.redirect(`/admin/courses/${topic.course_id}/student-view?view=discussions&topicId=${topic.id}&mode=edit#discussion-grading`);
 });
 
 app.post("/admin/courses/:id/discussions/:topicId/replies", requireAuth, requireRole("admin", "instructor"), (req, res) => {
