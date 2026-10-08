@@ -3472,6 +3472,9 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
   const selectedLessonVideoUrl = directVideoUrl(selectedLesson.external_url);
   const selectedLessonYouTubeEmbed = selectedLessonVideoUrl ? null : youtubeEmbedUrl(selectedLesson.external_url);
   const selectedLessonYouTubeWatch = youtubeWatchUrl(selectedLesson.external_url);
+  const selectedLessonPanoptoEmbed = selectedLessonVideoUrl || selectedLessonYouTubeEmbed
+    ? null
+    : panoptoEmbedUrl(selectedLesson.external_url);
   return `
     <main class="canvas-course-main canvas-page-main">
       <div class="canvas-mini-head">
@@ -3510,6 +3513,19 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
                   allowfullscreen></iframe>
               </div>
               ${instructor && selectedLessonYouTubeWatch ? `<p class="youtube-recording-fallback">Instructor note: this is a YouTube embed. For a video-only student player with no YouTube branding, use a direct MP4/WebM/MOV file URL instead.</p>` : ""}
+            </section>
+          ` : selectedLessonPanoptoEmbed ? `
+            <section class="panopto-recording" aria-label="Panopto recording">
+              <div class="panopto-recording-frame">
+                <iframe
+                  src="${escapeHtml(selectedLessonPanoptoEmbed)}"
+                  title="${escapeHtml(selectedLessonDisplayTitle)} video recording"
+                  loading="lazy"
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  allowfullscreen></iframe>
+              </div>
+              <p class="recording-fallback"><a href="${escapeHtml(selectedLesson.external_url)}" target="_blank" rel="noopener noreferrer">Open this video in a new tab</a></p>
             </section>
           ` : selectedLesson.external_url ? `
             <div class="external-lesson-callout">
@@ -5991,6 +6007,29 @@ function youtubeEmbedUrl(value = "") {
 function youtubeWatchUrl(value = "") {
   const videoId = youtubeVideoId(value);
   return videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
+}
+
+function panoptoEmbedUrl(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const parsed = new URL(withProtocol);
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return null;
+    if (!parsed.hostname.toLowerCase().endsWith(".panopto.com")) return null;
+    const recordingId = parsed.searchParams.get("id");
+    if (!recordingId || !/^[0-9a-f-]{36}$/i.test(recordingId)) return null;
+    parsed.pathname = "/Panopto/Pages/Embed.aspx";
+    parsed.search = "";
+    parsed.searchParams.set("id", recordingId);
+    parsed.searchParams.set("autoplay", "false");
+    parsed.searchParams.set("offerviewer", "true");
+    parsed.searchParams.set("showtitle", "true");
+    parsed.searchParams.set("interactivity", "all");
+    return parsed.toString();
+  } catch {
+    return null;
+  }
 }
 
 function isVideoFileExtension(extension = "") {
