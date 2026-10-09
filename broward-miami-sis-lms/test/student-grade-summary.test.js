@@ -357,3 +357,15 @@ test("school-withdrawn students are hidden from course roster and gradebook with
     assert.ok(database.prepare("SELECT id FROM users WHERE id = ?").get(student.id));
   } finally { database.prepare("UPDATE users SET status = ? WHERE id = ?").run(student.status, student.id); }
 });
+
+
+test("gradebook hiding preserves student access and saved academic records", async () => {
+  const gradeCount = database.prepare("SELECT count(*) n FROM grades WHERE enrollment_id = ?").get(enrollment.id).n;
+  database.prepare("UPDATE users SET gradebook_hidden = 1 WHERE id = ?").run(enrollment.user_id);
+  try {
+    assert.doesNotMatch(await getInstructorGradesHtml(), new RegExp(`/admin/students/${enrollment.user_id}/registrar-checklist`));
+    assert.equal((await fetch(`${baseUrl}/student/enrollments/${enrollment.id}?view=grades`, {headers: {cookie: studentCookie}})).status, 200);
+    assert.equal(database.prepare("SELECT count(*) n FROM grades WHERE enrollment_id = ?").get(enrollment.id).n, gradeCount);
+    assert.equal(database.prepare("SELECT status FROM users WHERE id = ?").get(enrollment.user_id).status, 'active');
+  } finally { database.prepare("UPDATE users SET gradebook_hidden = 0 WHERE id = ?").run(enrollment.user_id); }
+});

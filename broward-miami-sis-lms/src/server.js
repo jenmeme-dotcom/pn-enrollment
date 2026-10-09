@@ -3893,7 +3893,7 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
 }
 
 function instructorGradebookStudents(enrollments = []) {
-  return enrollments.map((row) => ({
+  return enrollments.filter((row) => !row.gradebook_hidden).map((row) => ({
     id: row.user_id,
     student_number: row.student_number,
     first_name: row.first_name,
@@ -12909,7 +12909,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   const calendarEvents = courseCalendarEvents(course.id);
   const materialFiles = courseMaterialFiles(course.slug);
   const enrollments = editing || reviewingGrades ? db.prepare(`
-    SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email, u.student_number, u.cohort_name, u.cohort_start_date, u.cohort_end_date
+    SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email, u.student_number, u.cohort_name, u.cohort_start_date, u.cohort_end_date, u.gradebook_hidden
     FROM enrollments e
     JOIN users u ON u.id = e.user_id
     WHERE e.course_id = ? AND u.status != 'withdrawn' AND e.status != 'withdrawn' AND e.withdrawn_at IS NULL

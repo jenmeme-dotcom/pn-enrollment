@@ -1537,6 +1537,9 @@ function migrate() {
   if (!userColumns.includes("withdrawn_by")) {
     db.exec("ALTER TABLE users ADD COLUMN withdrawn_by INTEGER REFERENCES users(id) ON DELETE SET NULL;");
   }
+  if (!userColumns.includes("gradebook_hidden")) {
+    db.exec("ALTER TABLE users ADD COLUMN gradebook_hidden INTEGER NOT NULL DEFAULT 0 CHECK(gradebook_hidden IN (0,1));");
+  }
   if (!userColumns.includes("organization_status")) {
     db.exec("ALTER TABLE users ADD COLUMN organization_status TEXT NOT NULL DEFAULT 'organized';");
   }
