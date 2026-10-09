@@ -1456,6 +1456,9 @@ function migrate() {
     db.exec("ALTER TABLE lessons ADD COLUMN allowed_student_email TEXT;");
   }
   const gradeItemColumns = db.prepare("PRAGMA table_info(grade_items)").all().map((column) => column.name);
+  if (!gradeItemColumns.includes("gradebook_hidden")) {
+    db.exec("ALTER TABLE grade_items ADD COLUMN gradebook_hidden INTEGER NOT NULL DEFAULT 0 CHECK(gradebook_hidden IN (0,1));");
+  }
   if (!gradeItemColumns.includes("allowed_student_email")) {
     db.exec("ALTER TABLE grade_items ADD COLUMN allowed_student_email TEXT;");
   }

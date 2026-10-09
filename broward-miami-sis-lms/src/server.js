@@ -3719,7 +3719,7 @@ function studentGradebookRows(enrollment, gradeItems = [], grades = [], examAtte
       .filter((attempt) => attempt.status === "in_progress")
       .map((attempt) => [attempt.grade_item_id, attempt])
   );
-  const savedRows = gradeItems.filter((item) => !isSyllabusAcknowledgment(item)).map((item) => {
+  const savedRows = gradeItems.filter((item) => !Number(item.gradebook_hidden || 0) && !isSyllabusAcknowledgment(item)).map((item) => {
     const grade = gradeByItemId.get(item.id);
     const submission = submissionByItemId.get(item.id);
     const attempt = attemptByItemId.get(item.id);
@@ -3906,7 +3906,7 @@ function instructorGradebookStudents(enrollments = []) {
 }
 
 function instructorGradebookItems(course, gradeItems = []) {
-  return gradeItems.filter((item) => !isSyllabusAcknowledgment(item)).map((item) => ({
+  return gradeItems.filter((item) => !Number(item.gradebook_hidden || 0) && !isSyllabusAcknowledgment(item)).map((item) => ({
     id: item.id,
     title: item.title,
     points_possible: item.points_possible,
