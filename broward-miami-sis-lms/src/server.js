@@ -11792,7 +11792,7 @@ app.get("/admin/billing", requireAuth, requireRole("admin"), (req, res) => {
 
     <section class="card" style="margin-top:18px">
       <h2>Student account balances</h2>
-      <p>Practical Nursing: $15,000 tuition + $150 registration + $75 entrance exam = $15,225. Recorded payments and disbursed aid reduce the balance. Posted tuition adjustments take precedence.</p>
+      <p>Practical Nursing: $15,000 tuition + $150 registration = $15,150. The entrance exam fee is optional and is not automatically added. Recorded payments and disbursed aid reduce the balance. Posted tuition adjustments take precedence.</p>
       <table><thead><tr><th>Student</th><th>Charges</th><th>Recorded payments</th><th>Disbursed aid</th><th>Balance</th></tr></thead>
       <tbody>${accountRows.filter(row => row.totalCharges || row.appliedPayments).map(row => `<tr><td>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</td><td>${money(row.totalCharges)}</td><td>${money(row.appliedPayments)}</td><td>${money(row.financialAid)}</td><td>${money(row.balance)}</td></tr>`).join("")}</tbody></table>
     </section>

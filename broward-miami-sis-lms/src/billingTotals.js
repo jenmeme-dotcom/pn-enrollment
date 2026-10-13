@@ -1,8 +1,7 @@
 const PN_TERM = "2026-27 Practical Nursing Term";
 const PN_CHARGES = [
   { category: "Tuition", description: "Practical Nursing tuition", amount_cents: 1500000 },
-  { category: "Fee", description: "Registration fee", amount_cents: 15000 },
-  { category: "Fee", description: "Entrance exam fee", amount_cents: 7500 }
+  { category: "Fee", description: "Registration fee", amount_cents: 15000 }
 ];
 function accountCharges(enrollments, postedCharges, term = PN_TERM) {
   const rows = postedCharges.map(row => ({ ...row }));
@@ -11,9 +10,7 @@ function accountCharges(enrollments, postedCharges, term = PN_TERM) {
     for (const charge of PN_CHARGES) {
       const exists = rows.some(row => charge.category === "Tuition"
         ? row.category === "Tuition"
-        : charge.description === "Registration fee"
-          ? /registration/i.test(row.description || "")
-          : /entrance/i.test(row.description || ""));
+        : /registration/i.test(row.description || ""));
       if (!exists) rows.push({ ...charge, due_date: nursing[0].start_date, scheduled: true });
     }
   }
