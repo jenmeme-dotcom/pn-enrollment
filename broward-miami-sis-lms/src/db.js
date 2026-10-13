@@ -1,3 +1,4 @@
+const { ensurePharmacologyCourse } = require('./pharmacologyBuildout');
 const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
@@ -1876,6 +1877,8 @@ function seed() {
       if (seedKey) insertSeedVersion.run(saved.id, seedKey);
     }
   }
+
+  ensurePharmacologyCourse(db);
 
   // Older catalog seeds stored the Canvas item type only in lesson content.
   // Promote those markers without replacing rows so existing progress, grades,

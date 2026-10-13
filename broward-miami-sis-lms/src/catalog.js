@@ -1,3 +1,4 @@
+const { pharmacologyCourse } = require('./pharmacologyBuildout');
 const { medicalSurgicalNursingCourse } = require("./medicalSurgicalNursingBuildout");
 const { aclsCourse } = require("./aclsBuildout");
 const { fundamentalsCourse } = require("./fundamentalsBuildout");
@@ -12,6 +13,7 @@ const { patientCareTechnicianCourse } = require("./patientCareTechnicianBuildout
 const { ivTherapyCourse } = require("./ivTherapyBuildout");
 
 const courses = [
+  pharmacologyCourse,
   medicalSurgicalNursingCourse,
   {
     title: "Practical Nursing",
