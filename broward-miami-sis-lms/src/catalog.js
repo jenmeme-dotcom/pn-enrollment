@@ -13,7 +13,6 @@ const { patientCareTechnicianCourse } = require("./patientCareTechnicianBuildout
 const { ivTherapyCourse } = require("./ivTherapyBuildout");
 
 const courses = [
-  pharmacologyCourse,
   medicalSurgicalNursingCourse,
   {
     title: "Practical Nursing",
@@ -69,7 +68,8 @@ const courses = [
   fundamentalsCourse,
   anatomyPhysiologyCourse,
   introNursingCourse,
-  longTermCareNursingCourse
+  longTermCareNursingCourse,
+  pharmacologyCourse
 ];
 
 const feeSchedule = [
