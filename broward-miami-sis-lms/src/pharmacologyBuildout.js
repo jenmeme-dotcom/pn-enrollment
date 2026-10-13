@@ -3,6 +3,13 @@ function ensurePharmacologyCourse(db) {
   const saved = db.prepare('SELECT id FROM courses WHERE slug = ?').get(course.slug);
   if (!saved) throw new Error('PN106 catalog entry missing');
   const id = Number(saved.id);
+  // These activities point students to publisher assessments. Avoid the portal's
+  // title-based quiz renderer, which would otherwise imply a local quiz exists.
+  const renamePublisherInstructions = db.prepare(`UPDATE lessons SET title = ? WHERE module_id IN (SELECT id FROM modules WHERE course_id = ?) AND title = ? AND item_type = 'page'`);
+  for (const w of course.weeklyModules) {
+    renamePublisherInstructions.run(`Week ${w.week} Before Reading: Chapter Knowledge Checks`, id, `Week ${w.week} Chapter Prequizzes`);
+    renamePublisherInstructions.run(`Week ${w.week} PrepU Chapter Mastery Instructions`, id, `Week ${w.week} PrepU Mastery Quizzes`);
+  }
   if (db.prepare('SELECT COUNT(*) count FROM modules WHERE course_id = ?').get(id).count > 0) return;
   db.exec('BEGIN IMMEDIATE');
   try {
@@ -23,8 +30,8 @@ function ensurePharmacologyCourse(db) {
     const mid = Number(moduleStmt.run(id, `Week ${w.week}: ${w.title}`, w.week + 1).lastInsertRowid);
     const label = `Chapters ${w.chapters[0]}–${w.chapters.at(-1)}`;
     add(mid, `Week ${w.week} Learning Outcomes and Readings`, `${label}\nRequired textbook: ${course.textbook}\n\nLearning outcomes from the syllabus\n${w.outcomes}`, 1);
-    add(mid, `Week ${w.week} Chapter Prequizzes`, `Before reading ${label}, take the prequiz for each assigned chapter in the instructor-provided Lippincott course. Identify topics needing review and use the results to focus your learning. These diagnostic prequizzes are completed in the publisher platform.`, 2);
-    add(mid, `Week ${w.week} PrepU Mastery Quizzes`, `After reading ${label}, complete the respective PrepU ML quizzes in Lippincott. You must score at least 80% on EACH chapter quiz before progressing. Review missed topics and complete video remediation if any chapter score is below 80%. Follow the instructor's process for verifying publisher quiz results.`, 3);
+    add(mid, `Week ${w.week} Before Reading: Chapter Knowledge Checks`, `Before reading ${label}, take the prequiz for each assigned chapter in the instructor-provided Lippincott course. Identify topics needing review and use the results to focus your learning. These diagnostic prequizzes are completed in the publisher platform.`, 2);
+    add(mid, `Week ${w.week} PrepU Chapter Mastery Instructions`, `After reading ${label}, complete the respective PrepU ML quizzes in Lippincott. You must score at least 80% on EACH chapter quiz before progressing. Review missed topics and complete video remediation if any chapter score is below 80%. Follow the instructor's process for verifying publisher quiz results.`, 3);
     add(mid, `Week ${w.week} Case Studies and Learning Reflection`, `Complete the case studies after each chapter in ${label}. Submit your responses organized by chapter number and case title. Address the case prompts using the nursing process, drug actions, relevant precautions, adverse reactions, nursing monitoring, and patient education. Conclude with a reflection on your learning before progressing to the next module. Use fictional case information and protect patient confidentiality.\n\nPoints, rubric, and deadlines will be provided by the instructor.`, 4, 'assignment');
     const instructions = `Required if any chapter PrepU quiz in ${label} is below 80%: review the assigned readings and submit a video demonstrating your understanding of the topics missed. Identify the chapter and missed concept, explain the corrected understanding, and describe its nursing implications. Do not include real patient information. The instructor reviews remediation and verifies readiness to progress. Follow instructor guidance for video length and submission deadline.`;
     const lid = add(mid, `Week ${w.week} Video Remediation`, instructions, 5, 'assignment');
