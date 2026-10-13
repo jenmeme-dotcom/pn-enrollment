@@ -10,6 +10,7 @@ const multer = require("multer");
 const nodemailer = require("nodemailer");
 const { createCourseSyllabusPdfBuffer, syllabusPdfFilename } = require("./syllabusPdf");
 const quickbooks = require("./quickbooks");
+const { accountCharges, accountTotals } = require("./billingTotals");
 const { adminAccessAccounts, adminAccessDefaultPassword } = require("./adminAccess");
 const { db, initialize, databaseFile } = require("./db");
 const { isMidtermTitle, isProtectedMajorAssessmentTitle } = require("./courseworkAvailability");
@@ -11749,8 +11750,18 @@ app.get("/admin/billing", requireAuth, requireRole("admin"), (req, res) => {
     ORDER BY p.next_due_date
   `).all();
   const policy = db.prepare("SELECT * FROM billing_refund_policies WHERE active = 1 ORDER BY id DESC LIMIT 1").get();
-  const totalCharges = db.prepare("SELECT COALESCE(SUM(amount_cents), 0) AS total FROM billing_charges WHERE status = 'posted'").get().total;
-  const totalPayments = db.prepare("SELECT COALESCE(SUM(amount_cents), 0) AS total FROM billing_payments").get().total;
+  const accountRows = students.map(student => {
+    const enrollments = db.prepare(`SELECT e.*, c.slug, c.category FROM enrollments e JOIN courses c ON c.id=e.course_id WHERE e.user_id=? AND e.status != 'withdrawn'`).all(student.id);
+    const posted = db.prepare("SELECT * FROM billing_charges WHERE user_id=? AND status='posted'").all(student.id);
+    const recordedPayments = db.prepare("SELECT * FROM billing_payments WHERE user_id=?").all(student.id);
+    const aid = db.prepare(`SELECT d.* FROM financial_aid_disbursements d JOIN financial_aid_awards a ON a.id=d.award_id WHERE a.user_id=?`).all(student.id);
+    const current = accountCharges(enrollments, posted.filter(row => row.term === "2026-27 Practical Nursing Term"));
+    const allCharges = [...current, ...posted.filter(row => row.term !== "2026-27 Practical Nursing Term")];
+    return { ...student, ...accountTotals(allCharges, recordedPayments, aid) };
+  });
+  const totalCharges = accountRows.reduce((sum, row) => sum + row.totalCharges, 0);
+  const totalPayments = accountRows.reduce((sum, row) => sum + row.appliedPayments, 0);
+  const receivable = accountRows.reduce((sum, row) => sum + row.balance, 0);
   const quickbooksConnection = quickbooks.connection(db);
   const quickbooksConfigured = quickbooks.isConfigured();
   const quickbooksStats = db.prepare(`
@@ -11773,10 +11784,17 @@ app.get("/admin/billing", requireAuth, requireRole("admin"), (req, res) => {
     </div>
 
     <section class="grid cols-4">
-      ${stat("Posted charges", money(totalCharges))}
+      ${stat("Charges", money(totalCharges))}
       ${stat("Payments", money(totalPayments))}
-      ${stat("Receivable", money(Math.max(0, totalCharges - totalPayments)))}
+      ${stat("Receivable", money(receivable))}
       ${stat("Payment plans", String(plans.length))}
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <h2>Student account balances</h2>
+      <p>Practical Nursing: $15,000 tuition + $150 registration + $75 entrance exam = $15,225. Recorded payments and disbursed aid reduce the balance. Posted tuition adjustments take precedence.</p>
+      <table><thead><tr><th>Student</th><th>Charges</th><th>Recorded payments</th><th>Disbursed aid</th><th>Balance</th></tr></thead>
+      <tbody>${accountRows.filter(row => row.totalCharges || row.appliedPayments).map(row => `<tr><td>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</td><td>${money(row.totalCharges)}</td><td>${money(row.appliedPayments)}</td><td>${money(row.financialAid)}</td><td>${money(row.balance)}</td></tr>`).join("")}</tbody></table>
     </section>
 
     <section class="card" style="margin-top:18px">
@@ -16028,7 +16046,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
 
 app.get("/student/financial", requireAuth, requireRole("student"), (req, res) => {
   const enrollments = db.prepare(`
-    SELECT e.*, c.title, c.category, c.hours, c.credential_type, c.tuition_cents
+    SELECT e.*, c.title, c.category, c.hours, c.credential_type, c.tuition_cents, c.slug
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     WHERE e.user_id = ?
@@ -16042,7 +16060,7 @@ app.get("/student/financial", requireAuth, requireRole("student"), (req, res) =>
     ORDER BY created_at DESC
   `).all(req.user.id);
   const awardDisbursements = db.prepare(`
-    SELECT d.*, a.aid_type
+    SELECT d.*, a.aid_type, a.term
     FROM financial_aid_disbursements d
     JOIN financial_aid_awards a ON a.id = d.award_id
     WHERE a.user_id = ?
@@ -16070,28 +16088,10 @@ app.get("/student/financial", requireAuth, requireRole("student"), (req, res) =>
   `).all(req.user.id, termName);
   const refundPolicy = db.prepare("SELECT * FROM billing_refund_policies WHERE active = 1 ORDER BY id DESC LIMIT 1").get();
 
-  const fallbackCharges = enrollments.map((row) => {
-    const tuition = Number(row.tuition_cents || 0) || Math.max(65000, Number(row.hours || 0) * 1600);
-    return {
-      title: row.title,
-      startDate: row.start_date,
-      hours: row.hours,
-      amount: tuition,
-      paid: Math.round(tuition * Math.min(0.75, Math.max(0.25, Number(row.progress || 0) / 100)))
-    };
-  });
-  const registrationFee = ledgerCharges.length ? 0 : enrollments.length ? 15000 : 0;
-  const technologyFee = ledgerCharges.length ? 0 : enrollments.length ? 8500 : 0;
-  const totalCharges = ledgerCharges.length
-    ? ledgerCharges.reduce((sum, row) => sum + Number(row.amount_cents || 0), 0)
-    : fallbackCharges.reduce((sum, row) => sum + row.amount, registrationFee + technologyFee);
-  const appliedPayments = ledgerPayments.length
-    ? ledgerPayments.reduce((sum, row) => sum + Number(row.amount_cents || 0), 0)
-    : fallbackCharges.reduce((sum, row) => sum + row.paid, registrationFee);
-  const financialAid = awards
-    .filter((award) => ["offered", "accepted"].includes(award.status))
-    .reduce((sum, award) => sum + Number(award.amount_cents || 0), 0);
-  const balance = Math.max(0, totalCharges - appliedPayments - financialAid);
+  const effectiveCharges = accountCharges(enrollments, ledgerCharges, termName);
+  const { totalCharges, appliedPayments, financialAid, balance } = accountTotals(
+    effectiveCharges, ledgerPayments, awardDisbursements.filter(row => row.term === termName)
+  );
   const studentNumber = displayStudentNumber(req.user);
 
   const body = `
@@ -16177,22 +16177,8 @@ app.get("/student/financial", requireAuth, requireRole("student"), (req, res) =>
           <table>
             <thead><tr><th>Date</th><th>Description</th><th>Hours</th><th>Amount</th></tr></thead>
             <tbody>
-              ${registrationFee ? `<tr><td>${date(enrollments[0]?.start_date)}</td><td>Registration fee</td><td></td><td>${money(registrationFee)}</td></tr>` : ""}
-              ${technologyFee ? `<tr><td>${date(enrollments[0]?.start_date)}</td><td>Technology and LMS fee</td><td></td><td>${money(technologyFee)}</td></tr>` : ""}
-              ${ledgerCharges.length ? ledgerCharges.map((row) => `
-                <tr>
-                  <td>${date(row.due_date)}</td>
-                  <td>${escapeHtml(row.category)} · ${escapeHtml(row.description)}</td>
-                  <td></td>
-                  <td>${money(row.amount_cents)}</td>
-                </tr>
-              `).join("") : fallbackCharges.map((row) => `
-                <tr>
-                  <td>${date(row.startDate)}</td>
-                  <td>${escapeHtml(row.title)} tuition</td>
-                  <td>${escapeHtml(row.hours)}</td>
-                  <td>${money(row.amount)}</td>
-                </tr>
+              ${effectiveCharges.map((row) => `
+                <tr><td>${date(row.due_date)}</td><td>${escapeHtml(row.description)}</td><td></td><td>${money(row.amount_cents)}</td></tr>
               `).join("") || `<tr><td class="empty" colspan="4">No charges for this term.</td></tr>`}
             </tbody>
           </table>
@@ -16203,21 +16189,8 @@ app.get("/student/financial", requireAuth, requireRole("student"), (req, res) =>
           <table>
             <thead><tr><th>Date</th><th>Source</th><th>Applied To</th><th>Amount</th></tr></thead>
             <tbody>
-              ${registrationFee ? `<tr><td>${date(enrollments[0]?.start_date)}</td><td>Student payment</td><td>Registration fee</td><td>${money(registrationFee)}</td></tr>` : ""}
-              ${ledgerPayments.length ? ledgerPayments.map((row) => `
-                <tr>
-                  <td>${date(row.paid_at)}</td>
-                  <td>${escapeHtml(row.source)}</td>
-                  <td>${escapeHtml(row.applied_to)}</td>
-                  <td>${money(row.amount_cents)}</td>
-                </tr>
-              `).join("") : fallbackCharges.map((row) => `
-                <tr>
-                  <td>${date(row.startDate)}</td>
-                  <td>Student payment plan</td>
-                  <td>${escapeHtml(row.title)}</td>
-                  <td>${money(row.paid)}</td>
-                </tr>
+              ${ledgerPayments.map((row) => `
+                <tr><td>${date(row.paid_at)}</td><td>${escapeHtml(row.source)}</td><td>${escapeHtml(row.applied_to)}</td><td>${money(row.amount_cents)}</td></tr>
               `).join("") || `<tr><td class="empty" colspan="4">No payments applied yet.</td></tr>`}
             </tbody>
           </table>
@@ -16259,8 +16232,8 @@ app.get("/student/financial", requireAuth, requireRole("student"), (req, res) =>
         <article class="student-panel financial-section">
           <h2>Tuition</h2>
           <div class="financial-summary">
-            <p><strong>Total tuition</strong><span>${money(ledgerCharges.length ? ledgerCharges.filter((row) => row.category === "Tuition").reduce((sum, row) => sum + row.amount_cents, 0) : fallbackCharges.reduce((sum, row) => sum + row.amount, 0))}</span></p>
-            <p><strong>Fees</strong><span>${money(ledgerCharges.length ? ledgerCharges.filter((row) => row.category !== "Tuition").reduce((sum, row) => sum + row.amount_cents, 0) : registrationFee + technologyFee)}</span></p>
+            <p><strong>Total tuition</strong><span>${money(effectiveCharges.filter((row) => row.category === "Tuition").reduce((sum, row) => sum + row.amount_cents, 0))}</span></p>
+            <p><strong>Fees</strong><span>${money(effectiveCharges.filter((row) => row.category !== "Tuition").reduce((sum, row) => sum + row.amount_cents, 0))}</span></p>
             <p><strong>Balance</strong><span>${money(balance)}</span></p>
           </div>
         </article>
