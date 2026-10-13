@@ -1627,6 +1627,7 @@ function recentInstitutionCatalogs(limit = 5) {
 }
 
 function canvasCourseCode(course = {}) {
+  if (course.slug === "medical-surgical-nursing-i-pn107") return "PN 107";
   const slug = course.slug || course.course_slug;
   if (slug === "home-health-aide") return "HHA 75";
   if (slug === "home-health-aide-creole") return "HHA 75 Kreyol";
@@ -14673,6 +14674,7 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
   });
   const programCourseSlugs = {
     "practical-nursing": [
+      "medical-surgical-nursing-i-pn107",
       "introduction-to-nursing-practical-nursing",
       "medical-terminology",
       "fundamental-nursing-skills-and-concepts-new-cohort"

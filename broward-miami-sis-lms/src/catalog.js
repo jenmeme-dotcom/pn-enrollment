@@ -1,3 +1,4 @@
+const { medicalSurgicalNursingCourse } = require("./medicalSurgicalNursingBuildout");
 const { aclsCourse } = require("./aclsBuildout");
 const { fundamentalsCourse } = require("./fundamentalsBuildout");
 const { homeHealthAideEnglishCourse, homeHealthAideCreoleCourse } = require("./homeHealthAideBuildout");
@@ -11,6 +12,7 @@ const { patientCareTechnicianCourse } = require("./patientCareTechnicianBuildout
 const { ivTherapyCourse } = require("./ivTherapyBuildout");
 
 const courses = [
+  medicalSurgicalNursingCourse,
   {
     title: "Practical Nursing",
     slug: "practical-nursing",
