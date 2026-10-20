@@ -1,16 +1,19 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
 import { Presentation, PresentationFile } from "@oai/artifact-tool";
 
+const require = createRequire(import.meta.url);
+const { ivTherapyCourse } = require("../src/ivTherapyBuildout.js");
+
 const workspaceDir = path.resolve(".");
-const SKILL_DIR = "/Users/freedom/.codex/plugins/cache/openai-primary-runtime/presentations/26.905.11957/skills/presentations";
+const SKILL_DIR = "/Users/freedom/.codex/plugins/cache/openai-primary-runtime/presentations/26.1013.11914/skills/presentations";
 const RUNTIME_PYTHON = "/Users/freedom/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3";
 const buildDir = path.join(workspaceDir, "tmp", "iv-course-decks");
 const outputDir = path.join(workspaceDir, "course_materials", "iv-therapy-certification-30-hour");
-const sourceImageDir = path.resolve(workspaceDir, "..", "tmp", "pdfs", "course_source", "render");
 const sourcePdf = "/Users/freedom/Desktop/JAN INSTRUCTOR COURSE MATERIALS FOR BOOK/20240215125453.pdf";
-const { resolvePresentationFont, finalizePresentation } = await import(pathToFileURL(path.join(SKILL_DIR, "container_tools", "artifact_tool_utils.mjs")).href);
+const { resolvePresentationFont, finalizePresentation, makeNativeBulletParagraphs } = await import(pathToFileURL(path.join(SKILL_DIR, "container_tools", "artifact_tool_utils.mjs")).href);
 await fs.mkdir(buildDir, { recursive: true });
 await fs.mkdir(outputDir, { recursive: true });
 const font = resolvePresentationFont();
@@ -107,58 +110,146 @@ const decks = [
   }
 ];
 
+const lessonMap = new Map(ivTherapyCourse.modules.flatMap((module) => module.lessons.map((lesson) => [lesson.title, lesson.content])));
+
+const lessonTitlesByDeck = [
+  ["Welcome, Hybrid Schedule, and Completion Rules", "Florida Scope, Accountability, and Facility Policy", "IV Pharmacology, Compatibility, and Medication Rights"],
+  ["Circulation, Veins, and Peripheral Site Selection", "Documentation, Patient Teaching, and Lab Readiness"],
+  ["Fluid Compartments, Tonicity, and Electrolyte Balance", "Flow Rates, Dosage Calculations, Pumps, and IV Piggyback"],
+  ["Blood Components, Parenteral Nutrition, and High-Risk Therapy", "Live Review: Infection Control, Access Devices, Blood, and Nutrition"],
+  ["Blood Components, Parenteral Nutrition, and High-Risk Therapy", "Peripheral, Midline, PICC, Central Line, and Port Overview"],
+  ["Blood Components, Parenteral Nutrition, and High-Risk Therapy", "Complications: Recognition, Immediate Actions, and Prevention"],
+  ["Equipment, Tubing, Catheters, and Infusion Devices", "Peripheral IV Insertion, Securement, and Discontinuation", "Complications: Recognition, Immediate Actions, and Prevention"],
+  ["Skills Stations: Fluid, Tubing, Pump, and Vein Selection", "Deliberate Practice: Peripheral IV Insertion and Dressing", "IV Piggyback, Saline Lock, and Infusion Pump Practice", "Access-Device Assessment and Dressing Simulation", "Complication Simulation and Clinical Documentation", "RN Competency Checkoff - Peripheral IV Start", "RN Competency Checkoff - IVPB, Pump, and Complication Response"]
+];
+
 function addText(slide, text, position, style = {}) {
   const box = slide.shapes.add({ geometry: "textbox", position, fill: "none", line: { fill: "none", width: 0 } });
   box.text = text;
-  box.text.style = { typeface: font, color: colors.ink, fontSize: 24, autoFit: "shrinkText", verticalAlignment: "middle", ...style };
+  box.text.style = { typeface: font, color: colors.ink, fontSize: 26, autoFit: "shrinkText", verticalAlignment: "top", ...style };
   return box;
 }
 
-function baseSlide(pres, title, number) {
+function addBullets(slide, items, position, style = {}) {
+  const box = slide.shapes.add({ geometry: "textbox", position, fill: "none", line: { fill: "none", width: 0 } });
+  box.text = makeNativeBulletParagraphs(items, { marginLeftPoints: 22, hangingPoints: 10, spaceAfterPoints: 13 });
+  box.text.style = { typeface: font, color: colors.ink, fontSize: 27, autoFit: "shrinkText", verticalAlignment: "top", ...style };
+  return box;
+}
+
+function baseSlide(pres, title, number, sectionLabel = "") {
   const slide = pres.slides.add();
   slide.background.fill = colors.cream;
-  addText(slide, title, { left: 64, top: 34, width: 1110, height: 58 }, { fontSize: 34, bold: true, color: colors.navy, verticalAlignment: "top" });
-  addText(slide, String(number).padStart(2, "0"), { left: 1180, top: 42, width: 48, height: 36 }, { fontSize: 17, bold: true, color: colors.teal, textAlign: "right" });
+  slide.shapes.add({ geometry: "rect", position: { left: 0, top: 0, width: 22, height: 720 }, fill: colors.teal, line: { fill: colors.teal, width: 0 } });
+  addText(slide, title, { left: 72, top: 42, width: 1050, height: 86 }, { fontSize: 36, bold: true, color: colors.navy });
+  if (sectionLabel) addText(slide, sectionLabel.toUpperCase(), { left: 74, top: 132, width: 930, height: 26 }, { fontSize: 15, bold: true, color: colors.teal });
+  addText(slide, String(number).padStart(2, "0"), { left: 1170, top: 48, width: 56, height: 30 }, { fontSize: 16, bold: true, color: colors.teal, textAlign: "right" });
   return slide;
 }
 
 function addSourceNotes(slide, pages, extra = "") {
-  slide.speakerNotes.textFrame.setText(`Sources: Supplied Basic Intravenous Therapy Certification manual, pages ${pages}. ${extra}\nCurrent legal reference: Florida Administrative Code Rule 64B9-12.005, effective July 20, 2023; Florida Statutes section 464.003 (2026). Instructor must verify current institutional policy and drug/device guidance before use.`);
+  slide.speakerNotes.textFrame.setText(`Sources: Supplied Basic Intravenous Therapy Certification manual, pages ${pages}; BMHI IVT 030 course content. ${extra}\nCurrent legal reference: Florida Administrative Code Rule 64B9-12.005, effective July 20, 2023; Florida Statutes section 464.003 (2026). Instructor must verify current institutional policy and current drug/device guidance before use.`);
+}
+
+function sentences(text) {
+  return text.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+}
+
+function cleanLessonContent(value = "") {
+  return value
+    .replace(/QUIZ_DATA_BASE64:[A-Za-z0-9+/=]+/g, "")
+    .replace(/\n*Course file:[\s\S]*$/i, "")
+    .replace(/Canvas item type:[^\n]*\n?/gi, "")
+    .trim();
+}
+
+function contentBlocks(value = "", fallbackTitle = "Course content") {
+  const rawBlocks = cleanLessonContent(value).split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean);
+  const output = [];
+  let continuation = 1;
+  for (const block of rawBlocks) {
+    const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+    if (!lines.length) continue;
+    let title = fallbackTitle;
+    let bodyLines = lines;
+    if (lines.length > 1 && lines[0].length <= 72 && !/^[-\d[\]]/.test(lines[0])) {
+      title = lines[0];
+      bodyLines = lines.slice(1);
+    } else if (rawBlocks.length > 1) {
+      title = `${fallbackTitle} ${continuation++}`;
+    }
+    let items = bodyLines.flatMap((line) => {
+      const cleaned = line.replace(/^[-•]\s*/, "").replace(/^\d+[.)]\s*/, "").trim();
+      return cleaned.length > 185 ? sentences(cleaned) : [cleaned];
+    }).filter((item) => item.length > 2 && !/^\[.\]/.test(item));
+    if (!items.length) items = sentences(lines.join(" "));
+    for (let i = 0; i < items.length; i += 4) {
+      const chunk = items.slice(i, i + 4);
+      output.push({ title: i ? `${title} continued` : title, items: chunk });
+    }
+  }
+  return output;
+}
+
+function relevantBlocks(def, deckIndex) {
+  const blocks = [];
+  for (const [heading, body] of def.sections) {
+    const details = sentences(body);
+    blocks.push({ title: heading, items: details });
+  }
+  for (const lessonTitle of lessonTitlesByDeck[deckIndex]) {
+    const content = lessonMap.get(lessonTitle);
+    if (content) blocks.push(...contentBlocks(content, lessonTitle));
+  }
+  const seen = new Set();
+  return blocks.filter((block) => {
+    const key = `${block.title.toLowerCase()}|${block.items.join(" ").toLowerCase().slice(0, 120)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return block.items.length;
+  });
+}
+
+function addContentSlide(pres, block, number, moduleLabel, pages) {
+  const slide = baseSlide(pres, block.title, number, moduleLabel);
+  addBullets(slide, block.items, { left: 92, top: 185, width: 1080, height: 430 }, { fontSize: block.items.length > 3 ? 25 : 28 });
+  addText(slide, "Use current orders, facility policy, and authorized scope when applying this information.", { left: 94, top: 642, width: 1070, height: 32 }, { fontSize: 15, color: colors.rust, bold: true });
+  addSourceNotes(slide, pages);
 }
 
 async function makeDeck(def, deckIndex) {
   const pres = Presentation.create({ slideSize: { width: 1280, height: 720 } });
   let slide = pres.slides.add();
   slide.background.fill = colors.navy;
-  addText(slide, "BROWARD-MIAMI HEALTH INSTITUTE", { left: 74, top: 58, width: 800, height: 34 }, { fontSize: 18, bold: true, color: colors.aqua, verticalAlignment: "top" });
-  addText(slide, def.title, { left: 74, top: 178, width: 750, height: 180 }, { fontSize: 48, bold: true, color: colors.white, verticalAlignment: "middle" });
-  addText(slide, `${def.subtitle}\n30-Hour Basic Intravenous Therapy`, { left: 78, top: 400, width: 650, height: 90 }, { fontSize: 24, color: colors.white, verticalAlignment: "top" });
-  const coverImage = await fs.readFile(path.join(sourceImageDir, `page-${String(def.page).padStart(3, "0")}.jpg`));
-  slide.images.add({ blob: coverImage, contentType: "image/jpeg", alt: `Source manual page for ${def.title}`, fit: "contain", position: { left: 870, top: 92, width: 315, height: 530 } });
+  slide.shapes.add({ geometry: "rect", position: { left: 0, top: 0, width: 28, height: 720 }, fill: colors.teal, line: { fill: colors.teal, width: 0 } });
+  addText(slide, "BROWARD-MIAMI HEALTH INSTITUTE", { left: 76, top: 66, width: 800, height: 32 }, { fontSize: 17, bold: true, color: colors.aqua });
+  addText(slide, def.title, { left: 76, top: 190, width: 1040, height: 170 }, { fontSize: 52, bold: true, color: colors.white, verticalAlignment: "middle" });
+  addText(slide, `${def.subtitle}  |  30-Hour Basic Intravenous Therapy`, { left: 80, top: 414, width: 920, height: 50 }, { fontSize: 25, color: colors.white });
+  addText(slide, "Expanded instructor presentation", { left: 80, top: 500, width: 760, height: 42 }, { fontSize: 20, color: colors.aqua, bold: true });
   addSourceNotes(slide, def.page);
 
-  slide = baseSlide(pres, "Learning objectives", 2);
-  addText(slide, def.objectives.map((x, i) => `${i + 1}. ${x}`).join("\n\n"), { left: 100, top: 150, width: 1080, height: 440 }, { fontSize: 28, color: colors.ink, verticalAlignment: "top" });
+  slide = baseSlide(pres, "Learning objectives", 2, def.subtitle);
+  addBullets(slide, def.objectives, { left: 94, top: 190, width: 1070, height: 390 }, { fontSize: 29 });
   addSourceNotes(slide, def.page);
 
-  for (let i = 0; i < def.sections.length; i++) {
-    const [heading, body] = def.sections[i];
-    slide = baseSlide(pres, heading, i + 3);
-    addText(slide, body, { left: 90, top: 155, width: 720, height: 350 }, { fontSize: 28, color: colors.ink, verticalAlignment: "middle" });
-    const imagePage = Math.min(148, def.page + i + 1);
-    const bytes = await fs.readFile(path.join(sourceImageDir, `page-${String(imagePage).padStart(3, "0")}.jpg`));
-    slide.images.add({ blob: bytes, contentType: "image/jpeg", alt: `Supplied manual page ${imagePage}`, fit: "contain", position: { left: 870, top: 125, width: 300, height: 500 } });
-    addSourceNotes(slide, `${def.page}-${imagePage}`);
-  }
+  const blocks = relevantBlocks(def, deckIndex);
+  let slideNumber = 3;
+  for (const block of blocks) addContentSlide(pres, block, slideNumber++, def.subtitle, `${def.page}-${Math.min(148, def.page + 12)}`);
 
-  slide = baseSlide(pres, "Practice and competency check", 7);
-  addText(slide, def.practice.map((x, i) => `${i + 1}. ${x}`).join("\n\n"), { left: 100, top: 145, width: 1080, height: 350 }, { fontSize: 29, color: colors.ink, verticalAlignment: "top" });
-  addText(slide, deckIndex === 7 ? "In-person evaluation: every critical element must pass under direct observation." : "Complete the matching online lesson and quiz before attending the skills lab.", { left: 100, top: 560, width: 1080, height: 72 }, { fontSize: 21, bold: true, color: colors.rust, verticalAlignment: "middle" });
+  slide = baseSlide(pres, "Practice and competency check", slideNumber++, def.subtitle);
+  addBullets(slide, def.practice, { left: 94, top: 190, width: 1070, height: 330 }, { fontSize: 29 });
+  addText(slide, deckIndex === 7 ? "Every critical element requires direct observation and a passing evaluation." : "Complete the matching online lesson and assessment before the in-person laboratory.", { left: 94, top: 560, width: 1070, height: 62 }, { fontSize: 22, bold: true, color: colors.rust });
   addSourceNotes(slide, def.page, deckIndex === 7 ? "Skills evaluation requires direct observation and written RN verification." : "Online preparation precedes live practice.");
 
-  const candidate = path.join(buildDir, def.file.replace(/\.pptx$/, ".candidate.pptx"));
+  slide = baseSlide(pres, "Key points", slideNumber, def.subtitle);
+  addBullets(slide, [def.objectives[0], def.sections[1][1], def.sections[3][1]], { left: 94, top: 190, width: 1070, height: 380 }, { fontSize: 27 });
+  addText(slide, "Review the course lesson, complete the assessment, and bring questions to the live session.", { left: 94, top: 574, width: 1070, height: 54 }, { fontSize: 22, bold: true, color: colors.teal });
+  addSourceNotes(slide, def.page);
+
+  const expandedFile = def.file.replace(/\.pptx$/, "_Readable_Expanded.pptx");
+  const candidate = path.join(buildDir, expandedFile.replace(/\.pptx$/, ".candidate.pptx"));
   await (await PresentationFile.exportPptx(pres)).save(candidate);
-  const finalPath = path.join(outputDir, def.file);
+  const finalPath = path.join(outputDir, expandedFile);
   await finalizePresentation({
     workspaceDir,
     candidatePath: candidate,
@@ -166,14 +257,14 @@ async function makeDeck(def, deckIndex) {
     pythonExecutable: RUNTIME_PYTHON,
     integrityValidatorPath: path.join(SKILL_DIR, "container_tools", "inspect_presentation_package_integrity.py"),
     layoutValidatorPath: path.join(SKILL_DIR, "container_tools", "inspect_presentation_layout_geometry.py"),
-    layoutArgs: ["--expected-slide-size-emu", "12192000,6858000", "--validate-heading-fit"],
+    layoutArgs: ["--expected-slide-size-emu", "12192000,6858000", "--validate-bullet-geometry", "--validate-heading-fit"],
     requiredNativeTableOwnerSlides: [],
     requiredNativeChartOwnerSlides: [],
     fontPolicy: { basis: "design", families: [font] },
     verifyArtifactToolImport: true,
-    receiptPath: path.join(buildDir, `${def.file}.validation.json`)
+    receiptPath: path.join(buildDir, `${expandedFile}.validation.json`)
   });
-  console.log(finalPath);
+  console.log(`${finalPath} (${pres.slides.items.length} slides)`);
 }
 
 for (let i = 0; i < decks.length; i++) await makeDeck(decks[i], i);

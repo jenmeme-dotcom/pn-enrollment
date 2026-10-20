@@ -113,7 +113,7 @@ const ivTherapyCourse = {
   description: "This 30-hour IV Therapy Certification course provides advanced IV education for RNs and fulfills Florida's 30-hour post-graduate IV-therapy education component for eligible LPNs. The course is offered at multiple locations throughout the state.\n\nThe hybrid course includes 14 hours of initial online study followed by 16 hours of scheduled classroom review, hands-on clinical practice, and RN competency evaluation. Students learn venipuncture technique, peripheral IV insertion, fluid administration, medication compatibility, access-device care, and complication management.\n\nFlorida Dept. of Health Provider #50-XXXX\nCE Broker Course Tracking #20-XXXXXXX - contact hours awarded upon completion\nDesigned to meet Florida Board of Nursing IV-therapy education requirements\nTwo-day in-person format (Saturday-Sunday or weekday sessions) after online preparation",
   ghlProductKeys: ["IV Therapy", "IV Certification", "30 Hour IV Therapy", "IV Therapy Certification", "iv-therapy-certification-30-hour"],
   courseNumber: "IVT 030",
-  seedVersion: "iv-therapy-hybrid-30h-pptx-v2-2026-09-11",
+  seedVersion: "iv-therapy-hybrid-30h-readable-pptx-v3-2026-10-20",
   objectives: [
     "Relate Florida nursing scope, employer policy, accountability, and documentation to IV therapy practice.",
     "Apply venous anatomy, fluid and electrolyte concepts, infection prevention, and medication safety to IV care.",
@@ -229,14 +229,14 @@ const ivTherapyCourse = {
 };
 
 const presentationByLesson = new Map([
-  ["Florida Scope, Accountability, and Facility Policy", ["Module 1 PowerPoint - Florida Scope and Safe IV Practice", "IVT_Module_01_Florida_Scope_and_Safe_Practice.pptx"]],
-  ["Circulation, Veins, and Peripheral Site Selection", ["Module 2 PowerPoint - Patient Education and Support", "IVT_Module_02_Patient_Education_and_Support.pptx"]],
-  ["Fluid Compartments, Tonicity, and Electrolyte Balance", ["Module 3 PowerPoint - Fluids, Electrolytes, and Calculations", "IVT_Module_03_Fluids_Electrolytes_and_Calculations.pptx"]],
-  ["Peripheral IV Insertion, Securement, and Discontinuation", ["Module 7 PowerPoint - Venipuncture Standards and Practice", "IVT_Module_07_Venipuncture_Standards.pptx"]],
-  ["Flow Rates, Dosage Calculations, Pumps, and IV Piggyback", ["Module 4 PowerPoint - Transfusion Therapy", "IVT_Module_04_Transfusion_Therapy.pptx"]],
-  ["Blood Components, Parenteral Nutrition, and High-Risk Therapy", ["Module 5 PowerPoint - Parenteral Nutrition", "IVT_Module_05_Parenteral_Nutrition.pptx"]],
-  ["Complications: Recognition, Immediate Actions, and Prevention", ["Module 6 PowerPoint - Chemotherapy Safety", "IVT_Module_06_Chemotherapy_Safety.pptx"]],
-  ["Skills Stations: Fluid, Tubing, Pump, and Vein Selection", ["Module 8 PowerPoint - In-Person IV Skills Lab", "IVT_Module_08_In_Person_Skills_Lab.pptx"]]
+  ["Florida Scope, Accountability, and Facility Policy", ["Module 1 PowerPoint - Florida Scope and Safe IV Practice", "IVT_Module_01_Florida_Scope_and_Safe_Practice_Readable_Expanded.pptx"]],
+  ["Circulation, Veins, and Peripheral Site Selection", ["Module 2 PowerPoint - Patient Education and Support", "IVT_Module_02_Patient_Education_and_Support_Readable_Expanded.pptx"]],
+  ["Fluid Compartments, Tonicity, and Electrolyte Balance", ["Module 3 PowerPoint - Fluids, Electrolytes, and Calculations", "IVT_Module_03_Fluids_Electrolytes_and_Calculations_Readable_Expanded.pptx"]],
+  ["Peripheral IV Insertion, Securement, and Discontinuation", ["Module 7 PowerPoint - Venipuncture Standards and Practice", "IVT_Module_07_Venipuncture_Standards_Readable_Expanded.pptx"]],
+  ["Flow Rates, Dosage Calculations, Pumps, and IV Piggyback", ["Module 4 PowerPoint - Transfusion Therapy", "IVT_Module_04_Transfusion_Therapy_Readable_Expanded.pptx"]],
+  ["Blood Components, Parenteral Nutrition, and High-Risk Therapy", ["Module 5 PowerPoint - Parenteral Nutrition", "IVT_Module_05_Parenteral_Nutrition_Readable_Expanded.pptx"]],
+  ["Complications: Recognition, Immediate Actions, and Prevention", ["Module 6 PowerPoint - Chemotherapy Safety", "IVT_Module_06_Chemotherapy_Safety_Readable_Expanded.pptx"]],
+  ["Skills Stations: Fluid, Tubing, Pump, and Vein Selection", ["Module 8 PowerPoint - In-Person IV Skills Lab", "IVT_Module_08_In_Person_Skills_Lab_Readable_Expanded.pptx"]]
 ]);
 
 for (const module of ivTherapyCourse.modules) {
