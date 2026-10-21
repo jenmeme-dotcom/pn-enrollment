@@ -8,11 +8,13 @@ const require = createRequire(import.meta.url);
 const { ivTherapyCourse } = require("../src/ivTherapyBuildout.js");
 
 const workspaceDir = path.resolve(".");
-const SKILL_DIR = "/Users/freedom/.codex/plugins/cache/openai-primary-runtime/presentations/26.1013.11914/skills/presentations";
+const SKILL_DIR = "/Users/freedom/.codex/plugins/cache/openai-primary-runtime/presentations/26.1017.31632/skills/presentations";
 const RUNTIME_PYTHON = "/Users/freedom/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3";
 const buildDir = path.join(workspaceDir, "tmp", "iv-course-decks");
 const outputDir = path.join(workspaceDir, "course_materials", "iv-therapy-certification-30-hour");
 const sourcePdf = "/Users/freedom/Desktop/JAN INSTRUCTOR COURSE MATERIALS FOR BOOK/20240215125453.pdf";
+const ocrDir = path.resolve(workspaceDir, "..", "tmp", "pdfs", "course_source", "ocr300");
+const manualPageRanges = [[4, 12], [13, 16], [17, 50], [51, 61], [62, 66], [67, 79], [80, 108], [109, 123]];
 const { resolvePresentationFont, finalizePresentation, makeNativeBulletParagraphs } = await import(pathToFileURL(path.join(SKILL_DIR, "container_tools", "artifact_tool_utils.mjs")).href);
 await fs.mkdir(buildDir, { recursive: true });
 await fs.mkdir(outputDir, { recursive: true });
@@ -155,6 +157,81 @@ function sentences(text) {
   return text.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s+/).filter(Boolean);
 }
 
+const ocrCorrections = new Map([
+  ["Bluid", "Fluid"], ["clectrolyte", "electrolyte"], ["clectrolytes", "electrolytes"],
+  ["Intrscellular", "Intracellular"], ["Transpost", "Transport"], ["Metubolism", "Metabolism"],
+  ["Cinculators", "Circulatory"], ["Kespirators", "Respiratory"], ["Pediatries", "Pediatrics"],
+  ["chancteristics", "characteristics"], ["Sclection", "Selection"], ["Consaderations", "Considerations"],
+  ["solation", "solution"], ["needic", "needle"], ["Tochniques", "Techniques"],
+  ["intravcoous", "intravenous"], ["effoctive", "effective"], ["extricellular", "extracellular"],
+  ["kidncy", "kidney"], ["compurtment", "compartment"], ["bomeostatic", "homeostatic"],
+  ["oocur", "occur"], ["cocur", "occur"], ["murse", "nurse"], ["patien", "patient"],
+  ["Nuid", "fluid"], ["Guid", "fluid"], ["Phamacology", "Pharmacology"], ["Handlouk", "Handbook"]
+]);
+
+function normalizeOcr(text) {
+  let value = text.normalize("NFKC")
+    .replace(/\r/g, "")
+    .replace(/(\w)-\n(\w)/g, "$1$2")
+    .replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
+    .replace(/\bPh\b/g, "pH");
+  for (const [bad, good] of ocrCorrections) value = value.replace(new RegExp(`\\b${bad}\\b`, "gi"), good);
+  return value;
+}
+
+function usefulOcrLines(text, pageNumber) {
+  return normalizeOcr(text).split("\n").map((line) => line.replace(/\s+/g, " ").trim()).filter((line) => {
+    if (!line || line === String(pageNumber) || /^page\s+\d+$/i.test(line)) return false;
+    if (/^[|_~`]+$/.test(line)) return false;
+    return /[A-Za-z0-9]/.test(line);
+  });
+}
+
+function splitLongPoint(value, limit = 185) {
+  const clean = value.replace(/^[-•]\s*/, "").replace(/^\d+[.)]\s*/, "").trim();
+  if (clean.length <= limit) return [clean];
+  const parts = clean.split(/(?<=[.!?;:])\s+|,\s+(?=[A-Z])/).map((item) => item.trim()).filter(Boolean);
+  if (parts.length > 1) return parts.flatMap((part) => splitLongPoint(part, limit));
+  const words = clean.split(/\s+/);
+  const output = [];
+  let current = "";
+  for (const word of words) {
+    if (current && `${current} ${word}`.length > limit) { output.push(current); current = word; }
+    else current = current ? `${current} ${word}` : word;
+  }
+  if (current) output.push(current);
+  return output;
+}
+
+function pageTitle(lines, def, pageNumber) {
+  const candidates = lines.slice(0, 8).filter((line) => line.length >= 5 && line.length <= 82 && !/^\d+[.)]/.test(line));
+  const chosen = candidates.find((line) => /objective|outline|fluid|electrolyte|blood|transfusion|nutrition|chemotherapy|venipuncture|complication|calculation|conversion|therapy|patient|legal|scope|vein|catheter/i.test(line)) || candidates[0];
+  return chosen ? chosen.replace(/^(module|unit)\s+(one|two|three|four|five|six|seven|eight|\d+)\s*/i, "").trim() : `${def.title}: source detail`;
+}
+
+async function manualBlocks(def, deckIndex) {
+  const [start, end] = manualPageRanges[deckIndex];
+  const blocks = [];
+  for (let page = start; page <= end; page++) {
+    const pagePath = path.join(ocrDir, `page-${String(page).padStart(3, "0")}.txt`);
+    const lines = usefulOcrLines(await fs.readFile(pagePath, "utf8"), page);
+    if (!lines.length) continue;
+    const title = pageTitle(lines, def, page);
+    const bodyLines = lines.filter((line, index) => !(index < 4 && line === title));
+    const joined = bodyLines.join(" ").replace(/\s+/g, " ");
+    const points = sentences(joined).flatMap((sentence) => splitLongPoint(sentence)).filter((point) => point.length > 3);
+    for (let i = 0; i < points.length; i += 4) {
+      blocks.push({
+        title: i ? `${title} — continued` : title,
+        items: points.slice(i, i + 4),
+        pages: String(page),
+        sourceLabel: `Manual page ${page}`
+      });
+    }
+  }
+  return blocks;
+}
+
 function cleanLessonContent(value = "") {
   return value
     .replace(/QUIZ_DATA_BASE64:[A-Za-z0-9+/=]+/g, "")
@@ -191,7 +268,7 @@ function contentBlocks(value = "", fallbackTitle = "Course content") {
   return output;
 }
 
-function relevantBlocks(def, deckIndex) {
+async function relevantBlocks(def, deckIndex) {
   const blocks = [];
   for (const [heading, body] of def.sections) {
     const details = sentences(body);
@@ -201,6 +278,7 @@ function relevantBlocks(def, deckIndex) {
     const content = lessonMap.get(lessonTitle);
     if (content) blocks.push(...contentBlocks(content, lessonTitle));
   }
+  blocks.push(...await manualBlocks(def, deckIndex));
   const seen = new Set();
   return blocks.filter((block) => {
     const key = `${block.title.toLowerCase()}|${block.items.join(" ").toLowerCase().slice(0, 120)}`;
@@ -214,7 +292,8 @@ function addContentSlide(pres, block, number, moduleLabel, pages) {
   const slide = baseSlide(pres, block.title, number, moduleLabel);
   addBullets(slide, block.items, { left: 92, top: 185, width: 1080, height: 430 }, { fontSize: block.items.length > 3 ? 25 : 28 });
   addText(slide, "Use current orders, facility policy, and authorized scope when applying this information.", { left: 94, top: 642, width: 1070, height: 32 }, { fontSize: 15, color: colors.rust, bold: true });
-  addSourceNotes(slide, pages);
+  if (block.sourceLabel) addText(slide, block.sourceLabel, { left: 94, top: 606, width: 1070, height: 26 }, { fontSize: 14, color: colors.teal, bold: true });
+  addSourceNotes(slide, block.pages || pages);
 }
 
 async function makeDeck(def, deckIndex) {
@@ -225,14 +304,14 @@ async function makeDeck(def, deckIndex) {
   addText(slide, "BROWARD-MIAMI HEALTH INSTITUTE", { left: 76, top: 66, width: 800, height: 32 }, { fontSize: 17, bold: true, color: colors.aqua });
   addText(slide, def.title, { left: 76, top: 190, width: 1040, height: 170 }, { fontSize: 52, bold: true, color: colors.white, verticalAlignment: "middle" });
   addText(slide, `${def.subtitle}  |  30-Hour Basic Intravenous Therapy`, { left: 80, top: 414, width: 920, height: 50 }, { fontSize: 25, color: colors.white });
-  addText(slide, "Expanded instructor presentation", { left: 80, top: 500, width: 760, height: 42 }, { fontSize: 20, color: colors.aqua, bold: true });
+  addText(slide, "Comprehensive instructor presentation • full manual coverage", { left: 80, top: 500, width: 940, height: 42 }, { fontSize: 20, color: colors.aqua, bold: true });
   addSourceNotes(slide, def.page);
 
   slide = baseSlide(pres, "Learning objectives", 2, def.subtitle);
   addBullets(slide, def.objectives, { left: 94, top: 190, width: 1070, height: 390 }, { fontSize: 29 });
   addSourceNotes(slide, def.page);
 
-  const blocks = relevantBlocks(def, deckIndex);
+  const blocks = await relevantBlocks(def, deckIndex);
   let slideNumber = 3;
   for (const block of blocks) addContentSlide(pres, block, slideNumber++, def.subtitle, `${def.page}-${Math.min(148, def.page + 12)}`);
 
@@ -246,7 +325,7 @@ async function makeDeck(def, deckIndex) {
   addText(slide, "Review the course lesson, complete the assessment, and bring questions to the live session.", { left: 94, top: 574, width: 1070, height: 54 }, { fontSize: 22, bold: true, color: colors.teal });
   addSourceNotes(slide, def.page);
 
-  const expandedFile = def.file.replace(/\.pptx$/, "_Readable_Expanded.pptx");
+  const expandedFile = def.file.replace(/\.pptx$/, "_Comprehensive_v5.pptx");
   const candidate = path.join(buildDir, expandedFile.replace(/\.pptx$/, ".candidate.pptx"));
   await (await PresentationFile.exportPptx(pres)).save(candidate);
   const finalPath = path.join(outputDir, expandedFile);
