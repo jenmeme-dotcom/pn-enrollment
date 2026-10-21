@@ -103,6 +103,7 @@ const decks = [
     file: "IVT_Module_08_In_Person_Skills_Lab.pptx", title: "In-Person IV Skills Lab", subtitle: "Module 8", page: 109,
     objectives: ["Demonstrate required psychomotor skills under direct observation", "Respond to infusion problems and complications", "Complete RN-verified competency records"],
     sections: [
+      ["One-day in-person schedule", "The required in-person component is one 8-hour day: 30 minutes of focused review, 2.5 hours of equipment and peripheral-start practice, 1.5 hours of IVPB and access-device work, 1 hour of complication simulation, and 2.5 hours for the examination and RN competency evaluation."],
       ["Station 1: equipment and calculations", "Verify orders, select fluids and tubing, inspect supplies, prime without air, calculate pump and gravity rates, trace lines, and correct common pump alarms."],
       ["Station 2: peripheral insertion", "Prepare the patient and site, select a vein and catheter, insert on a task trainer, connect and assess patency, secure and dress the site, initiate therapy, teach the patient, and document."],
       ["Station 3: secondary infusion and access care", "Verify compatibility, prepare an IV piggyback, program the pump, use the required flushing sequence, evaluate peripheral and central-device dressings, and identify actions outside the learner's authorized role."],
@@ -325,7 +326,7 @@ async function makeDeck(def, deckIndex) {
   addText(slide, "Review the course lesson, complete the assessment, and bring questions to the live session.", { left: 94, top: 574, width: 1070, height: 54 }, { fontSize: 22, bold: true, color: colors.teal });
   addSourceNotes(slide, def.page);
 
-  const expandedFile = def.file.replace(/\.pptx$/, "_Comprehensive_v5.pptx");
+  const expandedFile = def.file.replace(/\.pptx$/, "_22hr_Online_8hr_InPerson_v6.pptx");
   const candidate = path.join(buildDir, expandedFile.replace(/\.pptx$/, ".candidate.pptx"));
   await (await PresentationFile.exportPptx(pres)).save(candidate);
   const finalPath = path.join(outputDir, expandedFile);
