@@ -150,8 +150,16 @@ function baseSlide(pres, title, number, sectionLabel = "") {
   return slide;
 }
 
-function addSourceNotes(slide, pages, extra = "") {
-  slide.speakerNotes.textFrame.setText(`Sources: Supplied Basic Intravenous Therapy Certification manual, pages ${pages}; BMHI IVT 030 course content. ${extra}\nCurrent legal reference: Florida Administrative Code Rule 64B9-12.005, effective July 20, 2023; Florida Statutes section 464.003 (2026). Instructor must verify current institutional policy and current drug/device guidance before use.`);
+function heyGenScript(title, items = []) {
+  const spokenPoints = items.filter(Boolean).map((item) => item.replace(/^[-•]\s*/, "").trim());
+  const explanation = spokenPoints.length
+    ? spokenPoints.map((point, index) => `${index ? "Next" : "First"}, ${point}`).join(" ")
+    : `Introduce ${title} and explain how it supports safe intravenous therapy.`;
+  return `Welcome to this lesson segment on ${title}. ${explanation} Pause here and ask learners to identify the safety check they would complete before proceeding. Reinforce that students must follow current orders, facility policy, their authorized scope, and the supervising registered nurse's direction. Invite learners to replay this segment and record questions for the instructor.`;
+}
+
+function addSourceNotes(slide, pages, extra = "", narration = "") {
+  slide.speakerNotes.textFrame.setText(`HEYGEN INSTRUCTOR SCRIPT\n${narration || heyGenScript("this topic")}\n\nPRODUCTION DIRECTION\nUse a professional nursing instructor avatar, calm pace, neutral clinical background, and captions. Pronounce IV as I-V and IVPB as I-V piggyback.\n\nSOURCES\nSupplied Basic Intravenous Therapy Certification manual, pages ${pages}; BMHI IVT 030 course content. ${extra}\nCurrent legal reference: Florida Administrative Code Rule 64B9-12.005, effective July 20, 2023; Florida Statutes section 464.003 (2026). Instructor must verify current institutional policy and current drug/device guidance before use.`);
 }
 
 function sentences(text) {
@@ -188,7 +196,7 @@ function usefulOcrLines(text, pageNumber) {
   });
 }
 
-function splitLongPoint(value, limit = 185) {
+function splitLongPoint(value, limit = 220) {
   const clean = value.replace(/^[-•]\s*/, "").replace(/^\d+[.)]\s*/, "").trim();
   if (clean.length <= limit) return [clean];
   const parts = clean.split(/(?<=[.!?;:])\s+|,\s+(?=[A-Z])/).map((item) => item.trim()).filter(Boolean);
@@ -202,6 +210,29 @@ function splitLongPoint(value, limit = 185) {
   }
   if (current) output.push(current);
   return output;
+}
+
+function balancedPointChunks(points, { maxItems = 5, maxCharacters = 900 } = {}) {
+  const chunks = [];
+  let current = [];
+  let characterCount = 0;
+  for (const point of points) {
+    const nextCount = characterCount + point.length;
+    if (current.length && (current.length >= maxItems || nextCount > maxCharacters)) {
+      chunks.push(current);
+      current = [];
+      characterCount = 0;
+    }
+    current.push(point);
+    characterCount += point.length;
+  }
+  if (current.length) chunks.push(current);
+
+  // Avoid sparse continuation slides containing only one short point.
+  if (chunks.length > 1 && chunks.at(-1).length === 1 && chunks.at(-2).length >= 3) {
+    chunks.at(-1).unshift(chunks.at(-2).pop());
+  }
+  return chunks;
 }
 
 function pageTitle(lines, def, pageNumber) {
@@ -221,10 +252,11 @@ async function manualBlocks(def, deckIndex) {
     const bodyLines = lines.filter((line, index) => !(index < 4 && line === title));
     const joined = bodyLines.join(" ").replace(/\s+/g, " ");
     const points = sentences(joined).flatMap((sentence) => splitLongPoint(sentence)).filter((point) => point.length > 3);
-    for (let i = 0; i < points.length; i += 4) {
+    const pageChunks = balancedPointChunks(points);
+    for (let i = 0; i < pageChunks.length; i++) {
       blocks.push({
         title: i ? `${title} — continued` : title,
-        items: points.slice(i, i + 4),
+        items: pageChunks[i],
         pages: String(page),
         sourceLabel: `Manual page ${page}`
       });
@@ -261,8 +293,9 @@ function contentBlocks(value = "", fallbackTitle = "Course content") {
       return cleaned.length > 185 ? sentences(cleaned) : [cleaned];
     }).filter((item) => item.length > 2 && !/^\[.\]/.test(item));
     if (!items.length) items = sentences(lines.join(" "));
-    for (let i = 0; i < items.length; i += 4) {
-      const chunk = items.slice(i, i + 4);
+    const contentChunks = balancedPointChunks(items);
+    for (let i = 0; i < contentChunks.length; i++) {
+      const chunk = contentChunks[i];
       output.push({ title: i ? `${title} continued` : title, items: chunk });
     }
   }
@@ -291,10 +324,10 @@ async function relevantBlocks(def, deckIndex) {
 
 function addContentSlide(pres, block, number, moduleLabel, pages) {
   const slide = baseSlide(pres, block.title, number, moduleLabel);
-  addBullets(slide, block.items, { left: 92, top: 185, width: 1080, height: 430 }, { fontSize: block.items.length > 3 ? 25 : 28 });
+  addBullets(slide, block.items, { left: 92, top: 185, width: 1080, height: 430 }, { fontSize: block.items.length > 4 ? 23 : block.items.length > 3 ? 25 : 28 });
   addText(slide, "Use current orders, facility policy, and authorized scope when applying this information.", { left: 94, top: 642, width: 1070, height: 32 }, { fontSize: 15, color: colors.rust, bold: true });
   if (block.sourceLabel) addText(slide, block.sourceLabel, { left: 94, top: 606, width: 1070, height: 26 }, { fontSize: 14, color: colors.teal, bold: true });
-  addSourceNotes(slide, block.pages || pages);
+  addSourceNotes(slide, block.pages || pages, "", heyGenScript(block.title, block.items));
 }
 
 async function makeDeck(def, deckIndex) {
@@ -306,11 +339,11 @@ async function makeDeck(def, deckIndex) {
   addText(slide, def.title, { left: 76, top: 190, width: 1040, height: 170 }, { fontSize: 52, bold: true, color: colors.white, verticalAlignment: "middle" });
   addText(slide, `${def.subtitle}  |  30-Hour Basic Intravenous Therapy`, { left: 80, top: 414, width: 920, height: 50 }, { fontSize: 25, color: colors.white });
   addText(slide, "Comprehensive instructor presentation • full manual coverage", { left: 80, top: 500, width: 940, height: 42 }, { fontSize: 20, color: colors.aqua, bold: true });
-  addSourceNotes(slide, def.page);
+  addSourceNotes(slide, def.page, "", `Welcome to ${def.title}, ${def.subtitle} of the BMHI thirty-hour intravenous therapy course. Explain that this module prepares learners for safe practice and the supervised in-person competency day. Preview the learning objectives and remind learners to complete the matching portal lesson and assessment.`);
 
   slide = baseSlide(pres, "Learning objectives", 2, def.subtitle);
   addBullets(slide, def.objectives, { left: 94, top: 190, width: 1070, height: 390 }, { fontSize: 29 });
-  addSourceNotes(slide, def.page);
+  addSourceNotes(slide, def.page, "", heyGenScript("the learning objectives", def.objectives));
 
   const blocks = await relevantBlocks(def, deckIndex);
   let slideNumber = 3;
@@ -319,14 +352,14 @@ async function makeDeck(def, deckIndex) {
   slide = baseSlide(pres, "Practice and competency check", slideNumber++, def.subtitle);
   addBullets(slide, def.practice, { left: 94, top: 190, width: 1070, height: 330 }, { fontSize: 29 });
   addText(slide, deckIndex === 7 ? "Every critical element requires direct observation and a passing evaluation." : "Complete the matching online lesson and assessment before the in-person laboratory.", { left: 94, top: 560, width: 1070, height: 62 }, { fontSize: 22, bold: true, color: colors.rust });
-  addSourceNotes(slide, def.page, deckIndex === 7 ? "Skills evaluation requires direct observation and written RN verification." : "Online preparation precedes live practice.");
+  addSourceNotes(slide, def.page, deckIndex === 7 ? "Skills evaluation requires direct observation and written RN verification." : "Online preparation precedes live practice.", heyGenScript("practice and competency expectations", def.practice));
 
   slide = baseSlide(pres, "Key points", slideNumber, def.subtitle);
   addBullets(slide, [def.objectives[0], def.sections[1][1], def.sections[3][1]], { left: 94, top: 190, width: 1070, height: 380 }, { fontSize: 27 });
   addText(slide, "Review the course lesson, complete the assessment, and bring questions to the live session.", { left: 94, top: 574, width: 1070, height: 54 }, { fontSize: 22, bold: true, color: colors.teal });
-  addSourceNotes(slide, def.page);
+  addSourceNotes(slide, def.page, "", heyGenScript("the module key points", [def.objectives[0], def.sections[1][1], def.sections[3][1]]));
 
-  const expandedFile = def.file.replace(/\.pptx$/, "_22hr_Online_8hr_InPerson_v6.pptx");
+  const expandedFile = def.file.replace(/\.pptx$/, "_22hr_Online_8hr_InPerson_v9_Consolidated_Scripted.pptx");
   const candidate = path.join(buildDir, expandedFile.replace(/\.pptx$/, ".candidate.pptx"));
   await (await PresentationFile.exportPptx(pres)).save(candidate);
   const finalPath = path.join(outputDir, expandedFile);
