@@ -126,6 +126,66 @@ const lessonTitlesByDeck = [
   ["Skills Stations: Fluid, Tubing, Pump, and Vein Selection", "Deliberate Practice: Peripheral IV Insertion and Dressing", "IV Piggyback, Saline Lock, and Infusion Pump Practice", "Access-Device Assessment and Dressing Simulation", "Complication Simulation and Clinical Documentation", "RN Competency Checkoff - Peripheral IV Start", "RN Competency Checkoff - IVPB, Pump, and Complication Response"]
 ];
 
+// Curated teaching content replaces the former page-by-page OCR dump.  Each
+// item has one teachable point, a clinical application, or a true comparison
+// table.  The supplied manual remains the source reference, not the slide
+// layout.
+const teachingBlocksByDeck = [
+  [
+    { title: "Authority, competency, and policy are three separate checks", items: ["Authority asks whether the law and license permit the activity.", "Competency asks whether the nurse has current education, supervised practice, and validated skill.", "Policy asks whether the employer permits the activity in this setting.", "Safe practice requires all three—not just a course certificate."] },
+    { title: "Before starting any infusion", items: ["Confirm the patient with two approved identifiers.", "Read the complete order: solution or medication, concentration, route, dose, rate, duration, and indication.", "Check allergies, compatibility, access-device suitability, and required laboratory results.", "Stop and clarify any missing, conflicting, or unsafe information before preparing the therapy."] },
+    { title: "The medication-rights safety pause", table: [["Check", "Question to ask"], ["Patient", "Do both identifiers match the order and medication record?"], ["Medication and dose", "Is this the exact product, concentration, and calculated dose?"], ["Route and access", "Is the ordered route appropriate for this device and site?"], ["Time and rate", "Are timing, pump settings, and duration correct?"], ["Response", "What assessment and monitoring are required before, during, and after?"]] },
+    { title: "When the correct action is to stop", items: ["Stop for a questionable order, unexpected patient change, loss of device patency, incompatibility, contamination, or pump setting that cannot be verified.", "Protect the patient first, maintain access only as directed, notify the supervising RN or prescriber, and document objective findings and actions.", "Never continue simply because a medication has already been prepared or a schedule is running late."] }
+  ],
+  [
+    { title: "Start with the patient's question", items: ["Ask what the patient believes the IV is for and what concerns them most.", "Correct misunderstandings before giving more information.", "Use short explanations, one idea at a time, and avoid unexplained abbreviations."] },
+    { title: "A plain-language IV explanation", items: ["Purpose: explain what the infusion is expected to do.", "Process: describe site preparation, catheter placement, connection, and monitoring.", "Sensation: describe expected pressure or brief discomfort without promising a painless procedure.", "Safety: tell the patient which symptoms must be reported immediately."] },
+    { title: "Symptoms the patient should report now", table: [["Patient report", "Why it matters"], ["Burning, stinging, pain, or tightness", "May signal infiltration, phlebitis, or extravasation"], ["Wetness, leaking, or loose dressing", "May indicate disconnection, leakage, or loss of securement"], ["Swelling, redness, warmth, or coolness", "May signal a local complication"], ["Shortness of breath, itching, chills, or dizziness", "May signal a systemic reaction requiring immediate assessment"]] },
+    { title: "Teach-back checks understanding", items: ["Do not ask only, “Do you understand?”", "Ask: “Show me how you will protect this tubing when you move.”", "Ask: “Which changes at the IV site will you report right away?”", "If the answer is incomplete, reteach in a different way and check again."] }
+  ],
+  [
+    { title: "Where body fluid is located", table: [["Compartment", "Location", "Clinical connection"], ["Intracellular", "Inside cells", "Tonicity changes can move water into or out of cells"], ["Intravascular", "Inside blood vessels", "Directly affects perfusion and circulatory volume"], ["Interstitial", "Between cells", "Excess fluid may appear as edema"]] },
+    { title: "Tonicity predicts water movement", table: [["Solution type", "Expected water shift", "Key monitoring"], ["Isotonic", "Primarily expands extracellular volume", "Lung sounds, edema, blood pressure"], ["Hypotonic", "Water moves toward cells", "Neurologic status and cellular swelling risk"], ["Hypertonic", "Water moves out of cells", "Vein irritation, sodium, glucose, and fluid overload"]] },
+    { title: "Metric conversion chart", table: [["Relationship", "Conversion", "Use"], ["Volume", "1 L = 1,000 mL", "Convert the ordered bag volume"], ["Mass", "1 g = 1,000 mg", "Medication-dose conversion"], ["Small mass", "1 mg = 1,000 mcg", "High-alert and weight-based doses"], ["Weight", "1 kg = 2.2 lb", "Convert pounds to kilograms before dosing"], ["Household volume", "1 tsp = 5 mL; 1 Tbsp = 15 mL", "Use only when an approved clinical reference permits"]], note: "Apothecary units are legacy units and are error-prone. Do not guess or rely on OCR-transcribed values; clarify the order and use an approved conversion reference." },
+    { title: "Pump-rate formula", items: ["Formula: mL/hr = total volume in mL ÷ time in hours.", "Example: 1,000 mL ÷ 8 hr = 125 mL/hr.", "Safety check: 125 mL/hr × 8 hr returns the original 1,000 mL.", "Program the pump only after matching the result to the order and confirming the correct channel and line."] },
+    { title: "Gravity-rate formula", items: ["Formula: gtt/min = volume in mL × drop factor in gtt/mL ÷ time in minutes.", "Example: 250 mL × 15 gtt/mL ÷ 90 min = 41.7 gtt/min.", "Round to a whole drop: 42 gtt/min.", "Reassess the drip because patient position, tubing height, and resistance can change a gravity rate."] },
+    { title: "A four-step calculation safety method", table: [["Step", "Action"], ["1. Organize", "Write the ordered volume, time, and tubing factor with units"], ["2. Convert", "Make units consistent before calculating"], ["3. Calculate", "Use one formula and keep units visible"], ["4. Verify", "Work backward and ask whether the answer is clinically reasonable"]] }
+  ],
+  [
+    { title: "Match the component to the therapeutic goal", table: [["Component", "Primary therapeutic goal"], ["Red blood cells", "Improve oxygen-carrying capacity"], ["Platelets", "Support platelet-related hemostasis"], ["Plasma", "Replace multiple coagulation factors when indicated"], ["Cryoprecipitate", "Replace fibrinogen and selected factors when indicated"]] },
+    { title: "The bedside verification pause", items: ["Perform the facility-approved independent or electronic verification at the bedside.", "Match patient identifiers, order, component, blood type and compatibility, unit number, expiration, and product appearance.", "Do not bypass a mismatch, unreadable label, damaged unit, or abnormal appearance."] },
+    { title: "Recognize patterns of transfusion reaction", table: [["Pattern", "Possible findings"], ["Allergic", "Itching, hives, flushing; severe cases may involve airway symptoms"], ["Febrile", "Temperature rise, chills, discomfort"], ["Hemolytic", "Fever, chills, pain, hypotension, hemoglobinuria"], ["Circulatory overload", "Dyspnea, crackles, hypertension, edema"], ["Septic", "High fever, rigors, hypotension, rapid deterioration"]] },
+    { title: "Suspected reaction: first actions", items: ["Stop the transfusion immediately.", "Keep the IV access available with compatible fluid and new tubing as policy directs.", "Assess airway, breathing, circulation, vital signs, and the patient’s symptoms.", "Notify the supervising RN and prescriber; recheck identification; complete ordered specimens, product return, and documentation."] }
+  ],
+  [
+    { title: "Peripheral versus central parenteral nutrition", table: [["Feature", "Peripheral PN", "Central PN"], ["Concentration", "Lower osmolarity", "More concentrated"], ["Typical use", "Shorter-term or supplemental", "Longer-term or full nutritional support"], ["Access", "Appropriate peripheral vein", "Central venous access"], ["Major concern", "Phlebitis and limited tolerance", "Central-line infection and metabolic complications"]] },
+    { title: "Verify the PN bag before connection", items: ["Match the patient, formula, components, additives, route, total volume, rate, and expiration to the order.", "Inspect for separation, precipitate, particles, leaks, or damage.", "Confirm the correct filter, tubing, pump channel, and dedicated lumen.", "Resolve any discrepancy with pharmacy and the supervising clinician before starting."] },
+    { title: "Monitoring connects the formula to the patient", table: [["Monitor", "What it can reveal"], ["Glucose", "Hyperglycemia or hypoglycemia"], ["Daily weight and fluid balance", "Fluid gain, deficit, or overload"], ["Electrolytes", "Shifts and possible refeeding syndrome"], ["Temperature and line site", "Possible infection"], ["Liver, renal, and triglyceride results", "Tolerance and need for regimen adjustment"]] },
+    { title: "If PN is delayed or interrupted", items: ["Do not speed up the infusion to catch up.", "Assess the reason for interruption and check the current glucose when indicated.", "Notify the supervising clinician and follow the ordered contingency plan.", "Document the actual amount infused, interruption, assessment, notifications, and new instructions."] }
+  ],
+  [
+    { title: "Chemotherapy is a high-alert workflow", items: ["Confirm the protocol, current cycle and day, dose basis, laboratory criteria, premedications, route, and access device.", "Use every required independent check and never assume a prior cycle makes the current order correct.", "Participate only within legal scope, validated competency, and direct-supervision requirements."] },
+    { title: "Hazardous-drug exposure routes", table: [["Route", "Prevention"], ["Skin or eye contact", "Chemotherapy-rated gloves, gown, face and eye protection as indicated"], ["Inhalation", "Avoid aerosol generation and use required engineering controls"], ["Sharps injury", "Use safety devices and never recap"], ["Contaminated waste or body fluids", "Follow hazardous-waste and excreta precautions"]] },
+    { title: "Extravasation warning signs", items: ["Pain, burning, stinging, swelling, blanching, redness, leakage, resistance, or absent blood return may signal extravasation.", "Stop the infusion immediately; do not flush.", "Leave the catheter in place when the agent-specific protocol calls for aspiration or antidote.", "Notify the qualified clinician and follow the exact drug-specific protocol for aspiration, antidote, compress, elevation, documentation, and follow-up."] },
+    { title: "Systemic findings that require escalation", items: ["Airway symptoms, hypotension, severe dyspnea, or rapidly worsening reaction.", "Fever or infection symptoms in an immunocompromised patient.", "Unexpected bleeding, severe vomiting or diarrhea, altered mental status, or critical laboratory results.", "Assess, stop or hold therapy as authorized, and activate the emergency pathway."] }
+  ],
+  [
+    { title: "Choose the site before the catheter", items: ["Start with the prescribed therapy: pH, osmolarity, duration, flow requirement, and vesicant risk affect device choice.", "Select a vein that is palpable, resilient, and appropriate for the therapy.", "Prefer the smallest suitable gauge and shortest catheter.", "Avoid infected, injured, poorly perfused, or policy-restricted extremities and areas of flexion when possible."] },
+    { title: "Peripheral catheter selection", table: [["Clinical need", "Selection principle"], ["Routine fluids or intermittent medication", "Use the smallest gauge that reliably supports therapy"], ["Rapid volume or blood", "A larger bore may be required when clinically appropriate"], ["Fragile or small veins", "Choose a smaller gauge and appropriate short catheter"], ["Long duration or irritating therapy", "Reassess whether a different vascular-access device is indicated"]] },
+    { title: "Insertion sequence: prepare and access", items: ["Verify the order, identify and teach the patient, perform hand hygiene, and gather supplies.", "Position the limb, assess veins, apply the tourniquet, and select the site.", "Cleanse with the approved antiseptic using the required friction and allow it to dry completely.", "Stabilize the vein, insert bevel up, observe flashback, lower the angle, and advance the catheter—not the needle."] },
+    { title: "Insertion sequence: connect and secure", items: ["Release the tourniquet, apply appropriate pressure, activate the sharps safety device, and discard immediately.", "Connect the primed extension without contaminating key parts.", "Confirm patency using the approved assessment; never force a flush.", "Secure and dress the catheter, label it, start the ordered therapy, teach the patient, and document."] },
+    { title: "Local complication comparison", table: [["Finding", "Likely concern", "Immediate priority"], ["Cool, pale swelling; slowed infusion", "Infiltration", "Stop infusion and follow infiltration protocol"], ["Pain, warmth, redness, venous cord", "Phlebitis", "Stop infusion, remove as indicated, assess and report"], ["Burning, blistering, tissue injury with vesicant", "Extravasation", "Stop; do not flush; follow agent-specific protocol"], ["Drainage, tenderness, fever", "Local or bloodstream infection", "Stop unsafe use, assess, notify, and follow culture/removal policy"]] },
+    { title: "Complete documentation tells the clinical story", items: ["Record date and time, site, vein or anatomic location, catheter gauge and length when required, number of attempts, and inserter.", "Record skin preparation, dressing, securement, patency assessment, solution, rate, pump, and patient tolerance.", "Document teaching, complications, actions, notifications, and response."] }
+  ],
+  [
+    { title: "Eight-hour in-person skills day", table: [["Time", "Activity"], ["8:00–8:30", "Safety briefing, objectives, and calculation check"], ["8:30–11:00", "Equipment, priming, pump, vein selection, and peripheral starts"], ["11:00–12:00", "IVPB and saline-lock practice"], ["12:00–12:30", "Meal break"], ["12:30–1:30", "Access-device assessment and dressing simulation"], ["1:30–2:30", "Complication scenarios and documentation"], ["2:30–4:30", "RN competency checkoffs, remediation, and final evaluation"]] },
+    { title: "Calculation reference chart", table: [["Task", "Formula or relationship"], ["Pump rate", "mL/hr = volume (mL) ÷ time (hr)"], ["Gravity rate", "gtt/min = volume × drop factor ÷ time (min)"], ["Volume", "1 L = 1,000 mL"], ["Mass", "1 g = 1,000 mg; 1 mg = 1,000 mcg"], ["Weight", "kg = lb ÷ 2.2"]], note: "Legacy apothecary values are not used from the OCR source. Clarify any order written with an unfamiliar or ambiguous unit." },
+    { title: "Checkoff: peripheral IV start", items: ["Verify the order and patient; assess therapy and site; explain the procedure.", "Maintain asepsis and allow antiseptic to dry.", "Insert safely, activate sharps protection, connect without contamination, and assess patency.", "Secure, dress, label, start therapy, reassess, teach, and document.", "Any missed critical safety step requires remediation and repeat demonstration."] },
+    { title: "Checkoff: IVPB and pump", items: ["Verify the primary and secondary orders and compatibility.", "Prepare and label the secondary medication using aseptic technique.", "Trace the line from patient to source, connect to the correct port, and position bags correctly.", "Program the correct channel, volume, and rate; independently verify high-alert settings when required.", "Confirm flow, monitor the patient and site, and document the response."] },
+    { title: "Scenario response pattern", table: [["Step", "Learner behavior"], ["Recognize", "Name the abnormal cue and likely complication"], ["Stop or protect", "Stop unsafe therapy and protect the patient"], ["Assess", "Check site, airway, breathing, circulation, vital signs, and symptoms"], ["Escalate", "Notify the RN/prescriber or activate emergency response"], ["Document", "Record findings, actions, notifications, orders, and response"]] }
+  ]
+];
+
 function addText(slide, text, position, style = {}) {
   const box = slide.shapes.add({ geometry: "textbox", position, fill: "none", line: { fill: "none", width: 0 } });
   box.text = text;
@@ -308,18 +368,35 @@ async function relevantBlocks(def, deckIndex) {
     const details = sentences(body);
     blocks.push({ title: heading, items: details });
   }
-  for (const lessonTitle of lessonTitlesByDeck[deckIndex]) {
-    const content = lessonMap.get(lessonTitle);
-    if (content) blocks.push(...contentBlocks(content, lessonTitle));
-  }
-  blocks.push(...await manualBlocks(def, deckIndex));
+  blocks.push(...teachingBlocksByDeck[deckIndex]);
   const seen = new Set();
   return blocks.filter((block) => {
-    const key = `${block.title.toLowerCase()}|${block.items.join(" ").toLowerCase().slice(0, 120)}`;
+    const contentKey = block.items ? block.items.join(" ") : block.table.flat().join(" ");
+    const key = `${block.title.toLowerCase()}|${contentKey.toLowerCase().slice(0, 120)}`;
     if (seen.has(key)) return false;
     seen.add(key);
-    return block.items.length;
+    return block.items?.length || block.table?.length;
   });
+}
+
+function addTableSlide(pres, block, number, moduleLabel, pages) {
+  const slide = baseSlide(pres, block.title, number, moduleLabel);
+  const rows = block.table;
+  const cols = rows[0].length;
+  const left = 82;
+  const top = 178;
+  const width = 1110;
+  const height = block.note ? 390 : 450;
+  const rowHeight = height / rows.length;
+  const colWidth = width / cols;
+  rows.forEach((row, r) => row.forEach((cell, c) => {
+    const header = r === 0;
+    slide.shapes.add({ geometry: "rect", position: { left: left + c * colWidth, top: top + r * rowHeight, width: colWidth, height: rowHeight }, fill: header ? colors.navy : r % 2 ? colors.white : colors.aqua, line: { fill: colors.gray, width: 1 } });
+    addText(slide, cell, { left: left + c * colWidth + 10, top: top + r * rowHeight + 7, width: colWidth - 20, height: rowHeight - 14 }, { fontSize: header ? 17 : 16, bold: header, color: header ? colors.white : colors.ink, verticalAlignment: "middle" });
+  }));
+  if (block.note) addText(slide, block.note, { left: 88, top: 590, width: 1090, height: 58 }, { fontSize: 17, bold: true, color: colors.rust, verticalAlignment: "middle" });
+  const narrationItems = rows.slice(1).map((row) => `${row[0]}: ${row.slice(1).join("; ")}`);
+  addSourceNotes(slide, block.pages || pages, block.note || "", heyGenScript(block.title, narrationItems.concat(block.note || [])));
 }
 
 function addContentSlide(pres, block, number, moduleLabel, pages) {
@@ -338,7 +415,7 @@ async function makeDeck(def, deckIndex) {
   addText(slide, "BROWARD-MIAMI HEALTH INSTITUTE", { left: 76, top: 66, width: 800, height: 32 }, { fontSize: 17, bold: true, color: colors.aqua });
   addText(slide, def.title, { left: 76, top: 190, width: 1040, height: 170 }, { fontSize: 52, bold: true, color: colors.white, verticalAlignment: "middle" });
   addText(slide, `${def.subtitle}  |  30-Hour Basic Intravenous Therapy`, { left: 80, top: 414, width: 920, height: 50 }, { fontSize: 25, color: colors.white });
-  addText(slide, "Comprehensive instructor presentation • full manual coverage", { left: 80, top: 500, width: 940, height: 42 }, { fontSize: 20, color: colors.aqua, bold: true });
+  addText(slide, "Student presentation • clinical examples • guided practice", { left: 80, top: 500, width: 940, height: 42 }, { fontSize: 20, color: colors.aqua, bold: true });
   addSourceNotes(slide, def.page, "", `Welcome to ${def.title}, ${def.subtitle} of the BMHI thirty-hour intravenous therapy course. Explain that this module prepares learners for safe practice and the supervised in-person competency day. Preview the learning objectives and remind learners to complete the matching portal lesson and assessment.`);
 
   slide = baseSlide(pres, "Learning objectives", 2, def.subtitle);
@@ -347,7 +424,10 @@ async function makeDeck(def, deckIndex) {
 
   const blocks = await relevantBlocks(def, deckIndex);
   let slideNumber = 3;
-  for (const block of blocks) addContentSlide(pres, block, slideNumber++, def.subtitle, `${def.page}-${Math.min(148, def.page + 12)}`);
+  for (const block of blocks) {
+    if (block.table) addTableSlide(pres, block, slideNumber++, def.subtitle, `${manualPageRanges[deckIndex][0]}-${manualPageRanges[deckIndex][1]}`);
+    else addContentSlide(pres, block, slideNumber++, def.subtitle, `${manualPageRanges[deckIndex][0]}-${manualPageRanges[deckIndex][1]}`);
+  }
 
   slide = baseSlide(pres, "Practice and competency check", slideNumber++, def.subtitle);
   addBullets(slide, def.practice, { left: 94, top: 190, width: 1070, height: 330 }, { fontSize: 29 });
@@ -359,7 +439,7 @@ async function makeDeck(def, deckIndex) {
   addText(slide, "Review the course lesson, complete the assessment, and bring questions to the live session.", { left: 94, top: 574, width: 1070, height: 54 }, { fontSize: 22, bold: true, color: colors.teal });
   addSourceNotes(slide, def.page, "", heyGenScript("the module key points", [def.objectives[0], def.sections[1][1], def.sections[3][1]]));
 
-  const expandedFile = def.file.replace(/\.pptx$/, "_22hr_Online_8hr_InPerson_v9_Consolidated_Scripted.pptx");
+  const expandedFile = def.file.replace(/\.pptx$/, "_22hr_Online_8hr_InPerson_v10_Student_Friendly_Scripted.pptx");
   const candidate = path.join(buildDir, expandedFile.replace(/\.pptx$/, ".candidate.pptx"));
   await (await PresentationFile.exportPptx(pres)).save(candidate);
   const finalPath = path.join(outputDir, expandedFile);
