@@ -121,3 +121,9 @@ Four original BMHI course visuals were added for this revision: skin and subcuta
 
 The older study guide was used as a topic source, not as current regulatory or procedural authority. BMHI excluded its former 18-hour/12-hour schedule, outdated Florida-rule wording, historical infection statistics, fixed flush recipes, legacy dressing and tubing intervals, and device-brand instructions. The phlebotomy packet's certification fees, order-of-draw content, specimen-processing material, and phlebotomy-only procedures were also excluded. Current Florida law, OSHA requirements, manufacturer instructions, and facility policy control whenever they differ from the source packets.
 
+## Complication recognition revision for version 17
+
+Module 7 now includes a realistic four-panel comparison of infiltration, phlebitis, extravasation, and local catheter-site infection. A second skills-lab visual demonstrates the first response: stop the infusion, assess the patient and site, protect the line when the medication-specific protocol requires aspiration or antidote delivery, notify the appropriate clinician, and document follow-up.
+
+The intervention table emphasizes that compress selection, catheter removal timing, aspiration, and antidote use depend on the infused agent and current facility protocol. The images are teaching examples rather than diagnostic photographs and must receive qualified nursing review before publication.
+
