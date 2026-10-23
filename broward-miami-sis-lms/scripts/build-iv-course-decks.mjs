@@ -21,6 +21,22 @@ await fs.mkdir(outputDir, { recursive: true });
 const font = resolvePresentationFont();
 const colors = { navy: "#15324A", teal: "#237B82", aqua: "#CFEDEF", cream: "#F7F4EE", ink: "#13212D", rust: "#B94F3D", white: "#FFFFFF", gray: "#E3E8EB" };
 
+const mediaByDeck = [
+  { file: "pexels-6129154.jpg", alt: "Nurse and physicians reviewing a clinical chart", creator: "RDNE Stock project", url: "https://www.pexels.com/photo/doctor-reading-a-medical-chart-held-by-a-nurse-6129154/" },
+  { file: "pexels-4269202.jpg", alt: "Nurse speaking with a patient in a clinical setting", creator: "Cedric Fauntleroy", url: "https://www.pexels.com/photo/nurses-having-a-conversation-4269202/" },
+  { file: "pexels-6129679.jpg", alt: "Healthcare professional operating an infusion pump", creator: "RDNE Stock project", url: "https://www.pexels.com/photo/close-up-photo-of-an-infusion-pump-6129679/" },
+  { file: "pexels-3845115.jpg", alt: "Patient receiving intravenous therapy in a hospital", creator: "Anna Shvets", url: "https://www.pexels.com/photo/patient-with-iv-line-3845115/" },
+  { file: "pexels-11081177.jpg", alt: "Intravenous fluid and monitoring equipment in a hospital", creator: "Stéf -b.", url: "https://www.pexels.com/photo/iv-drip-in-hospital-11081177/" },
+  { file: "pexels-14513020.jpg", alt: "Healthcare professionals wearing protective equipment", creator: "Roman Muntean", url: "https://www.pexels.com/photo/medical-professionals-wearing-personal-protective-equipment-14513020/" },
+  { file: "pexels-35645529.jpg", alt: "Nursing students practicing on a medical mannequin", creator: "Sahil Singh", url: "https://www.pexels.com/photo/nurses-training-with-medical-mannequin-in-simulation-lab-35645529/" },
+  { file: "pexels-32213307.jpg", alt: "Nursing students learning in a laboratory setting", creator: "Yusuf Çelik", url: "https://www.pexels.com/photo/aspiring-nurse-students-in-laboratory-setting-32213307/" }
+];
+
+async function readImageBlob(imagePath) {
+  const bytes = await fs.readFile(imagePath);
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+}
+
 const decks = [
   {
     file: "IVT_Module_01_Florida_Scope_and_Safe_Practice.pptx", title: "Florida Scope and Safe IV Practice", subtitle: "Module 1", page: 4,
@@ -411,12 +427,22 @@ async function makeDeck(def, deckIndex) {
   const pres = Presentation.create({ slideSize: { width: 1280, height: 720 } });
   let slide = pres.slides.add();
   slide.background.fill = colors.navy;
+  const media = mediaByDeck[deckIndex];
+  const mediaPath = path.join(outputDir, "media", "pexels", media.file);
+  slide.images.add({
+    blob: await readImageBlob(mediaPath),
+    contentType: "image/jpeg",
+    alt: media.alt,
+    fit: "cover",
+    position: { left: 825, top: 0, width: 455, height: 720 }
+  });
   slide.shapes.add({ geometry: "rect", position: { left: 0, top: 0, width: 28, height: 720 }, fill: colors.teal, line: { fill: colors.teal, width: 0 } });
-  addText(slide, "BROWARD-MIAMI HEALTH INSTITUTE", { left: 76, top: 66, width: 800, height: 32 }, { fontSize: 17, bold: true, color: colors.aqua });
-  addText(slide, def.title, { left: 76, top: 190, width: 1040, height: 170 }, { fontSize: 52, bold: true, color: colors.white, verticalAlignment: "middle" });
-  addText(slide, `${def.subtitle}  |  30-Hour Basic Intravenous Therapy`, { left: 80, top: 414, width: 920, height: 50 }, { fontSize: 25, color: colors.white });
-  addText(slide, "Student presentation • clinical examples • guided practice", { left: 80, top: 500, width: 940, height: 42 }, { fontSize: 20, color: colors.aqua, bold: true });
-  addSourceNotes(slide, def.page, "", `Welcome to ${def.title}, ${def.subtitle} of the BMHI thirty-hour intravenous therapy course. Explain that this module prepares learners for safe practice and the supervised in-person competency day. Preview the learning objectives and remind learners to complete the matching portal lesson and assessment.`);
+  slide.shapes.add({ geometry: "rect", position: { left: 790, top: 0, width: 35, height: 720 }, fill: colors.teal, line: { fill: colors.teal, width: 0 } });
+  addText(slide, "BROWARD-MIAMI HEALTH INSTITUTE", { left: 76, top: 66, width: 680, height: 32 }, { fontSize: 17, bold: true, color: colors.aqua });
+  addText(slide, def.title, { left: 76, top: 170, width: 660, height: 190 }, { fontSize: 48, bold: true, color: colors.white, verticalAlignment: "middle" });
+  addText(slide, `${def.subtitle}  |  30-Hour Basic Intravenous Therapy`, { left: 80, top: 414, width: 660, height: 60 }, { fontSize: 23, color: colors.white });
+  addText(slide, "Student presentation • clinical examples • guided practice", { left: 80, top: 500, width: 660, height: 42 }, { fontSize: 19, color: colors.aqua, bold: true });
+  addSourceNotes(slide, def.page, `Cover media: Pexels photo by ${media.creator}, ${media.url}, downloaded October 23, 2026 under the Pexels License.`, `Welcome to ${def.title}, ${def.subtitle} of the BMHI thirty-hour intravenous therapy course. Explain that this module prepares learners for safe practice and the supervised in-person competency day. Preview the learning objectives and remind learners to complete the matching portal lesson and assessment.`);
 
   slide = baseSlide(pres, "Learning objectives", 2, def.subtitle);
   addBullets(slide, def.objectives, { left: 94, top: 190, width: 1070, height: 390 }, { fontSize: 29 });
@@ -439,7 +465,7 @@ async function makeDeck(def, deckIndex) {
   addText(slide, "Review the course lesson, complete the assessment, and bring questions to the live session.", { left: 94, top: 574, width: 1070, height: 54 }, { fontSize: 22, bold: true, color: colors.teal });
   addSourceNotes(slide, def.page, "", heyGenScript("the module key points", [def.objectives[0], def.sections[1][1], def.sections[3][1]]));
 
-  const expandedFile = def.file.replace(/\.pptx$/, "_22hr_Online_8hr_InPerson_v10_Student_Friendly_Scripted.pptx");
+  const expandedFile = def.file.replace(/\.pptx$/, "_22hr_Online_8hr_InPerson_v11_Media_Enhanced_Scripted.pptx");
   const candidate = path.join(buildDir, expandedFile.replace(/\.pptx$/, ".candidate.pptx"));
   await (await PresentationFile.exportPptx(pres)).save(candidate);
   const finalPath = path.join(outputDir, expandedFile);
