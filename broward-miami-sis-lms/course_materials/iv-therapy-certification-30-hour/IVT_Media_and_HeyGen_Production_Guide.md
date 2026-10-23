@@ -93,3 +93,9 @@ The current v10 PowerPoints contain one Pexels image on each module cover. BMHI 
 
 Before publishing, a qualified nurse must review the complete exported video rather than only the PowerPoint. The reviewer should verify equipment, PPE, device terminology, calculations, insertion and dressing technique, patient positioning, narration, captions, and the distinction between demonstration and supervised competency evaluation.
 
+## Supplemental peripheral-IV source integration
+
+BMHI incorporated selected instructional material from *Peripheral Intravenous Initiation Self Learning Module*, FH Vascular Access Regional Shared Work Team, Version 5, May 2012, into PowerPoint version 12. The additions cover patient comfort and positioning, vein-wall anatomy, palpation, vein-distension strategies, unsuccessful-insertion response, infusion-flow troubleshooting, competency decision criteria, and catheter-integrity assessment during removal.
+
+The source originated outside Florida and contains dated facility-specific practices. BMHI did not import its jurisdiction-specific scope rules, branded pump procedures, fixed tubing-change intervals, or superseded facility protocols. Instructors must teach the adapted slides using current Florida requirements, current manufacturer instructions, and the learner’s clinical-site policy.
+
