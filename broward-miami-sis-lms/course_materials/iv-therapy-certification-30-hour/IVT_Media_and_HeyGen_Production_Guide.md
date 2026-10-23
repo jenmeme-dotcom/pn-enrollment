@@ -113,5 +113,11 @@ The PowerPoints do not reproduce the study guide's scanned pages. Dense source t
 
 The 2013 packet remains a historical content source. Version 15 excludes or reframes outdated Florida rule text, the former 18-hour/12-hour schedule, obsolete product names, fixed tubing and dressing intervals, generic flush recipes, historical infection statistics, and medication-treatment lists that require current orders. A qualified Florida RN must complete the final clinical and regulatory review before publication.
 
+## Teaching-flow and visual revision for version 16
+
+Version 16 responds to faculty review that the decks needed a stronger instructor-led sequence and more visual variety. Module 1 now teaches all seven medication and fluid rights and connects them to ongoing monitoring. Module 3 adds a visual fluid-compartment lesson, physiologic regulation of water balance, current crystalloid examples, fluid-selection questions, and a before-during-after reassessment sequence. Module 7 now shows an actual skin cross-section, explains why every skin layer matters, maps the superficial veins of the hand and forearm, compares advantages and disadvantages of common hand, wrist, forearm, and antecubital sites, and presents a photographed IV-start supply setup with a complete checklist.
+
+Four original BMHI course visuals were added for this revision: skin and subcutaneous anatomy, the upper-extremity superficial venous network, an organized peripheral-IV supply tray, and a three-panel fluid-compartment and tonicity illustration. The standard slide layout also received stronger top and bottom color framing while preserving large readable type, editable tables, source notes, and the HeyGen script on every slide.
+
 The older study guide was used as a topic source, not as current regulatory or procedural authority. BMHI excluded its former 18-hour/12-hour schedule, outdated Florida-rule wording, historical infection statistics, fixed flush recipes, legacy dressing and tubing intervals, and device-brand instructions. The phlebotomy packet's certification fees, order-of-draw content, specimen-processing material, and phlebotomy-only procedures were also excluded. Current Florida law, OSHA requirements, manufacturer instructions, and facility policy control whenever they differ from the source packets.
 
