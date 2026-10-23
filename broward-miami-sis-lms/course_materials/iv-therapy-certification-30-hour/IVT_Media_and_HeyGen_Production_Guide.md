@@ -95,7 +95,13 @@ Before publishing, a qualified nurse must review the complete exported video rat
 
 ## Supplemental peripheral-IV source integration
 
-BMHI incorporated selected instructional material from *Peripheral Intravenous Initiation Self Learning Module*, FH Vascular Access Regional Shared Work Team, Version 5, May 2012, into PowerPoint version 12. The additions cover patient comfort and positioning, vein-wall anatomy, palpation, vein-distension strategies, unsuccessful-insertion response, infusion-flow troubleshooting, competency decision criteria, and catheter-integrity assessment during removal.
+BMHI incorporated selected instructional material from *Peripheral Intravenous Initiation Self Learning Module*, FH Vascular Access Regional Shared Work Team, Version 5, May 2012, into PowerPoint version 13. The additions cover patient comfort and positioning, vein-wall anatomy, palpation, vein-distension strategies, unsuccessful-insertion response, infusion-flow troubleshooting, competency decision criteria, and catheter-integrity assessment during removal.
 
 The source originated outside Florida and contains dated facility-specific practices. BMHI did not import its jurisdiction-specific scope rules, branded pump procedures, fixed tubing-change intervals, or superseded facility protocols. Instructors must teach the adapted slides using current Florida requirements, current manufacturer instructions, and the learner’s clinical-site policy.
+
+## Additional source integration for version 13
+
+BMHI also reviewed *30 Hour IV Certification Study Guide* (revised March 2013) and *Phlebotomy Skills and Practicum Review*. Version 13 adds student-friendly teaching slides on vein-versus-artery recognition, sharps injury prevention, immediate occupational-exposure response, vascular-access device distinctions, and urgent central-line findings. Each added slide has an original HeyGen narration script in its speaker notes and identifies the supporting source pages.
+
+The older study guide was used as a topic source, not as current regulatory or procedural authority. BMHI excluded its former 18-hour/12-hour schedule, outdated Florida-rule wording, historical infection statistics, fixed flush recipes, legacy dressing and tubing intervals, and device-brand instructions. The phlebotomy packet's certification fees, order-of-draw content, specimen-processing material, and phlebotomy-only procedures were also excluded. Current Florida law, OSHA requirements, manufacturer instructions, and facility policy control whenever they differ from the source packets.
 
