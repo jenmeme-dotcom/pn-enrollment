@@ -9479,8 +9479,8 @@ app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res)
               <td>
                 <div class="instructor-name-actions">
                   <strong>${escapeHtml(instructor.first_name)} ${escapeHtml(instructor.last_name)}</strong>
-                  <form method="post" action="/admin/instructor-roles/${encodeURIComponent(instructor.email)}/remove" class="inline-form" onsubmit="return confirm('Remove ${escapeHtml(instructor.first_name)} ${escapeHtml(instructor.last_name)} from instructor access? Their historical records will be preserved.');">
-                    <button class="small ghost danger" type="submit">Remove</button>
+                  <form method="post" action="/admin/instructor-roles/${encodeURIComponent(instructor.email)}/deactivate" class="inline-form" onsubmit="return confirm('Inactivate instructor access for ${escapeHtml(instructor.first_name)} ${escapeHtml(instructor.last_name)}? Their historical records will be preserved.');">
+                    <button class="small ghost danger" type="submit">Inactivate access</button>
                   </form>
                 </div>
               </td>
@@ -9527,7 +9527,7 @@ app.post("/admin/instructor-roles/refresh-approved", requireAuth, requireRole("a
   res.redirect("/admin/instructor-roles");
 });
 
-app.post("/admin/instructor-roles/:email/remove", requireAuth, requireRole("admin"), (req, res) => {
+app.post("/admin/instructor-roles/:email/deactivate", requireAuth, requireRole("admin"), (req, res) => {
   const email = String(req.params.email || "").toLowerCase();
   const instructor = db.prepare("SELECT id, first_name, last_name, email FROM users WHERE lower(email) = ? AND role = 'instructor'").get(email);
   if (!instructor) return res.status(404).send("Instructor account not found");
@@ -9535,10 +9535,10 @@ app.post("/admin/instructor-roles/:email/remove", requireAuth, requireRole("admi
     UPDATE users
     SET status = 'inactive',
       organization_status = 'not_organized',
-      class_lock_reason = 'Removed from instructor access by admin'
+      class_lock_reason = 'Instructor access inactivated by admin'
     WHERE id = ? AND role = 'instructor'
   `).run(instructor.id);
-  flash(req, result.changes ? `${instructor.first_name} ${instructor.last_name} was removed from instructor access.` : "Instructor access was not changed.");
+  flash(req, result.changes ? `${instructor.first_name} ${instructor.last_name}'s instructor access was inactivated. Historical records were preserved.` : "Instructor access was not changed.");
   res.redirect("/admin/instructor-roles");
 });
 
