@@ -31,11 +31,9 @@ const {
 
 const instructorAccessDefaultPassword = "InstructorPass123!";
 const instructorLoginRepairs = new Map([
-  ["dayana.diaz@browardmiamihi.com", { firstName: "Dayana", lastName: "Diaz" }],
   ["natacha.aleman@browardmiamihi.com", { firstName: "Natacha Andrea", lastName: "Aleman" }]
 ]);
 const instructorAccessAccounts = [
-  { firstName: "Dayana", lastName: "Diaz", email: "dayana.diaz@browardmiamihi.com", phone: "" },
   { firstName: "Natacha Andrea", lastName: "Aleman", email: "natacha.aleman@browardmiamihi.com", phone: "" }
 ];
 const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
@@ -67,6 +65,7 @@ function ensureInstructorAccessAccounts() {
     WHERE role IN ('admin', 'instructor')
       AND (
         lower(email) IN (
+          'dayana.diaz@browardmiamihi.com',
           'roney.hernandez@browardmiamihi.com',
           'roney.hernandez.instructor@browardmiamihi.com',
           'roney.hernandez.instructor-retired@browardmiamihi.com',
@@ -9450,13 +9449,13 @@ app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res)
       </div>
       <form method="post" action="/admin/instructor-roles" class="form-grid">
         <label>First name
-          <input name="firstName" required placeholder="Dayana">
+          <input name="firstName" required placeholder="First name">
         </label>
         <label>Last name
-          <input name="lastName" required placeholder="Diaz">
+          <input name="lastName" required placeholder="Last name">
         </label>
         <label>Email username
-          <input type="email" name="email" required placeholder="dayana.diaz@browardmiamihi.com">
+          <input type="email" name="email" required placeholder="instructor@example.com">
         </label>
         <label>Phone
           <input name="phone" placeholder="Optional">
@@ -9480,8 +9479,8 @@ app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res)
               <td>
                 <div class="instructor-name-actions">
                   <strong>${escapeHtml(instructor.first_name)} ${escapeHtml(instructor.last_name)}</strong>
-                  <form method="post" action="/admin/instructor-roles/${encodeURIComponent(instructor.email)}/deactivate" class="inline-form" onsubmit="return confirm('Inactivate instructor access for ${escapeHtml(instructor.first_name)} ${escapeHtml(instructor.last_name)}?');">
-                    <button class="small ghost danger" type="submit">Inactivate access</button>
+                  <form method="post" action="/admin/instructor-roles/${encodeURIComponent(instructor.email)}/remove" class="inline-form" onsubmit="return confirm('Remove ${escapeHtml(instructor.first_name)} ${escapeHtml(instructor.last_name)} from instructor access? Their historical records will be preserved.');">
+                    <button class="small ghost danger" type="submit">Remove</button>
                   </form>
                 </div>
               </td>
@@ -9524,11 +9523,11 @@ app.post("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res
 
 app.post("/admin/instructor-roles/refresh-approved", requireAuth, requireRole("admin"), (req, res) => {
   ensureInstructorAccessAccounts();
-  flash(req, "Approved instructor accounts were refreshed. Dayana Diaz and Natacha Andrea Aleman can use Faculty Login now.");
+  flash(req, "Approved instructor accounts were refreshed. Natacha Andrea Aleman can use Faculty Login now.");
   res.redirect("/admin/instructor-roles");
 });
 
-app.post("/admin/instructor-roles/:email/deactivate", requireAuth, requireRole("admin"), (req, res) => {
+app.post("/admin/instructor-roles/:email/remove", requireAuth, requireRole("admin"), (req, res) => {
   const email = String(req.params.email || "").toLowerCase();
   const instructor = db.prepare("SELECT id, first_name, last_name, email FROM users WHERE lower(email) = ? AND role = 'instructor'").get(email);
   if (!instructor) return res.status(404).send("Instructor account not found");
@@ -9536,10 +9535,10 @@ app.post("/admin/instructor-roles/:email/deactivate", requireAuth, requireRole("
     UPDATE users
     SET status = 'inactive',
       organization_status = 'not_organized',
-      class_lock_reason = 'Instructor access inactivated by admin'
+      class_lock_reason = 'Removed from instructor access by admin'
     WHERE id = ? AND role = 'instructor'
   `).run(instructor.id);
-  flash(req, result.changes ? `${instructor.first_name} ${instructor.last_name}'s instructor access was inactivated.` : "Instructor access was not changed.");
+  flash(req, result.changes ? `${instructor.first_name} ${instructor.last_name} was removed from instructor access.` : "Instructor access was not changed.");
   res.redirect("/admin/instructor-roles");
 });
 

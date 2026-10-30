@@ -1722,7 +1722,6 @@ function seed() {
 
   createUser.run("admin", "BMHI", "Administrator", "admin@browardmiamihi.com", "(954) 555-0100", hash("AdminPass123!"));
   createUser.run("instructor", "Program", "Instructor", "instructor@browardmiamihi.com", "(954) 555-0101", hash("InstructorPass123!"));
-  createUser.run("instructor", "Dayana", "Diaz", "dayana.diaz@browardmiamihi.com", "", hash("InstructorPass123!"));
   createUser.run("student", "Demo", "Student", "student@browardmiamihi.com", "(954) 555-0102", hash("StudentPass123!"));
 
   db.prepare(`
@@ -1742,19 +1741,6 @@ function seed() {
         OR (lower(first_name) = 'roney' AND lower(last_name) = 'hernandez')
       )
   `).run();
-
-  db.prepare(`
-    UPDATE users
-    SET role = 'instructor',
-      first_name = 'Dayana',
-      last_name = 'Diaz',
-      password_hash = ?,
-      status = 'active',
-      organization_status = 'organized',
-      class_lock_reason = NULL
-    WHERE lower(email) = 'dayana.diaz@browardmiamihi.com'
-      AND COALESCE(status, 'active') <> 'inactive'
-  `).run(hash("InstructorPass123!"));
 
   const upsertAdminAccessUser = db.prepare(`
     INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
