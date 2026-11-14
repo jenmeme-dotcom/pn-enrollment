@@ -22,3 +22,14 @@ test("Dorothy Joy Borsoto Boongaling has an approved admin login", () => {
     }
   );
 });
+
+test("the Director of Nursing has an approved admin login", () => {
+  assert.deepEqual(
+    adminAccessAccounts.find((account) => account.email === "ddaudierrn@gmail.com"),
+    {
+      firstName: "Director",
+      lastName: "of Nursing",
+      email: "ddaudierrn@gmail.com"
+    }
+  );
+});
