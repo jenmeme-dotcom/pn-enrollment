@@ -3772,8 +3772,12 @@ function courseGradeSummary(rows = []) {
   };
 }
 
-function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems = [], grades = [], examAttempts = [], submissions = [], student }) {
-  const rows = studentGradebookRows(enrollment, gradeItems, grades, examAttempts, submissions);
+function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems = [], grades = [], examAttempts = [], submissions = [], completionStatuses = [], student }) {
+  const completionByItem = new Map(completionStatuses.map((entry) => [entry.grade_item_id, entry]));
+  const rows = studentGradebookRows(enrollment, gradeItems, grades, examAttempts, submissions).map((row) => ({
+    ...row,
+    status: Number(row.points_possible) === 0 && completionByItem.has(row.id) ? completionByItem.get(row.id).status : row.status
+  }));
   const summary = courseGradeSummary(rows);
   const totalLabel = summary.possible ? `${summary.earned.toFixed(2)} / ${summary.possible.toFixed(2)}` : "N/A (N/A)";
   const overallPercentage = summary.percentage === null ? "N/A" : `${summary.percentage.toFixed(2)}%`;
@@ -3845,7 +3849,9 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
                 <td data-label="Due" class="${row.due_date ? "" : "grade-cell-empty"}">${escapeHtml(formatGradeDue(row.due_date))}</td>
                 <td data-label="Submitted" class="${row.submitted_at ? "" : "grade-cell-empty"}">${escapeHtml(formatGradeDue(row.submitted_at))}</td>
                 <td data-label="Status" class="${row.status || row.attempt_status ? "" : "grade-cell-empty"}">
-                  ${row.status === "missing"
+                  ${["completed", "incomplete"].includes(row.status)
+                    ? `<span class="gradebook-attempt-status">${row.status === "completed" ? "Completed" : "Incomplete"}</span>`
+                    : row.status === "missing"
                     ? `<span class="grade-status missing">missing</span>`
                     : row.status === "info"
                       ? `<span class="grade-status info">!</span>`
@@ -3859,7 +3865,7 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
                             ? `<span class="gradebook-attempt-status">Retake in progress — saved grade retained</span>`
                             : ""}
                 </td>
-                <td data-label="Score">${row.points_possible ? `${row.score === null || row.score === undefined ? "-" : escapeHtml(row.score)} / ${escapeHtml(row.points_possible)}` : "-"}</td>
+                <td data-label="Score">${row.points_possible ? `${row.score === null || row.score === undefined ? "-" : escapeHtml(row.score)} / ${escapeHtml(row.points_possible)}` : row.score === null || row.score === undefined ? "-" : escapeHtml(row.score)}</td>
               </tr>
             `).join("")}
             ${Array.from(groupTotals.entries()).map(([group, total]) => `
@@ -3918,10 +3924,11 @@ function instructorGradebookItems(course, gradeItems = []) {
   }));
 }
 
-function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems = [], enrollments = [], grades = [], examAttempts = [], submissions = [], readOnly = false }) {
+function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems = [], enrollments = [], grades = [], examAttempts = [], submissions = [], completionStatuses = [], readOnly = false }) {
   const students = instructorGradebookStudents(enrollments);
   const assignments = instructorGradebookItems(course, gradeItems);
   const gradeByEnrollmentAndItem = new Map(grades.map((grade) => [`${grade.enrollment_id}:${grade.grade_item_id}`, grade]));
+  const completionByEnrollmentAndItem = new Map(completionStatuses.map((entry) => [`${entry.enrollment_id}:${entry.grade_item_id}`, entry]));
   const submissionByEnrollmentAndItem = new Map(
     submissions.map((submission) => [`${submission.enrollment_id}:${submission.grade_item_id}`, submission])
   );
@@ -3984,8 +3991,8 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
               <th class="gradebook-summary-column"><span>Letter Grade</span><small>Current or official final</small></th>
               ${assignments.map((item) => `
                 <th>
-                  <span>${escapeHtml(item.title)}</span>
-                  <small>Out of ${escapeHtml(item.points_possible || 0)}</small>
+                  <a href="${escapeHtml(baseHref)}?assignment=${item.id}${readOnly ? "" : "&amp;mode=edit"}">${escapeHtml(item.title)}</a>
+                  <small>${Number(item.points_possible) === 0 ? "Completion only" : `Out of ${escapeHtml(item.points_possible)}`}</small>
                   ${item.due_date ? `<small>Due ${escapeHtml(date(item.due_date))}</small>` : ""}
                   ${item.unpublished ? `<em>UNPUBLISHED</em>` : ""}
                 </th>
@@ -4007,7 +4014,11 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
                   <td>${summary.percentage === null ? "Not graded" : `${escapeHtml(summary.percentage.toFixed(2))}%`}</td>
                   <td><strong>${escapeHtml(letterGrade)}</strong></td>
                   ${assignments.map((item) => {
+                    const allowed = !item.allowed_student_email || String(item.allowed_student_email).trim().toLowerCase() === String(student.email).trim().toLowerCase();
+                    if (!allowed) return "<td>Not assigned</td>";
+                    const completion = completionByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
                     const grade = gradeByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
+                    if (Number(item.points_possible) === 0 && !grade) return `<td>${completion ? completion.status === "completed" ? "Completed" : "Incomplete" : "Not recorded"}</td>`;
                     const submission = submissionByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
                     const attempt = attemptByEnrollmentAndItem.get(`${student.enrollment_id}:${item.id}`);
                     const reopenControl = !readOnly && isProtectedMajorAssessmentTitle(item.title)
@@ -5343,6 +5354,7 @@ function lessonIndexForGradeItem(item = {}, lessons = []) {
 
 function assignmentTypeLabel(item = {}) {
   if (["Quiz", "Exam", "Midterm", "Final"].includes(item.assessment_type)) return item.assessment_type;
+  if (item.accepts_assignment_evidence) return "Assignment";
   const title = String(item.title || "").toLowerCase();
   if (isProtectedMajorAssessmentTitle(title)) return isMidtermTitle(title) ? "Midterm" : "Final";
   if (title.includes("study guide") || /\breview\b/.test(title)) return item.group || "Assignment";
@@ -5375,11 +5387,32 @@ function assessmentTypeForLesson(lesson = {}) {
 }
 
 function decorateGradeItemForCourse(item = {}, lessons = []) {
-  const lesson = gradeItemLesson(item, lessons);
+  const lesson = lessons.find((entry) => Number(entry.grade_item_id) === Number(item.id) && assessmentTypeForLesson(entry)) || gradeItemLesson(item, lessons);
   const assessmentType = lesson ? assessmentTypeForLesson(lesson) : null;
   return assessmentType
     ? { ...item, lesson_id: lesson.id, assessment_type: assessmentType }
-    : item;
+    : { ...item, accepts_assignment_evidence: acceptsAssignmentEvidence(item, lessons) };
+}
+
+function acceptsAssignmentEvidence(item = {}, lessons = []) {
+  const linked = lessons.filter((lesson) => Number(lesson.grade_item_id) === Number(item.id));
+  return linked.some((lesson) => lesson.item_type === "assignment") &&
+    !isProtectedMajorAssessmentTitle(item.title) &&
+    !linked.some((lesson) => lessonQuizQuestions(lesson).length || lesson.item_type === "quiz");
+}
+
+function assignmentLessons(item) {
+  return db.prepare(`
+    SELECT l.*, m.published AS module_published
+    FROM lessons l JOIN modules m ON m.id = l.module_id
+    WHERE l.grade_item_id = ? AND m.course_id = ?
+  `).all(item.id, item.course_id);
+}
+
+function assignmentAllowsStudent(item, lessons, email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  return [item, ...lessons].every((entry) => !String(entry.allowed_student_email || "").trim() ||
+    String(entry.allowed_student_email).trim().toLowerCase() === normalizedEmail);
 }
 
 function examLinkLabel(item = {}) {
@@ -5671,6 +5704,45 @@ function renderCourseRubricsPage({ courseCode, baseHref, gradeItems = [], instru
   `;
 }
 
+function renderAssignmentGradeEntry(item, courseId, lessons = []) {
+  const completionOnly = Number(item.points_possible) === 0;
+  const students = db.prepare(`
+    SELECT e.id AS enrollment_id, u.first_name, u.last_name, u.email,
+      g.score, g.note AS grade_note, cs.status AS completion_status, cs.note AS completion_note
+    FROM enrollments e JOIN users u ON u.id = e.user_id
+    LEFT JOIN grades g ON g.enrollment_id = e.id AND g.grade_item_id = ?
+    LEFT JOIN assignment_completion_statuses cs ON cs.enrollment_id = e.id AND cs.grade_item_id = ?
+    WHERE e.course_id = ? AND e.status = 'active' AND e.withdrawn_at IS NULL
+      AND u.role = 'student' AND u.status = 'active' AND COALESCE(u.gradebook_hidden, 0) = 0
+    ORDER BY u.last_name, u.first_name
+  `).all(item.id, item.id, courseId).filter((student) => assignmentAllowsStudent(item, lessons, student.email));
+  return `
+    <section class="lesson-action-card" id="assignment-grade-entry">
+      <h2>${completionOnly ? "Record assignment completion" : "Record assignment grades"}</h2>
+      <p>${completionOnly ? "Record completion without assigning a numeric grade." : `Enter a score from 0 to ${escapeHtml(item.points_possible)}. A student submission is optional for instructor grade entry.`} Leave a field blank to keep the saved ${completionOnly ? "status" : "grade"} unchanged.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Student</th><th>${completionOnly ? "Completion" : "Score"}</th><th>Feedback</th><th>Save</th></tr></thead>
+        <tbody>${students.map((student) => {
+          const formId = `assignment-grade-${item.id}-${student.enrollment_id}`;
+          const name = personName(student);
+          return `<tr>
+            <td>${escapeHtml(name)}</td>
+            <td>${completionOnly ? `<select name="completionStatus" form="${formId}" aria-label="Completion for ${escapeHtml(name)}">
+              <option value="">Not recorded (leave unchanged)</option>
+              <option value="completed" ${student.completion_status === "completed" ? "selected" : ""}>Completed</option>
+              <option value="incomplete" ${student.completion_status === "incomplete" ? "selected" : ""}>Incomplete</option>
+            </select>${student.score !== null ? `<small>Recorded grade: ${escapeHtml(student.score)}${student.grade_note ? ` - ${escapeHtml(student.grade_note)}` : ""}</small>` : ""}` : `<input type="number" name="score" form="${formId}" min="0" max="${escapeHtml(item.points_possible)}" step="any" value="${escapeHtml(student.score ?? "")}" aria-label="Score for ${escapeHtml(name)}"> / ${escapeHtml(item.points_possible)}`}</td>
+            <td><textarea name="note" form="${formId}" rows="2" maxlength="5000" aria-label="Feedback for ${escapeHtml(name)}">${escapeHtml((completionOnly ? student.completion_note : student.grade_note) || "")}</textarea></td>
+            <td><form id="${formId}" method="post" action="/admin/courses/${courseId}/assignments/${item.id}/grades">
+              <input type="hidden" name="enrollmentId" value="${student.enrollment_id}">
+              <button class="button small" type="submit">Save ${completionOnly ? "Status" : "Grade"}</button>
+            </form></td>
+          </tr>`;
+        }).join("") || '<tr><td colspan="4">No active students are assigned to this item.</td></tr>'}</tbody>
+      </table></div>
+    </section>`;
+}
+
 function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons = [], instructor = false, preview = false, studentScore = null, studentGrade = null, courseId = null, enrollmentId = null, submission = null }) {
   const type = assignmentTypeLabel(item);
   const writtenAutogradeConfig = writtenAssignmentConfigForItem(item, lessons);
@@ -5678,7 +5750,12 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
   const hasRelatedLesson = relatedLessonHref.includes("?lesson=");
   const status = Number(item.published ?? 1) === 0 ? "Unpublished" : "Published";
   const pendingInstructorReview = isAutoGradeApprovalPending(studentGrade?.note);
-  const scoreLabel = studentScore === null || studentScore === undefined
+  const completion = enrollmentId && Number(item.points_possible) === 0
+    ? db.prepare("SELECT status FROM assignment_completion_statuses WHERE enrollment_id = ? AND grade_item_id = ?").get(enrollmentId, item.id)
+    : null;
+  const scoreLabel = Number(item.points_possible) === 0 && !studentGrade
+    ? completion ? completion.status === "completed" ? "Completed" : "Incomplete" : "Completion not recorded"
+    : studentScore === null || studentScore === undefined
     ? pendingInstructorReview ? "Pending instructor review" : "Not graded"
     : `${studentScore} / ${item.points_possible || 0}`;
   return `
@@ -5715,8 +5792,9 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
           </div>
         </section>
         ${renderAssignmentRubric({ item, instructor, courseId })}
-        ${!isAssessmentType(type) && (preview || (!instructor && enrollmentId))
-          ? renderAssignmentSubmissionCard({ item, enrollmentId, submission, preview, autoGradeConfig: writtenAutogradeConfig, grade: studentGrade })
+        ${instructor && courseId ? renderAssignmentGradeEntry(item, courseId, assignmentLessons(item)) : ""}
+        ${!isAssessmentType(type) && (instructor || preview || enrollmentId)
+          ? renderAssignmentSubmissionCard({ item, enrollmentId, submission, preview: instructor || preview, autoGradeConfig: writtenAutogradeConfig, grade: studentGrade })
           : ""}
         ${isAssessmentType(type) ? `
           <section class="lesson-action-card">
@@ -13312,6 +13390,10 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         grades,
         examAttempts,
         submissions: gradeSubmissions,
+        completionStatuses: db.prepare(`
+          SELECT cs.* FROM assignment_completion_statuses cs JOIN enrollments e ON e.id = cs.enrollment_id
+          WHERE e.course_id = ?
+        `).all(course.id),
         readOnly: !editing
       })}
     </section>
@@ -13497,6 +13579,54 @@ app.post("/admin/courses/:id/discussions/:topicId/grades", requireAuth, requireR
     ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET score = excluded.score, note = excluded.note, updated_at = CURRENT_TIMESTAMP`).run(enrollment.id, item.id, score, note);
   flash(req, "Discussion grade saved to the gradebook.");
   res.redirect(`/admin/courses/${topic.course_id}/student-view?view=discussions&topicId=${topic.id}&mode=edit#discussion-grading`);
+});
+
+app.post("/admin/courses/:id/assignments/:gradeItemId/grades", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const courseId = Number(req.params.id);
+  const item = db.prepare("SELECT * FROM grade_items WHERE id = ? AND course_id = ?").get(Number(req.params.gradeItemId), courseId);
+  if (!item) return res.status(404).send("Assignment not found");
+  const pointsPossible = Number(item.points_possible);
+  if (!Number.isFinite(pointsPossible) || pointsPossible < 0) return res.status(400).send("Assignment points are not valid");
+  const enrollment = db.prepare(`
+    SELECT e.id, u.email FROM enrollments e JOIN users u ON u.id = e.user_id
+    WHERE e.id = ? AND e.course_id = ? AND e.status = 'active' AND e.withdrawn_at IS NULL
+      AND u.role = 'student' AND u.status = 'active' AND COALESCE(u.gradebook_hidden, 0) = 0
+  `).get(Number(req.body.enrollmentId), courseId);
+  if (!enrollment || !assignmentAllowsStudent(item, assignmentLessons(item), enrollment.email)) {
+    return res.status(400).send("Invalid student enrollment for this assignment");
+  }
+  const destination = `/admin/courses/${courseId}/student-view?assignment=${item.id}&mode=edit#assignment-grade-entry`;
+  const completionOnly = pointsPossible === 0;
+  const rawValue = String(completionOnly ? req.body.completionStatus ?? "" : req.body.score ?? "").trim();
+  if (!rawValue) {
+    flash(req, "No value entered. The saved record was left unchanged.");
+    return res.redirect(destination);
+  }
+  const note = String(req.body.note || "").trim();
+  if (note.length > 5000) return res.status(400).send("Feedback must be 5000 characters or less");
+  if (completionOnly) {
+    if (!["completed", "incomplete"].includes(rawValue)) return res.status(400).send("Choose Completed or Incomplete");
+    db.prepare(`
+      INSERT INTO assignment_completion_statuses (enrollment_id, grade_item_id, status, note, updated_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET
+        status = excluded.status, note = excluded.note, updated_at = CURRENT_TIMESTAMP
+    `).run(enrollment.id, item.id, rawValue, note);
+    flash(req, "Assignment completion saved.");
+  } else {
+    const score = Number(rawValue);
+    if (!Number.isFinite(score) || score < 0 || score > pointsPossible) {
+      return res.status(400).send(`Enter a score from 0 to ${item.points_possible}`);
+    }
+    db.prepare(`
+      INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(enrollment_id, grade_item_id) DO UPDATE SET
+        score = excluded.score, note = excluded.note, updated_at = CURRENT_TIMESTAMP
+    `).run(enrollment.id, item.id, score, note);
+    flash(req, "Assignment grade saved.");
+  }
+  res.redirect(destination);
 });
 
 app.post("/admin/courses/:id/discussions/:topicId/replies", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -16706,6 +16836,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         grades,
         examAttempts,
         submissions: gradeSubmissions,
+        completionStatuses: db.prepare("SELECT * FROM assignment_completion_statuses WHERE enrollment_id = ?").all(enrollment.id),
         student: req.user
       })}
     </section>
@@ -16869,8 +17000,15 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     if (req.file?.path) fs.unlink(req.file.path, () => {});
     return res.status(404).send("Assignment not found");
   }
-  const type = assignmentTypeLabel(assignment);
-  if (isAssessmentType(type)) {
+  const linkedLessons = assignmentLessons(assignment);
+  if (!assignmentAllowsStudent(assignment, linkedLessons, req.user.email) ||
+    (linkedLessons.length && !linkedLessons.some((lesson) => Number(lesson.published ?? 1) === 1 &&
+      Number(lesson.module_published ?? 1) === 1 && Number(lesson.instructor_only ?? 0) === 0))) {
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    return res.status(403).send("This assignment is not available to this student");
+  }
+  const type = assignmentTypeLabel(decorateGradeItemForCourse(assignment, linkedLessons));
+  if (isAssessmentType(type) || linkedLessons.some((lesson) => lessonQuizQuestions(lesson).length > 0)) {
     if (req.file?.path) fs.unlink(req.file.path, () => {});
     flash(req, "This assessment must be completed in the portal and does not accept file uploads.");
     return res.redirect(redirectToAssignment);

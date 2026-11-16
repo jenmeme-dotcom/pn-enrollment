@@ -815,6 +815,15 @@ function migrate() {
       UNIQUE(enrollment_id, grade_item_id)
     );
 
+    CREATE TABLE IF NOT EXISTS assignment_completion_statuses (
+      enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+      grade_item_id INTEGER NOT NULL REFERENCES grade_items(id) ON DELETE CASCADE,
+      status TEXT NOT NULL CHECK(status IN ('completed','incomplete')),
+      note TEXT,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY(enrollment_id, grade_item_id)
+    );
+
     CREATE TABLE IF NOT EXISTS exam_attempts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
@@ -3111,19 +3120,9 @@ function seed() {
       });
     }
   });
-  if (fundamentals && longTermCare) {
+  if (longTermCare) {
     const cohortTwoRoster = db.prepare("SELECT id FROM users WHERE role = 'student' AND cohort_name = 'Cohort 2'").all();
-    const removeFundamentalsAccess = db.prepare(`
-      UPDATE enrollments
-      SET status = 'withdrawn',
-        withdrawal_effective_date = COALESCE(withdrawal_effective_date, date('now')),
-        withdrawal_reason = COALESCE(withdrawal_reason, 'Corrected course placement: Cohort 2 belongs in PN 103 Long-Term Care Nursing.'),
-        withdrawn_at = COALESCE(withdrawn_at, CURRENT_TIMESTAMP)
-      WHERE user_id = ? AND course_id = ?
-        AND status != 'withdrawn' AND withdrawn_at IS NULL
-    `);
     cohortTwoRoster.forEach((student) => {
-      removeFundamentalsAccess.run(student.id, fundamentals.id);
       ensureCohortPn103Enrollment.run(student.id, longTermCare.id, "2026-07-02", `cohort-2-pn103-${student.id}`);
     });
   }

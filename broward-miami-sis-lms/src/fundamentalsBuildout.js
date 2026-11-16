@@ -157,7 +157,7 @@ const lippincottEnrollmentInstructions = [
 ].join("\n");
 
 const fundamentalsCourse = {
-  title: "Fundamental Nursing Skills and Concepts - New Cohort",
+  title: "Fundamental Nursing Skills and Concepts - Cohort 2",
   slug: "fundamental-nursing-skills-and-concepts-new-cohort",
   category: "Practical Nursing Course",
   hours: 153,
