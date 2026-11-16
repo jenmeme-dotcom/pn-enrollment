@@ -207,3 +207,45 @@ test("explicit external quiz assignments accept evidence; empty work, private it
   assert.equal((await submit(duplicate.id)).status, 302);
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM assignment_submissions WHERE grade_item_id = ?").get(duplicate.id).n, 0);
 });
+
+test("CoursePoint assignment pages show real points and source instructions without an invented rubric", async () => {
+  const instructions = "Complete this activity in Lippincott CoursePoint. Submit your own exported report or screenshot showing your name and result.\n\nThe verified percentage is recorded out of 100.";
+  const imported = assignment("CoursePoint Pre-Lecture Quiz - Chapter 1", { content: instructions });
+  const completion = assignment("CoursePoint PrepU - Chapter 6", { points: 0, content: "Submit your CoursePoint completion evidence." });
+  const ordinary = assignment("Ordinary nursing reflection", { content: "Reflect on your learning." });
+  database.exec(`CREATE TABLE IF NOT EXISTS coursepoint_import_items (
+    grade_item_id INTEGER PRIMARY KEY, lesson_id INTEGER NOT NULL, course_id INTEGER NOT NULL
+  )`);
+  database.prepare("INSERT INTO coursepoint_import_items (grade_item_id, lesson_id, course_id) VALUES (?, ?, ?)").run(imported.id, imported.lessonId, courseId);
+  for (const [base, cookie] of [
+    [`/student/enrollments/${enrollmentId}`, studentCookie],
+    [`/admin/courses/${courseId}/student-view`, instructorCookie]
+  ]) {
+    const mode = cookie === instructorCookie ? "&mode=edit" : "";
+    const modules = await fetch(`${baseUrl}${base}?view=modules${mode}`, { headers: { cookie } });
+    assert.equal(modules.status, 200);
+    const modulesHtml = await modules.text();
+    assert.match(modulesHtml, /<strong>CoursePoint Pre-Lecture Quiz - Chapter 1<\/strong>\s*<small>100 pts<\/small>/);
+    assert.match(modulesHtml, /<strong>CoursePoint PrepU - Chapter 6<\/strong>\s*<small>Completion only<\/small>/);
+    const detail = await fetch(`${baseUrl}${base}?assignment=${imported.id}${mode}`, { headers: { cookie } });
+    assert.equal(detail.status, 200);
+    const detailHtml = await detail.text();
+    assert.match(detailHtml, /Submit your own exported report or screenshot showing your name and result/);
+    assert.match(detailHtml, /The verified percentage is recorded out of 100/);
+    assert.doesNotMatch(detailHtml, /Review the module materials before beginning/);
+    assert.doesNotMatch(detailHtml, /assignment-rubric-card/);
+    const lesson = await fetch(`${baseUrl}${base}?lesson=${imported.lessonId}${mode}`, { headers: { cookie } });
+    assert.equal(lesson.status, 200);
+    const lessonHtml = await lesson.text();
+    assert.match(lessonHtml, /Submit assignment/);
+    assert.match(lessonHtml, /exported report or screenshot/);
+    assert.doesNotMatch(lessonHtml, /assignment-rubric-card/);
+    if (cookie === studentCookie) assert.match(lessonHtml, /name="studentResponse"/);
+  }
+  const ordinaryPage = await fetch(`${baseUrl}/student/enrollments/${enrollmentId}?assignment=${ordinary.id}`, { headers: { cookie: studentCookie } });
+  assert.match(await ordinaryPage.text(), /assignment-rubric-card/);
+  const rubric = { title: "Faculty verified CoursePoint rubric", criteria: [{ title: "Verified source result", maxPoints: 100 }] };
+  database.prepare("INSERT INTO assignment_rubrics (grade_item_id, rubric_json) VALUES (?, ?)").run(imported.id, JSON.stringify(rubric));
+  const savedRubricPage = await fetch(`${baseUrl}/student/enrollments/${enrollmentId}?assignment=${imported.id}`, { headers: { cookie: studentCookie } });
+  assert.match(await savedRubricPage.text(), /Faculty verified CoursePoint rubric/);
+});

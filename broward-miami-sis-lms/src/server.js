@@ -1929,7 +1929,7 @@ function moduleItemIcon(kind) {
   return "▤";
 }
 
-function moduleItemMeta(lesson) {
+function moduleItemMeta(lesson, gradeItem = null) {
   const title = String(lesson.title || "");
   const lower = title.toLowerCase();
   const pieces = [];
@@ -1939,7 +1939,9 @@ function moduleItemMeta(lesson) {
   else if (youtubeVideoId(lesson.external_url)) pieces.push("Embedded YouTube recording");
   const dateMatch = title.match(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/i);
   if (dateMatch) pieces.push(dateMatch[0]);
-  if (lower.includes("discussion")) pieces.push("10 pts");
+  if (lesson.item_type === "assignment" && !lessonQuizQuestions(lesson).length && gradeItem && Number.isFinite(Number(gradeItem.points_possible))) {
+    pieces.push(Number(gradeItem.points_possible) === 0 ? "Completion only" : `${gradeItem.points_possible} pts`);
+  } else if (lower.includes("discussion")) pieces.push("10 pts");
   else if (lower.includes("quiz")) pieces.push("10 pts");
   else if (lower.includes("worksheet") || lower.includes("exercise")) pieces.push("15 pts");
   return pieces.join(" | ");
@@ -2060,7 +2062,8 @@ function renderWeeklyLearningPattern({ compact = false } = {}) {
   `;
 }
 
-function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, courseId, moduleGroups = [], instructor = false }) {
+function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, courseId, moduleGroups = [], gradeItems = [], instructor = false }) {
+  const gradeItemById = new Map(gradeItems.map((item) => [Number(item.id), item]));
   return `
     <main class="canvas-course-main canvas-modules-main">
       <div class="canvas-modules-toolbar">
@@ -2112,13 +2115,14 @@ function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, course
                   ? "video"
                   : inferredKind;
                 const isPublished = Number(lesson.published ?? 1) !== 0 && Number(lesson.instructor_only || 0) !== 1;
+                const metadata = moduleItemMeta(lesson, gradeItemById.get(Number(lesson.grade_item_id)));
                 return `
                   <a class="canvas-module-row ${isPublished ? "" : "is-unpublished"}" href="${escapeHtml(baseHref)}?lesson=${lesson.id}">
                     <span class="module-drag">⁝</span>
                     <span class="module-type ${escapeHtml(kind)}">${escapeHtml(moduleItemIcon(kind))}</span>
                     <span class="module-title">
                       <strong>${escapeHtml(courseLessonDisplayTitle(courseSlug, lesson.title, lesson))}</strong>
-                      ${moduleItemMeta(lesson) ? `<small>${escapeHtml(moduleItemMeta(lesson))}</small>` : ""}
+                      ${metadata ? `<small>${escapeHtml(metadata)}</small>` : ""}
                     </span>
                     <span class="${isPublished ? "canvas-published-dot" : "canvas-unpublished-dot"}"></span>
                     <span class="module-menu">⋮</span>
@@ -5415,6 +5419,12 @@ function assignmentAllowsStudent(item, lessons, email) {
     String(entry.allowed_student_email).trim().toLowerCase() === normalizedEmail);
 }
 
+function isImportedCoursePointAssignment(item) {
+  if (!item.id || !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'coursepoint_import_items'").get()) return false;
+  const mapping = db.prepare("SELECT lesson_id FROM coursepoint_import_items WHERE grade_item_id = ? AND course_id = ?").get(item.id, item.course_id);
+  return Boolean(mapping && acceptsAssignmentEvidence(item, assignmentLessons(item)));
+}
+
 function examLinkLabel(item = {}) {
   const title = String(item.title || "").toLowerCase();
   if (title.includes("practice midterm")) return "Open Practice Midterm";
@@ -5527,7 +5537,7 @@ function assignmentRubric(item = {}) {
       if (Array.isArray(rubric.criteria) && rubric.criteria.length) return rubric;
     } catch {}
   }
-  return defaultAssignmentRubric(item);
+  return isImportedCoursePointAssignment(item) ? null : defaultAssignmentRubric(item);
 }
 
 function rubricPoints(value) {
@@ -5745,6 +5755,12 @@ function renderAssignmentGradeEntry(item, courseId, lessons = []) {
 
 function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons = [], instructor = false, preview = false, studentScore = null, studentGrade = null, courseId = null, enrollmentId = null, submission = null }) {
   const type = assignmentTypeLabel(item);
+  const evidenceLesson = item.accepts_assignment_evidence
+    ? lessons.find((lesson) => Number(lesson.grade_item_id) === Number(item.id) && lesson.item_type === "assignment" && String(lesson.content || "").trim())
+    : null;
+  const instructions = evidenceLesson
+    ? renderCanvasLessonContent(instructor ? evidenceLesson.content : studentFacingLessonContent(evidenceLesson.content), [evidenceLesson.title, item.title])
+    : `<p>${escapeHtml(gradeItemInstructions(item))}</p>`;
   const writtenAutogradeConfig = writtenAssignmentConfigForItem(item, lessons);
   const relatedLessonHref = assignmentItemHref({ ...item, id: null }, lessons, baseHref);
   const hasRelatedLesson = relatedLessonHref.includes("?lesson=");
@@ -5784,7 +5800,7 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
         </section>
         <section class="lesson-action-card">
           <h2>Instructions</h2>
-          <p>${escapeHtml(gradeItemInstructions(item))}</p>
+          ${instructions}
           <div class="lesson-file-actions">
             ${hasRelatedLesson ? `<a class="button" href="${escapeHtml(relatedLessonHref)}${instructor ? "&mode=edit" : ""}">Open Module Item</a>` : ""}
             <a class="button ghost" href="${escapeHtml(baseHref)}?view=grades${instructor ? "&mode=edit" : ""}">${instructor ? "Open Gradebook" : "View Grades"}</a>
@@ -13209,6 +13225,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
         baseHref: adminCourseBaseHref,
         courseId: course.id,
         moduleGroups,
+        gradeItems,
         instructor: editing
       })}
     </section>
@@ -16675,6 +16692,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         courseSlug: enrollment.slug,
         baseHref: courseBaseHref,
         moduleGroups,
+        gradeItems,
         instructor: false
       })}
     </section>
