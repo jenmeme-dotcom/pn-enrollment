@@ -9,11 +9,14 @@ const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const nodemailer = require("nodemailer");
 const { createCourseSyllabusPdfBuffer, syllabusPdfFilename } = require("./syllabusPdf");
+const { createStudentGradePdfBuffer, gradePdfFilename } = require("./gradePdf");
 const quickbooks = require("./quickbooks");
 const { accountCharges, accountTotals } = require("./billingTotals");
 const { adminAccessAccounts, adminAccessDefaultPassword } = require("./adminAccess");
 const { db, initialize, databaseFile } = require("./db");
 const { isMidtermTitle, isProtectedMajorAssessmentTitle } = require("./courseworkAvailability");
+const { FUNDAMENTALS_SLUG, SUPPORTING_ACTIVITY_NOTE, markCoursePointActivities, summarizeCourseGradePoints } = require("./courseGradePolicy");
+const { PROJECT_GRADING_NOTE, projectsForCourse, markCourseProjects } = require("./courseProjects");
 const {
   courses,
   feeSchedule,
@@ -1636,6 +1639,7 @@ function canvasCourseCode(course = {}) {
   if (slug === "introduction-to-nursing-practical-nursing") return "PN 102";
   if (slug === "long-term-care-nursing-pn103") return "PN 103";
   if (slug === "anatomy-and-physiology") return "PN 104";
+  if (slug === FUNDAMENTALS_SLUG) return "PN 105";
   const id = course.course_id || course.id || 0;
   if (course.category === "Practical Nursing Course") return `PN-${String(id).padStart(3, "0")}`;
   return `BMHI-${String(id).padStart(3, "0")}`;
@@ -1940,7 +1944,7 @@ function moduleItemMeta(lesson, gradeItem = null) {
   const dateMatch = title.match(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/i);
   if (dateMatch) pieces.push(dateMatch[0]);
   if (lesson.item_type === "assignment" && !lessonQuizQuestions(lesson).length && gradeItem && Number.isFinite(Number(gradeItem.points_possible))) {
-    pieces.push(Number(gradeItem.points_possible) === 0 ? "Completion only" : `${gradeItem.points_possible} pts`);
+    pieces.push(gradeItem.grading_pending ? "Grading allocation pending" : Number(gradeItem.points_possible) === 0 ? "Completion only" : `${gradeItem.points_possible} pts`);
   } else if (lower.includes("discussion")) pieces.push("10 pts");
   else if (lower.includes("quiz")) pieces.push("10 pts");
   else if (lower.includes("worksheet") || lower.includes("exercise")) pieces.push("15 pts");
@@ -2063,7 +2067,7 @@ function renderWeeklyLearningPattern({ compact = false } = {}) {
 }
 
 function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, courseId, moduleGroups = [], gradeItems = [], instructor = false }) {
-  const gradeItemById = new Map(gradeItems.map((item) => [Number(item.id), item]));
+  const gradeItemById = new Map(markCourseProjects(db, gradeItems).map((item) => [Number(item.id), item]));
   return `
     <main class="canvas-course-main canvas-modules-main">
       <div class="canvas-modules-toolbar">
@@ -3725,14 +3729,14 @@ function studentGradebookRows(enrollment, gradeItems = [], grades = [], examAtte
       .filter((attempt) => attempt.status === "in_progress")
       .map((attempt) => [attempt.grade_item_id, attempt])
   );
-  const savedRows = gradeItems.filter((item) => !Number(item.gradebook_hidden || 0) && !isSyllabusAcknowledgment(item)).map((item) => {
+  const savedRows = markCourseProjects(db, markCoursePointActivities(db, enrollment, gradeItems)).filter((item) => !Number(item.gradebook_hidden || 0) && !isSyllabusAcknowledgment(item)).map((item) => {
     const grade = gradeByItemId.get(item.id);
     const submission = submissionByItemId.get(item.id);
     const attempt = attemptByItemId.get(item.id);
     const approvalPending = isAutoGradeApprovalPending(grade?.note);
     return {
       ...item,
-      group: item.title.toLowerCase().includes("elsevier") ? "Imported Assignments" : "Assignments",
+      group: item.course_project ? "Course projects" : item.supporting_activity ? "Supporting CoursePoint activities" : item.title.toLowerCase().includes("elsevier") ? "Imported Assignments" : "Assignments",
       score: grade && !approvalPending ? grade.score : null,
       status: approvalPending ? "pending" : !grade && submission ? "submitted_ungraded" : undefined,
       submitted_at: submission?.submitted_at || null,
@@ -3753,26 +3757,12 @@ function studentGradebookRows(enrollment, gradeItems = [], grades = [], examAtte
 }
 
 function courseGradeSummary(rows = []) {
-  const requiredRows = rows.filter((row) => !isSyllabusAcknowledgment(row) && Number(row.points_possible) > 0);
-  const scoredRows = requiredRows.filter((row) =>
-    row.score !== null &&
-    row.score !== undefined &&
-    Number.isFinite(Number(row.score)) &&
-    Number(row.points_possible) > 0 &&
-    row.status !== "pending"
-  );
-  const earned = scoredRows.reduce((sum, row) => sum + Number(row.score), 0);
-  const possible = requiredRows.reduce((sum, row) => sum + Number(row.points_possible), 0);
-  const percentage = possible > 0 ? (earned / possible) * 100 : null;
-  const letterGrade = percentage === null ? null : transcriptLetterGrade("", percentage);
+  const summary = summarizeCourseGradePoints(rows);
+  const letterGrade = summary.percentage === null ? null : transcriptLetterGrade("", summary.percentage);
   return {
-    earned,
-    possible,
-    percentage,
+    ...summary,
     letter: letterGrade || "—",
-    letterGrade,
-    gradedCount: scoredRows.length,
-    requiredCount: requiredRows.length
+    letterGrade
   };
 }
 
@@ -3793,6 +3783,7 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
   const overallLetterGrade = hasOfficialFinalGrade ? officialFinalGrade : summary.letterGrade || "Not yet graded";
   const studentLabel = personName(student);
   const groupTotals = rows.reduce((groups, row) => {
+    if (row.supporting_activity) return groups;
     const group = row.group || "Assignments";
     const existing = groups.get(group) || { possible: 0, earned: 0, gradedCount: 0 };
     if (Number(row.points_possible) > 0) existing.possible += Number(row.points_possible);
@@ -3816,6 +3807,7 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
         <div class="grades-title-row">
           <h1>Grades for ${escapeHtml(studentLabel)}</h1>
           <div class="grades-title-actions">
+            <a class="canvas-transcript-button" href="${escapeHtml(baseHref)}/grades.pdf" download>Download Grades PDF</a>
             <a class="canvas-transcript-button" href="/student/current-grade-report">Current Grade Report</a>
             <a class="canvas-transcript-button" href="/student/transcript">Unofficial Transcript</a>
             <button class="canvas-print-button" type="button" onclick="window.print()">Print Grades</button>
@@ -3849,6 +3841,8 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
                 <td>
                   <a href="${escapeHtml(row.id ? `${baseHref}?assignment=${row.id}` : `${baseHref}?view=assignments`)}">${escapeHtml(row.title)}</a>
                   <small>${escapeHtml(row.group || "Assignments")}</small>
+                  ${row.supporting_activity ? "<small>Does not add extra course points</small>" : ""}
+                  ${row.grading_pending ? `<small>Due Week ${row.project_due_week} · Grading allocation pending</small>` : ""}
                 </td>
                 <td data-label="Due" class="${row.due_date ? "" : "grade-cell-empty"}">${escapeHtml(formatGradeDue(row.due_date))}</td>
                 <td data-label="Submitted" class="${row.submitted_at ? "" : "grade-cell-empty"}">${escapeHtml(formatGradeDue(row.submitted_at))}</td>
@@ -3869,7 +3863,7 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
                             ? `<span class="gradebook-attempt-status">Retake in progress — saved grade retained</span>`
                             : ""}
                 </td>
-                <td data-label="Score">${row.points_possible ? `${row.score === null || row.score === undefined ? "-" : escapeHtml(row.score)} / ${escapeHtml(row.points_possible)}` : row.score === null || row.score === undefined ? "-" : escapeHtml(row.score)}</td>
+                <td data-label="Score">${row.grading_pending && (row.score === null || row.score === undefined) ? "Grading allocation pending" : row.points_possible ? `${row.score === null || row.score === undefined ? "-" : escapeHtml(row.score)} / ${escapeHtml(row.points_possible)}` : row.score === null || row.score === undefined ? "-" : escapeHtml(row.score)}</td>
               </tr>
             `).join("")}
             ${Array.from(groupTotals.entries()).map(([group, total]) => `
@@ -3896,8 +3890,8 @@ function renderStudentGradesPage({ enrollment, courseCode, baseHref, gradeItems 
           <small>${officialFinalGrade ? "Official final grade posted by the school." : `Includes all ${summary.requiredCount} graded course items; ${summary.gradedCount} have posted scores. Missing scores and pending reviews count as zero until graded.`}</small>
         </section>
         <button type="button">Show All Details</button>
-        <p><strong>Course assignments are not weighted.</strong></p>
-        <p>All assignments, discussions, quizzes, midterms, and finals count toward the overall grade.</p>
+        <p><strong>${summary.supportingActivityNote ? "Syllabus category points" : "Course assignments are not weighted."}</strong></p>
+        <p>${summary.supportingActivityNote ? escapeHtml(summary.supportingActivityNote) : "All assignments, discussions, quizzes, midterms, and finals count toward the overall grade."}</p>
         <p>You can view your grades based on What-If scores so that you know how grades will be affected by upcoming or resubmitted assignments. You can test scores for an assignment that already includes a score, or an assignment that has yet to be graded.</p>
       </aside>
     </main>
@@ -3918,13 +3912,17 @@ function instructorGradebookStudents(enrollments = []) {
 }
 
 function instructorGradebookItems(course, gradeItems = []) {
-  return gradeItems.filter((item) => !Number(item.gradebook_hidden || 0) && !isSyllabusAcknowledgment(item)).map((item) => ({
+  return markCourseProjects(db, markCoursePointActivities(db, course, gradeItems)).filter((item) => !Number(item.gradebook_hidden || 0) && !isSyllabusAcknowledgment(item)).map((item) => ({
     id: item.id,
     title: item.title,
     points_possible: item.points_possible,
     due_date: item.due_date,
     unpublished: Boolean(item.unpublished),
-    allowed_student_email: item.allowed_student_email
+    allowed_student_email: item.allowed_student_email,
+    supporting_activity: item.supporting_activity,
+    course_project: item.course_project,
+    project_due_week: item.project_due_week,
+    grading_pending: item.grading_pending
   }));
 }
 
@@ -3985,6 +3983,7 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
       </section>
 
       ${assignments.length ? "" : `<p class="gradebook-empty-note">No graded assignments have been added to this course yet.</p>`}
+      ${assignments.some((item) => item.supporting_activity) ? `<p class="gradebook-empty-note">${escapeHtml(SUPPORTING_ACTIVITY_NOTE)}</p>` : ""}
 
       <section class="instructor-gradebook-scroll" aria-label="Instructor gradebook">
         <table class="instructor-gradebook-table">
@@ -3996,7 +3995,8 @@ function renderInstructorGradesPage({ course, courseCode, baseHref, gradeItems =
               ${assignments.map((item) => `
                 <th>
                   <a href="${escapeHtml(baseHref)}?assignment=${item.id}${readOnly ? "" : "&amp;mode=edit"}">${escapeHtml(item.title)}</a>
-                  <small>${Number(item.points_possible) === 0 ? "Completion only" : `Out of ${escapeHtml(item.points_possible)}`}</small>
+                  <small>${item.grading_pending ? "Grading allocation pending" : Number(item.points_possible) === 0 ? "Completion only" : `Out of ${escapeHtml(item.points_possible)}`}</small>
+                  ${item.supporting_activity ? "<small>Supporting activity · no extra course points</small>" : ""}
                   ${item.due_date ? `<small>Due ${escapeHtml(date(item.due_date))}</small>` : ""}
                   ${item.unpublished ? `<em>UNPUBLISHED</em>` : ""}
                 </th>
@@ -4456,6 +4456,7 @@ function gradeItemType(title = "") {
 function gradeTallyRows(gradeItems = []) {
   const rows = new Map();
   gradeItems.forEach((item) => {
+    if (item.supporting_activity) return;
     const type = gradeItemType(item.title);
     rows.set(type, (rows.get(type) || 0) + Number(item.points_possible || 0));
   });
@@ -5058,8 +5059,11 @@ function buildCourseSyllabusModel({
     // fallback for older records that do not yet carry a delivery value.
     delivery: courseDelivery || courseDefinition?.syllabus?.delivery || ""
   };
-  const tallyRows = gradeTallyRows(gradeItems);
-  const totalPoints = gradeItems.reduce((sum, item) => sum + Number(item.points_possible || 0), 0);
+  const classifiedItems = markCourseProjects(db, markCoursePointActivities(db, { slug: courseSlug }, gradeItems));
+  const assignmentRows = classifiedItems.filter((item) => !item.supporting_activity);
+  const supportingActivityRows = classifiedItems.filter((item) => item.supporting_activity);
+  const tallyRows = gradeTallyRows(classifiedItems);
+  const totalPoints = assignmentRows.reduce((sum, item) => sum + Number(item.points_possible || 0), 0);
   return {
     instituteName,
     instituteAddress,
@@ -5081,7 +5085,10 @@ function buildCourseSyllabusModel({
     syllabusDetails,
     tallyRows,
     totalPoints,
-    assignmentRows: gradeItems,
+    assignmentRows,
+    supportingActivityRows,
+    supportingActivityNote: supportingActivityRows.length ? SUPPORTING_ACTIVITY_NOTE : "",
+    projectRows: projectsForCourse(courseSlug),
     upcomingRows: lessons.slice(0, 6)
   };
 }
@@ -5131,6 +5138,7 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
             <h2>Course Assignments and Grade Tally</h2>
             <p>This syllabus section summarizes the assignments currently built in the BMHI LMS. Students should use the weekly Modules and course Calendar for detailed directions, opening dates, and due dates.</p>
             <p><strong>Total course points currently listed:</strong> ${escapeHtml(totalPoints)} points</p>
+            ${model.supportingActivityNote ? `<p>${escapeHtml(model.supportingActivityNote)}</p>` : ""}
 
             <h3>Grade Tally by Assignment Type</h3>
             <table class="syllabus-table">
@@ -5150,7 +5158,7 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
                   <tr>
                     <td>${escapeHtml(item.title)}</td>
                     <td>${item.due_date ? date(item.due_date) : "Posted in course modules"}</td>
-                    <td>${escapeHtml(item.points_possible || 0)}</td>
+                    <td>${item.grading_pending ? "Grading allocation pending" : escapeHtml(item.points_possible || 0)}</td>
                   </tr>
                 `).join("") || `<tr><td colspan="3" class="empty">No graded assignments are currently listed. Refer to course modules for the latest requirements.</td></tr>`}
               </tbody>
@@ -5169,6 +5177,17 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
               ${syllabusDetails.delivery ? `<p><strong>Delivery</strong><span>${escapeHtml(syllabusDetails.delivery)}</span></p>` : ""}
             </div>
           </section>
+
+          ${model.projectRows.length ? `
+            <section class="syllabus-card">
+              <h2>Required Course Projects</h2>
+              <p>Due weeks refer to this course's schedule. Calendar dates will be posted after the instructor confirms the schedule.</p>
+              <table class="syllabus-table">
+                <thead><tr><th>Project</th><th>Due</th><th>Grading</th></tr></thead>
+                <tbody>${model.projectRows.map((project) => `<tr><td>${escapeHtml(project.label)}</td><td>Week ${project.dueWeek}</td><td>Points and category allocation pending instructor confirmation</td></tr>`).join("")}</tbody>
+              </table>
+            </section>
+          ` : ""}
 
           ${objectives.length ? `
             <section class="syllabus-card">
@@ -5249,8 +5268,8 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
         <aside class="syllabus-side">
           ${renderMiniCalendar()}
           <div class="syllabus-side-note">
-            <strong>Course assignments are not weighted.</strong>
-            <p>Points are calculated from the assignment items currently listed for this course.</p>
+            <strong>${model.supportingActivityNote ? "Syllabus category points" : "Course assignments are not weighted."}</strong>
+            <p>${model.supportingActivityNote ? escapeHtml(model.supportingActivityNote) : "Points are calculated from the assignment items currently listed for this course."}</p>
           </div>
         </aside>
       </div>
@@ -5391,6 +5410,7 @@ function assessmentTypeForLesson(lesson = {}) {
 }
 
 function decorateGradeItemForCourse(item = {}, lessons = []) {
+  item = markCourseProjects(db, [item])[0];
   const lesson = lessons.find((entry) => Number(entry.grade_item_id) === Number(item.id) && assessmentTypeForLesson(entry)) || gradeItemLesson(item, lessons);
   const assessmentType = lesson ? assessmentTypeForLesson(lesson) : null;
   return assessmentType
@@ -5537,7 +5557,7 @@ function assignmentRubric(item = {}) {
       if (Array.isArray(rubric.criteria) && rubric.criteria.length) return rubric;
     } catch {}
   }
-  return isImportedCoursePointAssignment(item) ? null : defaultAssignmentRubric(item);
+  return isImportedCoursePointAssignment(item) || markCourseProjects(db, [item])[0].grading_pending ? null : defaultAssignmentRubric(item);
 }
 
 function rubricPoints(value) {
@@ -5729,6 +5749,7 @@ function renderAssignmentGradeEntry(item, courseId, lessons = []) {
   return `
     <section class="lesson-action-card" id="assignment-grade-entry">
       <h2>${completionOnly ? "Record assignment completion" : "Record assignment grades"}</h2>
+      ${item.grading_pending ? `<p>${escapeHtml(PROJECT_GRADING_NOTE)}</p>` : ""}
       <p>${completionOnly ? "Record completion without assigning a numeric grade." : `Enter a score from 0 to ${escapeHtml(item.points_possible)}. A student submission is optional for instructor grade entry.`} Leave a field blank to keep the saved ${completionOnly ? "status" : "grade"} unchanged.</p>
       <div class="table-wrap"><table>
         <thead><tr><th>Student</th><th>${completionOnly ? "Completion" : "Score"}</th><th>Feedback</th><th>Save</th></tr></thead>
@@ -5792,8 +5813,8 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
         <section class="lesson-action-card assignment-detail-summary">
           <h2>${escapeHtml(type)}</h2>
           <dl class="assignment-meta-grid">
-            <div><dt>Due date</dt><dd>${escapeHtml(formatGradeDue(item.due_date) || "No due date")}</dd></div>
-            <div><dt>Points</dt><dd>${escapeHtml(item.points_possible || 0)}</dd></div>
+            <div><dt>Due date</dt><dd>${escapeHtml(formatGradeDue(item.due_date) || (item.project_due_week ? `Week ${item.project_due_week}; calendar date pending` : "No due date"))}</dd></div>
+            <div><dt>Points</dt><dd>${item.grading_pending ? "Grading allocation pending" : escapeHtml(item.points_possible || 0)}</dd></div>
             <div><dt>Status</dt><dd><span class="pill ${status === "Unpublished" ? "orange" : ""}">${escapeHtml(status)}</span></dd></div>
             ${!instructor ? `<div><dt>Grade</dt><dd>${escapeHtml(scoreLabel)}</dd></div>` : ""}
           </dl>
@@ -15204,6 +15225,14 @@ function studentTranscriptData(user) {
     user.email,
     user.id
   ).map((row) => {
+    if (row.slug === FUNDAMENTALS_SLUG) {
+      const items = gradeItemsForCourse(row.course_id).filter((item) => !item.allowed_student_email ||
+        String(item.allowed_student_email).trim().toLowerCase() === String(user.email).trim().toLowerCase());
+      const grades = db.prepare("SELECT * FROM grades WHERE enrollment_id = ?").all(row.id);
+      const summary = courseGradeSummary(studentGradebookRows(row, items, grades));
+      row = { ...row, points_earned: summary.earned, points_possible: summary.possible,
+        posted_grade_count: summary.gradedCount, supportingActivityNote: summary.supportingActivityNote };
+    }
     const calculatedPercentage = Number(row.points_possible) > 0 ? (Number(row.points_earned) / Number(row.points_possible)) * 100 : null;
     const currentCalculatedLetter = calculatedPercentage === null ? null : transcriptLetterGrade("", calculatedPercentage);
     const finalGrade = String(row.final_grade || "").trim();
@@ -15344,6 +15373,7 @@ function renderCurrentGradeReportDocument(student, { backHref, backLabel }) {
       <aside class="current-grade-report-notice">
         <strong>Unofficial current progress report</strong>
         <p>This report includes all graded course work, including assignments, discussions, quizzes, midterms, and finals. Missing scores, ungraded submissions, pending reviews, incomplete work, and future assignments count as zero until scores are posted. It is not an official transcript or final grade and does not change any enrollment or academic record.</p>
+        ${report.records.some((row) => row.supportingActivityNote) ? `<p>${escapeHtml(SUPPORTING_ACTIVITY_NOTE)}</p>` : ""}
       </aside>
 
       <section class="current-grade-report-identity">
@@ -16416,6 +16446,84 @@ app.post("/student/financial-aid/:id/status", requireAuth, requireRole("student"
   `).run(status, acceptedAt, award.id);
   flash(req, status === "accepted" ? "Financial aid accepted." : "Financial aid declined.");
   res.redirect("/student/financial");
+});
+
+app.get("/student/enrollments/:id/grades.pdf", requireAuth, requireRole("student"), async (req, res) => {
+  const enrollment = db.prepare(`
+    SELECT e.*, c.title, c.slug, c.category, c.description, c.hours, c.credential_type, c.delivery_mode
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    WHERE e.id = ? AND e.user_id = ? AND e.status IN ('active','completed') AND e.withdrawn_at IS NULL
+  `).get(Number(req.params.id), req.user.id);
+  if (!enrollment) return res.status(404).send("Enrollment not found");
+  if (isClassLocked(req.user)) return res.status(403).send("Course access is locked");
+
+  const gradeItems = db.prepare(`
+    SELECT * FROM grade_items
+    WHERE course_id = ?
+      AND (allowed_student_email IS NULL OR lower(allowed_student_email) = lower(?))
+    ORDER BY due_date IS NULL, due_date, id
+  `).all(enrollment.course_id, req.user.email);
+  const grades = db.prepare(`
+    SELECT g.* FROM grades g
+    JOIN grade_items gi ON gi.id = g.grade_item_id
+    WHERE g.enrollment_id = ? AND gi.course_id = ?
+  `).all(enrollment.id, enrollment.course_id);
+  const examAttempts = db.prepare(`
+    SELECT ea.*, l.grade_item_id FROM exam_attempts ea
+    JOIN lessons l ON l.id = ea.lesson_id
+    JOIN modules m ON m.id = l.module_id
+    WHERE ea.enrollment_id = ? AND m.course_id = ? AND ea.status = 'in_progress'
+      AND l.grade_item_id IS NOT NULL
+  `).all(enrollment.id, enrollment.course_id).map(attempt => ({
+    ...attempt,
+    ordinary_quiz: !examSettingsForLesson({ id: attempt.lesson_id, grade_item_id: attempt.grade_item_id })
+  }));
+  const submissions = db.prepare(`
+    SELECT grade_item_id, MAX(submitted_at) AS submitted_at FROM (
+      SELECT s.grade_item_id, s.submitted_at FROM assignment_submissions s WHERE s.enrollment_id = ?
+      UNION ALL
+      SELECT gi.id AS grade_item_id, de.posted_at AS submitted_at
+      FROM enrollments e
+      JOIN discussion_topics dt ON dt.course_id = e.course_id
+      JOIN grade_items gi ON gi.course_id = dt.course_id AND lower(trim(gi.title)) = lower(trim(dt.title))
+      JOIN discussion_entries de ON de.topic_id = dt.id AND de.user_id = e.user_id
+      WHERE e.id = ?
+    ) GROUP BY grade_item_id
+  `).all(enrollment.id, enrollment.id);
+  const completionByItem = new Map(db.prepare(
+    "SELECT grade_item_id, status FROM assignment_completion_statuses WHERE enrollment_id = ?"
+  ).all(enrollment.id).map(row => [row.grade_item_id, row.status]));
+  const rows = studentGradebookRows(enrollment, gradeItems, grades, examAttempts, submissions).map(row => ({
+    ...row,
+    status: Number(row.points_possible) === 0 && completionByItem.has(row.id) ? completionByItem.get(row.id) : row.status
+  }));
+  const courseCode = canvasCourseCode(enrollment);
+  const syllabus = buildCourseSyllabusModel({
+    courseTitle: enrollment.title, courseSlug: enrollment.slug, courseCode, gradeItems
+  });
+  const finalGrade = String(enrollment.final_grade || "").trim();
+  try {
+    const pdf = await createStudentGradePdfBuffer({
+      instituteName, courseTitle: enrollment.title, courseCode,
+      studentName: personName(req.user), studentNumber: displayStudentNumber(req.user), studentEmail: req.user.email,
+      rows, summary: courseGradeSummary(rows),
+      officialFinalGrade: enrollment.status === "completed" && isValidTranscriptFinalGrade(finalGrade) ? finalGrade : "",
+      syllabusGradeRows: syllabus.assignmentRows.filter(item => !Number(item.gradebook_hidden || 0) && !isSyllabusAcknowledgment(item)),
+      syllabusPolicies: syllabus.policies,
+      projectGradingNote: PROJECT_GRADING_NOTE
+    });
+    res.status(200).set({
+      "Cache-Control": "private, no-store, max-age=0",
+      "Content-Disposition": `attachment; filename="${gradePdfFilename(courseCode)}"`,
+      "Content-Length": String(pdf.length),
+      "Content-Type": "application/pdf",
+      "X-Content-Type-Options": "nosniff"
+    }).send(pdf);
+  } catch (error) {
+    console.error(`Unable to generate grade PDF for enrollment ${enrollment.id}:`, error);
+    res.status(500).send("The grade PDF could not be generated.");
+  }
 });
 
 app.get("/student/enrollments/:id/syllabus.pdf", requireAuth, requireRole("student"), async (req, res) => {

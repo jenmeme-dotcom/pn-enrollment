@@ -323,8 +323,10 @@ function writeCourseSyllabusPdf(output, model) {
   }
 
   addSectionHeading(doc, "Course Assignments and Grade Tally");
-  const totalPoints = normalizedModel.assignmentRows.reduce((sum, item) => sum + Number(item.points_possible || 0), 0);
+  const coursePointItems = normalizedModel.assignmentRows.filter((item) => !item.supporting_activity);
+  const totalPoints = coursePointItems.reduce((sum, item) => sum + Number(item.points_possible || 0), 0);
   addParagraph(doc, `Total course points currently listed: ${totalPoints} points`, { bold: true });
+  if (normalizedModel.supportingActivityNote) addParagraph(doc, normalizedModel.supportingActivityNote, { color: colors.muted });
   if (normalizedModel.tallyRows.length) {
     drawTable(doc, {
       headers: ["Assignment Type", "Points"],
@@ -332,18 +334,28 @@ function writeCourseSyllabusPdf(output, model) {
       widths: [0.72, 0.28]
     });
   }
-  if (normalizedModel.assignmentRows.length) {
+  if (coursePointItems.length) {
     drawTable(doc, {
       headers: ["Assignment", "Due Date", "Points"],
-      rows: normalizedModel.assignmentRows.map((item) => [
+      rows: coursePointItems.map((item) => [
         item.title,
         displayDate(item.due_date),
-        Number(item.points_possible || 0)
+        item.grading_pending ? "Pending" : Number(item.points_possible || 0)
       ]),
       widths: [0.58, 0.27, 0.15]
     });
   } else {
     addParagraph(doc, "No graded assignments are currently listed. Refer to course modules for the latest requirements.", { color: colors.muted });
+  }
+
+  if (normalizedModel.projectRows?.length) {
+    addSectionHeading(doc, "Required Course Projects");
+    addParagraph(doc, "Due weeks refer to this course's schedule. Calendar dates, points, and category allocation await instructor confirmation.");
+    drawTable(doc, {
+      headers: ["Project", "Due", "Grading"],
+      rows: normalizedModel.projectRows.map((project) => [project.label, `Week ${project.dueWeek}`, "Allocation pending"]),
+      widths: [0.58, 0.16, 0.26]
+    });
   }
 
   if (normalizedModel.weeklySchedule.length) {
