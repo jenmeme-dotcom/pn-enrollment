@@ -21,7 +21,7 @@ PALE_GRAY = "F4F6F8"
 LIGHT_BORDER = "D9D9D9"
 
 
-WEEKS = [
+BASELINE_WEEKS = [
     {
         "week": 1,
         "hours": "2.0",
@@ -227,6 +227,49 @@ WEEKS = [
 ]
 
 
+# Convert the fourteen instructional blocks to a twelve-week calendar exactly
+# as approved: source Weeks 1-2 share calendar Week 1, source Weeks 3-11 become
+# calendar Weeks 2-10, source Weeks 12-13 share calendar Week 11, and source
+# Week 14 remains the integrated Week 12 checkoff. The existing baseline data
+# already combines source Weeks 10-11 and source Weeks 12-13, so the urinary /
+# musculoskeletal block is split below while the Week 11 block remains merged.
+WEEKS = [
+    {
+        "week": 1,
+        "hours": "3.5",
+        "topic": "Asepsis Infection Control Safety and Vital Signs",
+        "outcomes": BASELINE_WEEKS[0]["outcomes"] + BASELINE_WEEKS[1]["outcomes"],
+        "skills": BASELINE_WEEKS[0]["skills"] + BASELINE_WEEKS[1]["skills"],
+    },
+    *[
+        {**week, "week": index + 2}
+        for index, week in enumerate(BASELINE_WEEKS[2:9])
+    ],
+    {
+        "week": 9,
+        "hours": "0.75",
+        "topic": "Urinary and Renal Care",
+        "outcomes": [
+            "Perform urinary catheter care and sterile insertion in simulation.",
+            "Monitor fluid balance and collect urine specimens correctly.",
+        ],
+        "skills": BASELINE_WEEKS[9]["skills"][:3],
+    },
+    {
+        "week": 10,
+        "hours": "0.75",
+        "topic": "Musculoskeletal Care",
+        "outcomes": [
+            "Use safe transfer mobility and assistive-device techniques.",
+            "Perform neurovascular checks and apply cast or traction precautions.",
+        ],
+        "skills": BASELINE_WEEKS[9]["skills"][3:],
+    },
+    {**BASELINE_WEEKS[10], "week": 11},
+    {**BASELINE_WEEKS[11], "week": 12},
+]
+
+
 def shade_cell(cell, fill):
     tc_pr = cell._tc.get_or_add_tcPr()
     shd = tc_pr.find(qn("w:shd"))
@@ -276,7 +319,13 @@ def set_repeat_table_header(row):
     tr_pr.append(tbl_header)
 
 
-def set_font(run, name="Aptos", size=11, bold=False, color="000000"):
+def set_row_cant_split(row):
+    tr_pr = row._tr.get_or_add_trPr()
+    if tr_pr.find(qn("w:cantSplit")) is None:
+        tr_pr.append(OxmlElement("w:cantSplit"))
+
+
+def set_font(run, name="Arial", size=11, bold=False, color="000000"):
     run.font.name = name
     run._element.get_or_add_rPr().rFonts.set(qn("w:ascii"), name)
     run._element.get_or_add_rPr().rFonts.set(qn("w:hAnsi"), name)
@@ -324,27 +373,31 @@ def add_heading(doc, text, level=1):
 
 def configure_styles(doc):
     normal = doc.styles["Normal"]
-    normal.font.name = "Aptos"
-    normal._element.rPr.rFonts.set(qn("w:ascii"), "Aptos")
-    normal._element.rPr.rFonts.set(qn("w:hAnsi"), "Aptos")
+    normal.font.name = "Arial"
+    normal._element.rPr.rFonts.set(qn("w:ascii"), "Arial")
+    normal._element.rPr.rFonts.set(qn("w:hAnsi"), "Arial")
     normal.font.size = Pt(11)
     normal.font.color.rgb = RGBColor(0, 0, 0)
     normal.paragraph_format.space_after = Pt(6)
     normal.paragraph_format.line_spacing = 1.08
 
     title = doc.styles["Title"]
-    title.font.name = "Aptos Display"
-    title._element.rPr.rFonts.set(qn("w:ascii"), "Aptos Display")
-    title._element.rPr.rFonts.set(qn("w:hAnsi"), "Aptos Display")
+    title.font.name = "Arial"
+    title._element.rPr.rFonts.set(qn("w:ascii"), "Arial")
+    title._element.rPr.rFonts.set(qn("w:hAnsi"), "Arial")
     title.font.size = Pt(24)
     title.font.bold = True
     title.font.color.rgb = RGBColor(0, 0, 0)
+    title_p_pr = title._element.get_or_add_pPr()
+    title_border = title_p_pr.find(qn("w:pBdr"))
+    if title_border is not None:
+        title_p_pr.remove(title_border)
 
     for level, size in ((1, 15), (2, 12)):
         style = doc.styles[f"Heading {level}"]
-        style.font.name = "Aptos Display"
-        style._element.rPr.rFonts.set(qn("w:ascii"), "Aptos Display")
-        style._element.rPr.rFonts.set(qn("w:hAnsi"), "Aptos Display")
+        style.font.name = "Arial"
+        style._element.rPr.rFonts.set(qn("w:ascii"), "Arial")
+        style._element.rPr.rFonts.set(qn("w:hAnsi"), "Arial")
         style.font.size = Pt(size)
         style.font.bold = True
         style.font.color.rgb = RGBColor(0, 0, 0)
@@ -400,7 +453,9 @@ def add_week_table(doc):
     set_repeat_table_header(table.rows[0])
 
     for row_index, week in enumerate(WEEKS, 1):
-        cells = table.add_row().cells
+        row = table.add_row()
+        set_row_cant_split(row)
+        cells = row.cells
         if row_index % 2 == 0:
             for cell in cells:
                 shade_cell(cell, PALE_GRAY)
@@ -426,7 +481,7 @@ def add_week_details(doc):
     for index, week in enumerate(WEEKS):
         # Two weekly plans per page keeps each heading with its content and
         # avoids spillover-only pages when a week has a longer skills list.
-        if index % 2 == 0:
+        if index > 0 and index % 2 == 0:
             doc.add_page_break()
         add_heading(doc, f"Week {week['week']} {week['topic']}", 1)
         p = doc.add_paragraph()
@@ -469,7 +524,9 @@ def add_completion_record(doc):
         set_font(p.add_run(text), size=9, bold=True, color="FFFFFF")
     set_repeat_table_header(table.rows[0])
     for index, week in enumerate(WEEKS, 1):
-        cells = table.add_row().cells
+        row = table.add_row()
+        set_row_cant_split(row)
+        cells = row.cells
         if index % 2 == 0:
             for cell in cells:
                 shade_cell(cell, PALE_GRAY)
@@ -505,7 +562,7 @@ def build_document():
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title.paragraph_format.space_after = Pt(4)
     title_run = title.add_run("PN 107 Lab: Medical-Surgical Nursing Skills Lab")
-    set_font(title_run, name="Aptos Display", size=24, bold=True)
+    set_font(title_run, name="Arial", size=24, bold=True)
 
     subtitle = doc.add_paragraph()
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -564,7 +621,9 @@ def build_document():
 
     doc.add_page_break()
     add_heading(doc, "Twelve Week Lab Schedule", 1)
-    p = doc.add_paragraph("The schedule totals 20 lab hours. The instructor may adjust the order to coordinate equipment, clinical access, and student remediation while preserving the required competencies.")
+    p = doc.add_paragraph(
+        "The schedule totals 20 lab hours. To convert the fourteen instructional blocks to twelve calendar weeks, calendar Week 1 combines source Weeks 1 and 2, source Weeks 3 through 11 become calendar Weeks 2 through 10, calendar Week 11 combines source Weeks 12 and 13, and source Week 14 remains calendar Week 12. No instructional block is removed. The instructor may adjust the order to coordinate equipment, clinical access, and student remediation while preserving the required competencies."
+    )
     p.paragraph_format.space_after = Pt(8)
     add_week_table(doc)
 

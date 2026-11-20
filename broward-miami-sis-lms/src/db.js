@@ -4422,6 +4422,145 @@ function seed() {
   const pn107LabDefinition = courses.find((course) => course.slug === "medical-surgical-nursing-i-pn107-lab");
   const pn107LabRow = db.prepare("SELECT id FROM courses WHERE slug = 'medical-surgical-nursing-i-pn107-lab'").get();
   if (pn107LabDefinition && pn107LabRow) {
+    const labReflowSeedKey = "pn107-lab:merge-source-weeks-1-2-and-12-13-v1";
+    if (!seedVersionExists.get(pn107LabRow.id, labReflowSeedKey)) {
+      const targetWeeklyModules = pn107LabDefinition.modules.filter((module) => /^Week \d+:/.test(module.title));
+      const storedWeeklyModules = db.prepare(`
+        SELECT id, title, position
+        FROM modules
+        WHERE course_id = ? AND title LIKE 'Week %:%'
+        ORDER BY position, id
+      `).all(pn107LabRow.id);
+
+      if (targetWeeklyModules.length === 12 && storedWeeklyModules.length === 12) {
+        db.exec("SAVEPOINT pn107_lab_twelve_week_reflow");
+        try {
+          const updateModule = db.prepare(`
+            UPDATE modules SET title = ?, position = ?
+            WHERE id = ? AND course_id = ?
+          `);
+          targetWeeklyModules.forEach((module, index) => {
+            updateModule.run(module.title, index + 2, storedWeeklyModules[index].id, pn107LabRow.id);
+          });
+
+          const storedSkillLessons = db.prepare(`
+            SELECT l.id, l.title, l.grade_item_id
+            FROM lessons l
+            JOIN modules m ON m.id = l.module_id
+            WHERE m.course_id = ? AND l.title LIKE 'Week % Skill Check %:%'
+            ORDER BY l.id
+          `).all(pn107LabRow.id);
+          const storedBySkillTitle = new Map();
+          storedSkillLessons.forEach((lesson) => {
+            const match = lesson.title.match(/^Week \d+ Skill Check \d+:\s*(.+)$/);
+            if (match && !storedBySkillTitle.has(match[1])) storedBySkillTitle.set(match[1], lesson);
+          });
+
+          const gradeItemByTitle = db.prepare(`
+            SELECT id FROM grade_items
+            WHERE course_id = ? AND title = ?
+            ORDER BY id LIMIT 1
+          `);
+          const updateGradeItem = db.prepare(`
+            UPDATE grade_items SET title = ?, points_possible = 0
+            WHERE id = ? AND course_id = ?
+          `);
+          const createGradeItem = db.prepare(`
+            INSERT INTO grade_items (course_id, title, points_possible, due_date)
+            VALUES (?, ?, 0, NULL)
+          `);
+          const updateSkillLesson = db.prepare(`
+            UPDATE lessons
+            SET module_id = ?, title = ?, content = ?, external_url = ?,
+              duration_minutes = ?, position = ?, published = 1,
+              instructor_only = 0, item_type = 'assignment', grade_item_id = ?
+            WHERE id = ?
+          `);
+          const createSkillLesson = db.prepare(`
+            INSERT INTO lessons (
+              module_id, title, content, external_url, duration_minutes, position,
+              published, instructor_only, item_type, grade_item_id
+            ) VALUES (?, ?, ?, ?, ?, ?, 1, 0, 'assignment', ?)
+          `);
+
+          targetWeeklyModules.forEach((module, moduleIndex) => {
+            module.lessons.forEach((lesson, lessonIndex) => {
+              if (lesson.itemType !== "assignment" || !lesson.gradeItemTitle) return;
+              const skillTitle = lesson.title.replace(/^Week \d+ Skill Check \d+:\s*/, "");
+              const storedLesson = storedBySkillTitle.get(skillTitle);
+              let gradeItemId = storedLesson?.grade_item_id || null;
+              if (!gradeItemId && storedLesson) {
+                gradeItemId = gradeItemByTitle.get(pn107LabRow.id, storedLesson.title)?.id || null;
+              }
+              if (!gradeItemId) {
+                gradeItemId = Number(createGradeItem.run(pn107LabRow.id, lesson.gradeItemTitle).lastInsertRowid);
+              } else {
+                updateGradeItem.run(lesson.gradeItemTitle, gradeItemId, pn107LabRow.id);
+              }
+
+              const moduleId = storedWeeklyModules[moduleIndex].id;
+              if (storedLesson) {
+                updateSkillLesson.run(
+                  moduleId,
+                  lesson.title,
+                  lesson.content,
+                  lesson.externalUrl || null,
+                  lesson.durationMinutes || 45,
+                  lessonIndex + 1,
+                  gradeItemId,
+                  storedLesson.id
+                );
+              } else {
+                createSkillLesson.run(
+                  moduleId,
+                  lesson.title,
+                  lesson.content,
+                  lesson.externalUrl || null,
+                  lesson.durationMinutes || 45,
+                  lessonIndex + 1,
+                  gradeItemId
+                );
+              }
+            });
+          });
+
+          const orientationModule = pn107LabDefinition.modules[0];
+          const storedOrientation = db.prepare(`
+            SELECT id FROM modules
+            WHERE course_id = ? AND title = ?
+            ORDER BY id LIMIT 1
+          `).get(pn107LabRow.id, orientationModule.title);
+          if (storedOrientation) {
+            const updateOrientationLesson = db.prepare(`
+              UPDATE lessons
+              SET content = ?, external_url = ?, duration_minutes = ?, position = ?,
+                published = ?, instructor_only = ?
+              WHERE module_id = ? AND title = ?
+            `);
+            orientationModule.lessons.forEach((lesson, index) => {
+              updateOrientationLesson.run(
+                lesson.content,
+                lesson.externalUrl || null,
+                lesson.durationMinutes || 45,
+                index + 1,
+                lesson.published === false ? 0 : 1,
+                lesson.instructorOnly ? 1 : 0,
+                storedOrientation.id,
+                lesson.title
+              );
+            });
+          }
+
+          insertSeedVersion.run(pn107LabRow.id, labReflowSeedKey);
+          db.exec("RELEASE SAVEPOINT pn107_lab_twelve_week_reflow");
+        } catch (error) {
+          db.exec("ROLLBACK TO SAVEPOINT pn107_lab_twelve_week_reflow");
+          db.exec("RELEASE SAVEPOINT pn107_lab_twelve_week_reflow");
+          throw error;
+        }
+      }
+    }
+
     const storedLabLesson = db.prepare(`
       SELECT l.id
       FROM lessons l

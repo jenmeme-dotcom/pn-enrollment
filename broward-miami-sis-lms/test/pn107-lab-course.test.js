@@ -16,6 +16,7 @@ let databaseFile;
 let database;
 let activeTheoryStudentId;
 let withdrawnLabStudentId;
+let preservedLabRowsBeforeReflow;
 
 function seed() {
   const result = spawnSync(process.execPath, ["--no-warnings", "src/seed.js"], {
@@ -69,6 +70,19 @@ before(() => {
     ) VALUES (?, ?, 'withdrawn', '2026-10-10', 'Test withdrawal',
       '2026-10-10 12:00:00', '2026-10-01', 0, 'test', 'test-withdrawn-lab')
   `).run(withdrawnLabStudentId, labCourse.id);
+
+  preservedLabRowsBeforeReflow = database.prepare(`
+    SELECT lessons.id AS lesson_id, lessons.grade_item_id
+    FROM lessons
+    JOIN modules ON modules.id = lessons.module_id
+    WHERE modules.course_id = ?
+      AND lessons.title LIKE 'Week % Skill Check %'
+    ORDER BY lessons.id
+  `).all(labCourse.id);
+  database.prepare(`
+    DELETE FROM course_seed_versions
+    WHERE course_id = ? AND seed_key = 'pn107-lab:merge-source-weeks-1-2-and-12-13-v1'
+  `).run(labCourse.id);
   database.close();
   database = null;
 
@@ -103,6 +117,45 @@ test("PN 107 Lab seeds once as a 20-hour, 12-week companion course", () => {
     weeklyModules.map((module) => Number(module.title.match(/^Week (\d+):/)[1])),
     Array.from({ length: 12 }, (_, index) => index + 1)
   );
+  assert.equal(
+    weeklyModules[0].title,
+    "Week 1: Asepsis, Infection Control, Safety, Vital Signs, and Pain Assessment"
+  );
+  assert.equal(weeklyModules[1].title, "Week 2: Health Assessment Safety and Communication");
+  assert.equal(weeklyModules[8].title, "Week 9: Urinary and Renal Care");
+  assert.equal(weeklyModules[9].title, "Week 10: Musculoskeletal Care");
+  assert.equal(weeklyModules[10].title, "Week 11: Skin Integrity, Wound, and Perioperative Care");
+  assert.equal(weeklyModules[11].title, "Week 12: Integrated Medical-Surgical Competency");
+
+  const weeklyLessonCounts = database.prepare(`
+    SELECT modules.title, COUNT(lessons.id) AS lesson_count
+    FROM modules
+    LEFT JOIN lessons ON lessons.module_id = modules.id
+    WHERE modules.course_id = ? AND modules.title LIKE 'Week %:%'
+    GROUP BY modules.id
+    ORDER BY modules.position, modules.id
+  `).all(courses[0].id);
+  assert.equal(weeklyLessonCounts[0].lesson_count, 8, "Merged Week 1 should contain source Weeks 1 and 2");
+  assert.equal(weeklyLessonCounts[8].lesson_count, 2, "Week 9 should contain the urinary and renal block");
+  assert.equal(weeklyLessonCounts[9].lesson_count, 2, "Week 10 should contain the musculoskeletal block");
+  assert.equal(weeklyLessonCounts[10].lesson_count, 5, "Merged Week 11 should include perioperative safety");
+
+  const mergedWeekOneTitles = database.prepare(`
+    SELECT lessons.title
+    FROM lessons JOIN modules ON modules.id = lessons.module_id
+    WHERE modules.course_id = ? AND modules.title = ?
+    ORDER BY lessons.position, lessons.id
+  `).all(courses[0].id, weeklyModules[0].title).map((row) => row.title);
+  assert.ok(mergedWeekOneTitles.some((title) => /Alcohol-Based Hand Hygiene/.test(title)));
+  assert.ok(mergedWeekOneTitles.some((title) => /Pain Assessment/.test(title)));
+
+  const mergedWeekElevenTitles = database.prepare(`
+    SELECT lessons.title
+    FROM lessons JOIN modules ON modules.id = lessons.module_id
+    WHERE modules.course_id = ? AND modules.title = ?
+    ORDER BY lessons.position, lessons.id
+  `).all(courses[0].id, weeklyModules[10].title).map((row) => row.title);
+  assert.ok(mergedWeekElevenTitles.some((title) => /Preoperative and Postoperative Safety Checks/.test(title)));
 });
 
 test("every skill checklist is a safe Lippincott-linked, zero-point completion item", () => {
@@ -119,9 +172,9 @@ test("every skill checklist is a safe Lippincott-linked, zero-point completion i
     ORDER BY modules.position, lessons.position, lessons.id
   `).all(course.id);
 
-  assert.equal(rows.length, 48);
-  assert.equal(new Set(rows.map((row) => row.title)).size, 48);
-  assert.equal(new Set(rows.map((row) => row.grade_item_id)).size, 48);
+  assert.equal(rows.length, 49);
+  assert.equal(new Set(rows.map((row) => row.title)).size, 49);
+  assert.equal(new Set(rows.map((row) => row.grade_item_id)).size, 49);
   for (const row of rows) {
     assert.equal(row.item_type, "assignment", row.title);
     assert.equal(row.external_url, lippincottGateway, row.title);
@@ -130,6 +183,34 @@ test("every skill checklist is a safe Lippincott-linked, zero-point completion i
     assert.equal(row.grade_item_course_id, course.id, row.title);
     assert.equal(row.points_possible, 0, row.title);
   }
+});
+
+test("the targeted 12-week reflow preserves existing lesson and grade-item IDs", () => {
+  const course = database.prepare("SELECT id FROM courses WHERE slug = ?").get(labSlug);
+  const rowsAfterReflow = database.prepare(`
+    SELECT lessons.id AS lesson_id, lessons.grade_item_id
+    FROM lessons
+    JOIN modules ON modules.id = lessons.module_id
+    WHERE modules.course_id = ?
+      AND lessons.title LIKE 'Week % Skill Check %'
+    ORDER BY lessons.id
+  `).all(course.id);
+
+  const beforeByLessonId = new Map(
+    preservedLabRowsBeforeReflow.map((row) => [row.lesson_id, row.grade_item_id])
+  );
+  assert.equal(beforeByLessonId.size, 49);
+  for (const row of rowsAfterReflow) {
+    if (!beforeByLessonId.has(row.lesson_id)) continue;
+    assert.equal(row.grade_item_id, beforeByLessonId.get(row.lesson_id));
+  }
+  assert.equal(
+    database.prepare(`
+      SELECT COUNT(*) AS count FROM course_seed_versions
+      WHERE course_id = ? AND seed_key = 'pn107-lab:merge-source-weeks-1-2-and-12-13-v1'
+    `).get(course.id).count,
+    1
+  );
 });
 
 test("the official 12-week syllabus is available as a nonempty PDF", () => {

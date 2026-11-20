@@ -1,7 +1,12 @@
 const LIPPINCOTT_GATEWAY = "https://thepoint.lww.com/gateway";
 const SYLLABUS_PDF = "/course-materials/medical-surgical-nursing-i-pn107-lab/PN107-Lab-Syllabus-12-Weeks.pdf";
 
-const weeklySkills = [
+// The source Skills Lab outline spans fourteen instructional blocks. The BMHI
+// course keeps every block while presenting a twelve-week calendar by merging
+// source Weeks 1-2 and source Weeks 12-13. The baseline array below preserves
+// the previously entered skill details; the final `weeklySkills` array performs
+// the requested calendar reflow without changing assignment IDs at runtime.
+const baselineWeeklySkills = [
   {
     week: 1,
     topic: "Asepsis and Infection Control",
@@ -556,6 +561,63 @@ const weeklySkills = [
   }
 ];
 
+const combinedOpeningWeek = {
+  week: 1,
+  topic: "Asepsis, Infection Control, Safety, Vital Signs, and Pain Assessment",
+  skills: [
+    ...baselineWeeklySkills[0].skills,
+    ...baselineWeeklySkills[1].skills
+  ]
+};
+
+const urinaryRenalWeek = {
+  week: 9,
+  topic: "Urinary and Renal Care",
+  skills: baselineWeeklySkills[9].skills.slice(0, 2)
+};
+
+const musculoskeletalWeek = {
+  week: 10,
+  topic: "Musculoskeletal Care",
+  skills: baselineWeeklySkills[9].skills.slice(2)
+};
+
+const perioperativeSafetySkill = {
+  title: "Preoperative and Postoperative Safety Checks",
+  searchTitle: "Completing Preoperative and Postoperative Safety Checks",
+  criteria: [
+    "Verify identity, procedure, consent status, allergies, required preparation, and the current orders before transfer or care.",
+    "Complete the assigned preoperative checklist and report missing, conflicting, or unsafe information before proceeding.",
+    "Perform postoperative airway, breathing, circulation, pain, wound, drain, elimination, mobility, and safety checks in priority order.",
+    "Document findings, interventions, notifications, and the client's response, and escalate deterioration immediately."
+  ]
+};
+
+const skinWoundPerioperativeWeek = {
+  ...baselineWeeklySkills[10],
+  week: 11,
+  topic: "Skin Integrity, Wound, and Perioperative Care",
+  skills: [
+    ...baselineWeeklySkills[10].skills,
+    perioperativeSafetySkill
+  ]
+};
+
+const weeklySkills = [
+  combinedOpeningWeek,
+  ...baselineWeeklySkills.slice(2, 9).map((week, index) => ({
+    ...week,
+    week: index + 2
+  })),
+  urinaryRenalWeek,
+  musculoskeletalWeek,
+  skinWoundPerioperativeWeek,
+  {
+    ...baselineWeeklySkills[11],
+    week: 12
+  }
+];
+
 function skillAssignmentTitle(week, index, skill) {
   return `Week ${week} Skill Check ${index + 1}: ${skill.title}`;
 }
@@ -608,7 +670,7 @@ const medicalSurgicalNursingLabCourse = {
   deliveryMode: "20 on-campus skills lab hours with online preparation",
   description: "A 12-week companion shell for the 20 campus lab hours already included in PN 107 Medical-Surgical Nursing I. Students prepare with licensed Lippincott Skills resources, submit preparation evidence, and complete supervised BMHI competency checkoffs. These are not additional Practical Nursing program hours.",
   ghlProductKeys: [],
-  seedVersion: "pn107-lab-12-weeks-lippincott-skills-2026-11-20",
+  seedVersion: "pn107-lab-12-weeks-merge-1-2-and-12-13-2026-11-20",
   syllabusPdf: SYLLABUS_PDF,
   gradeItems: checklistLessons.map((lesson) => ({
     title: lesson.gradeItemTitle,
