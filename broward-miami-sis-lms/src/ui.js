@@ -28,12 +28,21 @@ function navFor(user, pendingAssignmentReviewCount = 0) {
   const reviewCount = user.role === "instructor" && String(user.email || "").toLowerCase() === "dayana.diaz@browardmiamihi.com"
     ? Math.max(0, Number(pendingAssignmentReviewCount) || 0) : 0;
   const assignmentInboxLink = `<a class="${reviewCount ? "assignment-review-alert" : ""}" href="/admin/assignment-submissions">Assignment Inbox${reviewCount ? ` <b class="assignment-review-count" aria-label="${escapeHtml(reviewCount)} assignments need review">${escapeHtml(reviewCount)}</b>` : ""}</a>`;
+  const rolesDropdown = user.role === "admin" ? `
+    <label class="sis-role-menu">
+      <span class="sr-only">Choose a staff role page</span>
+      <select aria-label="Roles" onchange="if (this.value) window.location.assign(this.value)">
+        <option value="" selected>Roles</option>
+        <option value="/admin/admin-roles">Admin</option>
+        <option value="/admin/instructor-roles">Instructor</option>
+      </select>
+    </label>
+  ` : "";
   const adminLinks = `
     <a href="/admin">Dashboard</a>
     <a href="/admin/admissions">Admissions</a>
     <a href="/admin/features">Features</a>
-    <a href="/admin/admin-roles">Admin Roles</a>
-    <a href="/admin/instructor-roles">Instructor Roles</a>
+    ${rolesDropdown}
     <a href="/admin/students">Students</a>
     <a href="/admin/student-evaluations">Student Evals</a>
     ${assignmentInboxLink}
@@ -50,7 +59,7 @@ function navFor(user, pendingAssignmentReviewCount = 0) {
     <a href="/admin/ghl">GHL</a>
   `;
   const instructorLinks = `
-    <a href="/admin">Dashboard</a>
+    <a href="/admin/courses">Dashboard</a>
     <a href="/admin/students">Students</a>
     <a href="/admin/student-evaluations">Student Evals</a>
     ${assignmentInboxLink}
@@ -211,17 +220,17 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
   const header = full || courseCanvas ? "" : isSis ? `
     <header class="sis-header">
       <div class="sis-topbar">
-        <a class="sis-logo" href="/admin">
+        <a class="sis-logo" href="${user.role === "instructor" ? "/admin/courses" : "/admin"}">
           <img src="/assets/bmhi-wordmark.jpeg" alt="${institute}">
         </a>
-        <form class="sis-search" action="/admin/features" method="get">
+        <form class="sis-search" action="${user.role === "instructor" ? "/admin/courses" : "/admin/features"}" method="get">
           <label class="sr-only" for="sis-search">Search</label>
           <input id="sis-search" type="search" placeholder="Search students, courses, reports">
         </form>
         <span class="sis-topbar-spacer" aria-hidden="true"></span>
         <div class="sis-tools">
           <a class="sis-tool task-tickets-link" href="/admin/tickets" title="Task Tickets">Task Tickets</a>
-          <a class="sis-tool" href="/admin/features/system-settings" title="Settings">Settings</a>
+          ${user.role === "admin" ? `<a class="sis-tool" href="/admin/features/system-settings" title="Settings">Settings</a>` : ""}
           <span class="sis-avatar" title="${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)}">${escapeHtml(initialsFor(user))}</span>
           <form method="post" action="/logout">
             <button class="sis-signout" type="submit">Sign out</button>

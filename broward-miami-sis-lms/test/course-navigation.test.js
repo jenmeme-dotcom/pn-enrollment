@@ -366,29 +366,32 @@ after(async () => {
 });
 
 test("the admin dashboard toggle switches between Operations and Online Courses", async () => {
-  for (const [cookie, role] of [[adminCookie, "admin"], [instructorCookie, "instructor"]]) {
-    const operationsLinks = adminDashboardToggleLinks(await getHtml("/admin", cookie));
-    const courseLinks = adminDashboardToggleLinks(await getHtml("/admin/courses", cookie));
-    const expectedLinks = [
-      { label: "Operations", href: "/admin" },
-      { label: "Online Courses", href: "/admin/courses" }
-    ];
+  const expectedAdminLinks = [
+    { label: "Operations", href: "/admin" },
+    { label: "Online Courses", href: "/admin/courses" }
+  ];
+  const operationsLinks = adminDashboardToggleLinks(await getHtml("/admin", adminCookie));
+  const adminCourseLinks = adminDashboardToggleLinks(await getHtml("/admin/courses", adminCookie));
+  assert.deepEqual(operationsLinks.map(({ label, href }) => ({ label, href })), expectedAdminLinks);
+  assert.deepEqual(adminCourseLinks.map(({ label, href }) => ({ label, href })), expectedAdminLinks);
+  assert.deepEqual(operationsLinks.map((link) => link.active), [true, false]);
+  assert.deepEqual(adminCourseLinks.map((link) => link.active), [false, true]);
+  assert.ok(operationsLinks[0].classes.includes("is-active"));
+  assert.ok(adminCourseLinks[1].classes.includes("is-active"));
 
-    assert.deepEqual(
-      operationsLinks.map(({ label, href }) => ({ label, href })),
-      expectedLinks,
-      `${role} Operations view should expose both dashboard choices`
-    );
-    assert.deepEqual(
-      courseLinks.map(({ label, href }) => ({ label, href })),
-      expectedLinks,
-      `${role} Online Courses view should expose both dashboard choices`
-    );
-    assert.deepEqual(operationsLinks.map((link) => link.active), [true, false]);
-    assert.deepEqual(courseLinks.map((link) => link.active), [false, true]);
-    assert.ok(operationsLinks[0].classes.includes("is-active"));
-    assert.ok(courseLinks[1].classes.includes("is-active"));
-  }
+  const instructorOperations = await fetch(`${baseUrl}/admin`, {
+    headers: { cookie: instructorCookie },
+    redirect: "manual"
+  });
+  assert.equal(instructorOperations.status, 302);
+  assert.equal(instructorOperations.headers.get("location"), "/admin/courses");
+  const instructorCourseLinks = adminDashboardToggleLinks(await getHtml("/admin/courses", instructorCookie));
+  assert.deepEqual(
+    instructorCourseLinks.map(({ label, href }) => ({ label, href })),
+    [{ label: "Online Courses", href: "/admin/courses" }]
+  );
+  assert.deepEqual(instructorCourseLinks.map((link) => link.active), [true]);
+  assert.ok(instructorCourseLinks[0].classes.includes("is-active"));
 });
 
 test("the Online Courses view renders each course as a visual picker card with direct actions", async () => {
@@ -459,6 +462,39 @@ test("the Online Courses view renders each course as a visual picker card with d
   } finally {
     const restorePublication = database.prepare("UPDATE courses SET published = ? WHERE id = ?");
     for (const course of originalCourses) restorePublication.run(course.published, course.id);
+  }
+});
+
+test("PN 107 Skills Lab has its own published card, thumbnail, and Actions screen", async () => {
+  const theoryCourse = database.prepare(`
+    SELECT id FROM courses WHERE slug = 'medical-surgical-nursing-i-pn107'
+  `).get();
+  const labCourse = database.prepare(`
+    SELECT id, title, hours, published
+    FROM courses
+    WHERE slug = 'medical-surgical-nursing-i-pn107-lab'
+  `).get();
+
+  assert.ok(theoryCourse, "Expected the PN 107 theory course");
+  assert.ok(labCourse, "Expected the PN 107 Skills Lab course");
+  assert.notEqual(labCourse.id, theoryCourse.id, "Skills Lab must be an individual course shell");
+  assert.equal(labCourse.published, 1);
+  assert.equal(labCourse.hours, 20);
+
+  for (const [cookie, role] of [[adminCookie, "admin"], [instructorCookie, "instructor"]]) {
+    const html = await getHtml("/admin/courses", cookie);
+    const labCard = coursePickerCard(html, labCourse.id);
+    const theoryCard = coursePickerCard(html, theoryCourse.id);
+
+    assert.notEqual(labCard, theoryCard, `Expected a separate ${role} card for Skills Lab`);
+    assert.match(labCard, /PN 107 Lab/);
+    assert.match(labCard, /PN 107 Lab: Medical-Surgical Nursing Skills Lab/);
+    assert.match(labCard, /\/assets\/course-thumbnails\/06-pn-107-skills-lab\.svg/);
+    assert.doesNotMatch(theoryCard, /06-pn-107-skills-lab\.svg/);
+    assert.match(labCard, new RegExp(`href="/admin/courses/${labCourse.id}/manage"`));
+    assert.match(labCard, new RegExp(`href="/admin/courses/${labCourse.id}/student-view"`));
+    assert.match(labCard, /<dt>Hours<\/dt><dd>20<\/dd>/);
+    assert.match(labCard, />Published</);
   }
 });
 

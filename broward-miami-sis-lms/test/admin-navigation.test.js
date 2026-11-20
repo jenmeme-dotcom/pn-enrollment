@@ -35,14 +35,29 @@ test("admin navigation is one non-wrapping row without repeated tool links", () 
     assert.match(navigation, /href="\/admin\/help">SOPs<\/a>/);
     assert.match(navigation, /href="\/catalog">Catalog<\/a>/);
     assert.doesNotMatch(navigation, /Task Tickets/);
-    assert.match(
-      tools,
-      /class="sis-tool task-tickets-link" href="\/admin\/tickets"[^>]*>Task Tickets<\/a>\s*<a class="sis-tool" href="\/admin\/features\/system-settings"[^>]*>Settings<\/a>/,
-      `${role} Task Tickets should appear immediately beside Settings`
-    );
+    assert.match(tools, /class="sis-tool task-tickets-link" href="\/admin\/tickets"[^>]*>Task Tickets<\/a>/);
   }
+
+  const adminHtml = renderAdminHeader("admin");
+  const adminNavigation = adminHtml.match(/<nav class="sis-subnav"[^>]*>([\s\S]*?)<\/nav>/)?.[1] || "";
+  assert.match(adminNavigation, /<select aria-label="Roles"/);
+  assert.match(adminNavigation, /<option value="\/admin\/admin-roles">Admin<\/option>/);
+  assert.match(adminNavigation, /<option value="\/admin\/instructor-roles">Instructor<\/option>/);
+  assert.doesNotMatch(adminNavigation, />Admin Roles<\/a>/);
+  assert.doesNotMatch(adminNavigation, />Instructor Roles<\/a>/);
+  assert.match(adminHtml, /href="\/admin\/features\/system-settings"[^>]*>Settings<\/a>/);
+
+  const instructorHtml = renderAdminHeader("instructor");
+  const instructorNavigation = instructorHtml.match(/<nav class="sis-subnav"[^>]*>([\s\S]*?)<\/nav>/)?.[1] || "";
+  assert.doesNotMatch(instructorNavigation, /aria-label="Roles"/);
+  assert.doesNotMatch(instructorHtml, /\/admin\/admin-roles/);
+  assert.doesNotMatch(instructorHtml, /\/admin\/instructor-roles/);
+  assert.doesNotMatch(instructorHtml, /\/admin\/features(?:\/system-settings)?/);
+  assert.match(instructorNavigation, /href="\/admin\/courses">Dashboard<\/a>/);
+  assert.match(instructorHtml, /<a class="sis-logo" href="\/admin\/courses">/);
 
   assert.match(styles, /\.sis-subnav \{[\s\S]*?flex-wrap: nowrap;[\s\S]*?overflow-x: auto;[\s\S]*?\}/);
   assert.match(styles, /\.sis-subnav a \{[\s\S]*?flex: 0 0 auto;[\s\S]*?white-space: nowrap;[\s\S]*?\}/);
   assert.match(styles, /\.sis-tool\.task-tickets-link \{[\s\S]*?color: #b42318;[\s\S]*?font-weight: 900;[\s\S]*?\}/);
+  assert.match(styles, /\.sis-role-menu select \{[\s\S]*?font-weight: 800;[\s\S]*?\}/);
 });

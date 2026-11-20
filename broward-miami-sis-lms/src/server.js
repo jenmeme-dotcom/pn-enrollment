@@ -1765,7 +1765,7 @@ const courseThumbnailUrls = Object.freeze({
   "medical-assistant": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/medical-assistant-hero-16fp.jpeg",
   "medical-billing-and-coding": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/medical-billing-coding-hero-sbqj.jpeg",
   "medical-surgical-nursing-i-pn107": "/assets/course-thumbnails/02-pn-107-medical-surgical-nursing-i.png",
-  "medical-surgical-nursing-i-pn107-lab": "/assets/course-thumbnails/02-pn-107-medical-surgical-nursing-i.png",
+  "medical-surgical-nursing-i-pn107-lab": "/assets/course-thumbnails/06-pn-107-skills-lab.svg",
   "medical-terminology": "https://images.leadconnectorhq.com/image/f_webp/q_80/r_320/u_https://files.leadconnectorhq.com/file/6ac6affbd66e1673fe124e8d/medical-records.webp",
   "patient-care-technician": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/patient-care-technician-hero-k03k.jpeg",
   "pediatric-advanced-life-support": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/pals-hero-qio8.jpg",
@@ -8837,11 +8837,11 @@ app.post("/admin/catalog/upload", requireAuth, requireRole("admin"), (req, res) 
   });
 });
 
-function renderAdminDashboardToggle(activeView = "operations") {
+function renderAdminDashboardToggle(activeView = "operations", role = "admin") {
   const options = [
     { key: "operations", label: "Operations", href: "/admin" },
     { key: "courses", label: "Online Courses", href: "/admin/courses" }
-  ];
+  ].filter((option) => role === "admin" || option.key !== "operations");
   return `
     <nav class="admin-dashboard-toggle" aria-label="Dashboard view">
       ${options.map((option) => `
@@ -8986,6 +8986,7 @@ function renderAdminCourseDashboardSidebar({ pendingSubmissions = [], upcoming =
 }
 
 app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  if (req.user.role === "instructor") return res.redirect("/admin/courses");
   const cohorts = db.prepare(`
     SELECT DISTINCT cohort_name
     FROM users
@@ -13101,7 +13102,7 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
   `;
 
   const instructorBody = `
-    ${renderAdminDashboardToggle("courses")}
+    ${renderAdminDashboardToggle("courses", req.user.role)}
     <div class="page-head">
       <div>
         <h1>Instructor Course Dashboard</h1>
@@ -13117,7 +13118,7 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
     </div>
   `;
   const adminBody = `
-    ${renderAdminDashboardToggle("courses")}
+    ${renderAdminDashboardToggle("courses", req.user.role)}
     <div class="page-head">
       <div>
         <h1>Choose a Course</h1>

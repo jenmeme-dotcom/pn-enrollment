@@ -126,8 +126,15 @@ test("Operations Dashboard gives admins one prominent LPN Enrollment entry point
   assert.match(matchingLinks[0][0], /class="[^"]*\bbutton\b[^"]*"/, "Expected the LPN entry point to render as a button");
 
   const instructorResponse = await get("/admin", instructorCookie);
-  assert.equal(instructorResponse.status, 200);
-  assert.doesNotMatch(await instructorResponse.text(), /href="\/admin\/lpn-enrollment"/, "Instructors must not see the admin enrollment action");
+  assert.equal(instructorResponse.status, 302);
+  assert.equal(instructorResponse.headers.get("location"), "/admin/courses", "Instructors must bypass the Operations Dashboard");
+
+  const instructorCourses = await get("/admin/courses", instructorCookie);
+  assert.equal(instructorCourses.status, 200);
+  const instructorHtml = await instructorCourses.text();
+  assert.doesNotMatch(instructorHtml, /href="\/admin\/lpn-enrollment"/, "Instructors must not see the admin enrollment action");
+  assert.doesNotMatch(instructorHtml, />Operations<\/a>/, "Instructors must not see the Operations Dashboard toggle");
+  assert.doesNotMatch(instructorHtml, /\/admin\/admin-roles/, "Instructors must not see Admin Roles access");
 });
 
 test("LPN Enrollment is an admin-only Practical Nursing batch enrollment workflow", async () => {
@@ -145,6 +152,14 @@ test("LPN Enrollment is an admin-only Practical Nursing batch enrollment workflo
   const instructorResponse = await get("/admin/lpn-enrollment", instructorCookie);
   assert.equal(instructorResponse.status, 403, "The enrollment destination must reject non-admin faculty");
   assert.equal(await instructorResponse.text(), "Forbidden");
+});
+
+test("staff account management routes remain admin-only", async () => {
+  for (const route of ["/admin/admin-roles", "/admin/instructor-roles"]) {
+    const response = await get(route, instructorCookie);
+    assert.equal(response.status, 403, `${route} must reject instructor accounts`);
+    assert.equal(await response.text(), "Forbidden");
+  }
 });
 
 test("LPN Enrollment adds selected course shells once and preserves repeat submissions", async () => {
