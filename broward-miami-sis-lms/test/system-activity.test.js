@@ -228,27 +228,12 @@ test("staff account changes record the actor, target, action, time, and useful d
   assert.equal(response.status, 302);
   expectedActions.push("edited_account");
 
-  response = await postForm(`/admin/staff/${targetUserId}/remove`, {
-    reason: "No longer employed"
-  });
-  assert.equal(response.status, 302);
-  expectedActions.push("removed");
-
-  response = await postForm(`/admin/staff/${targetUserId}/reactivate`, {});
-  assert.equal(response.status, 302);
-  expectedActions.push("restored");
-
   const events = activityActionsForTarget();
   const actions = events.map((event) => event.action);
-  for (const action of expectedActions.slice(0, -1)) {
+  for (const action of expectedActions) {
     assert.ok(actions.includes(action), `Expected ${action} in ${actions.join(", ")}`);
   }
-  assert.ok(
-    actions.includes("restored") || actions.filter((action) => action === "reactivated").length >= 2,
-    `Expected restore/reactivation event in ${actions.join(", ")}`
-  );
   assert.ok(events.every((event) => event.created_at), "Every activity row should have a timestamp");
-  assert.ok(events.some((event) => String(event.details || "").includes("No longer employed")));
 
   const { response: pageResponse, html } = await getPage("/admin/system-activity", adminCookie);
   assert.equal(pageResponse.status, 200);
@@ -258,9 +243,7 @@ test("staff account changes record the actor, target, action, time, and useful d
   assert.match(html, /Inactivated/i);
   assert.match(html, /Password reset/i);
   assert.match(html, /Edited account/i);
-  assert.match(html, /Removed/i);
-  assert.match(html, /Restored|Reactivated/i);
-  assert.match(html, /No longer employed/i);
+  assert.match(html, /Reactivated/i);
 });
 
 test("activity history never exposes credentials or password hashes", async () => {

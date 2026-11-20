@@ -389,8 +389,7 @@ test("inactivation blocks login, preserves staff history, and is not undone by p
 
   for (const route of [
     `/admin/staff/${lifecycleUser.id}/inactivate`,
-    `/admin/staff/${lifecycleUser.id}/reactivate`,
-    `/admin/staff/${lifecycleUser.id}/remove`
+    `/admin/staff/${lifecycleUser.id}/reactivate`
   ]) {
     const forbidden = await postForm(route, { reason: "Instructor must not manage staff access" }, instructorCookie);
     assert.equal(forbidden.status, 403, `${route} must remain admin-only`);
@@ -445,67 +444,17 @@ test("inactivation blocks login, preserves staff history, and is not undone by p
   assertRedirect(restoredLogin.response, "/admin");
 });
 
-test("soft removal retains the user and history, separates removed staff, and permits restoration", async () => {
-  const beforeUserCount = database.prepare("SELECT COUNT(*) AS count FROM users WHERE id = ?").get(lifecycleUser.id).count;
-  const beforeTimeEntries = database.prepare("SELECT COUNT(*) AS count FROM staff_time_entries WHERE user_id = ?").get(lifecycleUser.id).count;
-  const beforePayRecords = database.prepare("SELECT COUNT(*) AS count FROM staff_pay_records WHERE user_id = ?").get(lifecycleUser.id).count;
-
+test("staff removal endpoint is unavailable and leaves the account active", async () => {
   const remove = await postForm(`/admin/staff/${lifecycleUser.id}/remove`, {
     reason: "No longer employed"
   }, adminCookie);
-  assertRedirect(remove);
-
-  const removedUser = userById(lifecycleUser.id);
-  assert.equal(removedUser.status, "inactive");
-  assert.equal(removedUser.organization_status, "not_organized");
-  assert.equal(
-    database.prepare("SELECT COUNT(*) AS count FROM users WHERE id = ?").get(lifecycleUser.id).count,
-    beforeUserCount,
-    "Remove must never delete the user row"
-  );
-  assert.equal(
-    database.prepare("SELECT COUNT(*) AS count FROM staff_time_entries WHERE user_id = ?").get(lifecycleUser.id).count,
-    beforeTimeEntries
-  );
-  assert.equal(
-    database.prepare("SELECT COUNT(*) AS count FROM staff_pay_records WHERE user_id = ?").get(lifecycleUser.id).count,
-    beforePayRecords
-  );
-
-  const removedEvents = accountEvents(lifecycleUser.id, "removed");
-  assert.equal(removedEvents.length, 1);
-  assert.equal(removedEvents[0].changed_by, adminUser.id);
-  assert.match(removedEvents[0].details, /No longer employed/i);
-  assert.ok(removedEvents[0].created_at);
-
-  const instructorRoles = await getPage("/admin/instructor-roles", adminCookie);
-  assert.equal(instructorRoles.response.status, 200);
-  const activeStaff = sectionContainingHeading(instructorRoles.html, "Faculty usernames and passwords");
-  assert.doesNotMatch(activeStaff, /Lifecycle Staff/, "removed people must be hidden from the active staff list");
-  const removedStaff = sectionContainingHeading(instructorRoles.html, "Removed Staff Accounts");
-  assert.match(removedStaff, /Lifecycle Staff/);
-  assert.match(removedStaff, /No longer employed/);
-  assert.match(removedStaff, /Removed by/i);
-  assertAction(removedStaff, `/admin/staff/${lifecycleUser.id}/reactivate`, "Restore or Reactivate control");
-  assert.match(removedStaff, />\s*(?:Restore|Reactivate)(?: access)?\s*</i);
-
-  const history = sectionContainingHeading(instructorRoles.html, "Account Change History");
-  assert.match(history, /Lifecycle Staff/);
-  assert.match(history, /removed/i);
-  assert.match(history, /No longer employed/i);
-
-  const restore = await postForm(`/admin/staff/${lifecycleUser.id}/reactivate`, {
-    reason: "Employee returned"
-  }, adminCookie);
-  assertRedirect(restore);
+  assert.equal(remove.status, 404);
   assert.equal(userById(lifecycleUser.id).status, "active");
   assert.equal(userById(lifecycleUser.id).organization_status, "organized");
-  const reactivatedEvents = accountEvents(lifecycleUser.id, "reactivated");
-  assert.equal(reactivatedEvents.length, 2);
-  assert.match(reactivatedEvents.at(-1).details, /Employee returned/i);
+  assert.equal(accountEvents(lifecycleUser.id, "removed").length, 0);
 });
 
-test("admin and instructor role tables expose separate edit, username, access, and remove controls", async () => {
+test("admin and instructor role tables expose edit, username, and inactivate controls only", async () => {
   const adminRoles = await getPage("/admin/admin-roles", adminCookie);
   assert.equal(adminRoles.response.status, 200);
   const staticAdmin = database.prepare("SELECT id FROM users WHERE email = 'rome.liwag@browardmiamihi.com'").get();
@@ -513,7 +462,8 @@ test("admin and instructor role tables expose separate edit, username, access, a
   assertAction(adminRoles.html, `/admin/staff/${staticAdmin.id}/edit`, "Edit Account button for an administrator");
   assertAction(adminRoles.html, `/admin/users/${staticAdmin.id}/login-username`, "administrator username form");
   assertAction(adminRoles.html, `/admin/staff/${staticAdmin.id}/inactivate`, "administrator Inactivate control");
-  assertAction(adminRoles.html, `/admin/staff/${staticAdmin.id}/remove`, "administrator Remove control");
+  assert.ok(!adminRoles.html.includes(`action="/admin/staff/${staticAdmin.id}/remove"`));
+  assert.match(adminRoles.html, /<button class="small danger" type="submit">Inactivate<\/button>/);
   assert.match(adminRoles.html, />\s*Edit Account\s*</i);
 
   const instructorRoles = await getPage("/admin/instructor-roles", adminCookie);
@@ -521,7 +471,8 @@ test("admin and instructor role tables expose separate edit, username, access, a
   assertAction(instructorRoles.html, `/admin/staff/${editUser.id}/edit`, "Edit Account button for an instructor");
   assertAction(instructorRoles.html, `/admin/users/${editUser.id}/login-username`, "instructor username form");
   assertAction(instructorRoles.html, `/admin/staff/${editUser.id}/inactivate`, "instructor Inactivate control");
-  assertAction(instructorRoles.html, `/admin/staff/${editUser.id}/remove`, "instructor Remove control");
+  assert.ok(!instructorRoles.html.includes(`action="/admin/staff/${editUser.id}/remove"`));
+  assert.match(instructorRoles.html, /<button class="small danger" type="submit">Inactivate<\/button>/);
   assert.match(instructorRoles.html, />\s*Edit Account\s*</i);
   assert.match(instructorRoles.html, /Account Change History/);
 });

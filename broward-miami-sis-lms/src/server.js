@@ -9992,16 +9992,8 @@ app.get("/admin/admin-roles", requireAuth, requireRole("admin"), (req, res) => {
           <form method="post" action="/admin/staff/${account.id}/reset-password"><button class="small ghost" type="submit">Reset password</button></form>
           <form method="post" action="/admin/staff/${account.id}/inactivate" onsubmit="return confirm('Inactivate this account? Historical records will be preserved.');">
             <input type="hidden" name="reason" value="Access inactivated by administrator">
-            <button class="small ghost" type="submit">Inactivate</button>
+            <button class="small danger" type="submit">Inactivate</button>
           </form>
-          <details class="staff-remove-control">
-            <summary class="button small danger">Remove</summary>
-            <form method="post" action="/admin/staff/${account.id}/remove">
-              <label>Reason for removal<input name="reason" maxlength="240" required placeholder="No longer employed"></label>
-              <p class="muted">This is recoverable. The account and all historical records are preserved.</p>
-              <button class="small danger" type="submit">Confirm Remove</button>
-            </form>
-          </details>
         </div>
       </td>
     </tr>
@@ -10179,8 +10171,7 @@ app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res)
                 <div class="staff-account-actions">
                   <a class="button small ghost" href="/admin/staff/${instructor.id}/edit">Edit Account</a>
                   <form method="post" action="/admin/instructor-roles/${encodeURIComponent(instructor.email)}/reset-password"><button class="small ghost" type="submit">Reset password</button></form>
-                  <form method="post" action="/admin/staff/${instructor.id}/inactivate" onsubmit="return confirm('Inactivate this account? Historical records will be preserved.');"><input type="hidden" name="reason" value="Instructor access inactivated by administrator"><button class="small ghost" type="submit">Inactivate</button></form>
-                  <details class="staff-remove-control"><summary class="button small danger">Remove</summary><form method="post" action="/admin/staff/${instructor.id}/remove"><label>Reason<input name="reason" required maxlength="240" placeholder="No longer employed"></label><p class="muted">This is recoverable; historical records are preserved.</p><button class="small danger" type="submit">Confirm Remove</button></form></details>
+                  <form method="post" action="/admin/staff/${instructor.id}/inactivate" onsubmit="return confirm('Inactivate this account? Historical records will be preserved.');"><input type="hidden" name="reason" value="Instructor access inactivated by administrator"><button class="small danger" type="submit">Inactivate</button></form>
                   <a class="button small ghost" href="/admin/staff-portal?staffId=${instructor.id}">Staff time</a>
                 </div>
               </td>
@@ -10272,10 +10263,10 @@ function staffAccountById(id) {
 
 function staffAccessChangeBlocked(req, staff) {
   if (!staff) return "Staff account not found.";
-  if (Number(staff.id) === Number(req.user.id)) return "You cannot inactivate or remove your own signed-in account.";
+  if (Number(staff.id) === Number(req.user.id)) return "You cannot inactivate your own signed-in account.";
   if (staff.role === "admin") {
     const activeAdmins = db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND status = 'active' AND removed_at IS NULL").get().count;
-    if (activeAdmins <= 1) return "The last active administrator cannot be inactivated or removed.";
+    if (activeAdmins <= 1) return "The last active administrator cannot be inactivated.";
   }
   return "";
 }
@@ -10376,29 +10367,6 @@ app.post("/admin/staff/:id/inactivate", requireAuth, requireRole("admin"), (req,
     .run(reason, staff.id);
   recordStaffAccountEvent(req, staff, "inactivated", reason);
   flash(req, `${personName(staff)}'s access was inactivated. Historical records were preserved.`);
-  res.redirect(staffRolesReturnPath(staff));
-});
-
-app.post("/admin/staff/:id/remove", requireAuth, requireRole("admin"), (req, res) => {
-  const staff = staffAccountById(req.params.id);
-  const blocked = staffAccessChangeBlocked(req, staff);
-  if (blocked) {
-    flash(req, blocked);
-    return res.redirect(staff ? staffRolesReturnPath(staff) : "/admin/admin-roles");
-  }
-  const reason = String(req.body.reason || "").trim().slice(0, 240);
-  if (!reason) {
-    flash(req, "Enter a reason before removing staff access.");
-    return res.redirect(staffRolesReturnPath(staff));
-  }
-  db.prepare(`
-    UPDATE users
-    SET status = 'inactive', organization_status = 'not_organized', class_lock_reason = ?,
-      removed_at = CURRENT_TIMESTAMP, removed_by = ?, removal_reason = ?
-    WHERE id = ?
-  `).run(`Removed by administrator: ${reason}`, req.user.id, reason, staff.id);
-  recordStaffAccountEvent(req, staff, "removed", reason);
-  flash(req, `${personName(staff)} was moved to Removed Staff Accounts. Historical records were preserved.`);
   res.redirect(staffRolesReturnPath(staff));
 });
 

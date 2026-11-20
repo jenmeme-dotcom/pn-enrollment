@@ -14,7 +14,7 @@ function routeSource(start, end) {
   return serverSource.slice(startIndex, endIndex);
 }
 
-test("staff account rows expose explicit, recoverable admin actions", () => {
+test("staff account rows offer inactivation without a remove action", () => {
   const adminRolesPage = routeSource(
     'app.get("/admin/admin-roles"',
     'app.post("/admin/admin-roles/:email/reset-password"'
@@ -31,8 +31,10 @@ test("staff account rows expose explicit, recoverable admin actions", () => {
     assert.match(pageSource, /href="\/admin\/staff\/\$\{[^}]+\.id\}\/edit"[^>]*>Edit Account<\/a>/, `${pageName} rows need an Edit Account button`);
     assert.match(pageSource, /action="\/admin\/users\/\$\{[^}]+\.id\}\/login-username"/, `${pageName} rows need a separate username control`);
     assert.match(pageSource, /action="\/admin\/staff\/\$\{[^}]+\.id\}\/inactivate"/, `${pageName} rows need an Inactivate control`);
-    assert.match(pageSource, /action="\/admin\/staff\/\$\{[^}]+\.id\}\/remove"/, `${pageName} rows need a Remove control`);
-    assert.match(pageSource, /historical records|preserved|recoverable/i, `${pageName} removal UI should explain that history is preserved`);
+    assert.match(pageSource, /<button class="small danger" type="submit">Inactivate<\/button>/, `${pageName} Inactivate control needs danger styling`);
+    assert.doesNotMatch(pageSource, /action="\/admin\/staff\/\$\{[^}]+\.id\}\/remove"/, `${pageName} rows must not expose a Remove control`);
+    assert.doesNotMatch(pageSource, />\s*(?:Confirm )?Remove\s*</, `${pageName} rows must not show a Remove button`);
+    assert.match(pageSource, /historical records|preserved/i, `${pageName} inactivation UI should explain that history is preserved`);
   }
 });
 
@@ -55,13 +57,6 @@ test("removed staff and traceable changes have visible admin destinations", () =
   assert.match(serverSource, /Details/);
 });
 
-test("staff removal is soft and leaves an auditable recovery path", () => {
-  const removeRoute = routeSource(
-    'app.post("/admin/staff/:id/remove"',
-    'app.post("/admin/staff/:id/reactivate"'
-  );
-
-  assert.match(removeRoute, /status\s*=\s*'inactive'/);
-  assert.match(removeRoute, /staff_account_events|recordStaffAccountEvent/);
-  assert.doesNotMatch(removeRoute, /DELETE\s+FROM\s+users/i);
+test("staff removal endpoint is not available", () => {
+  assert.doesNotMatch(serverSource, /app\.post\("\/admin\/staff\/:id\/remove"/);
 });
