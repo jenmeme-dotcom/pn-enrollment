@@ -4393,17 +4393,13 @@ button.danger {
 .course-picker-actions {
   display: grid;
   gap: 9px;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
 }
 
 .course-picker-actions .button {
   justify-content: center;
   margin: 0;
   text-align: center;
-}
-
-.course-picker-actions .button:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
 }
 
 .course-library-details {
@@ -4458,14 +4454,6 @@ button.danger {
     align-items: flex-start;
     flex-direction: column;
     gap: 10px;
-  }
-
-  .course-picker-actions {
-    grid-template-columns: 1fr;
-  }
-
-  .course-picker-actions .button:last-child:nth-child(odd) {
-    grid-column: auto;
   }
 
   .course-dashboard-counts {

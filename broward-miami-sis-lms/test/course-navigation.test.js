@@ -210,7 +210,7 @@ function coursePickerCards(html) {
 }
 
 function coursePickerCard(html, courseId) {
-  const manageHref = `href="/admin/courses/${courseId}"`;
+  const manageHref = `href="/admin/courses/${courseId}/manage"`;
   const matches = coursePickerCards(html).filter((card) => card.includes(manageHref));
   assert.equal(matches.length, 1, `Expected course ${courseId} to have one direct course-picker card`);
   return matches[0];
@@ -428,6 +428,12 @@ test("the Online Courses view renders each course as a visual picker card with d
             card.includes(`href="/admin/courses/${course.id}/student-view?`),
           `Expected ${role} card for ${course.title} to link directly to Student View`
         );
+        const actionArea = card.match(/<div class="course-picker-actions">([\s\S]*?)<\/div>/);
+        assert.ok(actionArea, `Expected ${role} card for ${course.title} to include an action area`);
+        const actionLinks = [...actionArea[1].matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)];
+        assert.equal(actionLinks.length, 1, `Expected ${role} card for ${course.title} to show only one Actions button`);
+        assert.equal(actionLinks[0][1], `/admin/courses/${course.id}/manage`);
+        assert.equal(decodeText(actionLinks[0][2]), "Actions");
         assert.ok(
           decodeText(card).includes(course.published ? "Published" : "Unpublished"),
           `Expected ${role} card for ${course.title} to show its publication status`

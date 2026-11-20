@@ -13076,7 +13076,7 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
     const openLabel = `Open ${course.title}`;
     return `
       <article class="course-picker-card ${isPublished ? "is-published" : "is-unpublished"}">
-        <a class="course-picker-thumbnail" href="/admin/courses/${course.id}" aria-label="${escapeHtml(openLabel)}">
+        <a class="course-picker-thumbnail" href="/admin/courses/${course.id}/student-view" aria-label="${escapeHtml(openLabel)}">
           <img src="${escapeHtml(courseThumbnailUrl(course))}" alt="" loading="lazy" decoding="async">
           <span class="course-publication-badge ${isPublished ? "published" : "unpublished"}">${isPublished ? "Published" : "Unpublished"}</span>
         </a>
@@ -13085,16 +13085,14 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
             <span class="course-picker-code">${escapeHtml(canvasCourseCode(course))}</span>
             <p class="course-picker-category">${escapeHtml(course.category)}</p>
           </div>
-          <h3><a href="/admin/courses/${course.id}">${escapeHtml(course.title)}</a></h3>
+          <h3><a href="/admin/courses/${course.id}/student-view">${escapeHtml(course.title)}</a></h3>
           <dl class="course-picker-meta">
             <div><dt>Hours</dt><dd>${escapeHtml(course.hours)}</dd></div>
             <div><dt>Students</dt><dd>${escapeHtml(course.enrollments)}</dd></div>
             <div><dt>Format</dt><dd>${escapeHtml(course.delivery_mode)}</dd></div>
           </dl>
           <div class="course-picker-actions">
-            <a class="button small" href="/admin/courses/${course.id}/student-view" aria-label="Open ${escapeHtml(course.title)} course">Open Course</a>
-            <a class="button small ghost" href="/admin/courses/${course.id}/manage" aria-label="Edit and manage ${escapeHtml(course.title)}">Edit &amp; Manage</a>
-            <a class="button small ghost" href="/admin/courses/${course.id}/manage#marketing-tools" aria-label="Open marketing tools for ${escapeHtml(course.title)}">Marketing Tools</a>
+            <a class="button small" href="/admin/courses/${course.id}/manage" aria-label="Open actions for ${escapeHtml(course.title)}">Actions</a>
           </div>
         </div>
       </article>
