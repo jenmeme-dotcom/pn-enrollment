@@ -42,6 +42,17 @@ const instructorAccessAccounts = [
 ];
 const { onsiteVisitChecklistItems } = require("./onsiteVisitChecklist");
 const { escapeHtml, layout, money, date, stat, progressBar, initialsFor } = require("./ui");
+const {
+  PN_ORIENTATION_PATH,
+  PN_ORIENTATION_LESSON_TITLE,
+  PN_ORIENTATION_DIRECTORY,
+  PN_ORIENTATION_FILES,
+  hasPnOrientationAccess,
+  renderPnOrientationCard,
+  renderPnOrientationPageContent,
+  registerPnOrientationMediaRoutes
+} = require("./pnOrientation");
+const { registerPnOrientationUploadRoutes } = require("./pnOrientationUpload");
 
 initialize();
 
@@ -251,6 +262,10 @@ const admissionsPrivateNotificationEmail = process.env.ADMISSIONS_PRIVATE_NOTIFI
 const externalBaseUrl = (process.env.PUBLIC_APP_URL || "https://portal.browardmiamihi.com").replace(/\/+$/, "");
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || path.join(path.dirname(databaseFile), "uploads"));
 const courseMaterialsDir = path.resolve(process.env.COURSE_MATERIALS_DIR || path.join(path.dirname(__dirname), "course_materials"));
+const pnOrientationMediaDirectory = path.join(uploadDir, PN_ORIENTATION_DIRECTORY);
+function pnOrientationMediaReady() {
+  return Object.values(PN_ORIENTATION_FILES).every((fileName) => fs.existsSync(path.join(pnOrientationMediaDirectory, fileName)));
+}
 const facultyCourseMaterialsDir = path.resolve(
   process.env.FACULTY_COURSE_MATERIALS_DIR || path.join(path.dirname(__dirname), "faculty_course_materials")
 );
@@ -2398,6 +2413,14 @@ function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, course
               </div>
             </header>
             <div class="canvas-module-items" id="module-items-${module.id}">
+              ${!instructor && courseSlug === "introduction-to-nursing-practical-nursing" && module.title === "Orientation and Course Resources" && pnOrientationMediaReady() ? `
+                <a class="canvas-module-row pn-orientation-module-link" href="${PN_ORIENTATION_PATH}">
+                  <span></span>
+                  <span class="module-type video" aria-hidden="true">▶</span>
+                  <span class="module-title"><strong>${PN_ORIENTATION_LESSON_TITLE}</strong><small>Program welcome video · 4:16 · Transcript included</small></span>
+                  <span></span><span></span>
+                </a>
+              ` : ""}
               ${module.lessons.map((lesson) => {
                 const inferredKind = lessonItemKind(lesson);
                 const kind = (lesson.item_type === "youtube"
@@ -5010,6 +5033,7 @@ function renderCanvasDashboardPage({ user, data }) {
         <a class="canvas-top-button" href="/student">Home</a>
       </div>
       ${renderGradedAssignmentNotifications(user.id)}
+      ${hasPnOrientationAccess(db, user.id) && pnOrientationMediaReady() ? renderPnOrientationCard() : ""}
       <section class="recent-activity">
         <h2>Recent Activity</h2>
         <article class="activity-group expanded" data-activity-group>
@@ -16154,6 +16178,28 @@ app.get("/student/syllabus-status", requireAuth, requireRole("student"), (req, r
     </section>
   `;
   render(req, res, "Syllabus Status", body, { studentPortal: true, activeStudentNav: "syllabus" });
+});
+
+registerPnOrientationUploadRoutes({ app, requireAuth, requireRole, render, mediaDirectory: pnOrientationMediaDirectory });
+registerPnOrientationMediaRoutes({ app, db, requireAuth, requireRole, courseMaterialsDir, mediaDirectory: pnOrientationMediaDirectory, isClassLocked });
+
+app.get(PN_ORIENTATION_PATH, requireAuth, requireRole("student"), (req, res) => {
+  if (isClassLocked(req.user)) return renderClassLockPage(req, res);
+  if (!hasPnOrientationAccess(db, req.user.id)) {
+    return res.status(403).send("This orientation is available to Practical Nursing students.");
+  }
+  const transcriptPath = path.join(pnOrientationMediaDirectory, PN_ORIENTATION_FILES.transcript);
+  const transcript = fs.existsSync(transcriptPath) ? fs.readFileSync(transcriptPath, "utf8") : "";
+  const body = `
+    <section class="canvas-course-shell canvas-global-dashboard-shell">
+      ${renderStudentCanvasRail("dashboard")}
+      ${renderStudentCanvasHeader("LPN Orientation", PN_ORIENTATION_PATH, [{ label: "Dashboard", href: "/student/dashboard" }, { label: "LPN Orientation" }])}
+      <main class="canvas-global-dashboard-main pn-orientation-main">
+        ${renderPnOrientationPageContent(transcript)}
+      </main>
+    </section>
+  `;
+  render(req, res, "LPN Program Orientation", body, { courseCanvas: true });
 });
 
 app.get("/student/dashboard", requireAuth, requireRole("student"), (req, res) => {

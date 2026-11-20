@@ -3,6 +3,8 @@ data/
 .env
 .DS_Store
 tmp/
+# Orientation media stays in protected persistent uploads, outside this public repository.
+course_materials/lpn-program-orientation/
 scripts/__pycache__/
 course_materials/anatomy-and-physiology-pn104/OpenStax_Anatomy_and_Physiology_2e.pdf
 course_materials/anatomy-and-physiology-pn104/PN104_Basics_of_Nursing_2025-09-21.pdf
