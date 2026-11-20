@@ -5096,6 +5096,46 @@ button.danger {
   gap: 10px;
 }
 
+.admin-dashboard-toggle {
+  background: #dfe8eb;
+  border: 1px solid #c4d2d7;
+  border-radius: 12px;
+  display: inline-grid;
+  gap: 4px;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  margin-bottom: 20px;
+  padding: 4px;
+}
+
+.admin-dashboard-toggle-option {
+  align-items: center;
+  border-radius: 8px;
+  color: #324552;
+  display: flex;
+  font-weight: 850;
+  justify-content: center;
+  min-height: 44px;
+  padding: 9px 18px;
+  text-decoration: none;
+  transition: background-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
+}
+
+.admin-dashboard-toggle-option:hover {
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--brand);
+}
+
+.admin-dashboard-toggle-option.is-active {
+  background: var(--brand);
+  box-shadow: 0 4px 10px rgba(15, 109, 123, 0.22);
+  color: #fff;
+}
+
+.admin-dashboard-toggle-option.is-active:hover {
+  background: var(--brand-dark);
+  color: #fff;
+}
+
 .dashboard-filter-card {
   margin-bottom: 18px;
   padding: 14px;
@@ -12513,6 +12553,16 @@ button.small {
 
   .sis-topbar {
     display: flex;
+  }
+
+  .admin-dashboard-toggle {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .admin-dashboard-toggle-option {
+    min-width: 0;
+    padding-inline: 10px;
   }
 
   .sis-logo {

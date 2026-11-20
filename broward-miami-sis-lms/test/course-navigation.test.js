@@ -284,6 +284,17 @@ function studentPortalNavigation(html) {
   }));
 }
 
+function adminDashboardToggleLinks(html) {
+  const navigation = html.match(/<nav class="admin-dashboard-toggle" aria-label="Dashboard view">([\s\S]*?)<\/nav>/);
+  assert.ok(navigation, "Expected the Operations / Online Courses dashboard toggle");
+  return [...navigation[1].matchAll(/<a\s+class="([^"]+)"\s+href="([^"]+)"\s*(aria-current="page")?\s*>([^<]+)<\/a>/g)].map((match) => ({
+    active: Boolean(match[3]),
+    classes: match[1].split(/\s+/),
+    href: match[2],
+    label: decodeText(match[4])
+  }));
+}
+
 function assertCalendarStructure(html) {
   assert.match(html, /<main class="canvas-course-main calendar-main">/, "Expected the calendar main region");
   assert.match(html, /<div class="calendar-toolbar">/, "Expected the calendar toolbar");
@@ -340,6 +351,32 @@ after(async () => {
     });
   }
   fs.rmSync(temporaryDirectory, { force: true, recursive: true });
+});
+
+test("the admin dashboard toggle switches between Operations and Online Courses", async () => {
+  for (const [cookie, role] of [[adminCookie, "admin"], [instructorCookie, "instructor"]]) {
+    const operationsLinks = adminDashboardToggleLinks(await getHtml("/admin", cookie));
+    const courseLinks = adminDashboardToggleLinks(await getHtml("/admin/courses", cookie));
+    const expectedLinks = [
+      { label: "Operations", href: "/admin" },
+      { label: "Online Courses", href: "/admin/courses" }
+    ];
+
+    assert.deepEqual(
+      operationsLinks.map(({ label, href }) => ({ label, href })),
+      expectedLinks,
+      `${role} Operations view should expose both dashboard choices`
+    );
+    assert.deepEqual(
+      courseLinks.map(({ label, href }) => ({ label, href })),
+      expectedLinks,
+      `${role} Online Courses view should expose both dashboard choices`
+    );
+    assert.deepEqual(operationsLinks.map((link) => link.active), [true, false]);
+    assert.deepEqual(courseLinks.map((link) => link.active), [false, true]);
+    assert.ok(operationsLinks[0].classes.includes("is-active"));
+    assert.ok(courseLinks[1].classes.includes("is-active"));
+  }
 });
 
 test("instructor student view matches the student course chrome and exposes one upper-right edit action", async (t) => {

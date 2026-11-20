@@ -8623,6 +8623,24 @@ app.post("/admin/catalog/upload", requireAuth, requireRole("admin"), (req, res) 
   });
 });
 
+function renderAdminDashboardToggle(activeView = "operations") {
+  const options = [
+    { key: "operations", label: "Operations", href: "/admin" },
+    { key: "courses", label: "Online Courses", href: "/admin/courses" }
+  ];
+  return `
+    <nav class="admin-dashboard-toggle" aria-label="Dashboard view">
+      ${options.map((option) => `
+        <a
+          class="admin-dashboard-toggle-option${activeView === option.key ? " is-active" : ""}"
+          href="${option.href}"
+          ${activeView === option.key ? `aria-current="page"` : ""}
+        >${option.label}</a>
+      `).join("")}
+    </nav>
+  `;
+}
+
 app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const cohorts = db.prepare(`
     SELECT DISTINCT cohort_name
@@ -8684,6 +8702,7 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
   `).get().count;
 
   const body = `
+    ${renderAdminDashboardToggle("operations")}
     <div class="page-head">
       <div>
         <h1>Operations Dashboard</h1>
@@ -12233,6 +12252,7 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
   };
 
   const instructorBody = `
+    ${renderAdminDashboardToggle("courses")}
     <div class="page-head">
       <div>
         <h1>Instructor Course Dashboard</h1>
@@ -12259,6 +12279,7 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
     </section>
   `;
   const adminBody = `
+    ${renderAdminDashboardToggle("courses")}
     <div class="page-head">
       <div>
         <h1>Programs and Courses</h1>
