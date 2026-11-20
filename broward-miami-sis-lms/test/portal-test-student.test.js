@@ -267,3 +267,144 @@ test("PN106 students can submit chapter cases while answer guides remain instruc
   assert.match(guideHtml, /Instructor-only material/);
   assert.match(guideHtml, /Expected response elements/);
 });
+
+test("PN107 Lab gives every skill its own student upload target while staff previews stay read-only", async () => {
+  const course = database.prepare(`
+    SELECT id FROM courses WHERE slug = 'medical-surgical-nursing-i-pn107-lab'
+  `).get();
+  assert.ok(course);
+  const enrollment = database.prepare(`
+    SELECT enrollments.id
+    FROM enrollments JOIN users ON users.id = enrollments.user_id
+    WHERE users.email = ? AND enrollments.course_id = ?
+      AND enrollments.status = 'active' AND enrollments.withdrawn_at IS NULL
+  `).get(testEmail, course.id);
+  assert.ok(enrollment);
+
+  const skillAssignments = database.prepare(`
+    SELECT lessons.id AS lesson_id, lessons.title, lessons.grade_item_id,
+      lessons.published, lessons.instructor_only, modules.published AS module_published
+    FROM lessons
+    JOIN modules ON modules.id = lessons.module_id
+    WHERE modules.course_id = ? AND lessons.title LIKE 'Week % Skill Check %'
+    ORDER BY modules.position, lessons.position, lessons.id
+  `).all(course.id);
+  assert.equal(skillAssignments.length, 49);
+  assert.equal(
+    new Set(skillAssignments.map((assignment) => assignment.grade_item_id)).size,
+    skillAssignments.length,
+    "Each skill checklist must have a separate grade item and submission target"
+  );
+  for (const assignment of skillAssignments) {
+    assert.ok(assignment.grade_item_id, `${assignment.title} should have a grade item`);
+    assert.equal(assignment.published, 1, assignment.title);
+    assert.equal(assignment.instructor_only, 0, assignment.title);
+    assert.equal(assignment.module_published, 1, assignment.title);
+  }
+
+  const login = async (email, password, loginRole) => {
+    const response = await fetch(`${baseUrl}/login`, {
+      body: new URLSearchParams({ email, password, loginRole }),
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      method: "POST",
+      redirect: "manual"
+    });
+    assert.equal(response.status, 302);
+    return (response.headers.getSetCookie?.()[0] || response.headers.get("set-cookie") || "").split(";", 1)[0];
+  };
+  const studentCookie = await login(testEmail, testPassword, "student");
+  const selectedSkills = skillAssignments.slice(0, 2);
+  const savedSubmissions = [];
+
+  for (const [index, assignment] of selectedSkills.entries()) {
+    const detail = await fetch(
+      `${baseUrl}/student/enrollments/${enrollment.id}?assignment=${assignment.grade_item_id}`,
+      { headers: { cookie: studentCookie } }
+    );
+    assert.equal(detail.status, 200);
+    const html = await detail.text();
+    const expectedAction = `/student/enrollments/${enrollment.id}/assignments/${assignment.grade_item_id}/submit`;
+    assert.match(html, new RegExp(`action="${expectedAction}"`));
+    assert.match(html, /name="assignmentFile"/);
+    assert.match(html, /type="submit">Submit Assignment<\/button>/);
+
+    const attachmentText = `PN107 Lab checklist evidence ${index + 1}: ${assignment.title}`;
+    const form = new FormData();
+    form.set("studentResponse", `Student preparation note for ${assignment.title}.`);
+    form.set(
+      "assignmentFile",
+      new Blob([attachmentText], { type: "text/plain" }),
+      `pn107-skill-${index + 1}-checklist.txt`
+    );
+    const submitted = await fetch(`${baseUrl}${expectedAction}`, {
+      body: form,
+      headers: { cookie: studentCookie },
+      method: "POST",
+      redirect: "manual"
+    });
+    assert.equal(submitted.status, 302);
+    assert.equal(
+      submitted.headers.get("location"),
+      `/student/enrollments/${enrollment.id}?assignment=${assignment.grade_item_id}`
+    );
+
+    const saved = database.prepare(`
+      SELECT id, grade_item_id, file_storage_name, file_original_name, file_mime_type,
+        file_size, student_note
+      FROM assignment_submissions
+      WHERE enrollment_id = ? AND grade_item_id = ?
+    `).get(enrollment.id, assignment.grade_item_id);
+    assert.ok(saved);
+    assert.equal(saved.file_original_name, `pn107-skill-${index + 1}-checklist.txt`);
+    assert.equal(saved.file_mime_type, "text/plain");
+    assert.ok(saved.file_size > 0);
+    assert.equal(saved.student_note, `Student preparation note for ${assignment.title}.`);
+    savedSubmissions.push(saved);
+
+    const download = await fetch(`${baseUrl}/student/assignment-submissions/${saved.id}/file`, {
+      headers: { cookie: studentCookie }
+    });
+    assert.equal(download.status, 200);
+    assert.equal(await download.text(), attachmentText);
+  }
+
+  assert.equal(savedSubmissions.length, 2);
+  assert.equal(new Set(savedSubmissions.map((row) => row.grade_item_id)).size, 2);
+  assert.equal(new Set(savedSubmissions.map((row) => row.file_storage_name)).size, 2);
+
+  const staffAccounts = [
+    { email: "instructor@browardmiamihi.com", password: "InstructorPass123!" },
+    { email: "admin@browardmiamihi.com", password: "AdminPass123!" }
+  ];
+  for (const staff of staffAccounts) {
+    const cookie = await login(staff.email, staff.password, "faculty");
+    const assignment = selectedSkills[0];
+    const preview = await fetch(
+      `${baseUrl}/admin/courses/${course.id}/student-view?assignment=${assignment.grade_item_id}`,
+      { headers: { cookie } }
+    );
+    assert.equal(preview.status, 200);
+    const previewHtml = await preview.text();
+    assert.match(previewHtml, /Instructor preview/);
+    assert.match(previewHtml, /<input type="file" disabled>/);
+    assert.match(previewHtml, /<button class="button" type="button" disabled>Submit Assignment<\/button>/);
+    assert.doesNotMatch(
+      previewHtml,
+      new RegExp(`action="/student/enrollments/[^"]+/assignments/${assignment.grade_item_id}/submit"`)
+    );
+
+    const prohibitedSubmission = await fetch(
+      `${baseUrl}/student/enrollments/${enrollment.id}/assignments/${assignment.grade_item_id}/submit`,
+      {
+        body: new URLSearchParams({ studentResponse: "Staff must not submit student work." }),
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie
+        },
+        method: "POST",
+        redirect: "manual"
+      }
+    );
+    assert.equal(prohibitedSubmission.status, 403);
+  }
+});

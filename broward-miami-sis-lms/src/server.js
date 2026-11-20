@@ -339,6 +339,8 @@ const allowedUploadTypes = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
+  "image/heic",
+  "image/heif",
   "application/zip",
   "application/x-zip-compressed",
   "application/msword",
@@ -350,7 +352,7 @@ const allowedUploadTypes = new Set([
   "text/plain",
   "text/csv"
 ]);
-const allowedUploadExtensions = new Set([".pdf", ".jpg", ".jpeg", ".png", ".webp", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv", ".zip", ".imscc"]);
+const allowedUploadExtensions = new Set([".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv", ".zip", ".imscc"]);
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, callback) => callback(null, uploadDir),
@@ -363,7 +365,7 @@ const upload = multer({
   fileFilter: (_req, file, callback) => {
     const extension = path.extname(file.originalname || "").toLowerCase();
     if (allowedUploadTypes.has(file.mimetype) || allowedUploadExtensions.has(extension)) return callback(null, true);
-    callback(new Error("Upload must be a PDF, image, Office document, text file, CSV, ZIP, or IMSCC package."));
+    callback(new Error("Upload must be a PDF, image (including HEIC/HEIF), Office document, text file, CSV, ZIP, or IMSCC package."));
   }
 });
 const allowedVideoTypes = new Set(["video/mp4", "video/webm", "video/quicktime", "video/x-m4v"]);
@@ -402,7 +404,12 @@ function receiveAssignment(req, res, next) {
     flash(req, error.code === "LIMIT_FILE_SIZE" ? "Assignment file is too large. The maximum file size is 25 MB." : error.message);
     const enrollmentId = Number(req.params.id || 0);
     const assignmentId = Number(req.params.assignmentId || 0);
-    return res.redirect(enrollmentId ? `/student/enrollments/${enrollmentId}?assignment=${assignmentId}` : "/student/courses");
+    const returnToModules = String(req.body?.returnTo || "") === "modules";
+    return res.redirect(enrollmentId
+      ? returnToModules
+        ? `/student/enrollments/${enrollmentId}?view=modules#skill-assignment-${assignmentId}`
+        : `/student/enrollments/${enrollmentId}?assignment=${assignmentId}`
+      : "/student/courses");
   });
 }
 
@@ -2107,6 +2114,10 @@ function isStructuredCoursePageLesson(lesson = {}) {
 
 function courseLessonDisplayTitle(courseSlug = "", lessonTitle = "", lesson = {}) {
   const title = String(lessonTitle || "");
+  if (courseSlug === "medical-surgical-nursing-i-pn107-lab") {
+    const skillMatch = title.match(/^Week\s+(\d+)\s+Skill Check\s+(\d+):\s*(.+)$/i);
+    if (skillMatch) return skillMatch[3].trim();
+  }
   if (courseSlug !== "introduction-to-nursing-practical-nursing") return title;
   const cleanTitle = title.replace(/^\[PN102 2026\]\s+/, "");
   if (!isStructuredCoursePageLesson(lesson)) return cleanTitle;
@@ -2199,8 +2210,90 @@ function renderWeeklyLearningPattern({ compact = false } = {}) {
   `;
 }
 
-function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, courseId, moduleGroups = [], gradeItems = [], instructor = false }) {
+function isPn107LabSkillLesson(courseSlug, lesson = {}) {
+  return courseSlug === "medical-surgical-nursing-i-pn107-lab"
+    && lessonItemKind(lesson) === "assignment"
+    && /^Week \d+ Skill Check \d+:/i.test(String(lesson.title || ""));
+}
+
+function renderPn107LabSkillSection({ lesson, item, submission = null, baseHref, enrollmentId = null, instructor = false }) {
+  const itemId = Number(item?.id || lesson.grade_item_id || 0);
+  const sectionId = itemId || Number(lesson.id || 0);
+  const studentCanUpload = !instructor && enrollmentId && itemId;
+  const showUploadPreview = Boolean(itemId && !enrollmentId);
+  const lessonTitle = courseLessonDisplayTitle("medical-surgical-nursing-i-pn107-lab", lesson.title, lesson);
+  const skillMatch = String(lesson.title || "").match(/^Week\s+(\d+)\s+Skill Check\s+(\d+):/i);
+  const skillContext = skillMatch ? `Week ${skillMatch[1]} · Skill ${skillMatch[2]}` : "Skills Lab checklist";
+  const statusLabel = submission ? "Checklist submitted" : instructor || showUploadPreview ? "Preview only" : "Checklist needed";
+  const fullItemHref = itemId ? `${baseHref}?assignment=${itemId}${instructor ? "&mode=edit" : ""}` : `${baseHref}?lesson=${lesson.id}${instructor ? "&mode=edit" : ""}`;
+  return `
+    <details class="pn107-skill-check-section ${submission ? "is-submitted" : ""}" id="skill-assignment-${sectionId}">
+      <summary class="pn107-skill-check-summary">
+        <span class="module-type assignment">${escapeHtml(moduleItemIcon("assignment"))}</span>
+        <span class="pn107-skill-check-title">
+          <strong>${escapeHtml(lessonTitle)}</strong>
+          <small>${escapeHtml(skillContext)} · Open instructions and upload the completed checklist</small>
+        </span>
+        <span class="pn107-skill-status ${submission ? "is-submitted" : ""}">${escapeHtml(statusLabel)}</span>
+        <span class="pn107-skill-chevron" aria-hidden="true">⌄</span>
+      </summary>
+      <div class="pn107-skill-check-body">
+        <div class="pn107-skill-instructions">
+          ${renderCanvasLessonContent(
+            instructor ? lesson.content : studentFacingLessonContent(lesson.content),
+            [lesson.title, lessonTitle]
+          )}
+        </div>
+        ${instructor || showUploadPreview ? `
+          <section class="pn107-checklist-upload-preview">
+            <h3>Completed checklist upload — instructor preview</h3>
+            <p>This control is disabled because you are viewing the course as an instructor. Sign in as Test Student or an enrolled student to verify the active upload. Student files are private and appear in the Assignment Inbox for review.</p>
+            <label>Completed checklist file<input type="file" disabled></label>
+            <button class="button" type="button" disabled>Upload Completed Checklist</button>
+          </section>
+        ` : studentCanUpload ? `
+          <section class="pn107-checklist-upload">
+            <h3>${submission ? "Replace completed checklist" : "Upload completed checklist"}</h3>
+            ${submission ? `
+              <div class="pn107-checklist-receipt">
+                <span class="pill">Submitted</span>
+                <p><strong>${escapeHtml(submission.file_original_name || "Completed checklist")}</strong></p>
+                <p>Submitted ${escapeHtml(date(submission.submitted_at))} · ${escapeHtml(formatBytes(submission.file_size))}</p>
+                <a class="button small ghost" href="/student/assignment-submissions/${submission.id}/file">Download submitted checklist</a>
+              </div>
+            ` : `<p>Attach the completed checklist or instructor-approved evidence for this skill. Do not include patient-identifying information.</p>`}
+            <form class="pn107-checklist-upload-form" method="post" enctype="multipart/form-data" action="/student/enrollments/${enrollmentId}/assignments/${itemId}/submit">
+              <input type="hidden" name="returnTo" value="modules">
+              <label>
+                Completed checklist file
+                <input type="file" name="assignmentFile" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.heic,.heif" required>
+              </label>
+              <label>
+                Note for your instructor (optional)
+                <textarea name="studentResponse" rows="3" maxlength="12000" placeholder="Add a brief note about this checklist or supervised practice.">${escapeHtml(submission?.student_note || "")}</textarea>
+              </label>
+              <p class="muted">Accepted: PDF, Word, JPG, PNG, WebP, HEIC, and HEIF up to 25 MB.</p>
+              <button class="button" type="submit">${submission ? "Replace Completed Checklist" : "Upload Completed Checklist"}</button>
+            </form>
+          </section>
+        ` : `
+          <section class="pn107-checklist-upload-preview">
+            <p>The completed-checklist upload will appear here when this skill is linked to the course gradebook.</p>
+          </section>
+        `}
+        <a class="button ghost small pn107-open-full-assignment" href="${escapeHtml(fullItemHref)}">Open Full Assignment Page</a>
+      </div>
+    </details>
+  `;
+}
+
+function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, courseId, moduleGroups = [], gradeItems = [], instructor = false, enrollmentId = null }) {
   const gradeItemById = new Map(markCourseProjects(db, gradeItems).map((item) => [Number(item.id), item]));
+  const submissionByGradeItemId = !instructor && enrollmentId
+    ? new Map(db.prepare("SELECT * FROM assignment_submissions WHERE enrollment_id = ?")
+      .all(enrollmentId)
+      .map((submission) => [Number(submission.grade_item_id), submission]))
+    : new Map();
   return `
     <main class="canvas-course-main canvas-modules-main">
       <div class="canvas-modules-toolbar">
@@ -2252,7 +2345,18 @@ function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, course
                   ? "video"
                   : inferredKind;
                 const isPublished = Number(lesson.published ?? 1) !== 0 && Number(lesson.instructor_only || 0) !== 1;
-                const metadata = moduleItemMeta(lesson, gradeItemById.get(Number(lesson.grade_item_id)));
+                const gradeItem = gradeItemById.get(Number(lesson.grade_item_id));
+                const metadata = moduleItemMeta(lesson, gradeItem);
+                if (isPn107LabSkillLesson(courseSlug, lesson)) {
+                  return renderPn107LabSkillSection({
+                    lesson,
+                    item: gradeItem,
+                    submission: submissionByGradeItemId.get(Number(lesson.grade_item_id)) || null,
+                    baseHref,
+                    enrollmentId,
+                    instructor
+                  });
+                }
                 return `
                   <a class="canvas-module-row ${isPublished ? "" : "is-unpublished"}" href="${escapeHtml(baseHref)}?lesson=${lesson.id}">
                     <span class="module-drag">⁝</span>
@@ -2339,6 +2443,16 @@ function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, course
               updateCollapseAllState();
             });
           });
+
+          if (window.location.hash.startsWith('#skill-assignment-')) {
+            const linkedSkill = document.getElementById(window.location.hash.slice(1));
+            if (linkedSkill instanceof HTMLDetailsElement) {
+              linkedSkill.open = true;
+              const linkedModule = linkedSkill.closest('.canvas-module-block');
+              if (linkedModule) updateModuleState(linkedModule, false);
+              updateCollapseAllState();
+            }
+          }
 
           page.querySelectorAll('[data-module-item-type]').forEach((select) => {
             const form = select.closest('form');
@@ -17789,7 +17903,8 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
         baseHref: courseBaseHref,
         moduleGroups,
         gradeItems,
-        instructor: false
+        instructor: false,
+        enrollmentId: enrollment.id
       })}
     </section>
   ` : activeView === "assignments" || activeView === "quizzes" ? `
@@ -18096,7 +18211,9 @@ app.get("/student/assignment-submissions/:id/file", requireAuth, requireRole("st
 app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAuth, requireRole("student"), receiveAssignment, (req, res) => {
   const enrollmentId = Number(req.params.id);
   const assignmentId = Number(req.params.assignmentId);
-  const redirectToAssignment = `/student/enrollments/${enrollmentId}?assignment=${assignmentId}`;
+  const redirectToAssignment = String(req.body.returnTo || "") === "modules"
+    ? `/student/enrollments/${enrollmentId}?view=modules#skill-assignment-${assignmentId}`
+    : `/student/enrollments/${enrollmentId}?assignment=${assignmentId}`;
   if (isClassLocked(req.user)) {
     if (req.file?.path) fs.unlink(req.file.path, () => {});
     flash(req, "Class access is locked until the office marks your student file as organized.");

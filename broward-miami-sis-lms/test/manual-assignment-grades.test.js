@@ -249,3 +249,87 @@ test("CoursePoint assignment pages show real points and source instructions with
   const savedRubricPage = await fetch(`${baseUrl}/student/enrollments/${enrollmentId}?assignment=${imported.id}`, { headers: { cookie: studentCookie } });
   assert.match(await savedRubricPage.text(), /Faculty verified CoursePoint rubric/);
 });
+
+test("PN107 Lab modules give every skill its own checklist dropdown and working student upload", async () => {
+  const labCourse = database.prepare("SELECT id FROM courses WHERE slug = 'medical-surgical-nursing-i-pn107-lab'").get();
+  assert.ok(labCourse);
+  let labEnrollment = database.prepare(`
+    SELECT id FROM enrollments
+    WHERE user_id = ? AND course_id = ? AND status IN ('active', 'completed') AND withdrawn_at IS NULL
+    ORDER BY id DESC LIMIT 1
+  `).get(studentId, labCourse.id);
+  if (!labEnrollment) {
+    labEnrollment = {
+      id: Number(database.prepare("INSERT INTO enrollments (user_id, course_id, status) VALUES (?, ?, 'active')")
+        .run(studentId, labCourse.id).lastInsertRowid)
+    };
+  }
+  const skill = database.prepare(`
+    SELECT l.id AS lesson_id, l.grade_item_id, l.title
+    FROM lessons l
+    JOIN modules m ON m.id = l.module_id
+    WHERE m.course_id = ? AND l.title LIKE 'Week % Skill Check %'
+      AND l.published = 1 AND l.instructor_only = 0 AND l.grade_item_id IS NOT NULL
+    ORDER BY m.position, l.position, l.id
+    LIMIT 1
+  `).get(labCourse.id);
+  assert.ok(skill);
+
+  let response = await fetch(`${baseUrl}/student/enrollments/${labEnrollment.id}?view=modules`, {
+    headers: { cookie: studentCookie }
+  });
+  assert.equal(response.status, 200);
+  let html = await response.text();
+  assert.match(html, /pn107-skill-check-section/);
+  assert.match(html, new RegExp(`id="skill-assignment-${skill.grade_item_id}"`));
+  assert.match(html, /Open instructions and upload the completed checklist/);
+  assert.match(html, new RegExp(`action="/student/enrollments/${labEnrollment.id}/assignments/${skill.grade_item_id}/submit"`));
+  assert.match(html, /name="assignmentFile"[^>]*required/);
+
+  const body = new FormData();
+  body.set("returnTo", "modules");
+  body.set("studentResponse", "Completed during supervised lab practice.");
+  body.set("assignmentFile", new Blob(["completed checklist"], { type: "application/pdf" }), "completed-checklist.pdf");
+  response = await fetch(`${baseUrl}/student/enrollments/${labEnrollment.id}/assignments/${skill.grade_item_id}/submit`, {
+    method: "POST",
+    redirect: "manual",
+    headers: { cookie: studentCookie },
+    body
+  });
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), `/student/enrollments/${labEnrollment.id}?view=modules#skill-assignment-${skill.grade_item_id}`);
+  const stored = database.prepare(`
+    SELECT file_original_name, file_mime_type, student_note
+    FROM assignment_submissions
+    WHERE enrollment_id = ? AND grade_item_id = ?
+  `).get(labEnrollment.id, skill.grade_item_id);
+  assert.deepEqual({ ...stored }, {
+    file_original_name: "completed-checklist.pdf",
+    file_mime_type: "application/pdf",
+    student_note: "Completed during supervised lab practice."
+  });
+
+  response = await fetch(`${baseUrl}/student/enrollments/${labEnrollment.id}?view=modules`, {
+    headers: { cookie: studentCookie }
+  });
+  html = await response.text();
+  assert.match(html, /Checklist submitted/);
+  assert.match(html, /completed-checklist\.pdf/);
+  assert.match(html, /Replace Completed Checklist/);
+
+  const heicBody = new FormData();
+  heicBody.set("returnTo", "modules");
+  heicBody.set("assignmentFile", new Blob(["heic checklist"], { type: "image/heic" }), "completed-checklist.heic");
+  response = await fetch(`${baseUrl}/student/enrollments/${labEnrollment.id}/assignments/${skill.grade_item_id}/submit`, {
+    method: "POST",
+    redirect: "manual",
+    headers: { cookie: studentCookie },
+    body: heicBody
+  });
+  assert.equal(response.status, 302);
+  assert.equal(
+    database.prepare("SELECT file_original_name FROM assignment_submissions WHERE enrollment_id = ? AND grade_item_id = ?")
+      .get(labEnrollment.id, skill.grade_item_id).file_original_name,
+    "completed-checklist.heic"
+  );
+});
