@@ -6,7 +6,7 @@ const { test } = require("node:test");
 const source = fs.readFileSync(path.resolve(__dirname, "../src/server.js"), "utf8");
 
 test("dashboard student totals and statuses use the selected cohort", () => {
-  assert.match(source, /WHERE u\.role = 'student' \$\{hasCohortFilter \? "AND u\.cohort_name = \?" : ""\}/);
+  assert.match(source, /WHERE u\.role = 'student'[\s\S]*?AND lower\(u\.email\) <> 'teststudent@browardmiamihi\.com'[\s\S]*?\$\{hasCohortFilter \? "AND u\.cohort_name = \?" : ""\}/);
   assert.match(source, /const studentCount = studentRows\.length/);
   assert.match(source, /renderDashboardStudentStat\(stats\.students, stats\.studentStatuses, cohortLabel\)/);
   assert.match(source, /id="dashboard-cohort" name="cohort" onchange="this\.form\.submit\(\)"/);

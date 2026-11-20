@@ -1840,6 +1840,33 @@ function seed() {
   createUser.run("instructor", "Program", "Instructor", "instructor@browardmiamihi.com", "(954) 555-0101", hash("InstructorPass123!"));
   createUser.run("student", "Demo", "Student", "student@browardmiamihi.com", "(954) 555-0102", hash("StudentPass123!"));
 
+  const portalTestStudentEmail = "teststudent@browardmiamihi.com";
+  db.prepare(`
+    INSERT INTO users (
+      role, first_name, last_name, email, phone, password_hash, status,
+      organization_status, class_lock_reason, cohort_name, cohort_start_date,
+      cohort_end_date, gradebook_hidden, notes
+    )
+    VALUES (
+      'student', 'Portal Test', 'Student', ?, '', ?, 'active',
+      'organized', NULL, NULL, NULL, NULL, 1,
+      'Portal quality-assurance account. Excluded from cohorts and instructional gradebooks.'
+    )
+    ON CONFLICT(email) DO UPDATE SET
+      role = 'student',
+      first_name = 'Portal Test',
+      last_name = 'Student',
+      status = 'active',
+      organization_status = 'organized',
+      class_lock_reason = NULL,
+      cohort_name = NULL,
+      cohort_start_date = NULL,
+      cohort_end_date = NULL,
+      gradebook_hidden = 1,
+      notes = 'Portal quality-assurance account. Excluded from cohorts and instructional gradebooks.'
+  `).run(portalTestStudentEmail, hash("BMHITestStudent2026!"));
+  const portalTestStudent = db.prepare("SELECT id FROM users WHERE email = ?").get(portalTestStudentEmail);
+
   db.prepare(`
     UPDATE users
     SET status = 'inactive',
@@ -3119,6 +3146,26 @@ function seed() {
   const introNursing = db.prepare("SELECT id FROM courses WHERE slug = ?").get("introduction-to-nursing-practical-nursing");
   const anatomyPhysiology = db.prepare("SELECT id FROM courses WHERE slug = ?").get("anatomy-and-physiology");
   const acls = db.prepare("SELECT id FROM courses WHERE slug = ?").get("advanced-cardiovascular-life-support");
+  db.prepare(`
+    INSERT INTO enrollments (user_id, course_id, status, start_date, progress, source, external_order_id)
+    SELECT ?, courses.id, 'active', date('now'), 0, 'seed', 'seed-portal-test-' || courses.id
+    FROM courses
+    WHERE courses.published = 1
+      AND NOT EXISTS (
+        SELECT 1 FROM enrollments
+        WHERE enrollments.user_id = ? AND enrollments.course_id = courses.id
+      )
+  `).run(portalTestStudent.id, portalTestStudent.id);
+  db.prepare(`
+    UPDATE enrollments
+    SET status = 'active',
+      withdrawal_effective_date = NULL,
+      withdrawal_reason = NULL,
+      withdrawn_at = NULL,
+      withdrawn_by = NULL
+    WHERE user_id = ?
+      AND course_id IN (SELECT id FROM courses WHERE published = 1)
+  `).run(portalTestStudent.id);
   db.prepare(`
     INSERT OR IGNORE INTO enrollments (user_id, course_id, status, progress, source, external_order_id)
     VALUES (?, ?, 'active', 35, 'seed', 'seed-demo')

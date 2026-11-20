@@ -585,6 +585,11 @@ function studentPhotoReviewState(user) {
 }
 
 function studentPhotoAccessAllowed(user) {
+  // This hidden QA account exists only to let authorized staff inspect the
+  // complete student experience. It is deliberately excluded from cohorts and
+  // gradebooks, so requiring a real student photo would make the account
+  // unusable without providing any identity-verification benefit.
+  if (String(user?.email || "").trim().toLowerCase() === "teststudent@browardmiamihi.com") return true;
   return studentPhotoReviewState(user) === "approved" && studentHasUsablePhoto(user);
 }
 
@@ -7082,7 +7087,9 @@ function dashboardStats(selectedCohort = "") {
       SUM(CASE WHEN e.status = 'withdrawn' OR e.withdrawn_at IS NOT NULL THEN 1 ELSE 0 END) AS withdrawn_enrollments
     FROM users u
     LEFT JOIN enrollments e ON e.user_id = u.id
-    WHERE u.role = 'student' ${hasCohortFilter ? "AND u.cohort_name = ?" : ""}
+    WHERE u.role = 'student'
+      AND lower(u.email) <> 'teststudent@browardmiamihi.com'
+      ${hasCohortFilter ? "AND u.cohort_name = ?" : ""}
     GROUP BY u.id
   `).all(...(hasCohortFilter ? [selectedCohort] : []));
   const studentStatusCounts = studentRows.reduce((counts, student) => {
@@ -7108,7 +7115,11 @@ function dashboardStats(selectedCohort = "") {
       JOIN users u ON u.id = e.user_id
       WHERE e.status = 'active' AND u.cohort_name = ?
     `).get(selectedCohort).count
-    : db.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE status = 'active'").get().count;
+    : db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM enrollments e JOIN users u ON u.id = e.user_id
+      WHERE e.status = 'active' AND lower(u.email) <> 'teststudent@browardmiamihi.com'
+    `).get().count;
   const completedCount = hasCohortFilter
     ? db.prepare(`
       SELECT COUNT(*) AS count
@@ -7116,7 +7127,11 @@ function dashboardStats(selectedCohort = "") {
       JOIN users u ON u.id = e.user_id
       WHERE e.status = 'completed' AND u.cohort_name = ?
     `).get(selectedCohort).count
-    : db.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE status = 'completed'").get().count;
+    : db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM enrollments e JOIN users u ON u.id = e.user_id
+      WHERE e.status = 'completed' AND lower(u.email) <> 'teststudent@browardmiamihi.com'
+    `).get().count;
   return {
     students: studentCount,
     studentStatuses,
@@ -9011,6 +9026,7 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
     LEFT JOIN enrollments e ON e.user_id = u.id
     LEFT JOIN courses c ON c.id = e.course_id
     WHERE u.role = 'student'
+      AND lower(u.email) <> 'teststudent@browardmiamihi.com'
     ${selectedCohort ? "AND u.cohort_name = ?" : ""}
     GROUP BY u.id
     ORDER BY latest_enrollment_at DESC, u.last_name, u.first_name
