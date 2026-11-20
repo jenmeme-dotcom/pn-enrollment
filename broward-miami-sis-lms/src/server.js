@@ -8838,6 +8838,136 @@ function renderAdminDashboardToggle(activeView = "operations") {
   `;
 }
 
+function adminCourseDashboardSidebarData() {
+  const today = easternDateParts().date;
+  const pendingSubmissions = db.prepare(`
+    SELECT assignment_submissions.id, assignment_submissions.submitted_at,
+      grade_items.title AS assignment_title,
+      courses.id AS course_id, courses.title AS course_title, courses.slug AS course_slug,
+      users.first_name, users.last_name, users.email
+    FROM assignment_submissions
+    JOIN grade_items ON grade_items.id = assignment_submissions.grade_item_id
+    JOIN enrollments ON enrollments.id = assignment_submissions.enrollment_id
+    JOIN courses ON courses.id = enrollments.course_id
+    JOIN users ON users.id = enrollments.user_id
+    LEFT JOIN grades ON grades.enrollment_id = enrollments.id AND grades.grade_item_id = grade_items.id
+    WHERE enrollments.status IN ('active', 'completed')
+      AND enrollments.withdrawn_at IS NULL
+      AND (grades.id IS NULL OR COALESCE(grades.note, '') LIKE ?)
+    ORDER BY datetime(assignment_submissions.submitted_at) DESC, assignment_submissions.id DESC
+    LIMIT 6
+  `).all(`${AUTO_GRADE_PENDING_PREFIX}%`);
+
+  const upcomingAssignments = db.prepare(`
+    SELECT grade_items.id, grade_items.title, grade_items.due_date AS scheduled_at,
+      'assignment' AS item_kind,
+      courses.id AS course_id, courses.title AS course_title, courses.slug AS course_slug
+    FROM grade_items
+    JOIN courses ON courses.id = grade_items.course_id
+    WHERE grade_items.due_date IS NOT NULL
+      AND grade_items.due_date >= ?
+      AND courses.published = 1
+    ORDER BY grade_items.due_date, grade_items.id
+    LIMIT 8
+  `).all(today);
+  const upcomingEvents = db.prepare(`
+    SELECT calendar_events.id, calendar_events.title, calendar_events.start_at AS scheduled_at,
+      calendar_events.event_type AS item_kind,
+      courses.id AS course_id, courses.title AS course_title, courses.slug AS course_slug
+    FROM calendar_events
+    LEFT JOIN courses ON courses.id = calendar_events.course_id
+    WHERE substr(calendar_events.start_at, 1, 10) >= ?
+      AND (courses.id IS NULL OR courses.published = 1)
+    ORDER BY datetime(calendar_events.start_at), calendar_events.id
+    LIMIT 8
+  `).all(today);
+  const upcoming = [...upcomingAssignments, ...upcomingEvents]
+    .sort((left, right) => String(left.scheduled_at || "").localeCompare(String(right.scheduled_at || "")))
+    .slice(0, 6);
+
+  const recentFeedback = db.prepare(`
+    SELECT grades.score, grades.note, grades.updated_at,
+      grade_items.title AS assignment_title, grade_items.points_possible,
+      courses.id AS course_id, courses.title AS course_title, courses.slug AS course_slug,
+      users.first_name, users.last_name, users.email
+    FROM grades
+    JOIN grade_items ON grade_items.id = grades.grade_item_id
+    JOIN enrollments ON enrollments.id = grades.enrollment_id
+    JOIN courses ON courses.id = enrollments.course_id
+    JOIN users ON users.id = enrollments.user_id
+    WHERE COALESCE(grades.note, '') NOT LIKE ?
+    ORDER BY datetime(grades.updated_at) DESC, grades.id DESC
+    LIMIT 6
+  `).all(`${AUTO_GRADE_PENDING_PREFIX}%`);
+
+  return { pendingSubmissions, upcoming, recentFeedback };
+}
+
+function renderAdminCourseDashboardSidebar({ pendingSubmissions = [], upcoming = [], recentFeedback = [] } = {}) {
+  return `
+    <aside class="course-dashboard-sidebar" aria-label="Online course information">
+      <section class="course-dashboard-side-panel">
+        <div class="course-dashboard-side-head">
+          <h2>To Do</h2>
+          <a href="/admin/assignment-submissions?status=ungraded">View all</a>
+        </div>
+        <div class="course-dashboard-side-list">
+          ${pendingSubmissions.map((submission) => {
+            const studentName = personName(submission);
+            const search = encodeURIComponent(`${studentName} ${submission.assignment_title}`);
+            return `
+              <article class="course-dashboard-side-item todo-item">
+                <span class="course-dashboard-side-icon" aria-hidden="true">✓</span>
+                <div>
+                  <a href="/admin/assignment-submissions?status=ungraded&amp;q=${search}">Grade ${escapeHtml(submission.assignment_title)}</a>
+                  <em>${escapeHtml(canvasCourseCode(submission))} · ${escapeHtml(studentName)}</em>
+                  <small>Submitted ${escapeHtml(formatMessageDate(submission.submitted_at))}</small>
+                </div>
+              </article>
+            `;
+          }).join("") || `<p class="empty compact">No submissions are waiting for review.</p>`}
+        </div>
+      </section>
+      <section class="course-dashboard-side-panel">
+        <div class="course-dashboard-side-head">
+          <h2>Coming Up</h2>
+          <a href="/admin/schedule">View schedule</a>
+        </div>
+        <div class="course-dashboard-side-list">
+          ${upcoming.map((item) => `
+            <article class="course-dashboard-side-item upcoming-item">
+              <span class="course-dashboard-side-icon" aria-hidden="true">▦</span>
+              <div>
+                <a href="${item.course_id ? `/admin/courses/${item.course_id}/student-view?view=${item.item_kind === "assignment" ? "assignments" : "calendar"}` : "/admin/schedule"}">${escapeHtml(item.title)}</a>
+                <em>${escapeHtml(item.course_title || "School calendar")}</em>
+                <small>${escapeHtml(item.item_kind === "assignment" ? date(item.scheduled_at) : formatAnnouncementDate(item.scheduled_at))}</small>
+              </div>
+            </article>
+          `).join("") || `<p class="empty compact">No upcoming course dates are posted.</p>`}
+        </div>
+      </section>
+      <section class="course-dashboard-side-panel">
+        <div class="course-dashboard-side-head">
+          <h2>Recent Feedback</h2>
+          <a href="/admin/assignment-submissions?status=graded">View graded work</a>
+        </div>
+        <div class="course-dashboard-side-list">
+          ${recentFeedback.map((feedback) => `
+            <article class="course-dashboard-side-item feedback-item">
+              <span class="course-dashboard-side-icon" aria-hidden="true">★</span>
+              <div>
+                <a href="/admin/courses/${feedback.course_id}/student-view?view=grades">${escapeHtml(feedback.assignment_title)}</a>
+                <em>${escapeHtml(canvasCourseCode(feedback))} · ${escapeHtml(personName(feedback))}</em>
+                <small>${escapeHtml(feedback.score)} / ${escapeHtml(feedback.points_possible)} points · ${escapeHtml(formatMessageDate(feedback.updated_at))}</small>
+              </div>
+            </article>
+          `).join("") || `<p class="empty compact">No grades or feedback have been posted yet.</p>`}
+        </div>
+      </section>
+    </aside>
+  `;
+}
+
 app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const cohorts = db.prepare(`
     SELECT DISTINCT cohort_name
@@ -12940,6 +13070,7 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
   const totalCredentials = courses.reduce((sum, course) => sum + Number(course.credentials || 0), 0);
   const publishedCourses = courses.filter((course) => Number(course.published) === 1);
   const unpublishedCourses = courses.filter((course) => Number(course.published) !== 1);
+  const sidebarData = adminCourseDashboardSidebarData();
   const renderCoursePickerCard = (course) => {
     const isPublished = Number(course.published) === 1;
     const openLabel = `Open ${course.title}`;
@@ -12955,7 +13086,6 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
             <p class="course-picker-category">${escapeHtml(course.category)}</p>
           </div>
           <h3><a href="/admin/courses/${course.id}">${escapeHtml(course.title)}</a></h3>
-          <p class="course-picker-description">${escapeHtml(course.description || "Open this course to manage lessons, assignments, and student access.")}</p>
           <dl class="course-picker-meta">
             <div><dt>Hours</dt><dd>${escapeHtml(course.hours)}</dd></div>
             <div><dt>Students</dt><dd>${escapeHtml(course.enrollments)}</dd></div>
@@ -12990,33 +13120,43 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
     <div class="page-head">
       <div>
         <h1>Instructor Course Dashboard</h1>
-        <p>Open published courses currently available to students and prepare unpublished course shells before release.</p>
+        <p>Select a thumbnail to open a course. Upcoming work and grading activity stay visible on the right.</p>
       </div>
     </div>
-    ${renderCoursePickerSection("Published Courses", "Available to students now. Select a card to open the course or use its editing tools.", publishedCourses)}
-    ${renderCoursePickerSection("Unpublished Courses", "Hidden from students until an instructor publishes them.", unpublishedCourses)}
+    <div class="course-dashboard-layout">
+      <section class="course-dashboard-catalog" aria-label="Course library">
+        ${renderCoursePickerSection("Published Courses", "Available to students now. Select a card to open the course or use its editing tools.", publishedCourses)}
+        ${renderCoursePickerSection("Unpublished Courses", "Hidden from students until an instructor publishes them.", unpublishedCourses)}
+      </section>
+      ${renderAdminCourseDashboardSidebar(sidebarData)}
+    </div>
   `;
   const adminBody = `
     ${renderAdminDashboardToggle("courses")}
     <div class="page-head">
       <div>
         <h1>Choose a Course</h1>
-        <p>Select a course card to enter its student-style course view, or use Edit &amp; Manage for course tools and settings.</p>
+        <p>Select a thumbnail to enter the student-style course view. Course activity and upcoming work stay visible on the right.</p>
+      </div>
+      <div class="course-dashboard-counts" aria-label="Course library summary">
+        <span><strong>${escapeHtml(String(courses.length))}</strong> courses</span>
+        <span><strong>${escapeHtml(String(publishedCourses.length))}</strong> published</span>
+        <span><strong>${escapeHtml(String(totalEnrollments))}</strong> enrollments</span>
+        <span><strong>${escapeHtml(String(totalCredentials))}</strong> credentials</span>
       </div>
     </div>
-    <section class="grid cols-4">
-      ${stat("Course library", String(courses.length))}
-      ${stat("Published", String(publishedCourses.length))}
-      ${stat("Enrollments", String(totalEnrollments))}
-      ${stat("Credentials", String(totalCredentials))}
-    </section>
-    ${renderCoursePickerSection("Practical Nursing Courses", "Open individual PN course shells directly without searching through a program list.", practicalNursingCourses)}
-    ${renderCoursePickerSection("Programs and Allied Health", "Diploma, certificate, exam-prep, and continuing-education courses.", programCourses)}
-    ${renderCoursePickerSection("American Heart Association", "BLS, ACLS, and PALS course shells and student records.", americanHeartAssociationCourses)}
-    <details class="course-library-details">
-      <summary>View tuition and fee schedule</summary>
-      ${renderTuitionFeesSection(courses)}
-    </details>
+    <div class="course-dashboard-layout">
+      <section class="course-dashboard-catalog" aria-label="Course library">
+        ${renderCoursePickerSection("Practical Nursing Courses", "Open individual PN course shells directly without searching through a program list.", practicalNursingCourses)}
+        ${renderCoursePickerSection("Programs and Allied Health", "Diploma, certificate, exam-prep, and continuing-education courses.", programCourses)}
+        ${renderCoursePickerSection("American Heart Association", "BLS, ACLS, and PALS course shells and student records.", americanHeartAssociationCourses)}
+        <details class="course-library-details">
+          <summary>View tuition and fee schedule</summary>
+          ${renderTuitionFeesSection(courses)}
+        </details>
+      </section>
+      ${renderAdminCourseDashboardSidebar(sidebarData)}
+    </div>
   `;
   render(req, res, req.user.role === "instructor" ? "Instructor Course Dashboard" : "Courses", req.user.role === "instructor" ? instructorBody : adminBody);
 });

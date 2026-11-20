@@ -456,6 +456,73 @@ test("the Online Courses view renders each course as a visual picker card with d
   }
 });
 
+test("the Online Courses view pairs GHL thumbnail cards with a live Canvas-style activity sidebar", async () => {
+  const course = database.prepare(`
+    SELECT id, title, slug, published
+    FROM courses
+    WHERE slug = 'medical-terminology'
+  `).get();
+  assert.ok(course, "Expected the seeded Medical Terminology course");
+  const enrollment = database.prepare(`
+    SELECT enrollments.id
+    FROM enrollments
+    JOIN users ON users.id = enrollments.user_id
+    WHERE enrollments.course_id = ? AND users.email = 'student@browardmiamihi.com'
+    LIMIT 1
+  `).get(course.id);
+  assert.ok(enrollment, "Expected the demo student to be enrolled in Medical Terminology");
+
+  database.prepare("UPDATE courses SET published = 1 WHERE id = ?").run(course.id);
+  const pendingItemId = Number(database.prepare(`
+    INSERT INTO grade_items (course_id, title, points_possible, due_date)
+    VALUES (?, 'Sidebar Pending Skills Check', 25, '2099-12-30')
+  `).run(course.id).lastInsertRowid);
+  const upcomingItemId = Number(database.prepare(`
+    INSERT INTO grade_items (course_id, title, points_possible, due_date)
+    VALUES (?, 'Sidebar Upcoming Quiz', 10, '2099-12-31')
+  `).run(course.id).lastInsertRowid);
+  const feedbackItemId = Number(database.prepare(`
+    INSERT INTO grade_items (course_id, title, points_possible, due_date)
+    VALUES (?, 'Sidebar Feedback Reflection', 20, '2026-11-18')
+  `).run(course.id).lastInsertRowid);
+  const submissionId = Number(database.prepare(`
+    INSERT INTO assignment_submissions (
+      grade_item_id, enrollment_id, file_storage_name, file_original_name,
+      file_mime_type, file_size, student_note, submitted_at, updated_at
+    ) VALUES (?, ?, '', '', 'text/plain', 0, 'Ready to grade', '2099-12-20 09:00:00', '2099-12-20 09:00:00')
+  `).run(pendingItemId, enrollment.id).lastInsertRowid);
+  const gradeId = Number(database.prepare(`
+    INSERT INTO grades (enrollment_id, grade_item_id, score, note, updated_at)
+    VALUES (?, ?, 19, 'Strong work', '2099-12-19 10:00:00')
+  `).run(enrollment.id, feedbackItemId).lastInsertRowid);
+
+  try {
+    for (const [cookie, role] of [[adminCookie, "admin"], [instructorCookie, "instructor"]]) {
+      const html = await getHtml("/admin/courses", cookie);
+      const card = coursePickerCard(html, course.id);
+      assert.ok(
+        card.includes("https://images.leadconnectorhq.com/image/f_webp/q_80/r_320/u_https://files.leadconnectorhq.com/file/6ac6affbd66e1673fe124e8d/medical-records.webp"),
+        `Expected the ${role} PN 101 card to keep its GHL thumbnail`
+      );
+      assert.match(html, /<div class="course-dashboard-layout">[\s\S]*<section class="course-dashboard-catalog" aria-label="Course library">/);
+      assert.match(html, /<aside class="course-dashboard-sidebar" aria-label="Online course information">/);
+      assert.match(html, /<h2>To Do<\/h2>/);
+      assert.match(html, /<h2>Coming Up<\/h2>/);
+      assert.match(html, /<h2>Recent Feedback<\/h2>/);
+      assert.match(html, /Sidebar Pending Skills Check/);
+      assert.match(html, /Sidebar Upcoming Quiz/);
+      assert.match(html, /Sidebar Feedback Reflection/);
+      assert.match(html, /href="\/admin\/assignment-submissions\?status=ungraded"/);
+      assert.match(html, new RegExp(`href="/admin/courses/${course.id}/student-view\\?view=grades"`));
+    }
+  } finally {
+    database.prepare("DELETE FROM grades WHERE id = ?").run(gradeId);
+    database.prepare("DELETE FROM assignment_submissions WHERE id = ?").run(submissionId);
+    database.prepare("DELETE FROM grade_items WHERE id IN (?, ?, ?)").run(pendingItemId, upcomingItemId, feedbackItemId);
+    database.prepare("UPDATE courses SET published = ? WHERE id = ?").run(course.published, course.id);
+  }
+});
+
 test("instructor student view matches the student course chrome and exposes one upper-right edit action", async (t) => {
   const courses = database.prepare(`
     SELECT c.id, c.slug, e.id AS enrollment_id, MIN(l.id) AS lesson_id
