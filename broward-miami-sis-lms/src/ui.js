@@ -45,7 +45,7 @@ function navFor(user, pendingAssignmentReviewCount = 0) {
     <a href="/admin/financial-aid">Financial Aid</a>
     <a href="/admin/billing">Billing</a>
     <a href="/admin/staff-portal">Staff Portal</a>
-    <a href="/admin/tickets">Task Tickets</a>
+    <a class="task-tickets-link" href="/admin/tickets">Task Tickets</a>
     <a href="/admin/messages">Inbox</a>
     <a href="/catalog">Catalog</a>
     <a href="/admin/ghl">GHL</a>
@@ -60,7 +60,7 @@ function navFor(user, pendingAssignmentReviewCount = 0) {
     <a href="/admin/hesi">HESI Scores</a>
     <a href="/admin/courses">Courses</a>
     <a href="/admin/staff-portal">Staff Portal</a>
-    <a href="/admin/tickets">Task Tickets</a>
+    <a class="task-tickets-link" href="/admin/tickets">Task Tickets</a>
     <a href="/admin/messages">Inbox</a>
     <a href="/catalog">Catalog</a>
   `;
@@ -223,8 +223,6 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
         <span class="sis-topbar-spacer" aria-hidden="true"></span>
         <div class="sis-tools">
           <a class="sis-tool" href="/admin/features/system-settings" title="Settings">Settings</a>
-          <a class="sis-tool" href="/catalog" title="Catalog">Catalog</a>
-          <a class="sis-tool" href="/admin/help" title="Help">Help</a>
           <span class="sis-avatar" title="${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)}">${escapeHtml(initialsFor(user))}</span>
           <form method="post" action="/logout">
             <button class="sis-signout" type="submit">Sign out</button>

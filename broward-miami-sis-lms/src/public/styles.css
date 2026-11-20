@@ -500,15 +500,21 @@ nav a {
 }
 
 .sis-subnav {
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
   gap: 0;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .sis-subnav a {
   border-right: 1px solid #dfe6eb;
   color: #24313c;
+  flex: 0 0 auto;
   font-size: 13px;
   font-weight: 800;
   padding: 13px 16px;
+  white-space: nowrap;
 }
 
 .sis-subnav a:first-child {
@@ -519,6 +525,18 @@ nav a {
   background: #eef7f8;
   color: var(--brand-dark);
   text-decoration: none;
+}
+
+.sis-subnav a.task-tickets-link {
+  background: #fff1f0;
+  color: #b42318;
+  font-weight: 900;
+}
+
+.sis-subnav a.task-tickets-link:hover,
+.sis-subnav a.task-tickets-link:focus-visible {
+  background: #fee4e2;
+  color: #8f1c13;
 }
 
 @keyframes assignment-review-pulse {
@@ -557,6 +575,7 @@ nav a {
   flex: 0 0 auto;
   font-size: 12px;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .shell {
