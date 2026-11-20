@@ -30,6 +30,7 @@ function navFor(user, pendingAssignmentReviewCount = 0) {
   const assignmentInboxLink = `<a class="${reviewCount ? "assignment-review-alert" : ""}" href="/admin/assignment-submissions">Assignment Inbox${reviewCount ? ` <b class="assignment-review-count" aria-label="${escapeHtml(reviewCount)} assignments need review">${escapeHtml(reviewCount)}</b>` : ""}</a>`;
   const adminLinks = `
     <a href="/admin">Dashboard</a>
+    <a class="task-tickets-link" href="/admin/tickets">Task Tickets</a>
     <a href="/admin/admissions">Admissions</a>
     <a href="/admin/features">Features</a>
     <a href="/admin/admin-roles">Admin Roles</a>
@@ -45,13 +46,13 @@ function navFor(user, pendingAssignmentReviewCount = 0) {
     <a href="/admin/financial-aid">Financial Aid</a>
     <a href="/admin/billing">Billing</a>
     <a href="/admin/staff-portal">Staff Portal</a>
-    <a class="task-tickets-link" href="/admin/tickets">Task Tickets</a>
     <a href="/admin/messages">Inbox</a>
     <a href="/catalog">Catalog</a>
     <a href="/admin/ghl">GHL</a>
   `;
   const instructorLinks = `
     <a href="/admin">Dashboard</a>
+    <a class="task-tickets-link" href="/admin/tickets">Task Tickets</a>
     <a href="/admin/students">Students</a>
     <a href="/admin/student-evaluations">Student Evals</a>
     ${assignmentInboxLink}
@@ -60,7 +61,6 @@ function navFor(user, pendingAssignmentReviewCount = 0) {
     <a href="/admin/hesi">HESI Scores</a>
     <a href="/admin/courses">Courses</a>
     <a href="/admin/staff-portal">Staff Portal</a>
-    <a class="task-tickets-link" href="/admin/tickets">Task Tickets</a>
     <a href="/admin/messages">Inbox</a>
     <a href="/catalog">Catalog</a>
   `;

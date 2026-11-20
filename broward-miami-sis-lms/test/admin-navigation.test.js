@@ -35,6 +35,10 @@ test("admin navigation is one non-wrapping row without repeated tool links", () 
     assert.match(navigation, /href="\/admin\/help">SOPs<\/a>/);
     assert.match(navigation, /href="\/catalog">Catalog<\/a>/);
     assert.match(navigation, /class="task-tickets-link" href="\/admin\/tickets">Task Tickets<\/a>/);
+    assert.ok(
+      navigation.indexOf("Task Tickets") < navigation.indexOf(role === "admin" ? "Admissions" : "Students"),
+      `${role} Task Tickets should remain visible beside Dashboard`
+    );
   }
 
   assert.match(styles, /\.sis-subnav \{[\s\S]*?flex-wrap: nowrap;[\s\S]*?overflow-x: auto;[\s\S]*?\}/);
