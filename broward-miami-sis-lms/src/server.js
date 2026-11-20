@@ -262,6 +262,7 @@ const admissionsPrivateNotificationEmail = process.env.ADMISSIONS_PRIVATE_NOTIFI
 const externalBaseUrl = (process.env.PUBLIC_APP_URL || "https://portal.browardmiamihi.com").replace(/\/+$/, "");
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || path.join(path.dirname(databaseFile), "uploads"));
 const courseMaterialsDir = path.resolve(process.env.COURSE_MATERIALS_DIR || path.join(path.dirname(__dirname), "course_materials"));
+const courseMediaDir = path.join(path.dirname(databaseFile), "course-media");
 const pnOrientationMediaDirectory = path.join(uploadDir, PN_ORIENTATION_DIRECTORY);
 function pnOrientationMediaReady() {
   return Object.values(PN_ORIENTATION_FILES).every((fileName) => fs.existsSync(path.join(pnOrientationMediaDirectory, fileName)));
@@ -1267,6 +1268,34 @@ function isPathInside(parent, child) {
   return relative && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
+function privateCourseMediaType(fileName) {
+  if (fileName.endsWith(".mp4")) return "video/mp4";
+  if (fileName.endsWith(".poster.jpg")) return "image/jpeg";
+  return null;
+}
+
+function privateCourseVideoPoster(videoUrl, courseSlug) {
+  if (!videoUrl || !courseSlug) return null;
+
+  const parsed = new URL(videoUrl, externalBaseUrl);
+  const materialSlug = courseMaterialStorageSlug(courseSlug);
+  const prefix = `/course-materials/${encodeURIComponent(materialSlug)}/`;
+  if (parsed.origin !== new URL(externalBaseUrl).origin || !parsed.pathname.startsWith(prefix)) return null;
+
+  let fileName;
+  try {
+    fileName = decodeURIComponent(parsed.pathname.slice(prefix.length));
+  } catch {
+    return null;
+  }
+  if (path.basename(fileName) !== fileName || !fileName.endsWith(".mp4")) return null;
+
+  const posterName = `${fileName.slice(0, -4)}.poster.jpg`;
+  const directory = path.join(courseMediaDir, materialSlug);
+  if (!fs.existsSync(path.join(directory, fileName)) || !fs.existsSync(path.join(directory, posterName))) return null;
+  return `${prefix}${encodeURIComponent(posterName)}?inline=1`;
+}
+
 app.get("/course-materials/:courseSlug/:fileName", requireAuth, (req, res) => {
   const materialSlug = String(req.params.courseSlug || "");
   const fileName = path.basename(String(req.params.fileName || ""));
@@ -1287,12 +1316,17 @@ app.get("/course-materials/:courseSlug/:fileName", requireAuth, (req, res) => {
   if (!canAccess) return res.status(403).send("Forbidden");
   if (isClassLocked(req.user)) return res.status(403).send(classLockMessage(req.user));
 
-  const materialDir = path.join(courseMaterialsDir, materialSlug);
+  const privateType = privateCourseMediaType(fileName);
+  const mediaDir = path.join(courseMediaDir, materialSlug);
+  const mediaPath = path.join(mediaDir, fileName);
+  const persistentMedia = privateType && isPathInside(mediaDir, mediaPath) && fs.existsSync(mediaPath);
+  const materialDir = persistentMedia ? mediaDir : path.join(courseMaterialsDir, materialSlug);
   const filePath = path.join(materialDir, fileName);
   if (!isPathInside(materialDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Course material not found");
   const fileExtension = path.extname(fileName).toLowerCase();
-  if (req.query.inline === "1" && (fileExtension === ".pdf" || isVideoFileExtension(fileExtension))) {
-    const contentType = fileExtension === ".pdf" ? "application/pdf" : videoContentType(fileExtension);
+  if (req.query.inline === "1" && (persistentMedia || fileExtension === ".pdf" || isVideoFileExtension(fileExtension))) {
+    const contentType = persistentMedia ? privateType
+      : fileExtension === ".pdf" ? "application/pdf" : videoContentType(fileExtension);
     res.set({
       "Content-Type": contentType,
       "Content-Disposition": `inline; filename="${fileName.replace(/["\r\n]/g, "")}"`,
@@ -3810,6 +3844,7 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
   const showLessonSourceContent = instructor || !selectedLessonIsQuiz;
   const lessonContentForViewer = instructor ? selectedLesson.content : studentFacingLessonContent(selectedLesson.content);
   const selectedLessonVideoUrl = directVideoUrl(selectedLesson.external_url);
+  const videoPoster = privateCourseVideoPoster(selectedLessonVideoUrl, selectedCourseSlug);
   const selectedLessonYouTubeEmbed = selectedLessonVideoUrl ? null : youtubeEmbedUrl(selectedLesson.external_url);
   const selectedLessonYouTubeWatch = youtubeWatchUrl(selectedLesson.external_url);
   const selectedLessonPanoptoEmbed = selectedLessonVideoUrl || selectedLessonYouTubeEmbed
@@ -3836,7 +3871,7 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
           ${selectedLessonVideoUrl ? `
             <section class="video-recording" aria-label="Class recording">
               <div class="video-recording-frame">
-                <video controls preload="metadata" playsinline src="${escapeHtml(selectedLessonVideoUrl)}">
+                <video controls preload="metadata" playsinline src="${escapeHtml(selectedLessonVideoUrl)}"${videoPoster ? ` poster="${escapeHtml(videoPoster)}"` : ""}>
                   Your browser cannot play this video.
                 </video>
               </div>

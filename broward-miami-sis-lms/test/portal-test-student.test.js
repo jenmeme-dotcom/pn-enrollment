@@ -258,6 +258,36 @@ test("PN106 students can submit chapter cases while answer guides remain instruc
     "%PDF-"
   );
 
+  const storageSlug = "introductory-clinical-pharmacology-pn106";
+  const mediaDirectory = path.join(temporaryDirectory, "course-media", storageSlug);
+  const mediaUrl = `/course-materials/${storageSlug}/lecture`;
+  fs.mkdirSync(mediaDirectory, { recursive: true });
+  fs.writeFileSync(path.join(mediaDirectory, "lecture.mp4"), "video fixture");
+  fs.writeFileSync(path.join(mediaDirectory, "lecture.poster.jpg"), "poster fixture");
+  const module = database.prepare("SELECT id FROM modules WHERE course_id = ? ORDER BY position LIMIT 1").get(course.id);
+  const videoLesson = database.prepare(`
+    INSERT INTO lessons (module_id, title, item_type, external_url, position, published)
+    VALUES (?, 'Pharmacology lecture', 'youtube', ?, 1000, 1)
+  `).run(module.id, `${mediaUrl}.mp4`);
+  const player = await fetch(`${baseUrl}/student/enrollments/${enrollment.id}?lesson=${videoLesson.lastInsertRowid}`, {
+    headers: { cookie: studentCookie }
+  });
+  assert.equal(player.status, 200);
+  const playerHtml = await player.text();
+  assert.ok(playerHtml.includes(`poster="${mediaUrl}.poster.jpg?inline=1"`));
+  const video = await fetch(`${baseUrl}${mediaUrl}.mp4?inline=1`, {
+    headers: { cookie: studentCookie, range: "bytes=0-4" }
+  });
+  assert.equal(video.status, 206);
+  assert.equal(video.headers.get("content-type"), "video/mp4");
+  assert.equal(await video.text(), "video");
+  const posterUrl = `${baseUrl}${mediaUrl}.poster.jpg?inline=1`;
+  const anonymousPoster = await fetch(posterUrl, { redirect: "manual" });
+  assert.equal(anonymousPoster.status, 302);
+  const signedInPoster = await fetch(posterUrl, { headers: { cookie: studentCookie } });
+  assert.equal(signedInPoster.status, 200);
+  assert.equal(signedInPoster.headers.get("content-type"), "image/jpeg");
+
   const responseText = "Test response identifying priority cues, medication risks, nursing monitoring, patient teaching, and evaluation.";
   const responseForm = new FormData();
   responseForm.set("studentResponse", responseText);
