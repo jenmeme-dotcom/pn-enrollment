@@ -17,6 +17,7 @@ let database;
 let temporaryDirectory;
 let databaseFile;
 let baseUrl;
+let facultyCourseMaterialsDirectory;
 
 function seed() {
   const result = spawnSync(process.execPath, ["--no-warnings", "src/seed.js"], {
@@ -52,7 +53,8 @@ function startServer(port) {
         PORT: String(port),
         PUBLIC_APP_URL: `http://127.0.0.1:${port}`,
         SESSION_SECRET: "portal-test-student-secret",
-        UPLOAD_DIR: path.join(temporaryDirectory, "uploads")
+        UPLOAD_DIR: path.join(temporaryDirectory, "uploads"),
+        FACULTY_COURSE_MATERIALS_DIR: facultyCourseMaterialsDirectory
       },
       stdio: ["ignore", "pipe", "pipe"]
     });
@@ -79,6 +81,16 @@ function startServer(port) {
 before(async () => {
   temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "bmhi-portal-test-student-"));
   fs.mkdirSync(path.join(temporaryDirectory, "uploads"), { recursive: true });
+  facultyCourseMaterialsDirectory = path.join(temporaryDirectory, "faculty_course_materials");
+  const pn106FacultyDirectory = path.join(
+    facultyCourseMaterialsDirectory,
+    "introductory-clinical-pharmacology-pn106"
+  );
+  fs.mkdirSync(pn106FacultyDirectory, { recursive: true });
+  fs.writeFileSync(
+    path.join(pn106FacultyDirectory, "PN106-Lippincott-Answer-Chapter-01.docx"),
+    "licensed instructor answer fixture"
+  );
   databaseFile = path.join(temporaryDirectory, "portal-test.sqlite");
   seed();
   seed();
@@ -228,8 +240,23 @@ test("PN106 students can submit chapter cases while answer guides remain instruc
   assert.equal(casePage.status, 200);
   const caseHtml = await casePage.text();
   assert.match(caseHtml, /name="studentResponse"/);
-  assert.match(caseHtml, /Original BMHI Case Study/);
+  assert.match(caseHtml, /Licensed Lippincott Case Study/);
+  assert.match(
+    caseHtml,
+    /href="\/course-materials\/introductory-clinical-pharmacology-pn106\/PN106-Lippincott-Case-Study-Chapter-01\.pdf"/
+  );
   assert.doesNotMatch(caseHtml, /Expected response elements/);
+
+  const inlineCase = await fetch(
+    `${baseUrl}/course-materials/introductory-clinical-pharmacology-pn106/PN106-Lippincott-Case-Study-Chapter-01.pdf?inline=1`,
+    { headers: { cookie: studentCookie } }
+  );
+  assert.equal(inlineCase.status, 200);
+  assert.equal(inlineCase.headers.get("content-type"), "application/pdf");
+  assert.equal(
+    Buffer.from(await inlineCase.arrayBuffer()).subarray(0, 5).toString("ascii"),
+    "%PDF-"
+  );
 
   const responseText = "Test response identifying priority cues, medication risks, nursing monitoring, patient teaching, and evaluation.";
   const responseForm = new FormData();
@@ -265,7 +292,56 @@ test("PN106 students can submit chapter cases while answer guides remain instruc
   assert.equal(guidePage.status, 200);
   const guideHtml = await guidePage.text();
   assert.match(guideHtml, /Instructor-only material/);
-  assert.match(guideHtml, /Expected response elements/);
+  assert.match(guideHtml, /Licensed Lippincott Instructor Answer Key/);
+  assert.match(
+    guideHtml,
+    /href="\/admin\/course-materials\/introductory-clinical-pharmacology-pn106\/PN106-Lippincott-Answer-Chapter-01\.docx"/
+  );
+  assert.doesNotMatch(
+    guideHtml,
+    /href="\/course-materials\/introductory-clinical-pharmacology-pn106\/PN106-Lippincott-Answer-Chapter-01\.docx"/
+  );
+});
+
+test("PN106 licensed answer files are downloadable by faculty and forbidden to students", async () => {
+  const answerPath = "/admin/course-materials/introductory-clinical-pharmacology-pn106/PN106-Lippincott-Answer-Chapter-01.docx";
+  const login = async (email, password, loginRole) => {
+    const response = await fetch(`${baseUrl}/login`, {
+      body: new URLSearchParams({ email, password, loginRole }),
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      method: "POST",
+      redirect: "manual"
+    });
+    assert.equal(response.status, 302);
+    return (response.headers.getSetCookie?.()[0] || response.headers.get("set-cookie") || "").split(";", 1)[0];
+  };
+
+  const studentCookie = await login(testEmail, testPassword, "student");
+  const studentAnswer = await fetch(`${baseUrl}${answerPath}`, { headers: { cookie: studentCookie } });
+  assert.equal(studentAnswer.status, 403);
+
+  const instructorCookie = await login(
+    "instructor@browardmiamihi.com",
+    "InstructorPass123!",
+    "faculty"
+  );
+  const instructorAnswer = await fetch(`${baseUrl}${answerPath}`, { headers: { cookie: instructorCookie } });
+  assert.equal(instructorAnswer.status, 200);
+  assert.equal(await instructorAnswer.text(), "licensed instructor answer fixture");
+  assert.match(
+    instructorAnswer.headers.get("content-disposition") || "",
+    /attachment; filename="PN106-Lippincott-Answer-Chapter-01\.docx"/
+  );
+
+  const adminCookie = await login("admin@browardmiamihi.com", "AdminPass123!", "faculty");
+  const adminAnswer = await fetch(`${baseUrl}${answerPath}`, { headers: { cookie: adminCookie } });
+  assert.equal(adminAnswer.status, 200);
+
+  const missingCourse = await fetch(
+    `${baseUrl}/admin/course-materials/not-a-course/PN106-Lippincott-Answer-Chapter-01.docx`,
+    { headers: { cookie: adminCookie } }
+  );
+  assert.equal(missingCourse.status, 404);
 });
 
 test("PN107 Lab gives every skill its own student upload target while staff previews stay read-only", async () => {

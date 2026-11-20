@@ -6,6 +6,13 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { DatabaseSync } = require('node:sqlite');
 const pharmacologyCourse = require('../src/pharmacologyCourseData.json');
+const {
+  chapterCaseStudies,
+  caseStudyContent,
+  instructorGuideContent,
+  legacyCaseStudyContent,
+  legacyInstructorGuideContent
+} = require('../src/pharmacologyCaseStudies');
 
 function pn106Lessons(db, courseId) {
   return db.prepare(`
@@ -38,13 +45,16 @@ function assertChapterCaseStudies(lessons) {
   }
 
   for (const caseStudy of caseStudies) {
+    const chapter = String(Number(caseStudy.title.match(/^Chapter (\d+)/)[1])).padStart(2, '0');
     assert.equal(caseStudy.item_type, 'assignment');
     assert.ok(caseStudy.grade_item_id);
-    assert.match(caseStudy.content, /Original BMHI Case Study/);
-    assert.match(caseStudy.content, /assigned Lippincott chapter/);
-    assert.match(caseStudy.content, /Scenario/);
-    assert.match(caseStudy.content, /Student response/);
-    assert.match(caseStudy.content, /not copied from publisher case-study text/i);
+    assert.match(caseStudy.content, /^Licensed Lippincott Case Study/);
+    assert.match(caseStudy.content, /exact Lippincott case-study document authorized for use/i);
+    assert.match(
+      caseStudy.content,
+      new RegExp(`/course-materials/introductory-clinical-pharmacology-pn106/PN106-Lippincott-Case-Study-Chapter-${chapter}\\.pdf`)
+    );
+    assert.doesNotMatch(caseStudy.content, /Original BMHI Case Study/);
   }
 
   return caseStudies;
@@ -65,12 +75,18 @@ function assertInstructorGuides(lessons) {
     );
   }
   for (const guide of guides) {
+    const chapter = String(Number(guide.title.match(/^Chapter (\d+)/)[1])).padStart(2, '0');
     assert.equal(guide.item_type, 'page');
     assert.equal(guide.instructor_only, 1);
     assert.equal(guide.grade_item_id, null);
+    assert.match(guide.content, /^Licensed Lippincott Instructor Answer Key/);
     assert.match(guide.content, /Instructor-only material/);
     assert.match(guide.content, /not visible in the student portal/i);
-    assert.match(guide.content, /Expected response elements/);
+    assert.match(
+      guide.content,
+      new RegExp(`/admin/course-materials/introductory-clinical-pharmacology-pn106/PN106-Lippincott-Answer-Chapter-${chapter}\\.docx`)
+    );
+    assert.doesNotMatch(guide.content, /Expected response elements/);
   }
   return guides;
 }
@@ -172,14 +188,67 @@ test('PN106 adds one case study per chapter and preserves legacy academic record
 
     const migratedCase = lessons.find((lesson) => /^Chapter 1 Case Study:/.test(lesson.title));
     const migratedGuide = lessons.find((lesson) => /^Chapter 1 Instructor Answer Guide:/.test(lesson.title));
+    const migratedCaseWithSuffix = lessons.find((lesson) => /^Chapter 2 Case Study:/.test(lesson.title));
+    const migratedGuideWithSuffix = lessons.find((lesson) => /^Chapter 2 Instructor Answer Guide:/.test(lesson.title));
+    const migratedEditedCase = lessons.find((lesson) => /^Chapter 3 Case Study:/.test(lesson.title));
+    const migratedEditedGuide = lessons.find((lesson) => /^Chapter 3 Instructor Answer Guide:/.test(lesson.title));
     db.prepare(`
       INSERT INTO assignment_completion_statuses (enrollment_id, grade_item_id, status, note)
       VALUES (?, ?, 'completed', 'Chapter case complete')
     `).run(enrollmentId, migratedCase.grade_item_id);
-    db.prepare("UPDATE lessons SET content = 'Instructor customized case prompt', published = 0 WHERE id = ?")
-      .run(migratedCase.id);
-    db.prepare("UPDATE lessons SET content = 'Instructor customized private guide', published = 0 WHERE id = ?")
-      .run(migratedGuide.id);
+    const migratedCaseId = migratedCase.id;
+    const migratedGuideId = migratedGuide.id;
+    const migratedCaseGradeItemId = migratedCase.grade_item_id;
+    const chapterOne = chapterCaseStudies.find((caseStudy) => Number(caseStudy.chapter) === 1);
+    const chapterTwo = chapterCaseStudies.find((caseStudy) => Number(caseStudy.chapter) === 2);
+    const chapterThree = chapterCaseStudies.find((caseStudy) => Number(caseStudy.chapter) === 3);
+    const caseSuffix = '\n\nInstructor customization appended to the legacy case.';
+    const guideSuffix = '\n\nInstructor customization appended to the legacy guide.';
+    const editedLegacyCase = legacyCaseStudyContent(chapterThree)
+      .replace('Before you begin', 'Instructor-edited directions');
+    const editedLegacyGuide = legacyInstructorGuideContent(chapterThree)
+      .replace('Scoring guidance', 'Instructor-edited scoring guidance');
+    db.prepare('UPDATE lessons SET content = ? WHERE id = ?')
+      .run(legacyCaseStudyContent(chapterOne), migratedCase.id);
+    db.prepare('UPDATE lessons SET content = ? WHERE id = ?')
+      .run(legacyInstructorGuideContent(chapterOne), migratedGuide.id);
+    db.prepare('UPDATE lessons SET content = ? WHERE id = ?')
+      .run(`${legacyCaseStudyContent(chapterTwo)}${caseSuffix}`, migratedCaseWithSuffix.id);
+    db.prepare('UPDATE lessons SET content = ? WHERE id = ?')
+      .run(`${legacyInstructorGuideContent(chapterTwo)}${guideSuffix}`, migratedGuideWithSuffix.id);
+    db.prepare('UPDATE lessons SET content = ? WHERE id = ?')
+      .run(editedLegacyCase, migratedEditedCase.id);
+    db.prepare('UPDATE lessons SET content = ? WHERE id = ?')
+      .run(editedLegacyGuide, migratedEditedGuide.id);
+    db.close();
+
+    seed();
+    db = new DatabaseSync(databaseFile);
+    lessons = pn106Lessons(db, savedCourse.id);
+    const licensedCase = lessons.find((lesson) => lesson.id === migratedCaseId);
+    const licensedGuide = lessons.find((lesson) => lesson.id === migratedGuideId);
+    const licensedCaseWithSuffix = lessons.find((lesson) => lesson.id === migratedCaseWithSuffix.id);
+    const licensedGuideWithSuffix = lessons.find((lesson) => lesson.id === migratedGuideWithSuffix.id);
+    const preservedEditedCase = lessons.find((lesson) => lesson.id === migratedEditedCase.id);
+    const preservedEditedGuide = lessons.find((lesson) => lesson.id === migratedEditedGuide.id);
+    assert.match(licensedCase.content, /^Licensed Lippincott Case Study/);
+    assert.match(licensedGuide.content, /^Licensed Lippincott Instructor Answer Key/);
+    assert.equal(licensedCaseWithSuffix.content, `${caseStudyContent(chapterTwo)}${caseSuffix}`);
+    assert.equal(licensedGuideWithSuffix.content, `${instructorGuideContent(chapterTwo)}${guideSuffix}`);
+    assert.equal(preservedEditedCase.content, editedLegacyCase);
+    assert.equal(preservedEditedGuide.content, editedLegacyGuide);
+    assert.equal(licensedCase.grade_item_id, migratedCaseGradeItemId);
+    assert.equal(
+      db.prepare('SELECT status FROM assignment_completion_statuses WHERE enrollment_id = ? AND grade_item_id = ?')
+        .get(enrollmentId, migratedCaseGradeItemId).status,
+      'completed'
+    );
+    const customizedCaseContent = `${licensedCase.content}\n\nInstructor customization: retain this note.`;
+    const customizedGuideContent = `${licensedGuide.content}\n\nInstructor customization: retain this private note.`;
+    db.prepare('UPDATE lessons SET content = ?, published = 0 WHERE id = ?')
+      .run(customizedCaseContent, migratedCaseId);
+    db.prepare('UPDATE lessons SET content = ?, published = 0 WHERE id = ?')
+      .run(customizedGuideContent, migratedGuideId);
     db.prepare("UPDATE lessons SET content = 'Instructor customized reflection', published = 0 WHERE id = ?")
       .run(migratedReflection.id);
     const migratedLessonIds = lessons.map((lesson) => lesson.id);
@@ -191,12 +260,12 @@ test('PN106 adds one case study per chapter and preserves legacy academic record
     assert.deepEqual(lessons.map((lesson) => lesson.id), migratedLessonIds);
     assert.equal(lessons.filter((lesson) => /^Chapter \d+ Case Study:/.test(lesson.title)).length, 54);
     assert.equal(lessons.filter((lesson) => /^Chapter \d+ Instructor Answer Guide:/.test(lesson.title)).length, 54);
-    const preservedCase = lessons.find((lesson) => lesson.id === migratedCase.id);
-    const preservedGuide = lessons.find((lesson) => lesson.id === migratedGuide.id);
+    const preservedCase = lessons.find((lesson) => lesson.id === migratedCaseId);
+    const preservedGuide = lessons.find((lesson) => lesson.id === migratedGuideId);
     const preservedReflection = lessons.find((lesson) => lesson.id === migratedReflection.id);
-    assert.equal(preservedCase.content, 'Instructor customized case prompt');
+    assert.equal(preservedCase.content, customizedCaseContent);
     assert.equal(preservedCase.published, 0);
-    assert.equal(preservedGuide.content, 'Instructor customized private guide');
+    assert.equal(preservedGuide.content, customizedGuideContent);
     assert.equal(preservedGuide.published, 0);
     assert.equal(preservedGuide.instructor_only, 1);
     assert.equal(preservedReflection.content, 'Instructor customized reflection');
@@ -204,7 +273,7 @@ test('PN106 adds one case study per chapter and preserves legacy academic record
     assert.equal(db.prepare('SELECT COUNT(*) count FROM grade_items WHERE course_id = ?').get(savedCourse.id).count, 78);
     assert.equal(
       db.prepare('SELECT status FROM assignment_completion_statuses WHERE enrollment_id = ? AND grade_item_id = ?')
-        .get(enrollmentId, migratedCase.grade_item_id).status,
+        .get(enrollmentId, migratedCaseGradeItemId).status,
       'completed'
     );
     assert.equal(db.prepare('SELECT COUNT(*) count FROM video_assignments WHERE course_id = ?').get(savedCourse.id).count, 12);

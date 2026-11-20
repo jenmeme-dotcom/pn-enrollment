@@ -4,7 +4,9 @@ const {
   caseStudyAssignmentTitle: caseStudyTitle,
   caseStudyContent,
   instructorGuideContent,
-  instructorGuideTitle
+  instructorGuideTitle,
+  legacyCaseStudyContent,
+  legacyInstructorGuideContent
 } = require('./pharmacologyCaseStudies');
 
 function reflectionTitle(week) {
@@ -35,11 +37,19 @@ function validateCaseStudies() {
   }
   for (const chapter of expectedChapters) {
     const caseStudy = pharmacologyCaseStudies.find((entry) => Number(entry.chapter) === Number(chapter));
-    if (!caseStudy || !caseStudy.title || !caseStudy.scenario || !caseStudy.decisionPrompt || !caseStudy.teachingPrompt ||
-      !Array.isArray(caseStudy.instructorGuide) || caseStudy.instructorGuide.length < 5) {
+    if (!caseStudy || !caseStudy.title) {
       throw new Error(`PN106 case study content is incomplete for Chapter ${chapter}`);
     }
   }
+}
+
+function replacementForGeneratedContent(content, legacyContent, licensedContent) {
+  const current = String(content || '');
+  if (!current.trim() || current === licensedContent) return licensedContent;
+  if (current.startsWith(legacyContent)) {
+    return `${licensedContent}${current.slice(legacyContent.length)}`;
+  }
+  return null;
 }
 
 function reconcilePharmacologyCaseStudies(db, courseId) {
@@ -94,6 +104,7 @@ function reconcilePharmacologyCaseStudies(db, courseId) {
     UPDATE lessons SET content = ?
     WHERE id = ? AND trim(COALESCE(content, '')) = ''
   `);
+  const updateLessonContent = db.prepare('UPDATE lessons SET content = ? WHERE id = ?');
   const updateExistingInstructorGuide = db.prepare(`
     UPDATE lessons
     SET module_id = ?, position = ?, instructor_only = 1,
@@ -138,7 +149,12 @@ function reconcilePharmacologyCaseStudies(db, courseId) {
         if (gradeItem.title !== title) updateGradeItemTitle.run(title, gradeItem.id);
         if (existingLesson) {
           updateExistingCaseLesson.run(module.id, position, gradeItem.id, existingLesson.id);
-          fillBlankLessonContent.run(caseStudyContent(caseStudy), existingLesson.id);
+          const replacementContent = replacementForGeneratedContent(
+            existingLesson.content,
+            legacyCaseStudyContent(caseStudy),
+            caseStudyContent(caseStudy)
+          );
+          if (replacementContent !== null) updateLessonContent.run(replacementContent, existingLesson.id);
         } else {
           insertLesson.run(module.id, title, caseStudyContent(caseStudy), position, gradeItem.id);
         }
@@ -148,7 +164,12 @@ function reconcilePharmacologyCaseStudies(db, courseId) {
         const existingGuide = findCourseLesson.get(courseId, guideTitle);
         if (existingGuide) {
           updateExistingInstructorGuide.run(module.id, position, existingGuide.id);
-          fillBlankLessonContent.run(instructorGuideContent(caseStudy), existingGuide.id);
+          const replacementContent = replacementForGeneratedContent(
+            existingGuide.content,
+            legacyInstructorGuideContent(caseStudy),
+            instructorGuideContent(caseStudy)
+          );
+          if (replacementContent !== null) updateLessonContent.run(replacementContent, existingGuide.id);
         } else {
           insertInstructorGuide.run(module.id, guideTitle, instructorGuideContent(caseStudy), position);
         }

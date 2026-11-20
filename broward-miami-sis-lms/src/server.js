@@ -251,6 +251,9 @@ const admissionsPrivateNotificationEmail = process.env.ADMISSIONS_PRIVATE_NOTIFI
 const externalBaseUrl = (process.env.PUBLIC_APP_URL || "https://portal.browardmiamihi.com").replace(/\/+$/, "");
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || path.join(path.dirname(databaseFile), "uploads"));
 const courseMaterialsDir = path.resolve(process.env.COURSE_MATERIALS_DIR || path.join(path.dirname(__dirname), "course_materials"));
+const facultyCourseMaterialsDir = path.resolve(
+  process.env.FACULTY_COURSE_MATERIALS_DIR || path.join(path.dirname(__dirname), "faculty_course_materials")
+);
 let mailTransporter;
 
 fs.mkdirSync(uploadDir, { recursive: true });
@@ -1277,10 +1280,34 @@ app.get("/course-materials/:courseSlug/:fileName", requireAuth, (req, res) => {
       "Content-Disposition": `inline; filename="${fileName.replace(/["\r\n]/g, "")}"`,
       "Cache-Control": "private, max-age=3600"
     });
-    return res.sendFile(filePath);
+    return res.sendFile(fileName, { root: materialDir });
   }
-  res.download(filePath, fileName);
+  res.download(fileName, fileName, { root: materialDir });
 });
+
+app.get(
+  "/admin/course-materials/:courseSlug/:fileName",
+  requireAuth,
+  requireRole("admin", "instructor"),
+  (req, res) => {
+    const materialSlug = String(req.params.courseSlug || "");
+    const fileName = path.basename(String(req.params.fileName || ""));
+    if (!materialSlug || !fileName) return res.status(404).send("Faculty course material not found");
+
+    const courseSlug = courseSlugForMaterialStorage(materialSlug);
+    const course = db.prepare("SELECT id, slug FROM courses WHERE slug = ?").get(courseSlug);
+    if (!course || courseMaterialStorageSlug(course.slug) !== materialSlug) {
+      return res.status(404).send("Faculty course material not found");
+    }
+
+    const materialDir = path.join(facultyCourseMaterialsDir, materialSlug);
+    const filePath = path.join(materialDir, fileName);
+    if (!isPathInside(materialDir, filePath) || !fs.existsSync(filePath)) {
+      return res.status(404).send("Faculty course material not found");
+    }
+    return res.download(fileName, fileName, { root: materialDir });
+  }
+);
 
 function smtpReady() {
   return Boolean(emailDeliveryEnabled && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
@@ -2485,14 +2512,14 @@ function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, course
 function lessonMaterialLinks(lesson = {}) {
   const content = String(lesson.content || "");
   const links = new Map();
-  for (const match of content.matchAll(/<a[^>]+href=["'](\/course-materials\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+  for (const match of content.matchAll(/<a[^>]+href=["'](\/(?:admin\/)?course-materials\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
     const label = match[2].replace(/<[^>]+>/g, "").trim();
     links.set(match[1], label || decodeURIComponent(path.basename(match[1].split("?")[0])));
   }
-  for (const match of content.matchAll(/- ([^:\n]+):\s*(\/course-materials\/[^\s<)"']+)/g)) {
+  for (const match of content.matchAll(/- ([^:\n]+):\s*(\/(?:admin\/)?course-materials\/[^\s<)"']+)/g)) {
     links.set(match[2], match[1].trim());
   }
-  for (const match of content.matchAll(/\/course-materials\/[^\s<)"']+/g)) {
+  for (const match of content.matchAll(/\/(?:admin\/)?course-materials\/[^\s<)"']+/g)) {
     const href = match[0];
     if (!links.has(href)) links.set(href, decodeURIComponent(path.basename(href)));
   }
@@ -6485,7 +6512,7 @@ function renderTextWithLinks(value = "") {
 
 function linkifyText(value = "") {
   const text = String(value || "");
-  const urlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+|\/course-materials\/[^\s<]+)/gi;
+  const urlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+|\/admin\/course-materials\/[^\s<]+|\/course-materials\/[^\s<]+)/gi;
   let cursor = 0;
   let output = "";
   for (const match of text.matchAll(urlPattern)) {
