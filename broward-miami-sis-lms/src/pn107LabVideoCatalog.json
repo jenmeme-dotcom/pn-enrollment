@@ -1,0 +1,870 @@
+{
+  "courseCode": "PN107 Lab",
+  "courseTitle": "Medical Surgical Nursing I - Skills Lab",
+  "durationWeeks": 12,
+  "sourceProduct": "Lippincott Skills 2.0 for Nursing Education",
+  "totalVideos": 191,
+  "weeks": [
+    {
+      "week": 1,
+      "title": "Asepsis, Infection Control, and Vital Signs",
+      "sourceTopics": "Topics 1–2",
+      "videoCount": 15,
+      "videos": [
+        {
+          "code": "1-1",
+          "title": "Performing Hand Hygiene Using an Alcohol-Based Hand Sanitizer"
+        },
+        {
+          "code": "1-2",
+          "title": "Performing Hand Hygiene Using Soap and Water (Handwashing)"
+        },
+        {
+          "code": "1-3",
+          "title": "Using Personal Protective Equipment"
+        },
+        {
+          "code": "1-4",
+          "title": "Preparing a Sterile Field Using a Packaged Sterile Drape"
+        },
+        {
+          "code": "1-5",
+          "title": "Preparing a Sterile Field Using a Commercially Prepared Sterile Kit or Tray"
+        },
+        {
+          "code": "1-6",
+          "title": "Adding Sterile Items to a Sterile Field"
+        },
+        {
+          "code": "1-7",
+          "title": "Putting on Sterile Gloves and Removing Soiled Gloves"
+        },
+        {
+          "code": "2-1",
+          "title": "Assessing Body Temperature"
+        },
+        {
+          "code": "2-2",
+          "title": "Regulating Temperature Using an Overhead Radiant Warmer"
+        },
+        {
+          "code": "2-3",
+          "title": "Regulating Temperature Using a Hypothermia Blanket"
+        },
+        {
+          "code": "2-4",
+          "title": "Assessing a Peripheral Pulse by Palpation"
+        },
+        {
+          "code": "2-5",
+          "title": "Assessing the Apical Pulse by Auscultation"
+        },
+        {
+          "code": "2-6",
+          "title": "Assessing Respiration"
+        },
+        {
+          "code": "2-7",
+          "title": "Assessing Blood Pressure Using an Automated, Electronic Oscillometric Device"
+        },
+        {
+          "code": "2-8",
+          "title": "Assessing Blood Pressure by Auscultation"
+        }
+      ]
+    },
+    {
+      "week": 2,
+      "title": "Health Assessment and Safety",
+      "sourceTopics": "Topics 3–4",
+      "videoCount": 17,
+      "videos": [
+        {
+          "code": "3-1",
+          "title": "Performing a General Survey"
+        },
+        {
+          "code": "3-2",
+          "title": "Using a Portable Bed Scale"
+        },
+        {
+          "code": "3-3",
+          "title": "Assessing the Skin, Hair, and Nails"
+        },
+        {
+          "code": "3-4",
+          "title": "Assessing the Head and Neck"
+        },
+        {
+          "code": "3-5",
+          "title": "Assessing the Thorax, Lungs, and Breasts"
+        },
+        {
+          "code": "3-6",
+          "title": "Assessing the Cardiovascular System"
+        },
+        {
+          "code": "3-7",
+          "title": "Assessing the Abdomen"
+        },
+        {
+          "code": "3-8",
+          "title": "Assessing the Female Genitalia"
+        },
+        {
+          "code": "3-9",
+          "title": "Assessing the Male Genitalia"
+        },
+        {
+          "code": "3-10",
+          "title": "Assessing the Neurologic, Musculoskeletal, and Peripheral Vascular Systems"
+        },
+        {
+          "code": "4-1",
+          "title": "Performing a Situational Assessment"
+        },
+        {
+          "code": "4-2",
+          "title": "Fall Risk and Fall-Related Injury Risk Reduction"
+        },
+        {
+          "code": "4-3",
+          "title": "Implementing Alternatives to the Use of Restraints"
+        },
+        {
+          "code": "4-4",
+          "title": "Applying an Extremity Restraint"
+        },
+        {
+          "code": "4-5",
+          "title": "Applying a Waist Restraint"
+        },
+        {
+          "code": "4-6",
+          "title": "Applying an Elbow Restraint"
+        },
+        {
+          "code": "4-7",
+          "title": "Applying a Mummy Restraint"
+        }
+      ]
+    },
+    {
+      "week": 3,
+      "title": "Medication Administration",
+      "sourceTopics": "Topic 5",
+      "videoCount": 24,
+      "videos": [
+        {
+          "code": "5-1",
+          "title": "Administering Oral Medications"
+        },
+        {
+          "code": "5-2",
+          "title": "Administering Medications via a Gastric Tube"
+        },
+        {
+          "code": "5-3",
+          "title": "Removing Medication From an Ampule"
+        },
+        {
+          "code": "5-4",
+          "title": "Removing Medication From a Vial"
+        },
+        {
+          "code": "5-5",
+          "title": "Mixing Medications From Two Vials in One Syringe"
+        },
+        {
+          "code": "5-6",
+          "title": "Administering an Intradermal Injection"
+        },
+        {
+          "code": "5-7",
+          "title": "Administering a Subcutaneous Injection"
+        },
+        {
+          "code": "5-8",
+          "title": "Administering an Intramuscular Injection"
+        },
+        {
+          "code": "5-9",
+          "title": "Administering a Continuous Subcutaneous Infusion: Applying an Insulin Pump"
+        },
+        {
+          "code": "5-10",
+          "title": "Administering Medications by Intravenous Bolus or Push Through an Intravenous Infusion"
+        },
+        {
+          "code": "5-11",
+          "title": "Administering Medications by Intravenous Bolus or Push Through a Medication or Drug-Infusion Lock"
+        },
+        {
+          "code": "5-12",
+          "title": "Administering a Piggyback Intermittent Intravenous Infusion of Medication"
+        },
+        {
+          "code": "5-13",
+          "title": "Administering an Intermittent Intravenous Infusion of Medication via a Mini-Infusion Pump"
+        },
+        {
+          "code": "5-14",
+          "title": "Applying a Transdermal Patch"
+        },
+        {
+          "code": "5-15",
+          "title": "Administering Eye Drops"
+        },
+        {
+          "code": "5-16",
+          "title": "Administering an Eye Irrigation"
+        },
+        {
+          "code": "5-17",
+          "title": "Administering Ear Drops"
+        },
+        {
+          "code": "5-18",
+          "title": "Administering an Ear Irrigation"
+        },
+        {
+          "code": "5-19",
+          "title": "Administering a Nasal Spray"
+        },
+        {
+          "code": "5-20",
+          "title": "Administering a Vaginal Cream"
+        },
+        {
+          "code": "5-21",
+          "title": "Administering a Rectal Suppository"
+        },
+        {
+          "code": "5-22",
+          "title": "Administering Medication via a Metered-Dose Inhaler (MDI)"
+        },
+        {
+          "code": "5-23",
+          "title": "Administering Medication via a Dry Powder Inhaler"
+        },
+        {
+          "code": "5-24",
+          "title": "Administering Medication via a Small-Volume Nebulizer"
+        }
+      ]
+    },
+    {
+      "week": 4,
+      "title": "Perioperative Nursing and Hygiene",
+      "sourceTopics": "Topics 6–7",
+      "videoCount": 17,
+      "videos": [
+        {
+          "code": "6-1",
+          "title": "Teaching Deep-Breathing Exercises, Coughing, and Splinting"
+        },
+        {
+          "code": "6-2",
+          "title": "Teaching Leg Exercises"
+        },
+        {
+          "code": "6-3",
+          "title": "Providing Preoperative Patient Care"
+        },
+        {
+          "code": "6-4",
+          "title": "Providing Preoperative Patient Care: Day of Surgery"
+        },
+        {
+          "code": "6-5",
+          "title": "Providing Postoperative Care"
+        },
+        {
+          "code": "6-6",
+          "title": "Applying a Forced-Air Warming Device"
+        },
+        {
+          "code": "7-1",
+          "title": "Assisting With a Shower or Tub Bath"
+        },
+        {
+          "code": "7-2",
+          "title": "Providing a Bed Bath"
+        },
+        {
+          "code": "7-3",
+          "title": "Assisting the Patient With Oral Care"
+        },
+        {
+          "code": "7-4",
+          "title": "Providing Oral Care for the Dependent Patient"
+        },
+        {
+          "code": "7-5",
+          "title": "Providing Denture Care"
+        },
+        {
+          "code": "7-6",
+          "title": "Removing Contact Lenses"
+        },
+        {
+          "code": "7-7",
+          "title": "Shampooing a Patient’s Hair in Bed"
+        },
+        {
+          "code": "7-8",
+          "title": "Assisting the Patient to Shave"
+        },
+        {
+          "code": "7-9",
+          "title": "Providing Nail Care"
+        },
+        {
+          "code": "7-10",
+          "title": "Making an Unoccupied Bed"
+        },
+        {
+          "code": "7-11",
+          "title": "Making an Occupied Bed"
+        }
+      ]
+    },
+    {
+      "week": 5,
+      "title": "Skin Integrity and Wound Care",
+      "sourceTopics": "Topic 8",
+      "videoCount": 14,
+      "videos": [
+        {
+          "code": "8-1",
+          "title": "Preventing Pressure Injury"
+        },
+        {
+          "code": "8-2",
+          "title": "Cleaning a Wound and Applying a Dressing (General Principles)"
+        },
+        {
+          "code": "8-3",
+          "title": "Performing Irrigation of a Wound"
+        },
+        {
+          "code": "8-4",
+          "title": "Collecting a Wound Culture"
+        },
+        {
+          "code": "8-5",
+          "title": "Caring for a Penrose Drain"
+        },
+        {
+          "code": "8-6",
+          "title": "Caring for a Jackson-Pratt Drain"
+        },
+        {
+          "code": "8-7",
+          "title": "Caring for a Hemovac Drain"
+        },
+        {
+          "code": "8-8",
+          "title": "Applying Negative Pressure Wound Therapy"
+        },
+        {
+          "code": "8-9",
+          "title": "Removing Sutures"
+        },
+        {
+          "code": "8-10",
+          "title": "Removing Surgical Staples"
+        },
+        {
+          "code": "8-11",
+          "title": "Applying an External Heating Pad"
+        },
+        {
+          "code": "8-12",
+          "title": "Applying a Warm Compress"
+        },
+        {
+          "code": "8-13",
+          "title": "Assisting With a Sitz Bath"
+        },
+        {
+          "code": "8-14",
+          "title": "Applying Cold Therapy"
+        }
+      ]
+    },
+    {
+      "week": 6,
+      "title": "Activity and Mobility",
+      "sourceTopics": "Topic 9",
+      "videoCount": 19,
+      "videos": [
+        {
+          "code": "9-1",
+          "title": "Assisting a Patient With Repositioning in Bed"
+        },
+        {
+          "code": "9-2",
+          "title": "Transferring a Patient From the Bed to a Stretcher"
+        },
+        {
+          "code": "9-3",
+          "title": "Transferring a Patient From the Bed to a Chair"
+        },
+        {
+          "code": "9-4",
+          "title": "Transferring a Patient Using a Powered Full-Body Sling Lift"
+        },
+        {
+          "code": "9-5",
+          "title": "Providing Range-of-Motion Exercises"
+        },
+        {
+          "code": "9-6",
+          "title": "Assisting a Patient With Ambulation"
+        },
+        {
+          "code": "9-7",
+          "title": "Assisting a Patient With Ambulation Using a Walker"
+        },
+        {
+          "code": "9-8",
+          "title": "Assisting a Patient With Ambulation Using Crutches"
+        },
+        {
+          "code": "9-9",
+          "title": "Assisting a Patient With Ambulation Using a Cane"
+        },
+        {
+          "code": "9-10",
+          "title": "Applying and Removing Graduated Compression Stockings"
+        },
+        {
+          "code": "9-11",
+          "title": "Applying Pneumatic Compression Devices"
+        },
+        {
+          "code": "9-12",
+          "title": "Applying a Continuous Passive Motion Device"
+        },
+        {
+          "code": "9-13",
+          "title": "Applying a Sling"
+        },
+        {
+          "code": "9-14",
+          "title": "Applying a Figure-Eight Bandage"
+        },
+        {
+          "code": "9-15",
+          "title": "Assisting With Cast Application"
+        },
+        {
+          "code": "9-16",
+          "title": "Caring for a Patient With a Cast"
+        },
+        {
+          "code": "9-17",
+          "title": "Applying Skin Traction and Caring for a Patient in Skin Traction"
+        },
+        {
+          "code": "9-18",
+          "title": "Caring for a Patient in Skeletal Traction"
+        },
+        {
+          "code": "9-19",
+          "title": "Caring for a Patient With an External Fixation Device"
+        }
+      ]
+    },
+    {
+      "week": 7,
+      "title": "Comfort, Pain Management, and Nutrition",
+      "sourceTopics": "Topics 10–11",
+      "videoCount": 10,
+      "videos": [
+        {
+          "code": "10-1",
+          "title": "Promoting Patient Comfort"
+        },
+        {
+          "code": "10-2",
+          "title": "Giving a Back Massage"
+        },
+        {
+          "code": "10-3",
+          "title": "Applying and Caring for a Patient Using a Transcutaneous Electrical Nerve Stimulation Unit"
+        },
+        {
+          "code": "10-4",
+          "title": "Caring for a Patient Receiving Patient-Controlled Analgesia"
+        },
+        {
+          "code": "10-5",
+          "title": "Caring for a Patient Receiving Epidural Analgesia"
+        },
+        {
+          "code": "10-6",
+          "title": "Caring for a Patient Receiving Continuous Wound Perfusion Pain Management"
+        },
+        {
+          "code": "11-1",
+          "title": "Assisting a Patient With Eating"
+        },
+        {
+          "code": "11-2",
+          "title": "Confirming Placement of a Nasogastric Tube"
+        },
+        {
+          "code": "11-3",
+          "title": "Administering a Tube Feeding (Open System)"
+        },
+        {
+          "code": "11-4",
+          "title": "Caring for a Gastrostomy Tube"
+        }
+      ]
+    },
+    {
+      "week": 8,
+      "title": "Urinary and Bowel Elimination",
+      "sourceTopics": "Topics 12–13",
+      "videoCount": 24,
+      "videos": [
+        {
+          "code": "12-1",
+          "title": "Assisting With the Use of a Bedpan"
+        },
+        {
+          "code": "12-2",
+          "title": "Assisting With the Use of a Urinal"
+        },
+        {
+          "code": "12-3",
+          "title": "Assisting With the Use of a Bedside Commode"
+        },
+        {
+          "code": "12-4",
+          "title": "Assessing Bladder Volume Using an Ultrasound Bladder Scanner"
+        },
+        {
+          "code": "12-5",
+          "title": "Applying an External Urinary Sheath"
+        },
+        {
+          "code": "12-6",
+          "title": "Applying an External Urine Collection Device (Female Genitalia)"
+        },
+        {
+          "code": "12-7",
+          "title": "Catheterizing the Urinary Bladder of a Patient With Female Genitalia"
+        },
+        {
+          "code": "12-8",
+          "title": "Catheterizing the Urinary Bladder of a Patient With Male Genitalia"
+        },
+        {
+          "code": "12-9",
+          "title": "Removing an Indwelling Urinary Catheter"
+        },
+        {
+          "code": "12-10",
+          "title": "Administering a Continuous Closed Bladder or Catheter Irrigation"
+        },
+        {
+          "code": "12-11",
+          "title": "Emptying and Changing a Stoma Appliance on A Urinary Diversion"
+        },
+        {
+          "code": "12-12",
+          "title": "Caring for a Suprapubic Urinary Catheter"
+        },
+        {
+          "code": "12-13",
+          "title": "Caring for a Peritoneal Dialysis Catheter"
+        },
+        {
+          "code": "12-14",
+          "title": "Caring for a Hemodialysis Access (Arteriovenous Fistula or Graft)"
+        },
+        {
+          "code": "13-1",
+          "title": "Administering a Large-Volume Cleansing Enema"
+        },
+        {
+          "code": "13-2",
+          "title": "Administering a Small-Volume Cleansing Enema"
+        },
+        {
+          "code": "13-3",
+          "title": "Administering a Retention Enema"
+        },
+        {
+          "code": "13-4",
+          "title": "Digital Removal of Stool"
+        },
+        {
+          "code": "13-5",
+          "title": "Applying an External Anal Pouch"
+        },
+        {
+          "code": "13-6",
+          "title": "Emptying and Changing an Ostomy Appliance"
+        },
+        {
+          "code": "13-7",
+          "title": "Irrigating a Colostomy"
+        },
+        {
+          "code": "13-8",
+          "title": "Inserting a Nasogastric Tube"
+        },
+        {
+          "code": "13-9",
+          "title": "Irrigating a Nasogastric Tube Connected to Suction"
+        },
+        {
+          "code": "13-10",
+          "title": "Removing a Nasogastric Tube"
+        }
+      ]
+    },
+    {
+      "week": 9,
+      "title": "Oxygenation",
+      "sourceTopics": "Topic 14",
+      "videoCount": 16,
+      "videos": [
+        {
+          "code": "14-1",
+          "title": "Using a Pulse Oximeter"
+        },
+        {
+          "code": "14-2",
+          "title": "Teaching a Patient to Use a Peak Flow Meter"
+        },
+        {
+          "code": "14-3",
+          "title": "Teaching a Patient to Use an Incentive Spirometer"
+        },
+        {
+          "code": "14-4",
+          "title": "Administering Oxygen by Nasal Cannula"
+        },
+        {
+          "code": "14-5",
+          "title": "Administering Oxygen by Mask"
+        },
+        {
+          "code": "14-6",
+          "title": "Caring For a Patient Receiving Noninvasive Continuous Positive Airway Pressure"
+        },
+        {
+          "code": "14-7",
+          "title": "Suctioning the Oropharyngeal and Nasopharyngeal Airways"
+        },
+        {
+          "code": "14-8",
+          "title": "Inserting an Oropharyngeal Airway"
+        },
+        {
+          "code": "14-9",
+          "title": "Suctioning an Endotracheal Tube: Open System"
+        },
+        {
+          "code": "14-10",
+          "title": "Suctioning an Endotracheal Tube: Closed System"
+        },
+        {
+          "code": "14-11",
+          "title": "Securing an Endotracheal Tube"
+        },
+        {
+          "code": "14-12",
+          "title": "Suctioning a Tracheostomy: Open System"
+        },
+        {
+          "code": "14-13",
+          "title": "Providing Care of a Tracheostomy Tube and Site"
+        },
+        {
+          "code": "14-14",
+          "title": "Providing Care of a Chest Drainage System"
+        },
+        {
+          "code": "14-15",
+          "title": "Assisting with Removal of a Chest Tube"
+        },
+        {
+          "code": "14-16",
+          "title": "Using a Manual Resuscitation Bag and Mask"
+        }
+      ]
+    },
+    {
+      "week": 10,
+      "title": "Perfusion and Cardiovascular Care",
+      "sourceTopics": "Topic 15",
+      "videoCount": 7,
+      "videos": [
+        {
+          "code": "15-1",
+          "title": "Performing Cardiopulmonary Resuscitation"
+        },
+        {
+          "code": "15-2",
+          "title": "Performing Emergency Automated External Defibrillation"
+        },
+        {
+          "code": "15-3",
+          "title": "Performing Emergency Manual External Defibrillation (Asynchronous)"
+        },
+        {
+          "code": "15-4",
+          "title": "Obtaining an Electrocardiogram"
+        },
+        {
+          "code": "15-5",
+          "title": "Applying a Cardiac Monitor"
+        },
+        {
+          "code": "15-6",
+          "title": "Using a Transcutaneous (External) Pacemaker"
+        },
+        {
+          "code": "15-7",
+          "title": "Removing A Peripheral Arterial Catheter"
+        }
+      ]
+    },
+    {
+      "week": 11,
+      "title": "Fluid, Electrolyte, Acid-Base, and Neurologic Care",
+      "sourceTopics": "Topics 16–17",
+      "videoCount": 15,
+      "videos": [
+        {
+          "code": "16-1",
+          "title": "Initiating a Peripheral Venous Catheter Access and Intravenous Infusion"
+        },
+        {
+          "code": "16-2",
+          "title": "Monitoring an Intravenous Site and Infusion"
+        },
+        {
+          "code": "16-3",
+          "title": "Changing an Intravenous Solution Container and Administration Set"
+        },
+        {
+          "code": "16-4",
+          "title": "Changing a Peripheral Venous Access Device Site Dressing"
+        },
+        {
+          "code": "16-5",
+          "title": "Capping for Intermittent Use and Flushing a Peripheral Venous Access Device"
+        },
+        {
+          "code": "16-6",
+          "title": "Administering a Blood Transfusion"
+        },
+        {
+          "code": "16-7",
+          "title": "Changing the Dressing and Flushing Central Venous Access Devices"
+        },
+        {
+          "code": "16-8",
+          "title": "Accessing an Implanted Port"
+        },
+        {
+          "code": "16-9",
+          "title": "Deaccessing an Implanted Port"
+        },
+        {
+          "code": "16-10",
+          "title": "Removing a Peripherally Inserted Central Catheter"
+        },
+        {
+          "code": "17-1",
+          "title": "Applying a Two-Piece Cervical Collar"
+        },
+        {
+          "code": "17-2",
+          "title": "Employing Seizure Precautions and Seizure Management"
+        },
+        {
+          "code": "17-3",
+          "title": "Caring for a Patient With a Halo External Fixation Device (Halo Traction)"
+        },
+        {
+          "code": "17-4",
+          "title": "Caring for a Patient With External Ventriculostomy (Intraventricular Catheter-Closed Fluid-Filled System)"
+        },
+        {
+          "code": "17-5",
+          "title": "Caring for a Patient With a Fiberoptic Intracranial Catheter"
+        }
+      ]
+    },
+    {
+      "week": 12,
+      "title": "Laboratory Specimen Collection and Integrated Case Studies",
+      "sourceTopics": "Topic 18 plus integrated case studies",
+      "videoCount": 13,
+      "videos": [
+        {
+          "code": "18-1",
+          "title": "Obtaining a Nasal Swab"
+        },
+        {
+          "code": "18-2",
+          "title": "Obtaining a Nasopharyngeal Swab"
+        },
+        {
+          "code": "18-3",
+          "title": "Collecting a Sputum Specimen for Culture"
+        },
+        {
+          "code": "18-4",
+          "title": "Collecting a Urine Specimen (Clean Catch, Midstream)"
+        },
+        {
+          "code": "18-5",
+          "title": "Obtaining a Urine Specimen From an Indwelling Urinary Catheter"
+        },
+        {
+          "code": "18-6",
+          "title": "Testing Stool for Occult Blood"
+        },
+        {
+          "code": "18-7",
+          "title": "Collecting a Stool Specimen"
+        },
+        {
+          "code": "18-8",
+          "title": "Obtaining a Capillary Blood Sample for Glucose Testing"
+        },
+        {
+          "code": "18-9",
+          "title": "Using Venipuncture to Collect a Venous Blood Sample"
+        },
+        {
+          "code": "18-10",
+          "title": "Obtaining a Venous Blood Specimen for Culture and Sensitivity"
+        },
+        {
+          "code": "18-11",
+          "title": "Obtaining an Arterial Blood Specimen for Blood Gas Analysis"
+        },
+        {
+          "code": "18-12",
+          "title": "Obtaining a Blood Sample From a Central Venous Access Device"
+        },
+        {
+          "code": "18-13",
+          "title": "Obtaining an Arterial Blood Sample From an Arterial Catheter"
+        }
+      ],
+      "integratedCaseStudies": true
+    }
+  ]
+}

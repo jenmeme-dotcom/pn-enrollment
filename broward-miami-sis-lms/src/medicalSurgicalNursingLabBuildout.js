@@ -1,5 +1,6 @@
 const LIPPINCOTT_GATEWAY = "https://thepoint.lww.com/gateway";
 const SYLLABUS_PDF = "/course-materials/medical-surgical-nursing-i-pn107-lab/PN107-Lab-Syllabus-12-Weeks.pdf";
+const pn107LabVideoCatalog = require("./pn107LabVideoCatalog.json");
 
 // The source Skills Lab outline spans fourteen instructional blocks. The BMHI
 // course keeps every block while presenting a twelve-week calendar by merging
@@ -561,27 +562,6 @@ const baselineWeeklySkills = [
   }
 ];
 
-const combinedOpeningWeek = {
-  week: 1,
-  topic: "Asepsis, Infection Control, Safety, Vital Signs, and Pain Assessment",
-  skills: [
-    ...baselineWeeklySkills[0].skills,
-    ...baselineWeeklySkills[1].skills
-  ]
-};
-
-const urinaryRenalWeek = {
-  week: 9,
-  topic: "Urinary and Renal Care",
-  skills: baselineWeeklySkills[9].skills.slice(0, 2)
-};
-
-const musculoskeletalWeek = {
-  week: 10,
-  topic: "Musculoskeletal Care",
-  skills: baselineWeeklySkills[9].skills.slice(2)
-};
-
 const perioperativeSafetySkill = {
   title: "Preoperative and Postoperative Safety Checks",
   searchTitle: "Completing Preoperative and Postoperative Safety Checks",
@@ -593,30 +573,71 @@ const perioperativeSafetySkill = {
   ]
 };
 
-const skinWoundPerioperativeWeek = {
-  ...baselineWeeklySkills[10],
-  week: 11,
-  topic: "Skin Integrity, Wound, and Perioperative Care",
-  skills: [
-    ...baselineWeeklySkills[10].skills,
-    perioperativeSafetySkill
-  ]
-};
-
+// Keep the established 49 directly observed competency checkoffs and their
+// permanent assignment/grade-item identities, but organize them under the
+// same twelve-week sequence as the authoritative Skills Lab syllabus. The
+// complete 191-video publisher index is supplied separately on every weekly
+// module so preparation coverage is not limited to these selected checkoffs.
 const weeklySkills = [
-  combinedOpeningWeek,
-  ...baselineWeeklySkills.slice(2, 9).map((week, index) => ({
-    ...week,
-    week: index + 2
-  })),
-  urinaryRenalWeek,
-  musculoskeletalWeek,
-  skinWoundPerioperativeWeek,
-  {
-    ...baselineWeeklySkills[11],
-    week: 12
-  }
-];
+  { week: 1, skills: [...baselineWeeklySkills[0].skills, ...baselineWeeklySkills[1].skills] },
+  { week: 2, skills: baselineWeeklySkills[2].skills },
+  { week: 3, skills: baselineWeeklySkills[5].skills },
+  { week: 4, skills: [perioperativeSafetySkill] },
+  { week: 5, skills: baselineWeeklySkills[10].skills },
+  { week: 6, skills: baselineWeeklySkills[9].skills.slice(2) },
+  { week: 7, skills: baselineWeeklySkills[7].skills },
+  { week: 8, skills: baselineWeeklySkills[9].skills.slice(0, 2) },
+  { week: 9, skills: baselineWeeklySkills[3].skills },
+  { week: 10, skills: baselineWeeklySkills[4].skills },
+  { week: 11, skills: [...baselineWeeklySkills[8].skills, ...baselineWeeklySkills[6].skills] },
+  { week: 12, skills: baselineWeeklySkills[11].skills }
+].map((week) => ({
+  ...week,
+  topic: pn107LabVideoCatalog.weeks.find((entry) => entry.week === week.week).title
+}));
+
+function requiredVideoPageTitle(week) {
+  return `Week ${week} Required Lippincott Videos`;
+}
+
+function requiredVideoPageContent(catalogWeek) {
+  const videoList = catalogWeek.videos
+    .map((video) => `- Skill ${video.code}: ${video.title}`)
+    .join("\n");
+  const caseStudyNote = catalogWeek.integratedCaseStudies
+    ? "\n\nIntegrated case studies\nAfter completing the Topic 18 videos, review all prior skills and complete the instructor-directed integrated simulations for Week 12."
+    : "";
+
+  return `PN 107 Lab Required Lippincott Video Index
+
+Week ${catalogWeek.week}: ${catalogWeek.title}
+Source syllabus: ${catalogWeek.sourceTopics}
+Required videos: ${catalogWeek.videoCount}
+
+How to complete this week's video preparation
+1. Select Open Lippincott Skills below and sign in with your authorized account.
+2. Open the BMHI Skills Lab course and Lippincott Skills for Nursing Education 2.0.
+3. Search each exact skill title listed below.
+4. Open the Videos tab and watch every assigned video in full.
+5. Review the licensed skill overview and checklist, and complete any quiz assigned by the instructor.
+6. Return to the BMHI portal for preparation evidence and supervised competency checkoffs.
+
+Complete assigned video list
+${videoList}${caseStudyNote}
+
+These titles reproduce the assigned publisher skill names from the official PN 107 Lab syllabus. The videos remain in the licensed Lippincott platform and are not copied into the BMHI portal.`;
+}
+
+function requiredVideoLesson(catalogWeek) {
+  return {
+    title: requiredVideoPageTitle(catalogWeek.week),
+    content: requiredVideoPageContent(catalogWeek),
+    durationMinutes: Math.max(30, catalogWeek.videoCount * 5),
+    externalUrl: LIPPINCOTT_GATEWAY,
+    itemType: "page",
+    published: true
+  };
+}
 
 function skillAssignmentTitle(week, index, skill) {
   return `Week ${week} Skill Check ${index + 1}: ${skill.title}`;
@@ -647,8 +668,8 @@ Competency rule
 Submitting this item or marking the lesson complete confirms preparation only. It does not establish clinical competency, attendance, authorization to perform the skill independently, or permission to act outside the practical-nursing student scope. Only an instructor may observe the hands-on performance and record Completed or Incomplete in the portal.`;
 }
 
-const syllabusSchedule = weeklySkills.map((week) => (
-  `Week ${week.week}: ${week.topic}\n${week.skills.map((skill) => `- ${skill.title}`).join("\n")}`
+const syllabusSchedule = pn107LabVideoCatalog.weeks.map((week) => (
+  `Week ${week.week}: ${week.title} (${week.videoCount} required videos; ${week.sourceTopics})`
 )).join("\n\n");
 
 const checklistLessons = weeklySkills.flatMap((week) => week.skills.map((skill, index) => ({
@@ -670,7 +691,7 @@ const medicalSurgicalNursingLabCourse = {
   deliveryMode: "20 on-campus skills lab hours with online preparation",
   description: "A 12-week companion shell for the 20 campus lab hours already included in PN 107 Medical-Surgical Nursing I. Students prepare with licensed Lippincott Skills resources, submit preparation evidence, and complete supervised BMHI competency checkoffs. These are not additional Practical Nursing program hours.",
   ghlProductKeys: [],
-  seedVersion: "pn107-lab-12-weeks-merge-1-2-and-12-13-2026-11-20",
+  seedVersion: "pn107-lab-complete-191-video-index-2026-11-20",
   syllabusPdf: SYLLABUS_PDF,
   gradeItems: checklistLessons.map((lesson) => ({
     title: lesson.gradeItemTitle,
@@ -707,7 +728,7 @@ Download the complete syllabus using the resource button on this page.`
           title: "Open Lippincott Skills and Find Assigned Videos",
           durationMinutes: 15,
           externalUrl: LIPPINCOTT_GATEWAY,
-          content: "Use the official Lippincott gateway to sign in with your authorized account. From My Content, open the BMHI Skills Lab course and select Lippincott Skills for Nursing Education 2.0. Each portal assignment gives the exact skill title to search. Open the Videos tab and the licensed Checklist for that skill. Course-specific Lippincott URLs are not copied into this portal because they depend on the student's licensed account and the publisher's course configuration."
+          content: "Use the official Lippincott gateway to sign in with your authorized account. From My Content, open the BMHI Skills Lab course and select Lippincott Skills for Nursing Education 2.0. The first page of every weekly module is the complete required-video index for that week. Across Weeks 1–12, the index contains all 191 enumerated skill videos from the official PN 107 Lab syllabus. Search each exact skill title, open the Videos tab, watch the assigned video in full, and review the licensed Checklist. Course-specific Lippincott URLs are not copied into this portal because they depend on the student's licensed account and the publisher's course configuration."
         },
         {
           title: "Lab Safety and Competency Rules",
@@ -722,18 +743,24 @@ Download the complete syllabus using the resource button on this page.`
         }
       ]
     },
-    ...weeklySkills.map((week) => ({
-      title: `Week ${week.week}: ${week.topic}`,
-      lessons: week.skills.map((skill, index) => ({
-        title: skillAssignmentTitle(week.week, index, skill),
-        content: skillAssignmentContent(week.week, week.topic, skill),
-        durationMinutes: 25,
-        externalUrl: LIPPINCOTT_GATEWAY,
-        itemType: "assignment",
-        gradeItemTitle: skillAssignmentTitle(week.week, index, skill),
-        published: true
-      }))
-    }))
+    ...weeklySkills.map((week) => {
+      const catalogWeek = pn107LabVideoCatalog.weeks.find((entry) => entry.week === week.week);
+      return {
+        title: `Week ${week.week}: ${week.topic}`,
+        lessons: [
+          requiredVideoLesson(catalogWeek),
+          ...week.skills.map((skill, index) => ({
+            title: skillAssignmentTitle(week.week, index, skill),
+            content: skillAssignmentContent(week.week, week.topic, skill),
+            durationMinutes: 25,
+            externalUrl: LIPPINCOTT_GATEWAY,
+            itemType: "assignment",
+            gradeItemTitle: skillAssignmentTitle(week.week, index, skill),
+            published: true
+          }))
+        ]
+      };
+    })
   ]
 };
 
@@ -741,6 +768,10 @@ module.exports = {
   LIPPINCOTT_GATEWAY,
   SYLLABUS_PDF,
   medicalSurgicalNursingLabCourse,
+  pn107LabVideoCatalog,
+  requiredVideoLesson,
+  requiredVideoPageContent,
+  requiredVideoPageTitle,
   skillAssignmentContent,
   skillAssignmentTitle,
   weeklySkills

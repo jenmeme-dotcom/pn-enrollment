@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { after, before, test } = require("node:test");
 const { DatabaseSync } = require("node:sqlite");
+const videoCatalog = require("../src/pn107LabVideoCatalog.json");
 
 const projectRoot = path.resolve(__dirname, "..");
 const labSlug = "medical-surgical-nursing-i-pn107-lab";
@@ -17,6 +18,7 @@ let database;
 let activeTheoryStudentId;
 let withdrawnLabStudentId;
 let preservedLabRowsBeforeReflow;
+let preservedVideoPageRowsBeforeReflow;
 
 function seed() {
   const result = spawnSync(process.execPath, ["--no-warnings", "src/seed.js"], {
@@ -79,9 +81,45 @@ before(() => {
       AND lessons.title LIKE 'Week % Skill Check %'
     ORDER BY lessons.id
   `).all(labCourse.id);
+  preservedVideoPageRowsBeforeReflow = database.prepare(`
+    SELECT lessons.id AS lesson_id, lessons.title
+    FROM lessons
+    JOIN modules ON modules.id = lessons.module_id
+    WHERE modules.course_id = ?
+      AND lessons.title LIKE 'Week % Required Lippincott Videos'
+    ORDER BY lessons.id
+  `).all(labCourse.id);
+  database.prepare(`
+    UPDATE lessons
+    SET content = 'Legacy skill content without its publisher video instructions',
+      external_url = NULL
+    WHERE id = (
+      SELECT lessons.id
+      FROM lessons
+      JOIN modules ON modules.id = lessons.module_id
+      WHERE modules.course_id = ?
+        AND lessons.title LIKE 'Week % Skill Check %'
+      ORDER BY lessons.id
+      LIMIT 1
+    )
+  `).run(labCourse.id);
+  database.prepare(`
+    UPDATE lessons
+    SET content = 'Legacy incomplete video index', external_url = NULL,
+      published = 0, instructor_only = 1
+    WHERE id = (
+      SELECT lessons.id
+      FROM lessons
+      JOIN modules ON modules.id = lessons.module_id
+      WHERE modules.course_id = ?
+        AND lessons.title LIKE 'Week % Required Lippincott Videos'
+      ORDER BY lessons.id
+      LIMIT 1
+    )
+  `).run(labCourse.id);
   database.prepare(`
     DELETE FROM course_seed_versions
-    WHERE course_id = ? AND seed_key = 'pn107-lab:merge-source-weeks-1-2-and-12-13-v1'
+    WHERE course_id = ? AND seed_key = 'pn107-lab:complete-required-lippincott-video-index-v2'
   `).run(labCourse.id);
   database.close();
   database = null;
@@ -117,15 +155,10 @@ test("PN 107 Lab seeds once as a 20-hour, 12-week companion course", () => {
     weeklyModules.map((module) => Number(module.title.match(/^Week (\d+):/)[1])),
     Array.from({ length: 12 }, (_, index) => index + 1)
   );
-  assert.equal(
-    weeklyModules[0].title,
-    "Week 1: Asepsis, Infection Control, Safety, Vital Signs, and Pain Assessment"
+  assert.deepEqual(
+    weeklyModules.map((module) => module.title),
+    videoCatalog.weeks.map((week) => `Week ${week.week}: ${week.title}`)
   );
-  assert.equal(weeklyModules[1].title, "Week 2: Health Assessment Safety and Communication");
-  assert.equal(weeklyModules[8].title, "Week 9: Urinary and Renal Care");
-  assert.equal(weeklyModules[9].title, "Week 10: Musculoskeletal Care");
-  assert.equal(weeklyModules[10].title, "Week 11: Skin Integrity, Wound, and Perioperative Care");
-  assert.equal(weeklyModules[11].title, "Week 12: Integrated Medical-Surgical Competency");
 
   const weeklyLessonCounts = database.prepare(`
     SELECT modules.title, COUNT(lessons.id) AS lesson_count
@@ -135,10 +168,11 @@ test("PN 107 Lab seeds once as a 20-hour, 12-week companion course", () => {
     GROUP BY modules.id
     ORDER BY modules.position, modules.id
   `).all(courses[0].id);
-  assert.equal(weeklyLessonCounts[0].lesson_count, 8, "Merged Week 1 should contain source Weeks 1 and 2");
-  assert.equal(weeklyLessonCounts[8].lesson_count, 2, "Week 9 should contain the urinary and renal block");
-  assert.equal(weeklyLessonCounts[9].lesson_count, 2, "Week 10 should contain the musculoskeletal block");
-  assert.equal(weeklyLessonCounts[10].lesson_count, 5, "Merged Week 11 should include perioperative safety");
+  assert.deepEqual(
+    weeklyLessonCounts.map((row) => row.lesson_count),
+    [9, 5, 5, 2, 5, 3, 5, 3, 5, 5, 9, 5],
+    "Each module should contain its complete video index plus selected competency checkoffs"
+  );
 
   const mergedWeekOneTitles = database.prepare(`
     SELECT lessons.title
@@ -155,13 +189,76 @@ test("PN 107 Lab seeds once as a 20-hour, 12-week companion course", () => {
     WHERE modules.course_id = ? AND modules.title = ?
     ORDER BY lessons.position, lessons.id
   `).all(courses[0].id, weeklyModules[10].title).map((row) => row.title);
-  assert.ok(mergedWeekElevenTitles.some((title) => /Preoperative and Postoperative Safety Checks/.test(title)));
+  assert.ok(mergedWeekElevenTitles.some((title) => /Neurologic Assessment/.test(title)));
+  assert.ok(mergedWeekElevenTitles.some((title) => /Intake Output and Daily Weight/.test(title)));
+});
+
+test("the authoritative video catalog contains all 191 unique contiguous skills", () => {
+  const videos = videoCatalog.weeks.flatMap((week) => week.videos);
+  assert.equal(videoCatalog.durationWeeks, 12);
+  assert.equal(videoCatalog.totalVideos, 191);
+  assert.equal(videos.length, 191);
+  assert.equal(new Set(videos.map((video) => video.code)).size, 191);
+  assert.equal(new Set(videos.map((video) => video.title)).size, 191);
+  assert.deepEqual(
+    videoCatalog.weeks.map((week) => week.videoCount),
+    [15, 17, 24, 17, 14, 19, 10, 24, 16, 7, 15, 13]
+  );
+
+  for (let topic = 1; topic <= 18; topic += 1) {
+    const topicNumbers = videos
+      .filter((video) => Number(video.code.split("-")[0]) === topic)
+      .map((video) => Number(video.code.split("-")[1]));
+    assert.deepEqual(
+      topicNumbers,
+      Array.from({ length: Math.max(...topicNumbers) }, (_, index) => index + 1),
+      `Topic ${topic} should have no missing or out-of-order skill codes`
+    );
+  }
+});
+
+test("each week has one complete published non-graded Lippincott video page", () => {
+  const rows = database.prepare(`
+    SELECT modules.title AS module_title, lessons.id, lessons.title,
+      lessons.content, lessons.external_url, lessons.item_type,
+      lessons.grade_item_id, lessons.published, lessons.instructor_only,
+      lessons.position
+    FROM lessons
+    JOIN modules ON modules.id = lessons.module_id
+    JOIN courses ON courses.id = modules.course_id
+    WHERE courses.slug = ?
+      AND lessons.title LIKE 'Week % Required Lippincott Videos'
+    ORDER BY modules.position, lessons.position, lessons.id
+  `).all(labSlug);
+
+  assert.equal(rows.length, 12);
+  assert.equal(new Set(rows.map((row) => row.id)).size, 12);
+  rows.forEach((row, index) => {
+    const week = videoCatalog.weeks[index];
+    assert.equal(row.title, `Week ${week.week} Required Lippincott Videos`);
+    assert.equal(row.module_title, `Week ${week.week}: ${week.title}`);
+    assert.equal(row.external_url, lippincottGateway);
+    assert.equal(row.item_type, "page");
+    assert.equal(row.grade_item_id, null);
+    assert.equal(row.published, 1);
+    assert.equal(row.instructor_only, 0);
+    assert.equal(row.position, 1);
+    assert.match(row.content, /Open the Videos tab and watch every assigned video in full/i);
+    assert.match(row.content, new RegExp(`Required videos: ${week.videoCount}`));
+    for (const video of week.videos) {
+      assert.ok(
+        row.content.includes(`Skill ${video.code}: ${video.title}`),
+        `${row.title} is missing ${video.code}: ${video.title}`
+      );
+    }
+  });
 });
 
 test("every skill checklist is a safe Lippincott-linked, zero-point completion item", () => {
   const course = database.prepare("SELECT id FROM courses WHERE slug = ?").get(labSlug);
   const rows = database.prepare(`
-    SELECT lessons.id, lessons.title, lessons.item_type, lessons.external_url,
+    SELECT lessons.id, lessons.title, lessons.content, lessons.item_type,
+      lessons.external_url, lessons.published, lessons.instructor_only,
       lessons.grade_item_id, grade_items.points_possible,
       grade_items.course_id AS grade_item_course_id
     FROM lessons
@@ -179,10 +276,34 @@ test("every skill checklist is a safe Lippincott-linked, zero-point completion i
     assert.equal(row.item_type, "assignment", row.title);
     assert.equal(row.external_url, lippincottGateway, row.title);
     assert.equal(new URL(row.external_url).protocol, "https:", row.title);
+    assert.equal(row.published, 1, row.title);
+    assert.equal(row.instructor_only, 0, row.title);
+    assert.match(row.content, /Open the BMHI Skills Lab course and Lippincott Skills for Nursing Education 2\.0/i, row.title);
+    assert.match(row.content, /Search for:\s*\S+/i, row.title);
+    assert.match(row.content, /watch the assigned video/i, row.title);
     assert.ok(row.grade_item_id, `${row.title} should link to a grade item`);
     assert.equal(row.grade_item_course_id, course.id, row.title);
     assert.equal(row.points_possible, 0, row.title);
   }
+});
+
+test("students have one published Lippincott video-finder resource", () => {
+  const row = database.prepare(`
+    SELECT lessons.content, lessons.external_url, lessons.published,
+      lessons.instructor_only
+    FROM lessons
+    JOIN modules ON modules.id = lessons.module_id
+    JOIN courses ON courses.id = modules.course_id
+    WHERE courses.slug = ?
+      AND lessons.title = 'Open Lippincott Skills and Find Assigned Videos'
+  `).get(labSlug);
+
+  assert.ok(row);
+  assert.equal(row.external_url, lippincottGateway);
+  assert.equal(row.published, 1);
+  assert.equal(row.instructor_only, 0);
+  assert.match(row.content, /all 191 enumerated skill videos/i);
+  assert.match(row.content, /Open the Videos tab/i);
 });
 
 test("the targeted 12-week reflow preserves existing lesson and grade-item IDs", () => {
@@ -204,10 +325,19 @@ test("the targeted 12-week reflow preserves existing lesson and grade-item IDs",
     if (!beforeByLessonId.has(row.lesson_id)) continue;
     assert.equal(row.grade_item_id, beforeByLessonId.get(row.lesson_id));
   }
+  const videoPagesAfterReflow = database.prepare(`
+    SELECT lessons.id AS lesson_id, lessons.title
+    FROM lessons
+    JOIN modules ON modules.id = lessons.module_id
+    WHERE modules.course_id = ?
+      AND lessons.title LIKE 'Week % Required Lippincott Videos'
+    ORDER BY lessons.id
+  `).all(course.id);
+  assert.deepEqual(videoPagesAfterReflow, preservedVideoPageRowsBeforeReflow);
   assert.equal(
     database.prepare(`
       SELECT COUNT(*) AS count FROM course_seed_versions
-      WHERE course_id = ? AND seed_key = 'pn107-lab:merge-source-weeks-1-2-and-12-13-v1'
+      WHERE course_id = ? AND seed_key = 'pn107-lab:complete-required-lippincott-video-index-v2'
     `).get(course.id).count,
     1
   );

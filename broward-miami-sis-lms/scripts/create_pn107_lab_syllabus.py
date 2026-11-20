@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from docx import Document
@@ -21,253 +22,79 @@ PALE_GRAY = "F4F6F8"
 LIGHT_BORDER = "D9D9D9"
 
 
-BASELINE_WEEKS = [
-    {
-        "week": 1,
-        "hours": "2.0",
-        "topic": "Asepsis and Infection Control",
-        "outcomes": [
-            "Perform hand hygiene using alcohol-based sanitizer and soap and water.",
-            "Select, don, remove, and dispose of personal protective equipment safely.",
-            "Create and maintain a sterile field without contaminating it.",
-        ],
-        "skills": [
-            "Performing Hand Hygiene Using an Alcohol-Based Hand Sanitizer",
-            "Performing Hand Hygiene Using Soap and Water (Handwashing)",
-            "Using Personal Protective Equipment",
-            "Preparing a Sterile Field Using a Packaged Sterile Drape",
-            "Preparing a Sterile Field Using a Commercially Prepared Sterile Kit or Tray",
-            "Adding Sterile Items to a Sterile Field",
-            "Putting on Sterile Gloves and Removing Soiled Gloves",
-        ],
-    },
-    {
-        "week": 2,
-        "hours": "1.5",
-        "topic": "Foundations Safety and Vital Signs",
-        "outcomes": [
-            "Use two identifiers and verify allergies before care.",
-            "Measure and document vital signs, pain, intake, and output accurately.",
-            "Apply fall prevention and safe body mechanics during mobility assistance.",
-        ],
-        "skills": [
-            "Identifying a Client and Verifying Allergies",
-            "Measuring Temperature Pulse Respirations Blood Pressure and Pain",
-            "Measuring Intake and Output",
-            "Using a Transfer Belt and Preventing Falls",
-        ],
-    },
-    {
-        "week": 3,
-        "hours": "1.5",
-        "topic": "Health Assessment Documentation and Escalation",
-        "outcomes": [
-            "Complete an organized head-to-toe and focused assessment.",
-            "Recognize abnormal findings and escalate concerns promptly.",
-            "Document findings and deliver an accurate SBAR handoff.",
-        ],
-        "skills": [
-            "Performing a Head-to-Toe Assessment",
-            "Performing Focused Respiratory Cardiac Abdominal and Neurologic Assessments",
-            "Collecting Specimens and Preparing a Client for Diagnostic Testing",
-            "Documenting Care and Giving an SBAR Handoff",
-        ],
-    },
-    {
-        "week": 4,
-        "hours": "1.5",
-        "topic": "Oxygenation and Respiratory Care",
-        "outcomes": [
-            "Assess respiratory status and interpret pulse oximetry in context.",
-            "Set up prescribed oxygen equipment and follow oxygen safety practices.",
-            "Teach coughing, deep breathing, incentive spirometry, and inhaled medication technique.",
-        ],
-        "skills": [
-            "Assessing Respiratory Status and Measuring Oxygen Saturation",
-            "Administering Oxygen by Nasal Cannula and Face Mask",
-            "Teaching Incentive Spirometry Coughing and Deep Breathing",
-            "Administering an Inhaler or Nebulizer Treatment",
-            "Performing Oral Suctioning in Simulation",
-        ],
-    },
-    {
-        "week": 5,
-        "hours": "1.5",
-        "topic": "Perfusion and Cardiovascular Care",
-        "outcomes": [
-            "Perform focused cardiac and peripheral vascular assessments.",
-            "Obtain orthostatic vital signs and recognize perfusion changes.",
-            "Apply ordered mechanical venous thromboembolism prevention safely.",
-        ],
-        "skills": [
-            "Performing a Focused Cardiac and Peripheral Vascular Assessment",
-            "Measuring Orthostatic Vital Signs",
-            "Applying ECG or Telemetry Leads",
-            "Assessing Peripheral Pulses Capillary Refill Edema and Neurovascular Status",
-            "Applying Antiembolism Stockings and Sequential Compression Devices",
-        ],
-    },
-    {
-        "week": 6,
-        "hours": "1.5",
-        "topic": "Medication and Intravenous Safety",
-        "outcomes": [
-            "Use medication rights, reconcile orders, and complete required safety checks.",
-            "Prepare and administer common nonintravenous medications in simulation.",
-            "Verify infusion calculations and identify local or systemic IV complications.",
-        ],
-        "skills": [
-            "Performing Medication Safety Checks and MAR Verification",
-            "Administering Oral Medications",
-            "Administering Subcutaneous and Intramuscular Injections",
-            "Preparing and Administering Insulin Safely",
-            "Assessing a Peripheral IV Site and Verifying an Infusion Pump",
-            "Responding to Infiltration Phlebitis Occlusion or Fluid Overload",
-        ],
-    },
-    {
-        "week": 7,
-        "hours": "1.5",
-        "topic": "Neurologic and Sensory Care",
-        "outcomes": [
-            "Perform a focused neurologic assessment and trend changes.",
-            "Apply seizure, aspiration, and fall precautions.",
-            "Communicate safely with clients who have sensory impairments.",
-        ],
-        "skills": [
-            "Performing a Focused Neurologic Assessment",
-            "Assessing Pupils and Level of Consciousness Using the Glasgow Coma Scale",
-            "Implementing Seizure Aspiration and Fall Precautions",
-            "Assisting With Hearing Vision and Communication Needs",
-        ],
-    },
-    {
-        "week": 8,
-        "hours": "1.5",
-        "topic": "Nutrition and Gastrointestinal Care",
-        "outcomes": [
-            "Perform an abdominal assessment in the correct sequence.",
-            "Maintain aspiration precautions during enteral nutrition simulation.",
-            "Provide ostomy care and document gastrointestinal output accurately.",
-        ],
-        "skills": [
-            "Performing an Abdominal Assessment",
-            "Inserting and Caring for a Nasogastric Tube in Simulation",
-            "Administering an Enteral Feeding and Maintaining Aspiration Precautions",
-            "Providing Ostomy Care and Client Teaching",
-            "Collecting a Stool Specimen and Documenting Output",
-        ],
-    },
-    {
-        "week": 9,
-        "hours": "1.5",
-        "topic": "Endocrine and Glucose Management",
-        "outcomes": [
-            "Measure capillary blood glucose and report critical results.",
-            "Prepare and administer insulin safely in simulation.",
-            "Recognize and respond to hypoglycemia and hyperglycemia.",
-        ],
-        "skills": [
-            "Measuring Capillary Blood Glucose",
-            "Preparing Insulin and Administering a Subcutaneous Injection",
-            "Responding to Hypoglycemia and Hyperglycemia",
-            "Teaching Glucose Monitoring Medication Nutrition and Sick-Day Safety",
-        ],
-    },
-    {
-        "week": 10,
-        "hours": "1.5",
-        "topic": "Urinary Renal and Musculoskeletal Care",
-        "outcomes": [
-            "Perform urinary catheter care and sterile insertion in simulation.",
-            "Monitor fluid balance and collect urine specimens correctly.",
-            "Use safe transfer, mobility, and neurovascular assessment techniques.",
-        ],
-        "skills": [
-            "Inserting an Indwelling Urinary Catheter in Simulation",
-            "Providing Catheter Care and Collecting a Sterile Urine Specimen",
-            "Monitoring Intake Output Daily Weight and Fluid Balance",
-            "Assisting With Transfer Ambulation Range of Motion and Assistive Devices",
-            "Performing Neurovascular Checks and Applying Cast or Traction Precautions",
-        ],
-    },
-    {
-        "week": 11,
-        "hours": "1.5",
-        "topic": "Skin Integrity Wound and Perioperative Care",
-        "outcomes": [
-            "Assess skin and wounds and identify pressure injury risk.",
-            "Perform a sterile dressing change and document drains and output.",
-            "Apply safe preoperative and postoperative nursing checks.",
-        ],
-        "skills": [
-            "Assessing Skin Wounds and Pressure Injury Risk",
-            "Measuring and Documenting a Wound",
-            "Performing a Sterile Dressing Change",
-            "Emptying and Documenting a Closed-Suction Drain",
-            "Completing Preoperative and Postoperative Safety Checks",
-        ],
-    },
-    {
-        "week": 12,
-        "hours": "3.0",
-        "topic": "Integrated Medical Surgical Competency Checkoff",
-        "outcomes": [
-            "Integrate assessment, medication, IV, infection-control, and safety skills.",
-            "Recognize deterioration and initiate the correct chain of escalation.",
-            "Complete an accurate final SBAR report and nursing note.",
-        ],
-        "skills": [
-            "Integrated Head-to-Toe Assessment Checkoff",
-            "Medication and IV Safety Checkoff",
-            "Recognizing Deterioration and Initiating Rapid Response",
-            "Final SBAR Handoff and Documentation Checkoff",
-        ],
-    },
+# The shared portal catalog is the single authoritative list for both the LMS
+# and this downloadable syllabus. It contains every enumerated video title in
+# the supplied 20-page Medical Surgical Nursing I Skills Lab syllabus.
+VIDEO_CATALOG_PATH = ROOT / "src" / "pn107LabVideoCatalog.json"
+VIDEO_CATALOG = json.loads(VIDEO_CATALOG_PATH.read_text(encoding="utf-8"))
+WEEK_HOURS = ["3.5", "1.5", "1.5", "1.5", "1.5", "1.5", "1.5", "1.5", "0.75", "0.75", "1.5", "3.0"]
+WEEK_OUTCOMES = [
+    [
+        "Perform hand hygiene, personal protective equipment, sterile-field, and sterile-glove procedures safely.",
+        "Measure, interpret, and document temperature, pulse, respirations, and blood pressure using the assigned methods.",
+    ],
+    [
+        "Complete an organized general survey and body-system assessment using inspection, palpation, percussion, and auscultation.",
+        "Apply fall-risk reduction, restraint alternatives, and approved restraint procedures while protecting client safety and dignity.",
+    ],
+    [
+        "Apply medication rights and safety checks across oral, enteral, topical, eye, ear, nasal, vaginal, rectal, inhaled, and injectable routes.",
+        "Prepare and administer assigned injections and intravenous medications in simulation and recognize findings that require escalation.",
+    ],
+    [
+        "Provide safe preoperative and postoperative care, including breathing, coughing, splinting, leg exercises, and warming measures.",
+        "Provide assigned bathing, oral, denture, contact-lens, hair, shave, nail, and bed-making care while maintaining privacy and safety.",
+    ],
+    [
+        "Prevent pressure injury and perform assigned wound, drain, irrigation, culture, negative-pressure, suture, and staple procedures.",
+        "Apply heat, cold, and sitz-bath therapies safely and document findings, output, interventions, and response.",
+    ],
+    [
+        "Reposition, transfer, lift, ambulate, and provide range-of-motion exercises using safe body mechanics and assistive devices.",
+        "Apply and monitor compression devices, slings, bandages, casts, traction, and external fixation precautions.",
+    ],
+    [
+        "Promote comfort and safely support transcutaneous stimulation, patient-controlled, epidural, and wound-perfusion analgesia.",
+        "Assist with eating, nasogastric placement verification, tube feeding, and gastrostomy care while preventing aspiration.",
+    ],
+    [
+        "Provide urinary elimination care, catheterization, irrigation, diversion, suprapubic-catheter, and dialysis-access support.",
+        "Provide bowel elimination, enema, stool-removal, fecal-device, ostomy, colostomy-irrigation, and nasogastric procedures safely.",
+    ],
+    [
+        "Assess oxygenation and administer prescribed oxygen through assigned delivery devices.",
+        "Perform assigned airway, endotracheal, tracheostomy, chest-drainage, chest-tube, and manual-resuscitation procedures in simulation.",
+    ],
+    [
+        "Perform cardiopulmonary resuscitation and assigned automated or manual emergency defibrillation procedures.",
+        "Obtain an ECG and safely apply or monitor a cardiac monitor, transcutaneous pacemaker, and arterial-catheter removal.",
+    ],
+    [
+        "Initiate and monitor peripheral intravenous therapy and safely manage solution, tubing, dressings, flushing, blood, and central access.",
+        "Apply cervical-collar and seizure precautions and care for assigned halo, ventriculostomy, and intracranial-monitoring devices.",
+    ],
+    [
+        "Collect assigned respiratory, urine, stool, capillary, venous, central-line, and arterial specimens using correct technique.",
+        "Integrate assessment, safety, clinical reasoning, nursing-process, and communication skills during instructor-directed case simulations.",
+    ],
 ]
-
-
-# Convert the fourteen instructional blocks to a twelve-week calendar exactly
-# as approved: source Weeks 1-2 share calendar Week 1, source Weeks 3-11 become
-# calendar Weeks 2-10, source Weeks 12-13 share calendar Week 11, and source
-# Week 14 remains the integrated Week 12 checkoff. The existing baseline data
-# already combines source Weeks 10-11 and source Weeks 12-13, so the urinary /
-# musculoskeletal block is split below while the Week 11 block remains merged.
 WEEKS = [
     {
-        "week": 1,
-        "hours": "3.5",
-        "topic": "Asepsis Infection Control Safety and Vital Signs",
-        "outcomes": BASELINE_WEEKS[0]["outcomes"] + BASELINE_WEEKS[1]["outcomes"],
-        "skills": BASELINE_WEEKS[0]["skills"] + BASELINE_WEEKS[1]["skills"],
-    },
-    *[
-        {**week, "week": index + 2}
-        for index, week in enumerate(BASELINE_WEEKS[2:9])
-    ],
-    {
-        "week": 9,
-        "hours": "0.75",
-        "topic": "Urinary and Renal Care",
-        "outcomes": [
-            "Perform urinary catheter care and sterile insertion in simulation.",
-            "Monitor fluid balance and collect urine specimens correctly.",
-        ],
-        "skills": BASELINE_WEEKS[9]["skills"][:3],
-    },
-    {
-        "week": 10,
-        "hours": "0.75",
-        "topic": "Musculoskeletal Care",
-        "outcomes": [
-            "Use safe transfer mobility and assistive-device techniques.",
-            "Perform neurovascular checks and apply cast or traction precautions.",
-        ],
-        "skills": BASELINE_WEEKS[9]["skills"][3:],
-    },
-    {**BASELINE_WEEKS[10], "week": 11},
-    {**BASELINE_WEEKS[11], "week": 12},
+        "week": catalog_week["week"],
+        "hours": WEEK_HOURS[index],
+        "topic": catalog_week["title"],
+        "source_topics": catalog_week["sourceTopics"],
+        "video_count": catalog_week["videoCount"],
+        "integrated_case_studies": catalog_week.get("integratedCaseStudies", False),
+        "outcomes": WEEK_OUTCOMES[index],
+        "skills": [f"Skill {video['code']}: {video['title']}" for video in catalog_week["videos"]],
+    }
+    for index, catalog_week in enumerate(VIDEO_CATALOG["weeks"])
 ]
+
+assert VIDEO_CATALOG["totalVideos"] == 191
+assert sum(week["video_count"] for week in WEEKS) == 191
+assert sum(float(week["hours"]) for week in WEEKS) == 20.0
 
 
 def shade_cell(cell, fill):
@@ -469,23 +296,23 @@ def add_week_table(doc):
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER if index < 2 else WD_ALIGN_PARAGRAPH.LEFT
             set_font(p.add_run(value), size=9.5, bold=index == 2)
         skills_cell = cells[3]
-        skills_cell.paragraphs[0]._element.getparent().remove(skills_cell.paragraphs[0]._element)
-        for skill in week["skills"]:
-            p = skills_cell.add_paragraph(style="List Bullet")
-            p.paragraph_format.space_after = Pt(0)
-            set_font(p.add_run(skill), size=9.0)
+        skills_cell.paragraphs[0].paragraph_format.space_after = Pt(0)
+        summary = f"{week['source_topics']}  |  {week['video_count']} required videos"
+        if week["integrated_case_studies"]:
+            summary += "  |  Integrated case studies"
+        set_font(skills_cell.paragraphs[0].add_run(summary), size=9.0)
     return table
 
 
 def add_week_details(doc):
     for index, week in enumerate(WEEKS):
-        # Two weekly plans per page keeps each heading with its content and
-        # avoids spillover-only pages when a week has a longer skills list.
-        if index > 0 and index % 2 == 0:
+        # Start each weekly index on a fresh page. Longer weeks may continue
+        # naturally, but the next week never begins in the prior week's list.
+        if index > 0:
             doc.add_page_break()
         add_heading(doc, f"Week {week['week']} {week['topic']}", 1)
         p = doc.add_paragraph()
-        set_font(p.add_run(f"Scheduled lab time: {week['hours']} hours"), size=10.5, bold=True)
+        set_font(p.add_run(f"Scheduled lab time: {week['hours']} hours  |  Source: {week['source_topics']}  |  Required videos: {week['video_count']}"), size=10.0, bold=True)
         p.paragraph_format.space_after = Pt(4)
         for outcome in week["outcomes"]:
             add_bullet(doc, outcome)
@@ -494,7 +321,14 @@ def add_week_details(doc):
         p.paragraph_format.space_after = Pt(3)
         set_font(p.add_run("Assigned Lippincott skill videos and checklists"), size=10.5, bold=True)
         for skill in week["skills"]:
-            add_bullet(doc, skill)
+            skill_paragraph = doc.add_paragraph(style="List Bullet")
+            skill_paragraph.paragraph_format.space_after = Pt(0)
+            skill_paragraph.paragraph_format.line_spacing = 1.0
+            set_font(skill_paragraph.add_run(skill), size=8.6)
+        if week["integrated_case_studies"]:
+            integrated = doc.add_paragraph(style="List Bullet")
+            integrated.paragraph_format.space_after = Pt(0)
+            set_font(integrated.add_run("Integrated case studies: complete the instructor-directed simulations using all previously assigned skills."), size=8.6, bold=True)
         p = doc.add_paragraph()
         p.paragraph_format.space_before = Pt(3)
         p.paragraph_format.space_after = Pt(2)
@@ -622,7 +456,7 @@ def build_document():
     doc.add_page_break()
     add_heading(doc, "Twelve Week Lab Schedule", 1)
     p = doc.add_paragraph(
-        "The schedule totals 20 lab hours. To convert the fourteen instructional blocks to twelve calendar weeks, calendar Week 1 combines source Weeks 1 and 2, source Weeks 3 through 11 become calendar Weeks 2 through 10, calendar Week 11 combines source Weeks 12 and 13, and source Week 14 remains calendar Week 12. No instructional block is removed. The instructor may adjust the order to coordinate equipment, clinical access, and student remediation while preserving the required competencies."
+        "The schedule totals 20 lab hours and retains every item in the official source syllabus. Calendar Week 1 combines Asepsis and Infection Control with Vital Signs. Calendar Weeks 2 through 10 retain the next subject blocks in sequence. Calendar Week 11 combines Fluid, Electrolyte, and Acid-Base Balance with Neurologic Care. Calendar Week 12 combines Laboratory Specimen Collection with Integrated Case Studies. No source topic or enumerated Lippincott video is omitted. The instructor may adjust delivery order to coordinate equipment, clinical access, and remediation while preserving all required preparation."
     )
     p.paragraph_format.space_after = Pt(8)
     add_week_table(doc)

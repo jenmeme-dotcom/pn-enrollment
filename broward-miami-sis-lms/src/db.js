@@ -4422,7 +4422,7 @@ function seed() {
   const pn107LabDefinition = courses.find((course) => course.slug === "medical-surgical-nursing-i-pn107-lab");
   const pn107LabRow = db.prepare("SELECT id FROM courses WHERE slug = 'medical-surgical-nursing-i-pn107-lab'").get();
   if (pn107LabDefinition && pn107LabRow) {
-    const labReflowSeedKey = "pn107-lab:merge-source-weeks-1-2-and-12-13-v1";
+    const labReflowSeedKey = "pn107-lab:complete-required-lippincott-video-index-v2";
     if (!seedVersionExists.get(pn107LabRow.id, labReflowSeedKey)) {
       const targetWeeklyModules = pn107LabDefinition.modules.filter((module) => /^Week \d+:/.test(module.title));
       const storedWeeklyModules = db.prepare(`
@@ -4483,7 +4483,53 @@ function seed() {
             ) VALUES (?, ?, ?, ?, ?, ?, 1, 0, 'assignment', ?)
           `);
 
+          const storedVideoPage = db.prepare(`
+            SELECT id FROM lessons
+            WHERE module_id = ? AND title = ?
+            ORDER BY id LIMIT 1
+          `);
+          const shiftModuleLessons = db.prepare(`
+            UPDATE lessons SET position = position + 1
+            WHERE module_id = ? AND position >= 1
+          `);
+          const updateVideoPage = db.prepare(`
+            UPDATE lessons
+            SET content = ?, external_url = ?, duration_minutes = ?, position = 1,
+              published = 1, instructor_only = 0, item_type = 'page',
+              grade_item_id = NULL
+            WHERE id = ?
+          `);
+          const createVideoPage = db.prepare(`
+            INSERT INTO lessons (
+              module_id, title, content, external_url, duration_minutes, position,
+              published, instructor_only, item_type, grade_item_id
+            ) VALUES (?, ?, ?, ?, ?, 1, 1, 0, 'page', NULL)
+          `);
+
           targetWeeklyModules.forEach((module, moduleIndex) => {
+            const moduleId = storedWeeklyModules[moduleIndex].id;
+            const videoPage = module.lessons.find((lesson) => lesson.itemType === "page");
+            if (videoPage) {
+              const existingVideoPage = storedVideoPage.get(moduleId, videoPage.title);
+              if (existingVideoPage) {
+                updateVideoPage.run(
+                  videoPage.content,
+                  videoPage.externalUrl || null,
+                  videoPage.durationMinutes || 45,
+                  existingVideoPage.id
+                );
+              } else {
+                shiftModuleLessons.run(moduleId);
+                createVideoPage.run(
+                  moduleId,
+                  videoPage.title,
+                  videoPage.content,
+                  videoPage.externalUrl || null,
+                  videoPage.durationMinutes || 45
+                );
+              }
+            }
+
             module.lessons.forEach((lesson, lessonIndex) => {
               if (lesson.itemType !== "assignment" || !lesson.gradeItemTitle) return;
               const skillTitle = lesson.title.replace(/^Week \d+ Skill Check \d+:\s*/, "");
@@ -4498,7 +4544,6 @@ function seed() {
                 updateGradeItem.run(lesson.gradeItemTitle, gradeItemId, pn107LabRow.id);
               }
 
-              const moduleId = storedWeeklyModules[moduleIndex].id;
               if (storedLesson) {
                 updateSkillLesson.run(
                   moduleId,
