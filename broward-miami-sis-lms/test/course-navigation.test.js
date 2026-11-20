@@ -700,7 +700,7 @@ test("canonical instructor course view matches the student home and keeps editin
   assertNavigation(editorHtml, expectedStudentLabels, "Home");
   assertPageHref(editorHtml, `/admin/courses/${course.id}/manage`, "Course Settings");
   assert.match(editorHtml, />\s*Course Settings\s*</, "Edit mode should expose the full instructor course settings");
-  assert.match(editorHtml, />\s*Done\s*</, "Edit mode should allow the instructor to return to the student-style preview");
+  assert.match(editorHtml, />\s*View as Student\s*</, "Edit mode should clearly allow the instructor to return to the student-style preview");
 });
 
 test("instructor student preview keeps student actions read-only", async () => {
@@ -881,7 +881,7 @@ test("upper-right edit action restores contextual instructor tools", async () =>
   assert.match(modulesHtml, /class="canvas-module-create"/);
   assert.match(modulesHtml, /class="canvas-module-item-create"/);
   assert.match(modulesHtml, /class="module-action-button/);
-  assert.match(modulesHtml, new RegExp(`href="${baseRoute.replaceAll("/", "\\/")}\\?view=modules">Done<\\/a>`));
+  assert.match(modulesHtml, new RegExp(`href="${baseRoute.replaceAll("/", "\\/")}\\?view=modules">View as Student<\\/a>`));
   assertPageHref(modulesHtml, `${baseRoute}?view=grades&mode=edit`, "module progress");
 
   const assignmentsHtml = await getHtml(`${baseRoute}?view=assignments&mode=edit`, adminCookie);

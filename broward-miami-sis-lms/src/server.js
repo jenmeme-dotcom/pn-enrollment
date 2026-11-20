@@ -2053,6 +2053,7 @@ function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = [], {
   editHref = "",
   editLabel = "Edit Course",
   manageHref = "",
+  rosterHref = "",
   courseLabel = courseCode
 } = {}) {
   const crumbTrail = breadcrumbs.length ? breadcrumbs : [{ label: courseLabel, href: baseHref }];
@@ -2071,6 +2072,7 @@ function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = [], {
       </nav>
       <span class="canvas-top-spacer"></span>
       ${breadcrumbs.length ? "" : `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=syllabus">Immersive Reader</a>`}
+      ${rosterHref ? `<a class="canvas-top-button canvas-roster-button" href="${escapeHtml(rosterHref)}">Course Roster</a>` : ""}
       ${manageHref ? `<a class="canvas-top-button canvas-manage-button" href="${escapeHtml(manageHref)}">Course Settings</a>` : ""}
       ${editHref ? `<a class="canvas-top-button canvas-edit-button" href="${escapeHtml(editHref)}">${escapeHtml(editLabel)}</a>` : ""}
       <form class="canvas-top-signout" method="post" action="/logout">
@@ -13371,6 +13373,256 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
   return res.redirect(`/admin/courses/${course.id}/student-view`);
 });
 
+function currentCourseRoster(courseId) {
+  return db.prepare(`
+    SELECT e.*, u.id AS user_id, u.first_name, u.last_name, u.email, u.student_number,
+      u.cohort_name, u.status AS user_status, cr.id AS credential_id
+    FROM enrollments e
+    JOIN users u ON u.id = e.user_id
+    LEFT JOIN credentials cr ON cr.enrollment_id = e.id
+    WHERE e.course_id = ? AND u.status != 'withdrawn'
+      AND e.status != 'withdrawn' AND e.withdrawn_at IS NULL
+    ORDER BY u.last_name, u.first_name, e.id
+  `).all(Number(courseId));
+}
+
+function studentsAvailableForCourse(courseId) {
+  return db.prepare(`
+    SELECT u.id, u.first_name, u.last_name, u.email, u.student_number, u.cohort_name
+    FROM users u
+    WHERE u.role = 'student' AND u.status = 'active'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM enrollments e
+        WHERE e.user_id = u.id AND e.course_id = ?
+          AND e.status != 'withdrawn' AND e.withdrawn_at IS NULL
+      )
+    ORDER BY u.last_name, u.first_name, u.id
+  `).all(Number(courseId));
+}
+
+function csvDownloadCell(value) {
+  let text = String(value ?? "");
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function sendCsvDownload(res, filename, rows) {
+  const safeFilename = String(filename || "download.csv").replace(/[^a-zA-Z0-9._-]+/g, "-");
+  const body = rows.map((row) => row.map(csvDownloadCell).join(",")).join("\r\n");
+  res.set("Content-Type", "text/csv; charset=utf-8");
+  res.set("Content-Disposition", `attachment; filename="${safeFilename}"`);
+  res.send(`\uFEFF${body}\r\n`);
+}
+
+function courseRosterCsvName(course, suffix) {
+  const code = canvasCourseCode(course).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return `${code || `course-${course.id}`}-${suffix}.csv`;
+}
+
+app.get("/admin/courses/:id/roster", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!course) return res.status(404).send("Course not found");
+  const enrollments = currentCourseRoster(course.id);
+  const availableStudents = studentsAvailableForCourse(course.id);
+  const csrfToken = withdrawalCsrfToken(req);
+  const body = `
+    <div class="page-head course-roster-page-head">
+      <div>
+        <p class="eyebrow">${escapeHtml(courseDisplayTitle(course))}</p>
+        <h1>Course Roster</h1>
+        <p>Add students, review the current class list, or remove course access without deleting grades, submissions, or academic history.</p>
+      </div>
+      <div class="actions">
+        <a class="button" href="/admin/courses/${course.id}/student-view">View as Student</a>
+        <a class="button ghost" href="/admin/courses/${course.id}/roster.csv">Download Course Roster</a>
+        <a class="button ghost" href="/admin/courses/${course.id}/attendance-sheet.csv">Download Attendance Sheet</a>
+        <a class="button ghost" href="/admin/courses/${course.id}/manage">Course Settings</a>
+        <a class="button ghost" href="/admin/courses">All Courses</a>
+      </div>
+    </div>
+    <section class="card course-roster-add-card">
+      <div class="actions course-roster-section-head">
+        <div><h2>Add a Student</h2><p class="muted">Only active students who are not currently in this course appear below.</p></div>
+        <span class="pill">${escapeHtml(enrollments.length)} enrolled</span>
+      </div>
+      ${availableStudents.length ? `
+        <form method="post" action="/admin/enrollments" class="actions course-roster-add-form">
+          <input type="hidden" name="courseId" value="${course.id}">
+          <input type="hidden" name="returnTo" value="roster">
+          <label class="grow">Student
+            <select name="userId" required>
+              <option value="" selected disabled>Choose an active student</option>
+              ${availableStudents.map((student) => `<option value="${student.id}">${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)} · ${escapeHtml(displayStudentNumber(student))} · ${escapeHtml(student.email)}</option>`).join("")}
+            </select>
+          </label>
+          <button type="submit">Add to Course</button>
+        </form>
+      ` : `<p class="empty compact">Every active student is already enrolled in this course.</p>`}
+    </section>
+    <section class="table-card course-roster-table" style="margin-top:18px">
+      <div class="table-card-head">
+        <div><h2>${escapeHtml(courseDisplayTitle(course))} Roster</h2><p class="muted">Removing a student withdraws only this course access and preserves all academic records.</p></div>
+        <div class="actions">
+          <a class="button small ghost" href="/admin/courses/${course.id}/roster.csv">Roster CSV</a>
+          <a class="button small ghost" href="/admin/courses/${course.id}/attendance-sheet.csv">Attendance CSV</a>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Student</th><th>Student ID</th><th>Cohort</th><th>Status</th><th>Progress</th><th>Started</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${enrollments.map((row) => `
+              <tr id="enrollment-${row.id}">
+                <td><strong>${escapeHtml(row.last_name)}, ${escapeHtml(row.first_name)}</strong><br><span class="muted">${escapeHtml(row.email)}</span></td>
+                <td>${escapeHtml(displayStudentNumber({ id: row.user_id, student_number: row.student_number }))}</td>
+                <td>${escapeHtml(row.cohort_name || "Not assigned")}</td>
+                <td><span class="pill">${escapeHtml(row.status)}</span></td>
+                <td>${progressBar(row.progress)}<span class="muted">${escapeHtml(row.progress)}%</span></td>
+                <td>${escapeHtml(date(row.start_date))}</td>
+                <td>
+                  <div class="actions course-roster-row-actions">
+                    <a class="button small ghost" href="/admin/students/${row.user_id}/registrar-checklist">Student Record</a>
+                    <details class="course-roster-remove">
+                      <summary class="button small danger">Remove from Course</summary>
+                      <form method="post" action="/admin/courses/${course.id}/roster/${row.id}/remove" onsubmit="return confirm('Remove this student from this course? Grades, submissions, and history will be preserved.');">
+                        <input type="hidden" name="csrfToken" value="${escapeHtml(csrfToken)}">
+                        <input type="hidden" name="expectedStatus" value="${escapeHtml(row.status)}">
+                        <label>Reason / internal note<textarea name="reason" maxlength="2000" required>Removed from the course roster by staff.</textarea></label>
+                        <label class="withdrawal-confirmation"><input type="checkbox" name="confirmed" value="1" required> I understand this removes course access but preserves the student's records.</label>
+                        <button class="small danger" type="submit">Confirm Removal</button>
+                      </form>
+                    </details>
+                  </div>
+                </td>
+              </tr>
+            `).join("") || `<tr><td class="empty" colspan="7">No students are currently enrolled in this course.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+  render(req, res, `${courseDisplayTitle(course)} Course Roster`, body);
+});
+
+app.get("/admin/courses/:id/roster.csv", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!course) return res.status(404).send("Course not found");
+  const rows = currentCourseRoster(course.id);
+  return sendCsvDownload(res, courseRosterCsvName(course, "course-roster"), [
+    ["Course", courseDisplayTitle(course)],
+    ["Generated", new Date().toISOString()],
+    [],
+    ["Student Name", "Student ID", "Email", "Cohort", "Enrollment Status", "Start Date", "Progress (%)", "Final Grade"],
+    ...rows.map((row) => [
+      `${row.last_name}, ${row.first_name}`,
+      displayStudentNumber({ id: row.user_id, student_number: row.student_number }),
+      row.email,
+      row.cohort_name || "",
+      row.status,
+      row.start_date || "",
+      row.progress ?? 0,
+      row.final_grade || ""
+    ])
+  ]);
+});
+
+app.get("/admin/courses/:id/attendance-sheet.csv", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!course) return res.status(404).send("Course not found");
+  const rows = currentCourseRoster(course.id);
+  return sendCsvDownload(res, courseRosterCsvName(course, "attendance-sheet"), [
+    ["Course", courseDisplayTitle(course)],
+    ["Instructor", `${req.user.first_name} ${req.user.last_name}`.trim()],
+    ["Class Date", ""],
+    [],
+    ["Student Name", "Student ID", "Cohort", "Present", "Absent", "Late", "Excused", "Time In", "Time Out", "Student Signature", "Instructor Initials", "Notes"],
+    ...rows.map((row) => [
+      `${row.last_name}, ${row.first_name}`,
+      displayStudentNumber({ id: row.user_id, student_number: row.student_number }),
+      row.cohort_name || "",
+      "", "", "", "", "", "", "", "", ""
+    ])
+  ]);
+});
+
+app.post("/admin/courses/:courseId/roster/:enrollmentId/remove", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const courseId = Number(req.params.courseId);
+  const enrollmentId = Number(req.params.enrollmentId);
+  if (!validWithdrawalCsrfToken(req, req.body.csrfToken)) return res.status(403).send("Invalid or expired roster form");
+  const reason = String(req.body.reason || "").trim();
+  if (!reason || reason.length > 2000) {
+    flash(req, "Enter a removal reason of 2,000 characters or fewer.");
+    return res.redirect(303, `/admin/courses/${courseId}/roster#enrollment-${enrollmentId}`);
+  }
+  if (req.body.confirmed !== "1") {
+    flash(req, "Confirm that the student's academic records will be preserved.");
+    return res.redirect(303, `/admin/courses/${courseId}/roster#enrollment-${enrollmentId}`);
+  }
+  const enrollment = db.prepare(`
+    SELECT e.*, u.first_name, u.last_name, u.email, u.status AS user_status,
+      c.title AS course_title, c.slug AS course_slug, c.category AS course_category
+    FROM enrollments e
+    JOIN users u ON u.id = e.user_id
+    JOIN courses c ON c.id = e.course_id
+    WHERE e.id = ? AND e.course_id = ?
+  `).get(enrollmentId, courseId);
+  if (!enrollment) return res.status(404).send("Enrollment not found");
+  if (String(req.body.expectedStatus || "") !== String(enrollment.status || "")) {
+    flash(req, "The enrollment changed after this roster loaded. Review it before trying again.");
+    return res.redirect(303, `/admin/courses/${courseId}/roster#enrollment-${enrollmentId}`);
+  }
+  if (enrollment.withdrawn_at || enrollment.status === "withdrawn") {
+    flash(req, "This student has already been removed from the course.");
+    return res.redirect(303, `/admin/courses/${courseId}/roster`);
+  }
+  const effectiveDate = easternDateParts().date;
+  try {
+    db.exec("BEGIN IMMEDIATE");
+    const update = db.prepare(`
+      UPDATE enrollments
+      SET status = CASE WHEN status IN ('active','hold') THEN 'withdrawn' ELSE status END,
+        withdrawal_effective_date = ?, withdrawal_reason = ?,
+        withdrawn_at = CURRENT_TIMESTAMP, withdrawn_by = ?
+      WHERE id = ? AND course_id = ? AND withdrawn_at IS NULL
+    `).run(effectiveDate, reason, req.user.id, enrollment.id, courseId);
+    if (update.changes !== 1) throw new Error("The enrollment changed before the removal could be saved.");
+    db.prepare(`
+      INSERT INTO student_withdrawal_events (
+        student_id, enrollment_id, course_id, scope, course_title, previous_student_status,
+        previous_enrollment_status, effective_date, reason, affected_enrollment_count, withdrawn_by
+      ) VALUES (?, ?, ?, 'course', ?, ?, ?, ?, ?, 1, ?)
+    `).run(
+      enrollment.user_id,
+      enrollment.id,
+      courseId,
+      enrollment.course_title,
+      enrollment.user_status,
+      enrollment.status,
+      effectiveDate,
+      reason,
+      req.user.id
+    );
+    db.exec("COMMIT");
+  } catch (error) {
+    try { db.exec("ROLLBACK"); } catch {}
+    console.error("Could not remove course roster enrollment", error);
+    flash(req, `Course removal could not be saved: ${error.message}`);
+    return res.redirect(303, `/admin/courses/${courseId}/roster#enrollment-${enrollmentId}`);
+  }
+  delete req.session.withdrawalCsrfToken;
+  recordSystemActivity(req, {
+    action: "course_roster_remove",
+    summary: `Removed ${enrollment.first_name} ${enrollment.last_name} from ${courseDisplayTitle(enrollment)}`,
+    targetUserId: enrollment.user_id,
+    entityType: "enrollment",
+    entityId: enrollment.id,
+    details: { courseId, course: courseDisplayTitle(enrollment), reason }
+  });
+  flash(req, "Student removed from this course. Grades, submissions, and academic history were preserved.");
+  return res.redirect(303, `/admin/courses/${courseId}/roster`);
+});
+
 app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(req.params.id));
   if (!course) return res.status(404).send("Course not found");
@@ -13400,23 +13652,8 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
     ORDER BY m.position, l.position
   `).all(course.id);
 
-  const enrollments = db.prepare(`
-    SELECT e.*, u.first_name, u.last_name, u.email, u.student_number,
-      u.status AS user_status, cr.id AS credential_id
-    FROM enrollments e
-    JOIN users u ON u.id = e.user_id
-    LEFT JOIN credentials cr ON cr.enrollment_id = e.id
-    WHERE e.course_id = ? AND u.status != 'withdrawn' AND e.status != 'withdrawn' AND e.withdrawn_at IS NULL
-    ORDER BY u.last_name, u.first_name
-  `).all(course.id);
-
-  const availableStudents = db.prepare(`
-    SELECT id, first_name, last_name, email
-    FROM users
-    WHERE role = 'student' AND status = 'active'
-      AND id NOT IN (SELECT user_id FROM enrollments WHERE course_id = ?)
-    ORDER BY last_name, first_name
-  `).all(course.id);
+  const enrollments = currentCourseRoster(course.id);
+  const availableStudents = studentsAvailableForCourse(course.id);
   const scheduledAssessments = moduleLessons.filter((lesson) =>
     lessonQuizQuestions(lesson).length > 0
       && Boolean(examSettingsForLesson(lesson))
@@ -13460,8 +13697,9 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
         <p>${escapeHtml(course.description)}</p>
       </div>
       <div class="actions">
+        <a class="button" href="/admin/courses/${course.id}/roster">Course Roster</a>
+        <a class="button" href="/admin/courses/${course.id}/student-view">View as Student</a>
         <a class="button" href="/admin/courses/${course.id}/tools">Course Tools</a>
-        <a class="button" href="/admin/courses/${course.id}/student-view">Return to Course</a>
         <a class="button ghost" href="/admin/courses">All Courses</a>
       </div>
     </div>
@@ -14234,8 +14472,9 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     ));
     return renderStudentCanvasHeader(courseCode, adminCourseBaseHref, normalizedBreadcrumbs, {
       editHref: editing ? previewContextHref : editCourseHref,
-      editLabel: editing ? "Done" : "Edit Course",
+      editLabel: editing ? "View as Student" : "Edit Course",
       manageHref: editing ? `/admin/courses/${course.id}/manage` : "",
+      rosterHref: `/admin/courses/${course.id}/roster`,
       courseLabel: courseDisplayName
     });
   };
@@ -14283,9 +14522,11 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     { icon: "question", label: "Course Q & A", href: `${adminCourseBaseHref}?view=discussions`, image: "/assets/start-tile-qa.svg" },
     ...(courseLiveClassConfig(course) ? [{ icon: "video", label: "Live Zoom Class", href: `${adminCourseBaseHref}?view=conferences`, image: "/assets/start-tile-qa.svg" }] : [])
   ];
-  if (["people", "settings", "details"].includes(activeView)) {
-    const destination = activeView === "people" ? "course-roster" : "course-details";
-    return res.redirect(`/admin/courses/${course.id}/manage#${destination}`);
+  if (activeView === "people") {
+    return res.redirect(`/admin/courses/${course.id}/roster`);
+  }
+  if (["settings", "details"].includes(activeView)) {
+    return res.redirect(`/admin/courses/${course.id}/manage#course-details`);
   }
   const instructorHomeEditor = editing ? `
     <section class="instructor-home-editor" aria-labelledby="instructor-home-editor-title">
@@ -15334,19 +15575,43 @@ app.post("/admin/courses/:id/rubrics/:gradeItemId", requireAuth, requireRole("ad
 app.post("/admin/enrollments", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const userId = Number(req.body.userId);
   const courseId = Number(req.body.courseId);
-  const student = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'student' AND status = 'active'").get(userId);
+  const returnToRoster = req.body.returnTo === "roster";
+  const redirectHref = returnToRoster
+    ? `/admin/courses/${courseId}/roster`
+    : `/admin/courses/${courseId}/manage#course-roster`;
+  const student = db.prepare(`
+    SELECT id, first_name, last_name, email
+    FROM users
+    WHERE id = ? AND role = 'student' AND status = 'active'
+  `).get(userId);
+  const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(courseId);
+  if (!course) return res.status(404).send("Course not found");
   if (!student) {
     flash(req, "Only an active student account can be enrolled. Review any school withdrawal first.");
-    return res.redirect(`/admin/courses/${courseId}/manage#course-roster`);
+    return res.redirect(303, redirectHref);
   }
-  const existing = db.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").get(userId, courseId);
+  const existing = db.prepare(`
+    SELECT id
+    FROM enrollments
+    WHERE user_id = ? AND course_id = ?
+      AND status != 'withdrawn' AND withdrawn_at IS NULL
+    LIMIT 1
+  `).get(userId, courseId);
   if (existing) {
     flash(req, "Student is already enrolled in this course.");
   } else {
-    db.prepare("INSERT INTO enrollments (user_id, course_id, source) VALUES (?, ?, 'manual')").run(userId, courseId);
+    const result = db.prepare("INSERT INTO enrollments (user_id, course_id, source) VALUES (?, ?, 'manual')").run(userId, courseId);
+    recordSystemActivity(req, {
+      action: "course_roster_add",
+      summary: `Added ${student.first_name} ${student.last_name} to ${courseDisplayTitle(course)}`,
+      targetUserId: student.id,
+      entityType: "enrollment",
+      entityId: result.lastInsertRowid,
+      details: { courseId, course: courseDisplayTitle(course), student: `${student.first_name} ${student.last_name}` }
+    });
     flash(req, "Student enrolled.");
   }
-  res.redirect(`/admin/courses/${Number(req.body.courseId)}/manage#course-roster`);
+  res.redirect(303, redirectHref);
 });
 
 app.post("/admin/enrollments/:id/status", requireAuth, requireRole("admin", "instructor"), (req, res) => {
