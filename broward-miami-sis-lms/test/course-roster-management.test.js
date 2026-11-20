@@ -196,6 +196,13 @@ test("staff can find the dedicated Course Roster and View as Student controls wh
     assert.match(html, new RegExp(`action="/admin/enrollments"`));
     assert.match(html, new RegExp(`href="/admin/courses/${course.id}/roster.csv"`));
     assert.match(html, new RegExp(`href="/admin/courses/${course.id}/attendance-sheet.csv"`));
+
+    response = await get(`/admin/courses/${course.id}/manage`, cookie);
+    html = await response.text();
+    assert.equal(response.status, 200);
+    assert.match(html, />Remove from Course</);
+    assert.match(html, new RegExp(`action="/admin/courses/${course.id}/roster/${seededStudentEnrollment.id}/remove"`));
+    assert.match(html, /name="returnTo" value="manage"/);
   }
 
   let response = await get(`/student/enrollments/${seededStudentEnrollment.id}`, studentCookie);
@@ -208,6 +215,8 @@ test("staff can find the dedicated Course Roster and View as Student controls wh
   response = await get(`/admin/courses/${course.id}/roster.csv`, studentCookie);
   assert.equal(response.status, 403);
   response = await get(`/admin/courses/${course.id}/attendance-sheet.csv`, studentCookie);
+  assert.equal(response.status, 403);
+  response = await get(`/admin/courses/${course.id}/manage`, studentCookie);
   assert.equal(response.status, 403);
 });
 
@@ -268,19 +277,21 @@ test("add, remove, and re-add preserve academic history and create audit records
     VALUES (?, ?, 23, 'Must survive course removal')
   `).run(currentEnrollment.id, gradeItemId);
 
-  response = await get(`/admin/courses/${course.id}/roster`, instructorCookie);
+  response = await get(`/admin/courses/${course.id}/manage`, instructorCookie);
   const rosterHtml = await response.text();
   assert.equal(response.status, 200);
   assert.match(rosterHtml, /roster\.workflow@example\.test/);
+  assert.match(rosterHtml, />Remove from Course</);
   const removalFields = extractRemovalFields(rosterHtml, currentEnrollment.id);
 
   response = await post(`/admin/courses/${course.id}/roster/${currentEnrollment.id}/remove`, {
     ...removalFields,
+    returnTo: "manage",
     reason: "Moved out of this course section",
     confirmed: "1"
   }, instructorCookie);
   assert.equal(response.status, 303);
-  assert.equal(response.headers.get("location"), `/admin/courses/${course.id}/roster`);
+  assert.equal(response.headers.get("location"), `/admin/courses/${course.id}/manage#course-roster`);
 
   const removed = database.prepare("SELECT * FROM enrollments WHERE id = ?").get(currentEnrollment.id);
   assert.equal(removed.status, "withdrawn");

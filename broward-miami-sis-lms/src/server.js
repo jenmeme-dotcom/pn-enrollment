@@ -13401,6 +13401,23 @@ function studentsAvailableForCourse(courseId) {
   `).all(Number(courseId));
 }
 
+function renderCourseRosterRemovalControl(courseId, enrollment, csrfToken, { returnTo = "roster" } = {}) {
+  const safeReturnTo = returnTo === "manage" ? "manage" : "roster";
+  return `
+    <details class="course-roster-remove">
+      <summary class="button small danger">Remove from Course</summary>
+      <form method="post" action="/admin/courses/${courseId}/roster/${enrollment.id}/remove" onsubmit="return confirm('Remove this student from this course? Grades, submissions, and history will be preserved.');">
+        <input type="hidden" name="csrfToken" value="${escapeHtml(csrfToken)}">
+        <input type="hidden" name="expectedStatus" value="${escapeHtml(enrollment.status)}">
+        <input type="hidden" name="returnTo" value="${safeReturnTo}">
+        <label>Reason / internal note<textarea name="reason" maxlength="2000" required>Removed from the course roster by staff.</textarea></label>
+        <label class="withdrawal-confirmation"><input type="checkbox" name="confirmed" value="1" required> I understand this removes course access but preserves the student's records.</label>
+        <button class="small danger" type="submit">Confirm Removal</button>
+      </form>
+    </details>
+  `;
+}
+
 function csvDownloadCell(value) {
   let text = String(value ?? "");
   if (/^[=+\-@]/.test(text)) text = `'${text}`;
@@ -13483,16 +13500,7 @@ app.get("/admin/courses/:id/roster", requireAuth, requireRole("admin", "instruct
                 <td>
                   <div class="actions course-roster-row-actions">
                     <a class="button small ghost" href="/admin/students/${row.user_id}/registrar-checklist">Student Record</a>
-                    <details class="course-roster-remove">
-                      <summary class="button small danger">Remove from Course</summary>
-                      <form method="post" action="/admin/courses/${course.id}/roster/${row.id}/remove" onsubmit="return confirm('Remove this student from this course? Grades, submissions, and history will be preserved.');">
-                        <input type="hidden" name="csrfToken" value="${escapeHtml(csrfToken)}">
-                        <input type="hidden" name="expectedStatus" value="${escapeHtml(row.status)}">
-                        <label>Reason / internal note<textarea name="reason" maxlength="2000" required>Removed from the course roster by staff.</textarea></label>
-                        <label class="withdrawal-confirmation"><input type="checkbox" name="confirmed" value="1" required> I understand this removes course access but preserves the student's records.</label>
-                        <button class="small danger" type="submit">Confirm Removal</button>
-                      </form>
-                    </details>
+                    ${renderCourseRosterRemovalControl(course.id, row, csrfToken)}
                   </div>
                 </td>
               </tr>
@@ -13549,15 +13557,21 @@ app.get("/admin/courses/:id/attendance-sheet.csv", requireAuth, requireRole("adm
 app.post("/admin/courses/:courseId/roster/:enrollmentId/remove", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const courseId = Number(req.params.courseId);
   const enrollmentId = Number(req.params.enrollmentId);
+  const removalRedirectHref = req.body.returnTo === "manage"
+    ? `/admin/courses/${courseId}/manage#enrollment-${enrollmentId}`
+    : `/admin/courses/${courseId}/roster#enrollment-${enrollmentId}`;
+  const removalSuccessHref = req.body.returnTo === "manage"
+    ? `/admin/courses/${courseId}/manage#course-roster`
+    : `/admin/courses/${courseId}/roster`;
   if (!validWithdrawalCsrfToken(req, req.body.csrfToken)) return res.status(403).send("Invalid or expired roster form");
   const reason = String(req.body.reason || "").trim();
   if (!reason || reason.length > 2000) {
     flash(req, "Enter a removal reason of 2,000 characters or fewer.");
-    return res.redirect(303, `/admin/courses/${courseId}/roster#enrollment-${enrollmentId}`);
+    return res.redirect(303, removalRedirectHref);
   }
   if (req.body.confirmed !== "1") {
     flash(req, "Confirm that the student's academic records will be preserved.");
-    return res.redirect(303, `/admin/courses/${courseId}/roster#enrollment-${enrollmentId}`);
+    return res.redirect(303, removalRedirectHref);
   }
   const enrollment = db.prepare(`
     SELECT e.*, u.first_name, u.last_name, u.email, u.status AS user_status,
@@ -13570,11 +13584,11 @@ app.post("/admin/courses/:courseId/roster/:enrollmentId/remove", requireAuth, re
   if (!enrollment) return res.status(404).send("Enrollment not found");
   if (String(req.body.expectedStatus || "") !== String(enrollment.status || "")) {
     flash(req, "The enrollment changed after this roster loaded. Review it before trying again.");
-    return res.redirect(303, `/admin/courses/${courseId}/roster#enrollment-${enrollmentId}`);
+    return res.redirect(303, removalRedirectHref);
   }
   if (enrollment.withdrawn_at || enrollment.status === "withdrawn") {
     flash(req, "This student has already been removed from the course.");
-    return res.redirect(303, `/admin/courses/${courseId}/roster`);
+    return res.redirect(303, removalSuccessHref);
   }
   const effectiveDate = easternDateParts().date;
   try {
@@ -13608,7 +13622,7 @@ app.post("/admin/courses/:courseId/roster/:enrollmentId/remove", requireAuth, re
     try { db.exec("ROLLBACK"); } catch {}
     console.error("Could not remove course roster enrollment", error);
     flash(req, `Course removal could not be saved: ${error.message}`);
-    return res.redirect(303, `/admin/courses/${courseId}/roster#enrollment-${enrollmentId}`);
+    return res.redirect(303, removalRedirectHref);
   }
   delete req.session.withdrawalCsrfToken;
   recordSystemActivity(req, {
@@ -13620,7 +13634,7 @@ app.post("/admin/courses/:courseId/roster/:enrollmentId/remove", requireAuth, re
     details: { courseId, course: courseDisplayTitle(enrollment), reason }
   });
   flash(req, "Student removed from this course. Grades, submissions, and academic history were preserved.");
-  return res.redirect(303, `/admin/courses/${courseId}/roster`);
+  return res.redirect(303, removalSuccessHref);
 });
 
 app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -13654,6 +13668,7 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
 
   const enrollments = currentCourseRoster(course.id);
   const availableStudents = studentsAvailableForCourse(course.id);
+  const rosterRemovalCsrfToken = withdrawalCsrfToken(req);
   const scheduledAssessments = moduleLessons.filter((lesson) =>
     lessonQuizQuestions(lesson).length > 0
       && Boolean(examSettingsForLesson(lesson))
@@ -13941,7 +13956,7 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
         <thead><tr><th>Student</th><th>Status</th><th>Progress</th><th>Credential</th><th>Actions</th></tr></thead>
         <tbody>
           ${enrollments.map((row) => `
-            <tr>
+            <tr id="enrollment-${row.id}">
               <td><strong>${escapeHtml(row.last_name)}, ${escapeHtml(row.first_name)}</strong><br><span class="muted">${escapeHtml(row.email)}</span></td>
               <td>${escapeHtml(row.status)}<br><span class="muted">Started ${date(row.start_date)}</span></td>
               <td>${progressBar(row.progress)}<span class="muted">${escapeHtml(row.progress)}%</span></td>
@@ -13964,6 +13979,7 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
                       <button class="small ghost" type="submit">Issue ${escapeHtml(course.credential_type)}</button>
                     </form>
                   ` : ""}
+                  ${renderCourseRosterRemovalControl(course.id, row, rosterRemovalCsrfToken, { returnTo: "manage" })}
                 `}
               </td>
             </tr>
