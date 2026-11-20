@@ -985,17 +985,20 @@ function renderAdmissionsDocumentRows(student, admissionsChecklist = []) {
             </div>
           </div>
           <form class="admissions-required-status" method="post" action="/admin/students/${student.id}/admissions-documents/${escapeHtml(doc.item_key)}">
-            <label>Status</label>
-            <select name="status" aria-label="${escapeHtml(doc.title)} status">
-              ${admissionsDocumentStatuses.map((status) => `<option value="${status}" ${doc.status === status ? "selected" : ""}>${status === "complete" ? "Complete" : status === "waived" ? "Waived" : "Missing"}</option>`).join("")}
-            </select>
-            <label>Note</label>
-            <input name="note" value="${escapeHtml(doc.note || "")}" placeholder="Optional note">
+            <label>Status
+              <select name="status" aria-label="${escapeHtml(doc.title)} status">
+                ${admissionsDocumentStatuses.map((status) => `<option value="${status}" ${doc.status === status ? "selected" : ""}>${status === "complete" ? "Complete" : status === "waived" ? "Waived" : "Missing"}</option>`).join("")}
+              </select>
+            </label>
+            <label>Note
+              <input name="note" value="${escapeHtml(doc.note || "")}" placeholder="Optional note" aria-label="${escapeHtml(doc.title)} note">
+            </label>
             <button class="small" type="submit">Save status</button>
           </form>
           <form class="admissions-required-upload" method="post" action="/admin/students/${student.id}/admissions-documents/${escapeHtml(doc.item_key)}/upload" enctype="multipart/form-data">
-            <label>Upload</label>
-            <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,application/pdf,image/*" required>
+            <label>Upload
+              <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,application/pdf,image/*" aria-label="${escapeHtml(doc.title)} document" required>
+            </label>
             <button class="small ghost" type="submit">${doc.file_storage_name ? "Replace" : "Upload"}</button>
           </form>
           <div class="admissions-required-file">

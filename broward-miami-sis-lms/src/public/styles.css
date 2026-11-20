@@ -3381,7 +3381,7 @@ nav a {
   align-items: start;
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(260px, 0.65fr) minmax(0, 1.35fr);
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
   margin-top: 18px;
 }
 
@@ -3394,6 +3394,7 @@ nav a {
 .registrar-checklist-grid {
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .registrar-timeline {
@@ -3497,7 +3498,7 @@ nav a {
   border-radius: 8px;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(220px, 1.1fr) minmax(240px, 1fr) minmax(220px, 1fr) minmax(150px, auto);
+  grid-template-columns: minmax(0, 1fr);
   padding: 12px;
 }
 
@@ -3517,6 +3518,11 @@ nav a {
 .admissions-required-main strong,
 .admissions-required-main small {
   display: block;
+  overflow-wrap: anywhere;
+}
+
+.admissions-required-main > div {
+  min-width: 0;
 }
 
 .admissions-required-main small,
@@ -3526,36 +3532,78 @@ nav a {
 }
 
 .admissions-required-status,
-.admissions-required-upload,
-.admissions-required-file {
-  align-content: end;
+.admissions-required-upload {
+  align-items: end;
   display: grid;
-  gap: 7px;
+  gap: 12px;
+  min-width: 0;
 }
 
 .admissions-required-status {
-  grid-template-columns: minmax(110px, 140px) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(120px, 160px) minmax(0, 1fr) auto;
 }
 
-.admissions-required-status label:first-child {
-  grid-column: 1;
+.admissions-required-upload {
+  border-top: 1px solid var(--line);
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-top: 12px;
 }
 
-.admissions-required-status select {
-  grid-column: 1;
+.admissions-required-status label,
+.admissions-required-upload label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
 }
 
-.admissions-required-status label:nth-of-type(2) {
-  grid-column: 2;
+.admissions-required-status input,
+.admissions-required-status select,
+.admissions-required-upload input {
+  font-size: 14px;
+  font-weight: 400;
+  max-width: 100%;
+  min-width: 0;
 }
 
-.admissions-required-status input {
-  grid-column: 2;
+.admissions-required-status button,
+.admissions-required-upload button {
+  white-space: nowrap;
 }
 
-.admissions-required-status button {
-  grid-column: 3;
-  grid-row: 2;
+.admissions-required-file {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1050px) {
+  .registrar-workbench {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .registrar-overview {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .admissions-required-status,
+  .admissions-required-upload {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admissions-required-status button,
+  .admissions-required-upload button {
+    width: 100%;
+  }
+
+  .registrar-workbench .registrar-item-head {
+    flex-wrap: wrap;
+  }
 }
 
 .admissions-section-detail {
