@@ -7,11 +7,11 @@ const serverSource = fs.readFileSync(path.resolve(__dirname, "../src/server.js")
 const dbSource = fs.readFileSync(path.resolve(__dirname, "../src/db.js"), "utf8");
 
 test("instructors can be inactivated while historical records are preserved", () => {
-  assert.match(serverSource, /\/admin\/instructor-roles\/\$\{encodeURIComponent\(instructor\.email\)\}\/deactivate/);
-  assert.match(serverSource, /app\.post\("\/admin\/instructor-roles\/:email\/deactivate"/);
-  assert.match(serverSource, />Inactivate access<\/button>/);
+  assert.match(serverSource, /action="\/admin\/staff\/\$\{instructor\.id\}\/inactivate"/);
+  assert.match(serverSource, /app\.post\("\/admin\/staff\/:id\/inactivate"/);
+  assert.match(serverSource, />Inactivate<\/button>/);
   assert.match(serverSource, /SET status = 'inactive'/);
-  assert.match(serverSource, /Historical records were preserved/);
+  assert.match(serverSource, /Historical records (?:were|remain) preserved/i);
 });
 
 test("Dayana Diaz is no longer recreated as an approved instructor", () => {

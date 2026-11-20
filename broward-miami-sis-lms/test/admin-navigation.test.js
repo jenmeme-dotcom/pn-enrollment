@@ -34,14 +34,15 @@ test("admin navigation is one non-wrapping row without repeated tool links", () 
     assert.deepEqual(repeatedHrefs, [], `${role} header should not repeat destinations`);
     assert.match(navigation, /href="\/admin\/help">SOPs<\/a>/);
     assert.match(navigation, /href="\/catalog">Catalog<\/a>/);
-    assert.match(navigation, /class="task-tickets-link" href="\/admin\/tickets">Task Tickets<\/a>/);
-    assert.ok(
-      navigation.indexOf("Task Tickets") < navigation.indexOf(role === "admin" ? "Admissions" : "Students"),
-      `${role} Task Tickets should remain visible beside Dashboard`
+    assert.doesNotMatch(navigation, /Task Tickets/);
+    assert.match(
+      tools,
+      /class="sis-tool task-tickets-link" href="\/admin\/tickets"[^>]*>Task Tickets<\/a>\s*<a class="sis-tool" href="\/admin\/features\/system-settings"[^>]*>Settings<\/a>/,
+      `${role} Task Tickets should appear immediately beside Settings`
     );
   }
 
   assert.match(styles, /\.sis-subnav \{[\s\S]*?flex-wrap: nowrap;[\s\S]*?overflow-x: auto;[\s\S]*?\}/);
   assert.match(styles, /\.sis-subnav a \{[\s\S]*?flex: 0 0 auto;[\s\S]*?white-space: nowrap;[\s\S]*?\}/);
-  assert.match(styles, /\.sis-subnav a\.task-tickets-link \{[\s\S]*?color: #b42318;[\s\S]*?font-weight: 900;[\s\S]*?\}/);
+  assert.match(styles, /\.sis-tool\.task-tickets-link \{[\s\S]*?color: #b42318;[\s\S]*?font-weight: 900;[\s\S]*?\}/);
 });

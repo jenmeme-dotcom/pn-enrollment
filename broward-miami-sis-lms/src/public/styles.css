@@ -465,6 +465,322 @@ nav a {
   text-decoration: none;
 }
 
+.sis-tool.task-tickets-link {
+  background: #fff1f0;
+  border-color: #f4aaa5;
+  color: #b42318;
+  font-weight: 900;
+}
+
+.sis-tool.task-tickets-link:hover,
+.sis-tool.task-tickets-link:focus-visible {
+  background: #fee4e2;
+  border-color: #e9837b;
+  color: #8f1c13;
+}
+
+.account-username-form {
+  display: grid;
+  gap: 6px;
+  min-width: 210px;
+}
+
+.account-username-form input {
+  min-width: 0;
+  width: 100%;
+}
+
+.staff-account-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 260px;
+}
+
+.staff-account-actions form {
+  margin: 0;
+}
+
+.staff-remove-control {
+  position: relative;
+}
+
+.staff-remove-control > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.staff-remove-control > summary::-webkit-details-marker {
+  display: none;
+}
+
+.staff-remove-control[open] form {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(340px, 80vw);
+  padding: 14px;
+  border: 1px solid #e4b4ae;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(34, 48, 61, 0.18);
+}
+
+.staff-remove-control label,
+.staff-remove-control input {
+  display: block;
+  width: 100%;
+}
+
+.staff-account-edit-card {
+  max-width: 880px;
+}
+
+.lpn-enrollment-button {
+  background: #8a1f55;
+  border-color: #8a1f55;
+  color: #fff;
+  box-shadow: 0 3px 9px rgba(138, 31, 85, 0.2);
+}
+
+.lpn-enrollment-button:hover,
+.lpn-enrollment-button:focus-visible {
+  background: #6f1744;
+  border-color: #6f1744;
+  color: #fff;
+}
+
+.lpn-enrollment-card {
+  max-width: 1100px;
+}
+
+.lpn-enrollment-form {
+  display: grid;
+  gap: 20px;
+}
+
+.lpn-enrollment-form fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f8fbfc;
+}
+
+.lpn-enrollment-form legend {
+  padding: 0 8px;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.lpn-enrollment-form label,
+.lpn-enrollment-form select,
+.lpn-enrollment-form input,
+.lpn-enrollment-form textarea {
+  display: block;
+  width: 100%;
+}
+
+.lpn-course-select-actions {
+  margin-bottom: 14px;
+}
+
+.lpn-course-checklist {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lpn-course-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.lpn-course-option input {
+  flex: 0 0 auto;
+  width: auto;
+  margin-top: 4px;
+}
+
+.lpn-course-option span,
+.lpn-course-option strong,
+.lpn-course-option small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lpn-course-option small {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.lpn-course-option.is-enrolled {
+  background: #eef7f2;
+  border-color: #b9d8c6;
+  cursor: default;
+}
+
+.lpn-enrollment-submit {
+  justify-self: start;
+}
+
+.course-marketing-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+#marketing-tools {
+  scroll-margin-top: 130px;
+}
+
+#weekly-timesheets {
+  scroll-margin-top: 130px;
+}
+
+.course-marketing-head h2 {
+  margin-top: 0;
+}
+
+.course-marketing-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.55fr);
+  gap: 22px;
+  margin-top: 18px;
+}
+
+.course-marketing-form {
+  align-self: start;
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f8fbfc;
+}
+
+.course-marketing-form h3 {
+  margin: 0;
+}
+
+.course-marketing-form label,
+.course-marketing-form input,
+.course-marketing-form textarea {
+  display: block;
+  width: 100%;
+}
+
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.or-divider::before,
+.or-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--border);
+}
+
+.course-marketing-library {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+
+.marketing-asset-card {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.marketing-asset-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: #e2f2f4;
+  color: #075866;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.marketing-asset-body,
+.marketing-asset-body h3,
+.marketing-asset-body p {
+  min-width: 0;
+}
+
+.marketing-asset-body h3 {
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+
+.marketing-asset-body p {
+  margin: 0 0 8px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.marketing-asset-body small {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--muted);
+}
+
+.marketing-assets-empty {
+  grid-column: 1 / -1;
+  padding: 32px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .table-card {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .course-marketing-layout,
+  .course-marketing-library {
+    grid-template-columns: 1fr;
+  }
+
+  .lpn-course-checklist {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-remove-control[open] form {
+    position: fixed;
+    inset: auto 16px 16px;
+    width: auto;
+  }
+}
+
 .sis-avatar {
   align-items: center;
   background: #0f5f6b;
@@ -3735,6 +4051,241 @@ button.danger {
   padding: 6px 8px;
 }
 
+.course-picker-section {
+  margin-top: 30px;
+}
+
+.course-picker-section-head {
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+}
+
+.course-picker-section-head h2,
+.course-picker-section-head p {
+  margin: 0;
+}
+
+.course-picker-section-head h2 {
+  color: var(--brand-dark);
+  font-size: 24px;
+}
+
+.course-picker-section-head p {
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+.course-picker-section-head > span {
+  background: #eaf4f5;
+  border-radius: 999px;
+  color: var(--brand-dark);
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 7px 11px;
+}
+
+.course-picker-grid {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 275px), 1fr));
+}
+
+.course-picker-card {
+  background: #fff;
+  border: 1px solid #d9e4e8;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgb(27 49 66 / 8%);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.course-picker-card:hover,
+.course-picker-card:focus-within {
+  border-color: #84b6bd;
+  box-shadow: 0 16px 34px rgb(15 95 107 / 16%);
+  transform: translateY(-3px);
+}
+
+.course-picker-card a:focus-visible {
+  outline: 3px solid #f6a723;
+  outline-offset: 3px;
+}
+
+.course-picker-thumbnail {
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(135deg, #173f62, #087480);
+  display: block;
+  overflow: hidden;
+  position: relative;
+}
+
+.course-picker-thumbnail::after {
+  background: linear-gradient(180deg, rgb(10 24 36 / 2%) 35%, rgb(10 31 47 / 78%) 100%);
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.course-picker-thumbnail img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 220ms ease;
+  width: 100%;
+}
+
+.course-picker-card:hover .course-picker-thumbnail img {
+  transform: scale(1.025);
+}
+
+.course-picker-thumbnail .course-publication-badge {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 1;
+}
+
+.course-picker-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 18px;
+}
+
+.course-picker-kicker {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+
+.course-picker-code {
+  background: #e8f4f5;
+  border-radius: 999px;
+  color: var(--brand-dark);
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+  padding: 5px 8px;
+}
+
+.course-picker-category {
+  color: #087480;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.055em;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.course-picker-body h3 {
+  font-size: 20px;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.course-picker-body h3 a {
+  color: #17212b;
+  display: -webkit-box;
+  min-height: 2.5em;
+  overflow: hidden;
+  text-decoration: none;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.course-picker-body h3 a:hover {
+  color: #087480;
+}
+
+.course-picker-description {
+  color: var(--muted);
+  display: -webkit-box;
+  line-height: 1.5;
+  margin: 10px 0 16px;
+  min-height: 4.5em;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.course-picker-meta {
+  border-bottom: 1px solid #e4ebef;
+  border-top: 1px solid #e4ebef;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 0.65fr 0.8fr 1.4fr;
+  margin: auto 0 16px;
+  padding: 12px 0;
+}
+
+.course-picker-meta div {
+  min-width: 0;
+}
+
+.course-picker-meta dt {
+  color: #718096;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.course-picker-meta dd {
+  color: #273645;
+  font-size: 13px;
+  font-weight: 750;
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.course-picker-actions {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.course-picker-actions .button {
+  justify-content: center;
+  margin: 0;
+  text-align: center;
+}
+
+.course-library-details {
+  background: #fff;
+  border: 1px solid #d9e4e8;
+  border-radius: 10px;
+  margin-top: 32px;
+  padding: 0 18px 18px;
+}
+
+.course-library-details > summary {
+  color: var(--brand-dark);
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 850;
+  padding: 17px 0;
+}
+
+.course-library-details .tuition-fees {
+  margin-top: 0;
+}
+
 @media (max-width: 1100px) {
   .instructor-course-grid,
   .student-course-card-grid {
@@ -3752,6 +4303,16 @@ button.danger {
     align-items: flex-start;
     flex-direction: column;
     gap: 10px;
+  }
+
+  .course-picker-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .course-picker-actions {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -5774,6 +6335,85 @@ button.small {
 .time-clock-form textarea,
 .staff-pay-form-card textarea {
   min-height: 84px;
+}
+
+.weekly-timesheets-card .table-card-head {
+  margin-bottom: 14px;
+}
+
+.weekly-timesheet-list {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.weekly-timesheet-row {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(240px, 1.6fr) minmax(150px, 0.7fr) minmax(190px, 0.9fr);
+  padding: 16px;
+}
+
+.weekly-timesheet-row:last-child {
+  border-bottom: 0;
+}
+
+.weekly-timesheet-row.is-current {
+  background: #f2f8f9;
+  box-shadow: inset 4px 0 0 var(--brand);
+}
+
+.weekly-timesheet-period,
+.weekly-timesheet-total,
+.weekly-timesheet-submit {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.weekly-timesheet-period > span,
+.weekly-timesheet-total > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.weekly-timesheet-period > strong,
+.weekly-timesheet-total > strong {
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.weekly-timesheet-period small,
+.weekly-timesheet-submit small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.weekly-timesheet-submit {
+  align-items: start;
+  justify-items: start;
+}
+
+.weekly-timesheet-submit form,
+.weekly-timesheet-submit button {
+  margin: 0;
+  width: 100%;
+}
+
+@media (max-width: 780px) {
+  .weekly-timesheet-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .weekly-timesheet-submit {
+    justify-items: stretch;
+  }
 }
 
 .pay-summary-list {

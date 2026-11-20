@@ -204,6 +204,18 @@ function assertPageHref(html, expectedHref, description) {
   assert.ok(hrefs.includes(expectedHref), `Expected ${description} to link to ${expectedHref}`);
 }
 
+function coursePickerCards(html) {
+  return [...html.matchAll(/<article\b[^>]*\bclass="([^"]*\bcourse-picker-card\b[^"]*)"[^>]*>([\s\S]*?)<\/article>/g)]
+    .map((match) => match[0]);
+}
+
+function coursePickerCard(html, courseId) {
+  const manageHref = `href="/admin/courses/${courseId}"`;
+  const matches = coursePickerCards(html).filter((card) => card.includes(manageHref));
+  assert.equal(matches.length, 1, `Expected course ${courseId} to have one direct course-picker card`);
+  return matches[0];
+}
+
 function courseNavigation(html) {
   const navigation = html.match(
     /<aside class="canvas-course-nav" id="canvas-course-navigation">([\s\S]*?)<\/aside>/
@@ -376,6 +388,71 @@ test("the admin dashboard toggle switches between Operations and Online Courses"
     assert.deepEqual(courseLinks.map((link) => link.active), [false, true]);
     assert.ok(operationsLinks[0].classes.includes("is-active"));
     assert.ok(courseLinks[1].classes.includes("is-active"));
+  }
+});
+
+test("the Online Courses view renders each course as a visual picker card with direct actions", async () => {
+  const originalCourses = database.prepare(`
+    SELECT id, published
+    FROM courses
+    ORDER BY id
+  `).all();
+  assert.ok(originalCourses.length >= 2, "Expected at least two seeded courses");
+
+  // Exercise both publication states independently of the seed data used by this integration test.
+  database.prepare("UPDATE courses SET published = 0 WHERE id = ?").run(originalCourses[0].id);
+  database.prepare("UPDATE courses SET published = 1 WHERE id = ?").run(originalCourses[1].id);
+
+  try {
+    const expectedCourses = database.prepare(`
+      SELECT id, title, published
+      FROM courses
+      ORDER BY id
+    `).all();
+
+    for (const [cookie, role] of [[adminCookie, "admin"], [instructorCookie, "instructor"]]) {
+      const html = await getHtml("/admin/courses", cookie);
+      const cards = expectedCourses.map((course) => {
+        const card = coursePickerCard(html, course.id);
+        const thumbnail = card.match(/<([a-z][\w-]*)\b[^>]*\bclass="[^"]*\bcourse-picker-thumbnail\b[^"]*"[^>]*>([\s\S]*?)<\/\1>/i);
+        const image = thumbnail?.[2].match(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/);
+
+        assert.ok(image?.[1], `Expected ${role} card for ${course.title} to include a thumbnail image`);
+        assert.match(
+          image[1],
+          /^(?:\/|https?:\/\/)/,
+          `Expected ${role} card for ${course.title} to use a valid thumbnail source`
+        );
+        assert.ok(
+          card.includes(`href="/admin/courses/${course.id}/student-view"`) ||
+            card.includes(`href="/admin/courses/${course.id}/student-view?`),
+          `Expected ${role} card for ${course.title} to link directly to Student View`
+        );
+        assert.ok(
+          decodeText(card).includes(course.published ? "Published" : "Unpublished"),
+          `Expected ${role} card for ${course.title} to show its publication status`
+        );
+        return card;
+      });
+
+      assert.equal(
+        new Set(cards).size,
+        expectedCourses.length,
+        `Expected every ${role} course to have its own picker card instead of sharing a grouped row`
+      );
+      assert.match(html, /class="[^"]*\bcourse-picker-grid\b[^"]*"/, `Expected the ${role} course picker grid`);
+
+      if (role === "admin") {
+        assert.doesNotMatch(
+          html,
+          /class="[^"]*\b(?:admin-program-subcourses|program-subcourse)\b[^"]*"/,
+          "Expected the admin course picker to avoid nested text-only subcourse rows"
+        );
+      }
+    }
+  } finally {
+    const restorePublication = database.prepare("UPDATE courses SET published = ? WHERE id = ?");
+    for (const course of originalCourses) restorePublication.run(course.published, course.id);
   }
 });
 

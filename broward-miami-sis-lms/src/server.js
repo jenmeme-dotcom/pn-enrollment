@@ -82,16 +82,7 @@ function ensureInstructorAccessAccounts() {
   const upsertInstructor = db.prepare(`
     INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
     VALUES ('instructor', ?, ?, ?, ?, ?, 'active', 'organized', NULL)
-    ON CONFLICT(email) DO UPDATE SET
-      role = 'instructor',
-      first_name = excluded.first_name,
-      last_name = excluded.last_name,
-      phone = COALESCE(NULLIF(users.phone, ''), excluded.phone),
-      password_hash = excluded.password_hash,
-      status = 'active',
-      organization_status = 'organized',
-      class_lock_reason = NULL
-    WHERE COALESCE(users.status, 'active') <> 'inactive'
+    ON CONFLICT(email) DO NOTHING
   `);
   instructorAccessAccounts.forEach((account) => {
     upsertInstructor.run(
@@ -108,9 +99,12 @@ ensureInstructorAccessAccounts();
 
 function saveInstructorAccount({ firstName, lastName, email, phone = "" }) {
   const normalizedEmail = String(email || "").trim().toLowerCase();
-  const existing = db.prepare("SELECT id, role FROM users WHERE lower(email) = ?").get(normalizedEmail);
+  const existing = db.prepare("SELECT id, role, status, removed_at FROM users WHERE lower(email) = ?").get(normalizedEmail);
   if (existing && existing.role !== "instructor") {
     throw new Error("That email is already used by a non-instructor account.");
+  }
+  if (existing && (existing.status !== "active" || existing.removed_at)) {
+    throw new Error("That instructor account is inactive or removed. Use Restore access instead of creating it again.");
   }
   db.prepare(`
     INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
@@ -120,10 +114,7 @@ function saveInstructorAccount({ firstName, lastName, email, phone = "" }) {
       first_name = excluded.first_name,
       last_name = excluded.last_name,
       phone = excluded.phone,
-      password_hash = excluded.password_hash,
-      status = 'active',
-      organization_status = 'organized',
-      class_lock_reason = NULL
+      password_hash = excluded.password_hash
   `).run(
     String(firstName || "").trim(),
     String(lastName || "").trim(),
@@ -414,6 +405,15 @@ function receiveAssignment(req, res, next) {
   });
 }
 
+function receiveMarketingAsset(req, res, next) {
+  upload.single("marketingFile")(req, res, (error) => {
+    if (!error) return next();
+    flash(req, error.code === "LIMIT_FILE_SIZE" ? "Marketing file is too large. The maximum file size is 25 MB." : error.message);
+    const courseId = Number(req.params.id || 0);
+    return res.redirect(courseId ? `/admin/courses/${courseId}/manage#marketing-tools` : "/admin/courses");
+  });
+}
+
 app.set("trust proxy", 1);
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json({
@@ -457,7 +457,83 @@ app.use((req, res, next) => {
 
 function currentUser(req) {
   if (!req.session.userId) return null;
-  return db.prepare("SELECT id, role, student_number, first_name, last_name, email, personal_email, phone, status, withdrawal_effective_date, withdrawal_reason, withdrawn_at, withdrawn_by, organization_status, class_lock_reason, photo_storage_name, photo_original_name, photo_review_status, photo_review_note, photo_submitted_at, photo_reviewed_at, photo_reviewed_by, created_at FROM users WHERE id = ?").get(req.session.userId);
+  return db.prepare("SELECT id, role, student_number, first_name, last_name, email, login_username, personal_email, phone, status, withdrawal_effective_date, withdrawal_reason, withdrawn_at, withdrawn_by, organization_status, class_lock_reason, removed_at, removed_by, removal_reason, photo_storage_name, photo_original_name, photo_review_status, photo_review_note, photo_submitted_at, photo_reviewed_at, photo_reviewed_by, created_at FROM users WHERE id = ?").get(req.session.userId);
+}
+
+const activitySecretKeyPattern = /(password|passcode|hash|secret|token|authorization|cookie)/i;
+
+function safeActivityDetails(value = {}) {
+  const safe = {};
+  for (const [key, rawValue] of Object.entries(value || {})) {
+    if (activitySecretKeyPattern.test(key) || rawValue === undefined) continue;
+    if (Array.isArray(rawValue)) {
+      safe[key] = rawValue.slice(0, 20).map((item) => String(item).slice(0, 240));
+      continue;
+    }
+    if (rawValue && typeof rawValue === "object") continue;
+    safe[key] = String(rawValue ?? "").slice(0, 240);
+  }
+  return safe;
+}
+
+function recordSystemActivity(req, {
+  action,
+  summary,
+  targetUserId = null,
+  entityType = "system",
+  entityId = null,
+  details = {},
+  statusCode = null
+}) {
+  const actor = req.user || currentUser(req);
+  if (!actor) return;
+  db.prepare(`
+    INSERT INTO system_activity_log (
+      actor_user_id, target_user_id, action, entity_type, entity_id,
+      summary, details_json, route, method, status_code
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    actor.id,
+    targetUserId || null,
+    String(action || "updated"),
+    String(entityType || "system"),
+    entityId == null ? null : String(entityId),
+    String(summary || "System record updated").slice(0, 500),
+    JSON.stringify(safeActivityDetails(details)),
+    String(req.originalUrl || req.path || "").slice(0, 500),
+    req.method,
+    statusCode == null ? null : Number(statusCode)
+  );
+  req.systemActivityRecorded = true;
+}
+
+function recordStaffAccountEvent(req, target, action, details = "") {
+  const targetId = Number(target?.id || target);
+  const actor = req.user || currentUser(req);
+  if (!actor || !targetId) return;
+  const safeDetails = String(details || "").replace(/\s+/g, " ").trim().slice(0, 1000);
+  db.prepare(`
+    INSERT INTO staff_account_events (target_user_id, action, details, changed_by)
+    VALUES (?, ?, ?, ?)
+  `).run(targetId, action, safeDetails, actor.id);
+  const name = target && typeof target === "object" ? personName(target) : `staff account #${targetId}`;
+  const labels = {
+    changed_username: "Changed username",
+    edited_account: "Edited account",
+    inactivated: "Inactivated",
+    removed: "Removed",
+    restored: "Restored",
+    reactivated: "Reactivated",
+    password_reset: "Password reset"
+  };
+  recordSystemActivity(req, {
+    action,
+    summary: `${labels[action] || "Updated"} ${name}`,
+    targetUserId: targetId,
+    entityType: "staff_account",
+    entityId: targetId,
+    details: safeDetails ? { details: safeDetails } : {}
+  });
 }
 
 function displayStudentNumber(student = {}) {
@@ -568,6 +644,29 @@ function requireRole(...roles) {
     next();
   };
 }
+
+app.use((req, res, next) => {
+  const isAdminMutation = req.path.startsWith("/admin/") && !["GET", "HEAD", "OPTIONS"].includes(req.method);
+  if (!isAdminMutation) return next();
+  res.once("finish", () => {
+    if (req.systemActivityRecorded || res.statusCode >= 400) return;
+    try {
+      const actor = req.user || currentUser(req);
+      if (!actor || actor.role === "student") return;
+      recordSystemActivity(req, {
+        action: `admin_${req.method.toLowerCase()}`,
+        summary: `${req.method} ${req.path}`,
+        entityType: "admin_route",
+        entityId: req.path,
+        details: safeActivityDetails(req.body),
+        statusCode: res.statusCode
+      });
+    } catch (error) {
+      console.error("System activity logging failed", error);
+    }
+  });
+  next();
+});
 
 function isClassLocked(user) {
   return user?.role === "student" && user.organization_status === "not_organized";
@@ -1643,6 +1742,32 @@ function canvasCourseCode(course = {}) {
   const id = course.course_id || course.id || 0;
   if (course.category === "Practical Nursing Course") return `PN-${String(id).padStart(3, "0")}`;
   return `BMHI-${String(id).padStart(3, "0")}`;
+}
+
+const courseThumbnailUrls = Object.freeze({
+  "advanced-cardiovascular-life-support": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/acls-hero-p6zb.jpg",
+  "anatomy-and-physiology": "https://images.leadconnectorhq.com/image/f_webp/q_80/r_320/u_https://files.leadconnectorhq.com/file/6ac6b323bbad531ac819c6e4/blood-pressure-care-optimized.webp",
+  "basic-life-support": "https://images.leadconnectorhq.com/image/f_webp/q_80/r_320/u_https://files.leadconnectorhq.com/file/6ac6b3d10fb2818e7bd93ead/cpr-training-optimized.webp",
+  "cna-exam-prep": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/cna-exam-prep-hero-6zii.jpeg",
+  "fundamental-nursing-skills-and-concepts-new-cohort": "/assets/course-thumbnails/04-pn-105-fundamentals-of-nursing.png",
+  "home-health-aide": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/home-health-aide-hero-6b47.jpg",
+  "home-health-aide-creole": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/home-health-aide-hero-6b47.jpg",
+  "introduction-to-nursing-practical-nursing": "https://images.leadconnectorhq.com/image/f_webp/q_80/r_320/u_https://files.leadconnectorhq.com/file/6ac6affbbbad531ac8196c83/nurse-patient-care.webp",
+  "introductory-clinical-pharmacology-pn106": "/assets/course-thumbnails/03-pn-106-pharmacology.png",
+  "iv-therapy-certification-30-hour": "/assets/course-thumbnails/05-basic-iv-therapy-course.png",
+  "long-term-care-nursing-pn103": "https://images.leadconnectorhq.com/image/f_webp/q_80/r_320/u_https://files.leadconnectorhq.com/file/6ac6b252d66e1673fe1295a9/home-health-care-optimized.webp",
+  "medical-assistant": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/medical-assistant-hero-16fp.jpeg",
+  "medical-billing-and-coding": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/medical-billing-coding-hero-sbqj.jpeg",
+  "medical-surgical-nursing-i-pn107": "/assets/course-thumbnails/02-pn-107-medical-surgical-nursing-i.png",
+  "medical-terminology": "https://images.leadconnectorhq.com/image/f_webp/q_80/r_320/u_https://files.leadconnectorhq.com/file/6ac6affbd66e1673fe124e8d/medical-records.webp",
+  "patient-care-technician": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/patient-care-technician-hero-k03k.jpeg",
+  "pediatric-advanced-life-support": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/pals-hero-qio8.jpg",
+  "practical-nursing": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/practical-nursing-hero-q988.jpeg"
+});
+
+function courseThumbnailUrl(course = {}) {
+  const slug = course.slug || course.course_slug || "";
+  return courseThumbnailUrls[slug] || "/assets/healthcare-students-login.png";
 }
 
 function courseLiveClassConfig(course = {}) {
@@ -3912,7 +4037,9 @@ function instructorGradebookStudents(enrollments = []) {
 }
 
 function instructorGradebookItems(course, gradeItems = []) {
-  return markCourseProjects(db, markCoursePointActivities(db, course, gradeItems)).filter((item) => !Number(item.gradebook_hidden || 0) && !isSyllabusAcknowledgment(item)).map((item) => ({
+  gradeItems = markCourseProjects(db, markCoursePointActivities(db, course, gradeItems))
+    .filter((item) => !Number(item.gradebook_hidden || 0) && !isSyllabusAcknowledgment(item));
+  return gradeItems.map((item) => ({
     id: item.id,
     title: item.title,
     points_possible: item.points_possible,
@@ -6101,7 +6228,7 @@ function normalizeExternalUrl(value = "") {
   const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
   try {
     const parsed = new URL(withProtocol);
-    if (!["http:", "https:"].includes(parsed.protocol)) return null;
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return null;
     if (parsed.hostname.toLowerCase().replace(/^www\./, "") === "youtu.be") {
       const segments = parsed.pathname.split("/").filter(Boolean);
       const videoId = segments.length === 1 && /^[A-Za-z0-9_-]{11}$/.test(segments[0]) ? segments[0] : null;
@@ -7244,6 +7371,79 @@ function dateTime(value) {
   }).format(parsed);
 }
 
+function sqlUtcTimestamp(value) {
+  return value.toISOString().slice(0, 19).replace("T", " ");
+}
+
+function easternMidnightUtc(dateString) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateString || ""))) return null;
+  const [year, month, day] = String(dateString).split("-").map(Number);
+  const targetLocalTimestamp = Date.UTC(year, month - 1, day, 0, 0, 0);
+  let candidateTimestamp = targetLocalTimestamp;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const local = easternDateParts(new Date(candidateTimestamp));
+    const candidateLocalTimestamp = Date.UTC(
+      Number(local.year),
+      Number(local.month) - 1,
+      Number(local.day),
+      Number(local.hour),
+      Number(local.minute),
+      0
+    );
+    candidateTimestamp += targetLocalTimestamp - candidateLocalTimestamp;
+  }
+  const result = new Date(candidateTimestamp);
+  return Number.isNaN(result.getTime()) ? null : result;
+}
+
+function staffTimesheetPeriodFromWeekStart(weekStart) {
+  const normalizedStart = String(weekStart || "").trim();
+  const calendarDate = /^\d{4}-\d{2}-\d{2}$/.test(normalizedStart)
+    ? new Date(`${normalizedStart}T12:00:00Z`)
+    : null;
+  if (!calendarDate || Number.isNaN(calendarDate.getTime()) || calendarDate.getUTCDay() !== 0) return null;
+  const weekEnd = addCalendarDays(normalizedStart, 6);
+  const dueDate = addCalendarDays(normalizedStart, 7);
+  const startAt = easternMidnightUtc(normalizedStart);
+  const dueAt = easternMidnightUtc(dueDate);
+  if (!startAt || !dueAt) return null;
+  return {
+    weekStart: normalizedStart,
+    weekEnd,
+    dueDate,
+    startAt: sqlUtcTimestamp(startAt),
+    dueAt: sqlUtcTimestamp(dueAt)
+  };
+}
+
+function currentStaffTimesheetPeriod(value = new Date()) {
+  const local = easternDateParts(value);
+  const weekdayIndex = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[local.weekday];
+  return staffTimesheetPeriodFromWeekStart(addCalendarDays(local.date, -Number(weekdayIndex || 0)));
+}
+
+function staffTimesheetDeadlineLabel(dueAt) {
+  const parsed = new Date(`${String(dueAt || "").replace(" ", "T")}Z`);
+  if (Number.isNaN(parsed.getTime())) return String(dueAt || "");
+  const label = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: weeklyReminderTimeZone
+  }).format(parsed);
+  return `${label} ET (00:00)`;
+}
+
+function staffTimeEntryStatus(entry) {
+  if (!entry.clock_out_at) return { label: "Clocked in", className: "orange" };
+  if (entry.status === "approved") return { label: "Approved", className: "" };
+  if (entry.status === "submitted") return { label: "Submitted", className: "" };
+  return { label: "Ready", className: "orange" };
+}
+
 function durationHours(start, end = null) {
   if (!start) return 0;
   const startDate = new Date(`${String(start).replace(" ", "T")}Z`);
@@ -7527,8 +7727,8 @@ app.get("/login", (req, res) => {
         <div class="login-fields" hidden>
           <p class="muted login-role-hint" data-login-role-hint>Select a login option to continue.</p>
         <div>
-          <label for="email">Email</label>
-          <input id="email" name="email" type="email" autocomplete="username" required>
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
         </div>
         <div>
           <label for="password">Password</label>
@@ -7545,7 +7745,7 @@ app.get("/login", (req, res) => {
         const fields = document.querySelector(".login-fields");
         const input = document.getElementById("loginRole");
         const hint = document.querySelector("[data-login-role-hint]");
-        const email = document.getElementById("email");
+        const username = document.getElementById("username");
         buttons.forEach((button) => {
           button.addEventListener("click", () => {
             const role = button.dataset.loginRole;
@@ -7557,7 +7757,7 @@ app.get("/login", (req, res) => {
             input.value = role;
             fields.hidden = false;
             hint.textContent = role === "faculty" ? "Faculty, staff, and instructors sign in here." : "Students sign in here.";
-            email.focus();
+            username.focus();
           });
         });
       })();
@@ -7567,26 +7767,23 @@ app.get("/login", (req, res) => {
 });
 
 app.post("/login", (req, res) => {
-  const email = String(req.body.email || "").trim().toLowerCase();
+  const username = String(req.body.username || req.body.email || "").trim().toLowerCase();
   const password = String(req.body.password || "");
-  const instructorRepair = instructorLoginRepairs.get(email);
+  const instructorRepair = instructorLoginRepairs.get(username);
   if (instructorRepair && password === instructorAccessDefaultPassword) {
     db.prepare(`
       INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
       VALUES ('instructor', ?, ?, ?, '', ?, 'active', 'organized', NULL)
-      ON CONFLICT(email) DO UPDATE SET
-        role = 'instructor',
-        first_name = excluded.first_name,
-        last_name = excluded.last_name,
-        password_hash = excluded.password_hash,
-        status = 'active',
-        organization_status = 'organized',
-        class_lock_reason = NULL
-    `).run(instructorRepair.firstName, instructorRepair.lastName, email, bcrypt.hashSync(instructorAccessDefaultPassword, 12));
+      ON CONFLICT(email) DO NOTHING
+    `).run(instructorRepair.firstName, instructorRepair.lastName, username, bcrypt.hashSync(instructorAccessDefaultPassword, 12));
   }
-  const user = db.prepare("SELECT * FROM users WHERE lower(email) = ? AND status = 'active'").get(email);
+  const user = db.prepare(`
+    SELECT * FROM users
+    WHERE lower(COALESCE(NULLIF(trim(login_username), ''), email)) = ?
+      AND status = 'active' AND removed_at IS NULL
+  `).get(username);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-    flash(req, "Invalid email or password.");
+    flash(req, "Invalid username or password.");
     return res.redirect("/login");
   }
   req.session.userId = user.id;
@@ -8714,6 +8911,7 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
         ${req.user.role === "admin" ? `<a class="button ghost" href="/admin/instructor-roles">Instructor roles</a>` : ""}
         <a class="button ghost" href="/admin/staff-portal">Staff time</a>
         ${req.user.role === "admin" ? `<a class="button" href="/admin/instructor-roles#create-instructor">Add instructor</a>` : ""}
+        ${req.user.role === "admin" ? `<a class="button lpn-enrollment-button" href="/admin/lpn-enrollment">LPN Enrollment</a>` : ""}
         <a class="button" href="/admin/students">Add student</a>
       </div>
     </div>
@@ -9075,6 +9273,43 @@ app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), 
     LIMIT 20
   `).all(selectedStaff.id);
   const recentHours = timeEntries.reduce((total, entry) => total + durationHours(entry.clock_in_at, entry.clock_out_at), 0);
+  const currentTimesheetPeriod = currentStaffTimesheetPeriod();
+  const weeklyPeriods = Array.from({ length: 6 }, (_, index) =>
+    staffTimesheetPeriodFromWeekStart(addCalendarDays(currentTimesheetPeriod.weekStart, index * -7))
+  );
+  const oldestTimesheetPeriod = weeklyPeriods.at(-1);
+  const weeklyTimeEntries = db.prepare(`
+    SELECT *
+    FROM staff_time_entries
+    WHERE user_id = ? AND clock_in_at >= ? AND clock_in_at < ?
+    ORDER BY datetime(clock_in_at) DESC, id DESC
+  `).all(selectedStaff.id, oldestTimesheetPeriod.startAt, currentTimesheetPeriod.dueAt);
+  const weeklySubmissionRows = db.prepare(`
+    SELECT *
+    FROM staff_weekly_timesheets
+    WHERE user_id = ? AND week_start >= ? AND week_start <= ?
+    ORDER BY week_start DESC
+  `).all(selectedStaff.id, oldestTimesheetPeriod.weekStart, currentTimesheetPeriod.weekStart);
+  const weeklySubmissions = new Map(weeklySubmissionRows.map((row) => [row.week_start, row]));
+  const nowSql = sqlUtcTimestamp(new Date());
+  const weeklyTimesheets = weeklyPeriods.map((period, index) => {
+    const entries = weeklyTimeEntries.filter((entry) => entry.clock_in_at >= period.startAt && entry.clock_in_at < period.dueAt);
+    const completedEntries = entries.filter((entry) => entry.clock_out_at);
+    const openEntries = entries.filter((entry) => !entry.clock_out_at);
+    const submission = weeklySubmissions.get(period.weekStart) || null;
+    const totalHours = completedEntries.reduce((sum, entry) => sum + durationHours(entry.clock_in_at, entry.clock_out_at), 0);
+    const late = submission ? submission.submitted_at > submission.due_at : nowSql >= period.dueAt;
+    return {
+      ...period,
+      entries,
+      completedEntries,
+      openEntries,
+      submission,
+      totalHours,
+      late,
+      current: index === 0
+    };
+  }).filter((week) => week.current || week.entries.length || week.submission);
   const payRecords = canViewFinancialInformation ? db.prepare(`
       SELECT p.*, u.first_name AS created_first_name, u.last_name AS created_last_name
       FROM staff_pay_records p
@@ -9164,6 +9399,56 @@ app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), 
       </article>` : ""}
     </section>
 
+    <section class="card weekly-timesheets-card" id="weekly-timesheets" style="margin-top:18px">
+      <div class="table-card-head">
+        <div>
+          <h2>Weekly Timesheets</h2>
+          <p class="muted">Submit each Sunday-through-Saturday work week by Sunday at 12:00 AM ET (00:00). Individual clock entries remain listed below.</p>
+        </div>
+      </div>
+      <div class="weekly-timesheet-list">
+        ${weeklyTimesheets.map((week) => {
+          const submission = week.submission;
+          const canSubmitWeek = isSelf && week.completedEntries.length > 0 && week.openEntries.length === 0 && (!submission || submission.status === "returned");
+          const statusLabel = submission?.status === "approved"
+            ? "Approved"
+            : submission?.status === "returned"
+              ? "Returned"
+              : submission
+                ? (week.late ? "Submitted late" : "Submitted")
+                : week.openEntries.length
+                  ? "Clock out first"
+                  : week.completedEntries.length
+                    ? (week.late ? "Late — not submitted" : "Ready to submit")
+                    : "No time recorded";
+          const statusClass = (!submission && week.late) || submission?.status === "returned" ? "orange" : "";
+          return `
+            <article class="weekly-timesheet-row ${week.current ? "is-current" : ""}">
+              <div class="weekly-timesheet-period">
+                <span>${week.current ? "Current week" : "Work week"}</span>
+                <strong>${escapeHtml(date(week.weekStart))} - ${escapeHtml(date(week.weekEnd))}</strong>
+                <small>Deadline: ${escapeHtml(staffTimesheetDeadlineLabel(week.dueAt))}</small>
+              </div>
+              <div class="weekly-timesheet-total">
+                <span>${escapeHtml(String(week.completedEntries.length))} completed entr${week.completedEntries.length === 1 ? "y" : "ies"}</span>
+                <strong>${escapeHtml(formatHours(week.totalHours))}</strong>
+              </div>
+              <div class="weekly-timesheet-submit">
+                <span class="pill ${statusClass}">${escapeHtml(statusLabel)}</span>
+                ${submission ? `<small>Submitted ${escapeHtml(dateTime(submission.submitted_at))}</small>` : ""}
+                ${canSubmitWeek ? `
+                  <form method="post" action="/admin/staff-portal/timesheets/submit">
+                    <input type="hidden" name="weekStart" value="${escapeHtml(week.weekStart)}">
+                    <button type="submit">${week.late ? "Submit late" : submission?.status === "returned" ? "Resubmit week" : "Submit week"}</button>
+                  </form>
+                ` : ""}
+              </div>
+            </article>
+          `;
+        }).join("")}
+      </div>
+    </section>
+
     <section class="table-card" style="margin-top:18px">
       <div class="table-card-head">
         <div>
@@ -9174,20 +9459,21 @@ app.get("/admin/staff-portal", requireAuth, requireRole("admin", "instructor"), 
       <table>
         <thead><tr><th>Date</th><th>Time in</th><th>Time out</th><th>Total</th><th>Status</th><th>Notes</th></tr></thead>
         <tbody>
-          ${timeEntries.map((entry) => `
-            <tr>
+          ${timeEntries.map((entry) => {
+            const entryStatus = staffTimeEntryStatus(entry);
+            return `<tr>
               <td>${escapeHtml(date(entry.clock_in_at.slice(0, 10)))}</td>
               <td>${escapeHtml(dateTime(entry.clock_in_at))}</td>
               <td>${entry.clock_out_at ? escapeHtml(dateTime(entry.clock_out_at)) : `<span class="pill orange">Open</span>`}</td>
               <td>${escapeHtml(formatHours(durationHours(entry.clock_in_at, entry.clock_out_at)))}</td>
-              <td><span class="pill">${escapeHtml(entry.status)}</span></td>
+              <td><span class="pill ${entryStatus.className}">${escapeHtml(entryStatus.label)}</span></td>
               <td>
                 ${entry.clock_in_note ? `<strong>In:</strong> ${escapeHtml(entry.clock_in_note)}<br>` : ""}
                 ${entry.clock_out_note ? `<strong>Out:</strong> ${escapeHtml(entry.clock_out_note)}` : ""}
                 ${!entry.clock_in_note && !entry.clock_out_note ? `<span class="muted">No notes</span>` : ""}
               </td>
-            </tr>
-          `).join("") || `<tr><td class="empty" colspan="6">No time clock entries yet.</td></tr>`}
+            </tr>`;
+          }).join("") || `<tr><td class="empty" colspan="6">No time clock entries yet.</td></tr>`}
         </tbody>
       </table>
     </section>
@@ -9272,12 +9558,84 @@ app.post("/admin/staff-portal/clock-out", requireAuth, requireRole("admin", "ins
     UPDATE staff_time_entries
     SET clock_out_at = CURRENT_TIMESTAMP,
         clock_out_note = ?,
-        status = 'submitted',
+        status = 'open',
         updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `).run(String(req.body.note || "").trim(), openEntry.id);
-  flash(req, "Clocked out successfully.");
+  flash(req, "Clocked out successfully. Submit the completed week from Weekly Timesheets when it is ready.");
   res.redirect("/admin/staff-portal");
+});
+
+app.post("/admin/staff-portal/timesheets/submit", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const period = staffTimesheetPeriodFromWeekStart(req.body.weekStart);
+  const currentPeriod = currentStaffTimesheetPeriod();
+  const earliestAllowedWeek = addCalendarDays(currentPeriod.weekStart, -364);
+  if (!period || period.weekStart > currentPeriod.weekStart || period.weekStart < earliestAllowedWeek) {
+    flash(req, "Choose a valid current or recent work week.");
+    return res.redirect(303, "/admin/staff-portal#weekly-timesheets");
+  }
+
+  try {
+    const result = withImmediateTransaction(() => {
+      const openEntry = db.prepare(`
+        SELECT id
+        FROM staff_time_entries
+        WHERE user_id = ? AND clock_in_at >= ? AND clock_in_at < ? AND clock_out_at IS NULL
+        LIMIT 1
+      `).get(req.user.id, period.startAt, period.dueAt);
+      if (openEntry) return { error: "open" };
+
+      const completedCount = db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM staff_time_entries
+        WHERE user_id = ? AND clock_in_at >= ? AND clock_in_at < ? AND clock_out_at IS NOT NULL
+      `).get(req.user.id, period.startAt, period.dueAt).count;
+      if (!completedCount) return { error: "empty" };
+
+      const existing = db.prepare(`
+        SELECT * FROM staff_weekly_timesheets WHERE user_id = ? AND week_start = ?
+      `).get(req.user.id, period.weekStart);
+      if (existing && existing.status !== "returned") return { existing };
+
+      if (existing) {
+        db.prepare(`
+          UPDATE staff_weekly_timesheets
+          SET week_end = ?, due_at = ?, submitted_at = CURRENT_TIMESTAMP,
+            status = 'submitted', note = NULL, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(period.weekEnd, period.dueAt, existing.id);
+      } else {
+        db.prepare(`
+          INSERT INTO staff_weekly_timesheets (user_id, week_start, week_end, due_at)
+          VALUES (?, ?, ?, ?)
+        `).run(req.user.id, period.weekStart, period.weekEnd, period.dueAt);
+      }
+      db.prepare(`
+        UPDATE staff_time_entries
+        SET status = 'submitted', updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ? AND clock_in_at >= ? AND clock_in_at < ? AND clock_out_at IS NOT NULL
+      `).run(req.user.id, period.startAt, period.dueAt);
+      const saved = db.prepare(`
+        SELECT * FROM staff_weekly_timesheets WHERE user_id = ? AND week_start = ?
+      `).get(req.user.id, period.weekStart);
+      return { saved, completedCount };
+    });
+
+    if (result.error === "open") {
+      flash(req, "Clock out before submitting this weekly timesheet.");
+    } else if (result.error === "empty") {
+      flash(req, "This week has no completed time entries to submit.");
+    } else if (result.existing) {
+      flash(req, "This weekly timesheet has already been submitted.");
+    } else {
+      const late = result.saved.submitted_at > result.saved.due_at;
+      flash(req, `${late ? "Late weekly timesheet submitted" : "Weekly timesheet submitted"} with ${result.completedCount} completed entr${result.completedCount === 1 ? "y" : "ies"}.`);
+    }
+  } catch (error) {
+    console.error("Weekly timesheet submission failed", error);
+    flash(req, "The weekly timesheet could not be submitted. Try again.");
+  }
+  res.redirect(303, "/admin/staff-portal#weekly-timesheets");
 });
 
 app.post("/admin/staff-portal/pay-records", requireAuth, requireRole("admin"), (req, res) => {
@@ -9469,10 +9827,55 @@ app.post("/admin/admissions/:id/create-student", requireAuth, requireRole("admin
 });
 
 app.get("/admin/admin-roles", requireAuth, requireRole("admin"), (req, res) => {
-  const accounts = adminAccessAccounts.map((account) => {
-    const user = db.prepare("SELECT id, role, first_name, last_name, email, status, created_at FROM users WHERE lower(email) = ?").get(account.email.toLowerCase());
-    return { ...account, user };
-  });
+  const accounts = db.prepare(`
+    SELECT * FROM users
+    WHERE role = 'admin' AND status = 'active' AND removed_at IS NULL
+    ORDER BY last_name, first_name
+  `).all();
+  const inactiveAccounts = db.prepare(`
+    SELECT * FROM users
+    WHERE role = 'admin' AND status = 'inactive' AND removed_at IS NULL
+    ORDER BY last_name, first_name
+  `).all();
+  const removedAccounts = db.prepare(`
+    SELECT u.*, actor.first_name AS removed_by_first_name, actor.last_name AS removed_by_last_name
+    FROM users u
+    LEFT JOIN users actor ON actor.id = u.removed_by
+    WHERE u.role IN ('admin','instructor') AND u.removed_at IS NOT NULL
+    ORDER BY u.removed_at DESC, u.last_name, u.first_name
+  `).all();
+  const accountRows = (rows) => rows.map((account) => `
+    <tr>
+      <td><strong>${escapeHtml(account.first_name)} ${escapeHtml(account.last_name)}</strong><br><span class="muted">${escapeHtml(account.email)}</span></td>
+      <td>
+        <form method="post" action="/admin/users/${account.id}/login-username" class="account-username-form">
+          <label class="sr-only" for="login-username-${account.id}">Login username</label>
+          <input id="login-username-${account.id}" name="loginUsername" value="${escapeHtml(account.login_username || account.email)}" required>
+          <button class="small ghost" type="submit">Change Login Username</button>
+        </form>
+      </td>
+      <td><span class="pill">${escapeHtml(account.role)}</span></td>
+      <td><span class="pill ${account.status === "active" ? "" : "orange"}">${escapeHtml(account.status)}</span></td>
+      <td>
+        <div class="staff-account-actions">
+          <a class="button small ghost" href="/admin/staff/${account.id}/edit">Edit Account</a>
+          <form method="post" action="/admin/staff/${account.id}/reset-password"><button class="small ghost" type="submit">Reset password</button></form>
+          <form method="post" action="/admin/staff/${account.id}/inactivate" onsubmit="return confirm('Inactivate this account? Historical records will be preserved.');">
+            <input type="hidden" name="reason" value="Access inactivated by administrator">
+            <button class="small ghost" type="submit">Inactivate</button>
+          </form>
+          <details class="staff-remove-control">
+            <summary class="button small danger">Remove</summary>
+            <form method="post" action="/admin/staff/${account.id}/remove">
+              <label>Reason for removal<input name="reason" maxlength="240" required placeholder="No longer employed"></label>
+              <p class="muted">This is recoverable. The account and all historical records are preserved.</p>
+              <button class="small danger" type="submit">Confirm Remove</button>
+            </form>
+          </details>
+        </div>
+      </td>
+    </tr>
+  `).join("");
   const body = `
     <div class="page-head">
       <div>
@@ -9481,43 +9884,45 @@ app.get("/admin/admin-roles", requireAuth, requireRole("admin"), (req, res) => {
         <p>Portal access list for BMHI staff administrators. These usernames are used on the main sign-in page.</p>
       </div>
       <div class="actions">
+        <a class="button ghost" href="/admin/system-activity">System Activity</a>
         <a class="button ghost" href="/admin/features">Admin features</a>
         <a class="button" href="/admin">Dashboard</a>
       </div>
     </div>
 
     <section class="grid cols-3">
-      ${stat("Admin accounts", accounts.length)}
+      ${stat("Active administrators", accounts.length)}
       ${stat("Access role", "Admin")}
-      ${stat("Temporary password", adminAccessDefaultPassword)}
+      ${stat("Removed accounts", removedAccounts.length)}
     </section>
 
     <section class="table-card" style="margin-top:18px">
       <div class="table-card-head">
         <div>
-          <h2>Portal usernames and passwords</h2>
-          <p class="muted">Use the email as the username. Passwords are stored securely; the temporary password below can be reset for each staff member.</p>
+          <h2>Active administrator accounts</h2>
+          <p class="muted">Login usernames are managed separately from contact email. Use Edit Account for names, email, phone, or role.</p>
         </div>
       </div>
       <table>
-        <thead><tr><th>Staff admin</th><th>Username</th><th>Role</th><th>Temporary password</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Staff admin</th><th>Login username</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
-          ${accounts.map((account) => `
-            <tr>
-              <td><strong>${escapeHtml(account.firstName)} ${escapeHtml(account.lastName)}</strong></td>
-              <td>${escapeHtml(account.email)}</td>
-              <td><span class="pill">${escapeHtml(account.user?.role || "admin")}</span></td>
-              <td><code>${escapeHtml(adminAccessDefaultPassword)}</code></td>
-              <td>${account.user ? `<span class="pill">${escapeHtml(account.user.status)}</span>` : `<span class="pill orange">Missing</span>`}</td>
-              <td>
-                <form method="post" action="/admin/admin-roles/${encodeURIComponent(account.email)}/reset-password" class="actions">
-                  <button class="small ghost" type="submit">Reset to temporary password</button>
-                </form>
-              </td>
-            </tr>
-          `).join("")}
+          ${accountRows(accounts) || `<tr><td colspan="5" class="empty">No active administrator accounts.</td></tr>`}
         </tbody>
       </table>
+    </section>
+    ${inactiveAccounts.length ? `
+      <section class="table-card" style="margin-top:18px">
+        <div class="table-card-head"><div><h2>Inactive Staff Accounts</h2><p class="muted">Inactive accounts cannot sign in. Their records remain available.</p></div></div>
+        <table><thead><tr><th>Staff member</th><th>Role</th><th>Reason</th><th>Action</th></tr></thead><tbody>
+          ${inactiveAccounts.map((account) => `<tr><td><strong>${escapeHtml(personName(account))}</strong><br><span class="muted">${escapeHtml(account.email)}</span></td><td>${escapeHtml(account.role)}</td><td>${escapeHtml(account.class_lock_reason || "Inactivated")}</td><td><form method="post" action="/admin/staff/${account.id}/reactivate"><button class="small ghost" type="submit">Reactivate</button></form></td></tr>`).join("")}
+        </tbody></table>
+      </section>
+    ` : ""}
+    <section class="table-card" id="removed-staff-accounts" style="margin-top:18px">
+      <div class="table-card-head"><div><h2>Removed Staff Accounts</h2><p class="muted">Removed access is recoverable. The list preserves who changed access, when, and why.</p></div><a class="button small ghost" href="/admin/system-activity">System Activity</a></div>
+      <table><thead><tr><th>Staff member</th><th>Role</th><th>Removed</th><th>Reason</th><th>Action</th></tr></thead><tbody>
+        ${removedAccounts.map((account) => `<tr><td><strong>${escapeHtml(personName(account))}</strong><br><span class="muted">${escapeHtml(account.email)}</span></td><td>${escapeHtml(account.role)}</td><td>${escapeHtml(dateTime(account.removed_at))}<br><span class="muted">by ${escapeHtml([account.removed_by_first_name, account.removed_by_last_name].filter(Boolean).join(" ") || "System")}</span></td><td>${escapeHtml(account.removal_reason || "No reason recorded")}</td><td><form method="post" action="/admin/staff/${account.id}/reactivate"><button class="small" type="submit">Restore access</button></form></td></tr>`).join("") || `<tr><td colspan="5" class="empty">No staff accounts have been removed.</td></tr>`}
+      </tbody></table>
     </section>
   `;
   render(req, res, "Admin Roles", body);
@@ -9528,17 +9933,16 @@ app.post("/admin/admin-roles/:email/reset-password", requireAuth, requireRole("a
   const account = adminAccessAccounts.find((item) => item.email.toLowerCase() === email);
   if (!account) return res.status(404).send("Admin account not found");
   db.prepare(`
-    INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
-    VALUES ('admin', ?, ?, ?, '', ?, 'active', 'organized', NULL)
+    INSERT INTO users (role, first_name, last_name, email, login_username, phone, password_hash, status, organization_status, class_lock_reason)
+    VALUES ('admin', ?, ?, ?, ?, '', ?, 'active', 'organized', NULL)
     ON CONFLICT(email) DO UPDATE SET
       role = 'admin',
       first_name = excluded.first_name,
       last_name = excluded.last_name,
-      password_hash = excluded.password_hash,
-      status = 'active',
-      organization_status = 'organized',
-      class_lock_reason = NULL
-  `).run(account.firstName, account.lastName, account.email, bcrypt.hashSync(adminAccessDefaultPassword, 12));
+      password_hash = excluded.password_hash
+  `).run(account.firstName, account.lastName, account.email, account.email, bcrypt.hashSync(adminAccessDefaultPassword, 12));
+  const target = db.prepare("SELECT * FROM users WHERE lower(email) = ?").get(email);
+  recordStaffAccountEvent(req, target, "password_reset", "Administrator reset the temporary password; access status was not changed.");
   flash(req, `${account.firstName} ${account.lastName}'s password was reset to the temporary password.`);
   res.redirect("/admin/admin-roles");
 });
@@ -9546,10 +9950,31 @@ app.post("/admin/admin-roles/:email/reset-password", requireAuth, requireRole("a
 app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res) => {
   ensureInstructorAccessAccounts();
   const instructors = db.prepare(`
-    SELECT id, first_name, last_name, email, phone, status, created_at
+    SELECT id, first_name, last_name, email, login_username, phone, status, created_at
     FROM users
-    WHERE role = 'instructor' AND status = 'active'
+    WHERE role = 'instructor' AND status = 'active' AND removed_at IS NULL
     ORDER BY last_name, first_name
+  `).all();
+  const inactiveInstructors = db.prepare(`
+    SELECT id, first_name, last_name, email, login_username, phone, status, class_lock_reason, created_at
+    FROM users
+    WHERE role = 'instructor' AND status = 'inactive' AND removed_at IS NULL
+    ORDER BY last_name, first_name
+  `).all();
+  const removedInstructors = db.prepare(`
+    SELECT staff.*, actor.first_name AS removed_by_first_name, actor.last_name AS removed_by_last_name
+    FROM users staff
+    LEFT JOIN users actor ON actor.id = staff.removed_by
+    WHERE staff.role = 'instructor' AND staff.removed_at IS NOT NULL
+    ORDER BY staff.removed_at DESC, staff.last_name, staff.first_name
+  `).all();
+  const accountHistory = db.prepare(`
+    SELECT event.*, target.first_name AS target_first_name, target.last_name AS target_last_name,
+      actor.first_name AS actor_first_name, actor.last_name AS actor_last_name
+    FROM staff_account_events event
+    JOIN users target ON target.id = event.target_user_id
+    LEFT JOIN users actor ON actor.id = event.changed_by
+    ORDER BY event.id DESC LIMIT 50
   `).all();
   const body = `
     <div class="page-head">
@@ -9559,6 +9984,7 @@ app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res)
         <p>Portal access list for BMHI faculty and instructors. These usernames are used on the faculty sign-in page.</p>
       </div>
       <div class="actions">
+        <a class="button ghost" href="/admin/system-activity">System Activity</a>
         <a class="button ghost" href="/admin/admin-roles">Admin roles</a>
         <a class="button ghost" href="/admin/staff-portal">Staff time</a>
         <form method="post" action="/admin/instructor-roles/refresh-approved" class="inline-form">
@@ -9602,7 +10028,7 @@ app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res)
       <div class="table-card-head">
         <div>
           <h2>Faculty usernames and passwords</h2>
-          <p class="muted">Use the email as the username. Instructors can access LMS, students, HESI scores, staff time, task tickets, inbox, and catalog. Billing, admissions, financial aid, and OSV visit records stay admin-only.</p>
+          <p class="muted">Login usernames are separate from contact email. Instructors can access LMS, students, HESI scores, staff time, task tickets, inbox, and catalog. Billing, admissions, financial aid, and OSV visit records stay admin-only.</p>
         </div>
       </div>
       <table>
@@ -9611,29 +10037,45 @@ app.get("/admin/instructor-roles", requireAuth, requireRole("admin"), (req, res)
           ${instructors.map((instructor) => `
             <tr>
               <td>
-                <div class="instructor-name-actions">
-                  <strong>${escapeHtml(instructor.first_name)} ${escapeHtml(instructor.last_name)}</strong>
-                  <form method="post" action="/admin/instructor-roles/${encodeURIComponent(instructor.email)}/deactivate" class="inline-form" onsubmit="return confirm('Inactivate instructor access for ${escapeHtml(instructor.first_name)} ${escapeHtml(instructor.last_name)}? Their historical records will be preserved.');">
-                    <button class="small ghost danger" type="submit">Inactivate access</button>
-                  </form>
-                </div>
+                <strong>${escapeHtml(instructor.first_name)} ${escapeHtml(instructor.last_name)}</strong><br>
+                <span class="muted">${escapeHtml(instructor.email)}</span>
               </td>
-              <td>${escapeHtml(instructor.email)}</td>
+              <td><form method="post" action="/admin/users/${instructor.id}/login-username" class="account-username-form"><input name="loginUsername" value="${escapeHtml(instructor.login_username || instructor.email)}" required><button class="small ghost" type="submit">Change Login Username</button></form></td>
               <td>${escapeHtml(instructor.phone || "")}</td>
               <td><span class="pill">instructor</span></td>
               <td><code>${escapeHtml(instructorAccessDefaultPassword)}</code></td>
               <td><span class="pill">${escapeHtml(instructor.status || "active")}</span></td>
               <td>
-                <form method="post" action="/admin/instructor-roles/${encodeURIComponent(instructor.email)}/reset-password" class="actions">
-                  <button class="small ghost" type="submit">Reset to temporary password</button>
+                <div class="staff-account-actions">
+                  <a class="button small ghost" href="/admin/staff/${instructor.id}/edit">Edit Account</a>
+                  <form method="post" action="/admin/instructor-roles/${encodeURIComponent(instructor.email)}/reset-password"><button class="small ghost" type="submit">Reset password</button></form>
+                  <form method="post" action="/admin/staff/${instructor.id}/inactivate" onsubmit="return confirm('Inactivate this account? Historical records will be preserved.');"><input type="hidden" name="reason" value="Instructor access inactivated by administrator"><button class="small ghost" type="submit">Inactivate</button></form>
+                  <details class="staff-remove-control"><summary class="button small danger">Remove</summary><form method="post" action="/admin/staff/${instructor.id}/remove"><label>Reason<input name="reason" required maxlength="240" placeholder="No longer employed"></label><p class="muted">This is recoverable; historical records are preserved.</p><button class="small danger" type="submit">Confirm Remove</button></form></details>
                   <a class="button small ghost" href="/admin/staff-portal?staffId=${instructor.id}">Staff time</a>
-                </form>
+                </div>
               </td>
             </tr>
           `).join("") || `<tr><td colspan="7" class="empty">No instructor accounts have been created yet.</td></tr>`}
         </tbody>
       </table>
     </section>
+    ${inactiveInstructors.length ? `
+      <section class="table-card" style="margin-top:18px">
+        <div class="table-card-head"><div><h2>Inactive Instructor Accounts</h2><p class="muted">Inactive instructors cannot sign in. Their course, time, pay, and activity history remain preserved.</p></div></div>
+        <table><thead><tr><th>Instructor</th><th>Username</th><th>Reason</th><th>Action</th></tr></thead><tbody>
+          ${inactiveInstructors.map((instructor) => `<tr><td><strong>${escapeHtml(personName(instructor))}</strong><br><span class="muted">${escapeHtml(instructor.email)}</span></td><td>${escapeHtml(instructor.login_username || instructor.email)}</td><td>${escapeHtml(instructor.class_lock_reason || "Inactivated")}</td><td><form method="post" action="/admin/staff/${instructor.id}/reactivate"><button class="small ghost" type="submit">Reactivate</button></form></td></tr>`).join("")}
+        </tbody></table>
+      </section>
+    ` : ""}
+    <section class="table-card" style="margin-top:18px">
+      <div class="table-card-head"><div><h2>Removed Staff Accounts</h2><p class="muted">Removed instructor accounts remain recoverable and auditable.</p></div><a class="button small ghost" href="/admin/system-activity">System Activity</a></div>
+      <table><thead><tr><th>Instructor</th><th>Removed</th><th>Reason</th><th>Action</th></tr></thead><tbody>
+        ${removedInstructors.map((instructor) => `<tr><td><strong>${escapeHtml(personName(instructor))}</strong><br><span class="muted">${escapeHtml(instructor.email)}</span></td><td>${escapeHtml(dateTime(instructor.removed_at))}<br><span class="muted">Removed by ${escapeHtml([instructor.removed_by_first_name, instructor.removed_by_last_name].filter(Boolean).join(" ") || "administrator")}</span></td><td>${escapeHtml(instructor.removal_reason || "No reason recorded")}</td><td><form method="post" action="/admin/staff/${instructor.id}/reactivate"><button class="small" type="submit">Restore access</button></form></td></tr>`).join("") || `<tr><td colspan="4" class="empty">No instructor accounts have been removed.</td></tr>`}
+      </tbody></table>
+    </section>
+    <section class="table-card" style="margin-top:18px"><div class="table-card-head"><div><h2>Account Change History</h2><p class="muted">Recent username, profile, password, and access changes.</p></div><a class="button small ghost" href="/admin/system-activity">View all system activity</a></div><table><thead><tr><th>When</th><th>Staff member</th><th>Action</th><th>Details</th><th>Changed by</th></tr></thead><tbody>
+      ${accountHistory.map((event) => `<tr><td>${escapeHtml(dateTime(event.created_at))}</td><td>${escapeHtml([event.target_first_name, event.target_last_name].filter(Boolean).join(" "))}</td><td>${escapeHtml(event.action.replaceAll("_", " "))}</td><td>${escapeHtml(event.details || "")}</td><td>${escapeHtml([event.actor_first_name, event.actor_last_name].filter(Boolean).join(" ") || "System")}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">No account changes have been recorded yet.</td></tr>`}
+    </tbody></table></section>
   `;
   render(req, res, "Instructor Roles", body);
 });
@@ -9682,11 +10124,210 @@ app.post("/admin/instructor-roles/:email/reset-password", requireAuth, requireRo
   if (!instructor) return res.status(404).send("Instructor account not found");
   db.prepare(`
     UPDATE users
-    SET password_hash = ?, status = 'active', organization_status = 'organized', class_lock_reason = NULL
+    SET password_hash = ?
     WHERE id = ?
   `).run(bcrypt.hashSync(instructorAccessDefaultPassword, 12), instructor.id);
+  recordStaffAccountEvent(req, instructor, "password_reset", "Administrator reset the temporary password; access status was not changed.");
   flash(req, `${instructor.first_name} ${instructor.last_name}'s password was reset to the instructor temporary password.`);
   res.redirect("/admin/instructor-roles");
+});
+
+function staffRolesReturnPath(staff) {
+  return staff?.role === "admin" ? "/admin/admin-roles" : "/admin/instructor-roles";
+}
+
+function staffAccountById(id) {
+  return db.prepare("SELECT * FROM users WHERE id = ? AND role IN ('admin','instructor')").get(Number(id));
+}
+
+function staffAccessChangeBlocked(req, staff) {
+  if (!staff) return "Staff account not found.";
+  if (Number(staff.id) === Number(req.user.id)) return "You cannot inactivate or remove your own signed-in account.";
+  if (staff.role === "admin") {
+    const activeAdmins = db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND status = 'active' AND removed_at IS NULL").get().count;
+    if (activeAdmins <= 1) return "The last active administrator cannot be inactivated or removed.";
+  }
+  return "";
+}
+
+app.post("/admin/users/:id/login-username", requireAuth, requireRole("admin"), (req, res) => {
+  const staff = staffAccountById(req.params.id);
+  if (!staff) return res.status(404).send("Staff account not found");
+  const loginUsername = String(req.body.loginUsername || "").trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9._+@-]{2,79}$/.test(loginUsername)) {
+    flash(req, "Login usernames must be 3–80 characters and use only letters, numbers, periods, underscores, plus signs, hyphens, or @.");
+    return res.redirect(staffRolesReturnPath(staff));
+  }
+  const duplicate = db.prepare(`
+    SELECT id FROM users
+    WHERE id != ? AND lower(COALESCE(NULLIF(trim(login_username), ''), email)) = ?
+  `).get(staff.id, loginUsername);
+  if (duplicate) {
+    flash(req, "That login username is already in use.");
+    return res.redirect(staffRolesReturnPath(staff));
+  }
+  db.prepare("UPDATE users SET login_username = ? WHERE id = ?").run(loginUsername, staff.id);
+  recordStaffAccountEvent(req, staff, "changed_username", `Login username changed to ${loginUsername}. Contact email remains ${staff.email}.`);
+  flash(req, `${personName(staff)} can now sign in with ${loginUsername}.`);
+  res.redirect(staffRolesReturnPath(staff));
+});
+
+app.get("/admin/staff/:id/edit", requireAuth, requireRole("admin"), (req, res) => {
+  const staff = staffAccountById(req.params.id);
+  if (!staff) return res.status(404).send("Staff account not found");
+  const body = `
+    <div class="page-head"><div><p class="eyebrow">Access Management</p><h1>Edit Account</h1><p>Update contact and role information for ${escapeHtml(personName(staff))}. Login username and password are managed separately.</p></div><div class="actions"><a class="button ghost" href="${staffRolesReturnPath(staff)}">Back to roles</a><a class="button ghost" href="/admin/system-activity">System Activity</a></div></div>
+    <section class="card staff-account-edit-card">
+      <form method="post" action="/admin/staff/${staff.id}/edit" class="form-grid">
+        <label>First name<input name="firstName" value="${escapeHtml(staff.first_name)}" required></label>
+        <label>Last name<input name="lastName" value="${escapeHtml(staff.last_name)}" required></label>
+        <label>Contact email<input type="email" name="email" value="${escapeHtml(staff.email)}" required></label>
+        <label>Phone<input name="phone" value="${escapeHtml(staff.phone || "")}"></label>
+        <label>Role<select name="role"><option value="admin" ${staff.role === "admin" ? "selected" : ""}>Administrator</option><option value="instructor" ${staff.role === "instructor" ? "selected" : ""}>Instructor</option></select></label>
+        <div class="span-2"><button type="submit">Save Account Changes</button></div>
+      </form>
+    </section>
+  `;
+  render(req, res, "Edit Account", body);
+});
+
+app.post("/admin/staff/:id/edit", requireAuth, requireRole("admin"), (req, res) => {
+  const staff = staffAccountById(req.params.id);
+  if (!staff) return res.status(404).send("Staff account not found");
+  const firstName = String(req.body.firstName || "").trim();
+  const lastName = String(req.body.lastName || "").trim();
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const phone = String(req.body.phone || "").trim();
+  const role = String(req.body.role || "").trim();
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const duplicate = db.prepare("SELECT id FROM users WHERE id != ? AND lower(email) = ?").get(staff.id, email);
+  if (!firstName || !lastName || !emailValid || !["admin", "instructor"].includes(role) || duplicate) {
+    flash(req, duplicate ? "That contact email belongs to another account." : "Enter a valid name, contact email, and staff role.");
+    return res.redirect(`/admin/staff/${staff.id}/edit`);
+  }
+  if (staff.role === "admin" && role !== "admin") {
+    if (Number(staff.id) === Number(req.user.id)) {
+      flash(req, "You cannot change your own signed-in administrator role.");
+      return res.redirect(`/admin/staff/${staff.id}/edit`);
+    }
+    const activeAdmins = db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND status = 'active' AND removed_at IS NULL").get().count;
+    if (activeAdmins <= 1) {
+      flash(req, "The last active administrator must keep the administrator role.");
+      return res.redirect(`/admin/staff/${staff.id}/edit`);
+    }
+  }
+  db.prepare("UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ?, role = ? WHERE id = ?")
+    .run(firstName, lastName, email, phone, role, staff.id);
+  const updated = staffAccountById(staff.id);
+  recordStaffAccountEvent(req, updated, "edited_account", `Updated account: ${firstName} ${lastName}; contact email ${email}; phone ${phone || "not set"}; role ${role}.`);
+  flash(req, `${personName(updated)}'s account was updated.`);
+  res.redirect(staffRolesReturnPath(updated));
+});
+
+app.post("/admin/staff/:id/reset-password", requireAuth, requireRole("admin"), (req, res) => {
+  const staff = staffAccountById(req.params.id);
+  if (!staff) return res.status(404).send("Staff account not found");
+  const temporaryPassword = staff.role === "admin" ? adminAccessDefaultPassword : instructorAccessDefaultPassword;
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(bcrypt.hashSync(temporaryPassword, 12), staff.id);
+  recordStaffAccountEvent(req, staff, "password_reset", "Administrator reset the temporary password; access status was not changed.");
+  flash(req, `${personName(staff)}'s password was reset. Account access status was not changed.`);
+  res.redirect(staffRolesReturnPath(staff));
+});
+
+app.post("/admin/staff/:id/inactivate", requireAuth, requireRole("admin"), (req, res) => {
+  const staff = staffAccountById(req.params.id);
+  const blocked = staffAccessChangeBlocked(req, staff);
+  if (blocked) {
+    flash(req, blocked);
+    return res.redirect(staff ? staffRolesReturnPath(staff) : "/admin/admin-roles");
+  }
+  const reason = String(req.body.reason || "Access inactivated by administrator").trim().slice(0, 240);
+  db.prepare(`UPDATE users SET status = 'inactive', organization_status = 'not_organized', class_lock_reason = ?, removed_at = NULL, removed_by = NULL, removal_reason = NULL WHERE id = ?`)
+    .run(reason, staff.id);
+  recordStaffAccountEvent(req, staff, "inactivated", reason);
+  flash(req, `${personName(staff)}'s access was inactivated. Historical records were preserved.`);
+  res.redirect(staffRolesReturnPath(staff));
+});
+
+app.post("/admin/staff/:id/remove", requireAuth, requireRole("admin"), (req, res) => {
+  const staff = staffAccountById(req.params.id);
+  const blocked = staffAccessChangeBlocked(req, staff);
+  if (blocked) {
+    flash(req, blocked);
+    return res.redirect(staff ? staffRolesReturnPath(staff) : "/admin/admin-roles");
+  }
+  const reason = String(req.body.reason || "").trim().slice(0, 240);
+  if (!reason) {
+    flash(req, "Enter a reason before removing staff access.");
+    return res.redirect(staffRolesReturnPath(staff));
+  }
+  db.prepare(`
+    UPDATE users
+    SET status = 'inactive', organization_status = 'not_organized', class_lock_reason = ?,
+      removed_at = CURRENT_TIMESTAMP, removed_by = ?, removal_reason = ?
+    WHERE id = ?
+  `).run(`Removed by administrator: ${reason}`, req.user.id, reason, staff.id);
+  recordStaffAccountEvent(req, staff, "removed", reason);
+  flash(req, `${personName(staff)} was moved to Removed Staff Accounts. Historical records were preserved.`);
+  res.redirect(staffRolesReturnPath(staff));
+});
+
+app.post("/admin/staff/:id/reactivate", requireAuth, requireRole("admin"), (req, res) => {
+  const staff = staffAccountById(req.params.id);
+  if (!staff) return res.status(404).send("Staff account not found");
+  const wasRemoved = Boolean(staff.removed_at);
+  const reason = String(req.body.reason || (wasRemoved ? "Removed staff account restored" : "Access restored by administrator")).trim().slice(0, 240);
+  db.prepare(`
+    UPDATE users
+    SET status = 'active', organization_status = 'organized', class_lock_reason = NULL,
+      removed_at = NULL, removed_by = NULL, removal_reason = NULL
+    WHERE id = ?
+  `).run(staff.id);
+  recordStaffAccountEvent(req, staff, "reactivated", reason);
+  flash(req, `${personName(staff)}'s access was ${wasRemoved ? "restored" : "reactivated"}.`);
+  res.redirect(staffRolesReturnPath(staff));
+});
+
+app.get("/admin/system-activity", requireAuth, requireRole("admin"), (req, res) => {
+  const requestedAction = String(req.query.action || "").trim().slice(0, 80);
+  const q = String(req.query.q || "").trim().slice(0, 100);
+  const clauses = [];
+  const values = [];
+  if (requestedAction) { clauses.push("activity.action = ?"); values.push(requestedAction); }
+  if (q) {
+    clauses.push("(activity.summary LIKE ? OR activity.details_json LIKE ? OR actor.email LIKE ? OR target.email LIKE ?)");
+    const pattern = `%${q}%`;
+    values.push(pattern, pattern, pattern, pattern);
+  }
+  const activities = db.prepare(`
+    SELECT activity.*,
+      actor.first_name AS actor_first_name, actor.last_name AS actor_last_name, actor.email AS actor_email,
+      target.first_name AS target_first_name, target.last_name AS target_last_name, target.email AS target_email
+    FROM system_activity_log activity
+    LEFT JOIN users actor ON actor.id = activity.actor_user_id
+    LEFT JOIN users target ON target.id = activity.target_user_id
+    ${clauses.length ? `WHERE ${clauses.join(" AND ")}` : ""}
+    ORDER BY activity.id DESC
+    LIMIT 500
+  `).all(...values);
+  const actionLabels = {
+    changed_username: "Changed username", edited_account: "Edited account", inactivated: "Inactivated",
+    removed: "Removed", restored: "Restored", reactivated: "Reactivated", password_reset: "Password reset"
+  };
+  const body = `
+    <div class="page-head"><div><p class="eyebrow">Audit Trail</p><h1>System Activity</h1><p>Trace administrative changes across the student portal. Passwords, hashes, session data, and security tokens are never included.</p></div><div class="actions"><a class="button ghost" href="/admin/admin-roles">Account access</a><a class="button" href="/admin">Dashboard</a></div></div>
+    <section class="card"><form method="get" action="/admin/system-activity" class="actions"><label>Search activity<input type="search" name="q" value="${escapeHtml(q)}" placeholder="Person, action, or detail"></label><label>Action<input name="action" value="${escapeHtml(requestedAction)}" placeholder="All actions"></label><button type="submit">Filter</button><a class="button ghost" href="/admin/system-activity">Clear</a></form></section>
+    <section class="table-card" style="margin-top:18px"><div class="table-card-head"><div><h2>Account Change History and Portal Activity</h2><p class="muted">Newest actions appear first. Up to 500 records are shown.</p></div></div><div class="table-scroll"><table><thead><tr><th>Date / Time</th><th>Who</th><th>Action</th><th>Affected account / target</th><th>Details</th><th>Location</th></tr></thead><tbody>
+      ${activities.map((activity) => {
+        let detailText = "";
+        try { detailText = Object.values(JSON.parse(activity.details_json || "{}")).flat().filter(Boolean).join(" · "); } catch { detailText = ""; }
+        const actorName = [activity.actor_first_name, activity.actor_last_name].filter(Boolean).join(" ") || "System";
+        const targetName = [activity.target_first_name, activity.target_last_name].filter(Boolean).join(" ");
+        return `<tr><td>${escapeHtml(dateTime(activity.created_at))}</td><td><strong>${escapeHtml(actorName)}</strong><br><span class="muted">${escapeHtml(activity.actor_email || "Automated")}</span></td><td><span class="pill">${escapeHtml(actionLabels[activity.action] || activity.action.replaceAll("_", " "))}</span></td><td>${targetName ? `<strong>${escapeHtml(targetName)}</strong><br><span class="muted">${escapeHtml(activity.target_email || "")}</span>` : escapeHtml(activity.entity_type)}</td><td><strong>${escapeHtml(activity.summary)}</strong>${detailText ? `<br><span class="muted">${escapeHtml(detailText)}</span>` : ""}</td><td><code>${escapeHtml(activity.method || "")} ${escapeHtml(activity.route || "")}</code></td></tr>`;
+      }).join("") || `<tr><td colspan="6" class="empty">No system activity matches these filters.</td></tr>`}
+    </tbody></table></div></section>
+  `;
+  render(req, res, "System Activity", body);
 });
 
 app.get("/admin/messages", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -10670,6 +11311,143 @@ app.post("/admin/student-evaluations/:enrollmentId/:weekNumber", requireAuth, re
   }
   flash(req, `Week ${weekNumber} evaluation saved for ${enrollment.first_name} ${enrollment.last_name}.`);
   res.redirect(`/admin/student-evaluations?q=${encodeURIComponent(`${enrollment.first_name} ${enrollment.last_name}`)}`);
+});
+
+app.get("/admin/lpn-enrollment", requireAuth, requireRole("admin"), (req, res) => {
+  const students = db.prepare(`
+    SELECT id, first_name, last_name, email, student_number, cohort_name, cohort_start_date, cohort_end_date
+    FROM users
+    WHERE role = 'student' AND status = 'active'
+    ORDER BY last_name, first_name
+  `).all();
+  const lpnCourses = db.prepare(`
+    SELECT id, title, slug, hours
+    FROM courses
+    WHERE category = 'Practical Nursing Course' AND published = 1
+    ORDER BY CASE slug
+      WHEN 'medical-terminology' THEN 1
+      WHEN 'introduction-to-nursing-practical-nursing' THEN 2
+      WHEN 'long-term-care-nursing-pn103' THEN 3
+      WHEN 'anatomy-and-physiology' THEN 4
+      WHEN 'fundamental-nursing-skills-and-concepts-new-cohort' THEN 5
+      WHEN 'introductory-clinical-pharmacology-pn106' THEN 6
+      WHEN 'medical-surgical-nursing-i-pn107' THEN 7
+      ELSE 99 END, title
+  `).all();
+  const selectedStudentId = Number(req.query.studentId || 0);
+  const selectedStudent = students.find((student) => student.id === selectedStudentId) || null;
+  const activeEnrollments = selectedStudent ? db.prepare(`
+    SELECT c.id, c.title, c.slug, e.status, e.start_date
+    FROM enrollments e JOIN courses c ON c.id = e.course_id
+    WHERE e.user_id = ? AND e.status IN ('active','completed','hold') AND e.withdrawn_at IS NULL
+      AND c.category = 'Practical Nursing Course'
+    ORDER BY c.title
+  `).all(selectedStudent.id) : [];
+  const activeCourseIds = new Set(activeEnrollments.map((row) => row.id));
+  const body = `
+    <div class="page-head">
+      <div><p class="eyebrow">Practical Nursing Program</p><h1>LPN Enrollment</h1><p>Select a student, confirm the cohort, and enroll them in the appropriate Practical Nursing course shells. Existing enrollments and historical records are preserved.</p></div>
+      <div class="actions"><a class="button ghost" href="/admin/students">Add or manage students</a><a class="button" href="/admin">Operations Dashboard</a></div>
+    </div>
+    <section class="card lpn-enrollment-card">
+      ${students.length && lpnCourses.length ? `
+        <form method="post" action="/admin/lpn-enrollment" class="lpn-enrollment-form">
+          <fieldset>
+            <legend>1. Choose the student</legend>
+            <label>Active student
+              <select name="studentId" data-lpn-student-picker required>
+                <option value="" disabled ${selectedStudent ? "" : "selected"}>Select a student</option>
+                ${students.map((student) => `<option value="${student.id}" ${selectedStudent?.id === student.id ? "selected" : ""}>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)} · ${escapeHtml(displayStudentNumber(student))} · ${escapeHtml(student.email)}</option>`).join("")}
+              </select>
+              <small>Selecting a student loads their saved cohort and current LPN enrollments before any changes are made.</small>
+            </label>
+            <div class="form-grid">
+              <label>Cohort name<input name="cohortName" value="${escapeHtml(selectedStudent?.cohort_name || "Cohort 2")}" required></label>
+              <label>Cohort start<input name="cohortStartDate" type="date" value="${escapeHtml(selectedStudent?.cohort_start_date || "2026-07-01")}"></label>
+              <label>Cohort end<input name="cohortEndDate" type="date" value="${escapeHtml(selectedStudent?.cohort_end_date || "2027-07-31")}"></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>2. Choose LPN courses</legend>
+            <div class="actions lpn-course-select-actions"><button class="small ghost" type="button" data-select-lpn-core>Select PN 101–104</button><button class="small ghost" type="button" data-select-lpn-all>Select all LPN courses</button><button class="small ghost" type="button" data-clear-lpn>Clear</button></div>
+            <div class="lpn-course-checklist">
+              ${lpnCourses.map((course, index) => {
+                const code = canvasCourseCode(course);
+                const alreadyEnrolled = activeCourseIds.has(course.id);
+                return `<label class="lpn-course-option ${alreadyEnrolled ? "is-enrolled" : ""}"><input type="checkbox" name="courseIds" value="${course.id}" data-lpn-position="${index + 1}" ${index < 4 && !alreadyEnrolled ? "checked" : ""} ${alreadyEnrolled ? "disabled" : ""}><span><strong>${escapeHtml(code)} · ${escapeHtml(course.title)}</strong><small>${escapeHtml(course.hours)} hours${alreadyEnrolled ? " · Already enrolled" : ""}</small></span></label>`;
+              }).join("")}
+            </div>
+          </fieldset>
+          <label>Enrollment note<textarea name="note" maxlength="500" placeholder="Optional registrar note">LPN program enrollment created from the Operations Dashboard.</textarea></label>
+          <button class="button lpn-enrollment-submit" type="submit" ${selectedStudent ? "" : "disabled"}>Enroll Student in Selected LPN Courses</button>
+        </form>
+        <script>
+          (() => {
+            document.querySelector('[data-lpn-student-picker]')?.addEventListener('change', (event) => {
+              const studentId = event.currentTarget.value;
+              if (studentId) window.location.href = '/admin/lpn-enrollment?studentId=' + encodeURIComponent(studentId);
+            });
+            const available = [...document.querySelectorAll('input[name="courseIds"]:not(:disabled)')];
+            document.querySelector('[data-select-lpn-core]')?.addEventListener('click', () => available.forEach((box) => { box.checked = Number(box.dataset.lpnPosition) <= 4; }));
+            document.querySelector('[data-select-lpn-all]')?.addEventListener('click', () => available.forEach((box) => { box.checked = true; }));
+            document.querySelector('[data-clear-lpn]')?.addEventListener('click', () => available.forEach((box) => { box.checked = false; }));
+          })();
+        </script>
+      ` : `<div class="empty"><h2>Enrollment setup is not ready</h2><p>${students.length ? "No published LPN course shells were found." : "Create an active student before starting LPN enrollment."}</p><a class="button" href="/admin/students">Open Students</a></div>`}
+    </section>
+    ${selectedStudent ? `<section class="table-card" style="margin-top:18px"><div class="table-card-head"><div><h2>Current LPN enrollments for ${escapeHtml(personName(selectedStudent))}</h2><p class="muted">These courses are protected from duplicate enrollment.</p></div></div><table><thead><tr><th>Course</th><th>Status</th><th>Started</th></tr></thead><tbody>${activeEnrollments.map((row) => `<tr><td>${escapeHtml(canvasCourseCode(row))} · ${escapeHtml(row.title)}</td><td><span class="pill">${escapeHtml(row.status)}</span></td><td>${escapeHtml(date(row.start_date))}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">No LPN course enrollments yet.</td></tr>`}</tbody></table></section>` : ""}
+  `;
+  render(req, res, "LPN Enrollment", body);
+});
+
+app.post("/admin/lpn-enrollment", requireAuth, requireRole("admin"), (req, res) => {
+  const student = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'student' AND status = 'active'").get(Number(req.body.studentId));
+  const rawCourseIds = Array.isArray(req.body.courseIds) ? req.body.courseIds : (req.body.courseIds ? [req.body.courseIds] : []);
+  const courseIds = [...new Set(rawCourseIds.map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+  if (!student || !courseIds.length) {
+    flash(req, student ? "Select at least one LPN course." : "Choose an active student.");
+    return res.redirect(`/admin/lpn-enrollment${student ? `?studentId=${student.id}` : ""}`);
+  }
+  const placeholders = courseIds.map(() => "?").join(",");
+  const courses = db.prepare(`SELECT id, title FROM courses WHERE id IN (${placeholders}) AND category = 'Practical Nursing Course' AND published = 1`).all(...courseIds);
+  if (courses.length !== courseIds.length) {
+    flash(req, "One or more selected courses are not available for LPN enrollment.");
+    return res.redirect(`/admin/lpn-enrollment?studentId=${student.id}`);
+  }
+  const cohortName = String(req.body.cohortName || "").trim().slice(0, 120);
+  const cohortStartDate = String(req.body.cohortStartDate || "").trim() || null;
+  const cohortEndDate = String(req.body.cohortEndDate || "").trim() || null;
+  const note = String(req.body.note || "").trim().slice(0, 500);
+  const result = withImmediateTransaction(() => {
+    if (cohortName) {
+      db.prepare("UPDATE users SET cohort_name = ?, cohort_start_date = ?, cohort_end_date = ? WHERE id = ?")
+        .run(cohortName, cohortStartDate, cohortEndDate, student.id);
+    }
+    let created = 0;
+    let existing = 0;
+    let blocked = 0;
+    for (const course of courses) {
+      const prior = db.prepare("SELECT id, status, withdrawn_at FROM enrollments WHERE user_id = ? AND course_id = ? ORDER BY id DESC LIMIT 1").get(student.id, course.id);
+      if (prior?.status === "withdrawn" || prior?.withdrawn_at) { blocked += 1; continue; }
+      if (prior) { existing += 1; continue; }
+      db.prepare("INSERT INTO enrollments (user_id, course_id, source) VALUES (?, ?, 'manual')").run(student.id, course.id);
+      created += 1;
+    }
+    return { created, existing, blocked };
+  });
+  recordSystemActivity(req, {
+    action: "lpn_enrollment",
+    summary: `Processed LPN enrollment for ${personName(student)}`,
+    targetUserId: student.id,
+    entityType: "student_enrollment",
+    entityId: student.id,
+    details: { student: personName(student), courses: courses.map((course) => course.title).join(", "), cohort: cohortName, note, created: result.created, existing: result.existing, blocked: result.blocked }
+  });
+  const messages = [`${result.created} new LPN course enrollment${result.created === 1 ? "" : "s"} created`];
+  if (result.existing) messages.push(`${result.existing} already enrolled`);
+  if (result.blocked) messages.push(`${result.blocked} require withdrawal review`);
+  flash(req, `${personName(student)}: ${messages.join("; ")}.`);
+  res.redirect(`/admin/lpn-enrollment?studentId=${student.id}`);
 });
 
 app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -12162,94 +12940,50 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
   const totalCredentials = courses.reduce((sum, course) => sum + Number(course.credentials || 0), 0);
   const publishedCourses = courses.filter((course) => Number(course.published) === 1);
   const unpublishedCourses = courses.filter((course) => Number(course.published) !== 1);
-  const renderInstructorCourseCard = (course) => `
-    <article class="instructor-course-card ${course.published ? "is-published" : "is-unpublished"}">
-      <div class="instructor-course-banner">
-        <span>${escapeHtml(canvasCourseCode(course))}</span>
-        <strong>${escapeHtml(course.category)}</strong>
-      </div>
-      <div class="instructor-course-card-body">
-        <span class="course-publication-badge ${course.published ? "published" : "unpublished"}">${course.published ? "Published" : "Unpublished"}</span>
-        <h2>${escapeHtml(course.title)}</h2>
-        <p>${escapeHtml(course.description)}</p>
-        <div class="instructor-course-meta">
-          <span>${escapeHtml(course.hours)} hours</span>
-          <span>${escapeHtml(course.enrollments)} enrollments</span>
-          <span>${escapeHtml(course.delivery_mode)}</span>
-        </div>
-        <div class="actions">
-          <a class="button small" href="/admin/courses/${course.id}">Manage Course</a>
-          <a class="button small ghost" href="/admin/courses/${course.id}/student-view?view=details">Course Details</a>
-          <a class="button small ghost" href="/admin/courses/${course.id}/student-view">Preview</a>
-        </div>
-      </div>
-    </article>
-  `;
-  const renderCourseGroupCard = ({ title, description, category, credentialType, deliveryMode, childLabel, childCourses }) => `
-    <article class="card admin-program-card featured">
-      <div class="actions" style="justify-content:space-between">
-        <span class="pill">${escapeHtml(credentialType)}</span>
-        <span class="muted">${escapeHtml(String(childCourses.length))} courses</span>
-      </div>
-      <h2>${escapeHtml(title)}</h2>
-      <p class="muted">${escapeHtml(description)}</p>
-      <div class="meta"><span>${escapeHtml(category)}</span><span>${escapeHtml(deliveryMode)}</span></div>
-      <p><strong>${escapeHtml(childCourses.reduce((sum, course) => sum + Number(course.enrollments || 0), 0))}</strong> enrollments · <strong>${escapeHtml(childCourses.reduce((sum, course) => sum + Number(course.credentials || 0), 0))}</strong> credentials</p>
-      <div class="program-subcourses admin-program-subcourses">
-        <h4>${escapeHtml(childLabel)}</h4>
-        ${childCourses.map((child) => `
-          <div class="program-subcourse">
-            <div>
-              <strong>${escapeHtml(child.title)}</strong>
-              <small>${escapeHtml(child.hours)} hours · ${escapeHtml(child.credential_type)} · ${escapeHtml(child.enrollments)} enrollments</small>
-            </div>
-            <div class="actions">
-              <a class="button small" href="/admin/courses/${child.id}">Manage</a>
-              <a class="button small ghost" href="/admin/courses/${child.id}/student-view">Student View</a>
-            </div>
-          </div>
-        `).join("")}
-      </div>
-    </article>
-  `;
-  const renderProgramCard = (course) => {
-    const isPracticalNursing = course.slug === "practical-nursing";
-    const childCourses = isPracticalNursing ? practicalNursingCourses : [];
+  const renderCoursePickerCard = (course) => {
+    const isPublished = Number(course.published) === 1;
+    const openLabel = `Open ${course.title}`;
     return `
-      <article class="card admin-program-card ${isPracticalNursing ? "featured" : ""}">
-        <div class="actions" style="justify-content:space-between">
-          <span class="pill ${course.credential_type === "Diploma" ? "orange" : ""}">${escapeHtml(course.credential_type)}</span>
-          <span class="muted">${escapeHtml(course.hours)} hours</span>
-        </div>
-        <h2>${escapeHtml(course.title)}</h2>
-        <p class="muted">${escapeHtml(course.description)}</p>
-        <div class="meta"><span>${escapeHtml(course.category)}</span><span>${escapeHtml(course.delivery_mode)}</span></div>
-        ${courseTotalCost(course) ? `<p class="program-cost"><strong>${money(courseTotalCost(course))}</strong> total cost · ${money(course.tuition_cents)} tuition</p>` : ""}
-        <p><strong>${escapeHtml(course.enrollments)}</strong> enrollments · <strong>${escapeHtml(course.credentials)}</strong> credentials</p>
-        ${childCourses.length ? `
-          <div class="program-subcourses admin-program-subcourses">
-            <h4>PN courses under this program</h4>
-            ${childCourses.map((child) => `
-              <div class="program-subcourse">
-                <div>
-                  <strong>${escapeHtml(child.title)}</strong>
-                  <small>${escapeHtml(child.hours)} hours · ${escapeHtml(child.credential_type)} · ${escapeHtml(child.enrollments)} enrollments</small>
-                </div>
-                <div class="actions">
-                  <a class="button small" href="/admin/courses/${child.id}">Manage</a>
-                  <a class="button small ghost" href="/admin/courses/${child.id}/student-view">Student View</a>
-                </div>
-              </div>
-            `).join("")}
+      <article class="course-picker-card ${isPublished ? "is-published" : "is-unpublished"}">
+        <a class="course-picker-thumbnail" href="/admin/courses/${course.id}" aria-label="${escapeHtml(openLabel)}">
+          <img src="${escapeHtml(courseThumbnailUrl(course))}" alt="" loading="lazy" decoding="async">
+          <span class="course-publication-badge ${isPublished ? "published" : "unpublished"}">${isPublished ? "Published" : "Unpublished"}</span>
+        </a>
+        <div class="course-picker-body">
+          <div class="course-picker-kicker">
+            <span class="course-picker-code">${escapeHtml(canvasCourseCode(course))}</span>
+            <p class="course-picker-category">${escapeHtml(course.category)}</p>
           </div>
-        ` : ""}
-        <div class="actions">
-          <a class="button small" href="/admin/courses/${course.id}">Manage Program</a>
-          <a class="button small ghost" href="/admin/courses/${course.id}/student-view">Student View</a>
+          <h3><a href="/admin/courses/${course.id}">${escapeHtml(course.title)}</a></h3>
+          <p class="course-picker-description">${escapeHtml(course.description || "Open this course to manage lessons, assignments, and student access.")}</p>
+          <dl class="course-picker-meta">
+            <div><dt>Hours</dt><dd>${escapeHtml(course.hours)}</dd></div>
+            <div><dt>Students</dt><dd>${escapeHtml(course.enrollments)}</dd></div>
+            <div><dt>Format</dt><dd>${escapeHtml(course.delivery_mode)}</dd></div>
+          </dl>
+          <div class="course-picker-actions">
+            <a class="button small" href="/admin/courses/${course.id}/student-view" aria-label="Open ${escapeHtml(course.title)} course">Open Course</a>
+            <a class="button small ghost" href="/admin/courses/${course.id}/manage" aria-label="Edit and manage ${escapeHtml(course.title)}">Edit &amp; Manage</a>
+            <a class="button small ghost" href="/admin/courses/${course.id}/manage#marketing-tools" aria-label="Open marketing tools for ${escapeHtml(course.title)}">Marketing Tools</a>
+          </div>
         </div>
       </article>
     `;
   };
+  const renderCoursePickerSection = (title, description, sectionCourses) => `
+    <section class="course-picker-section">
+      <div class="course-picker-section-head">
+        <div>
+          <h2>${escapeHtml(title)}</h2>
+          <p>${escapeHtml(description)}</p>
+        </div>
+        <span>${escapeHtml(String(sectionCourses.length))} course${sectionCourses.length === 1 ? "" : "s"}</span>
+      </div>
+      <div class="course-picker-grid">
+        ${sectionCourses.map(renderCoursePickerCard).join("") || `<p class="empty">No courses in this section.</p>`}
+      </div>
+    </section>
+  `;
 
   const instructorBody = `
     ${renderAdminDashboardToggle("courses")}
@@ -12259,52 +12993,30 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
         <p>Open published courses currently available to students and prepare unpublished course shells before release.</p>
       </div>
     </div>
-    <section class="instructor-course-section">
-      <div class="instructor-course-section-head">
-        <h2>Published Courses <span>(${publishedCourses.length})</span></h2>
-        <p>These courses are available in the student portal.</p>
-      </div>
-      <div class="instructor-course-grid">
-        ${publishedCourses.map(renderInstructorCourseCard).join("") || `<p class="empty">No published courses.</p>`}
-      </div>
-    </section>
-    <section class="instructor-course-section unpublished-section">
-      <div class="instructor-course-section-head">
-        <h2>Unpublished Courses <span>(${unpublishedCourses.length})</span></h2>
-        <p>These courses remain hidden from students until an instructor publishes them.</p>
-      </div>
-      <div class="instructor-course-grid">
-        ${unpublishedCourses.map(renderInstructorCourseCard).join("") || `<p class="empty">No unpublished courses.</p>`}
-      </div>
-    </section>
+    ${renderCoursePickerSection("Published Courses", "Available to students now. Select a card to open the course or use its editing tools.", publishedCourses)}
+    ${renderCoursePickerSection("Unpublished Courses", "Hidden from students until an instructor publishes them.", unpublishedCourses)}
   `;
   const adminBody = `
     ${renderAdminDashboardToggle("courses")}
     <div class="page-head">
       <div>
-        <h1>Programs and Courses</h1>
-        <p>Manage BMHI programs from the Courses button. Practical Nursing and American Heart Association courses are grouped into their own sections alongside the other programs the school offers.</p>
+        <h1>Choose a Course</h1>
+        <p>Select a course card to enter its student-style course view, or use Edit &amp; Manage for course tools and settings.</p>
       </div>
     </div>
     <section class="grid cols-4">
-      ${stat("Program sections", String(programCourses.length + (americanHeartAssociationCourses.length ? 1 : 0)))}
-      ${stat("PN course shells", String(practicalNursingCourses.length))}
-      ${stat("AHA courses", String(americanHeartAssociationCourses.length))}
+      ${stat("Course library", String(courses.length))}
+      ${stat("Published", String(publishedCourses.length))}
       ${stat("Enrollments", String(totalEnrollments))}
+      ${stat("Credentials", String(totalCredentials))}
     </section>
-    ${renderTuitionFeesSection(courses)}
-    <section class="grid cols-2 admin-program-grid" style="margin-top:18px">
-      ${programCourses.map(renderProgramCard).join("")}
-      ${americanHeartAssociationCourses.length ? renderCourseGroupCard({
-        title: "American Heart Association",
-        description: "BLS, ACLS, and PALS certification course shells for roster management, lesson access, completion tracking, and certificates.",
-        category: "Continuing Education",
-        credentialType: "Certificate",
-        deliveryMode: "Campus",
-        childLabel: "American Heart Association courses",
-        childCourses: americanHeartAssociationCourses
-      }) : ""}
-    </section>
+    ${renderCoursePickerSection("Practical Nursing Courses", "Open individual PN course shells directly without searching through a program list.", practicalNursingCourses)}
+    ${renderCoursePickerSection("Programs and Allied Health", "Diploma, certificate, exam-prep, and continuing-education courses.", programCourses)}
+    ${renderCoursePickerSection("American Heart Association", "BLS, ACLS, and PALS course shells and student records.", americanHeartAssociationCourses)}
+    <details class="course-library-details">
+      <summary>View tuition and fee schedule</summary>
+      ${renderTuitionFeesSection(courses)}
+    </details>
   `;
   render(req, res, req.user.role === "instructor" ? "Instructor Course Dashboard" : "Courses", req.user.role === "instructor" ? instructorBody : adminBody);
 });
@@ -12318,6 +13030,14 @@ app.get("/admin/courses/:id", requireAuth, requireRole("admin", "instructor"), (
 app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(req.params.id));
   if (!course) return res.status(404).send("Course not found");
+
+  const marketingAssets = db.prepare(`
+    SELECT asset.*, uploader.first_name AS uploader_first_name, uploader.last_name AS uploader_last_name
+    FROM course_marketing_assets asset
+    LEFT JOIN users uploader ON uploader.id = asset.uploaded_by
+    WHERE asset.course_id = ?
+    ORDER BY asset.created_at DESC, asset.id DESC
+  `).all(course.id);
 
   const modules = db.prepare(`
     SELECT m.*, COUNT(l.id) AS lesson_count
@@ -12418,6 +13138,31 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
         </div>
       </div>
       ${renderLmsToolkit(course, { compact: true })}
+    </section>
+    <section class="card course-marketing-tools" id="marketing-tools" style="margin-top:18px">
+      <div class="actions course-marketing-head">
+        <div><p class="eyebrow">Course Resources</p><h2>Marketing Tools</h2><p class="muted">Keep flyers, PDFs, PNG/JPG artwork, PowerPoint presentations, and marketing links together for this course.</p></div>
+        <span class="pill">${marketingAssets.length} item${marketingAssets.length === 1 ? "" : "s"}</span>
+      </div>
+      <div class="course-marketing-layout">
+        <form method="post" action="/admin/courses/${course.id}/marketing-assets" enctype="multipart/form-data" class="course-marketing-form">
+          <h3>Add a marketing resource</h3>
+          <label>Display title<input name="title" required placeholder="Fall enrollment flyer"></label>
+          <label>Upload file<input type="file" name="marketingFile" accept=".pdf,.png,.jpg,.jpeg,.webp,.ppt,.pptx"></label>
+          <div class="or-divider"><span>or</span></div>
+          <label>External marketing link<input type="url" name="externalUrl" placeholder="https://..."></label>
+          <label>Notes<textarea name="note" placeholder="Audience, campaign, or usage notes"></textarea></label>
+          <button type="submit">Add to Marketing Tools</button>
+        </form>
+        <div class="course-marketing-library">
+          ${marketingAssets.map((asset) => {
+            const extension = path.extname(asset.file_original_name || "").replace(".", "").toUpperCase();
+            const typeLabel = asset.asset_type === "link" ? "LINK" : (extension || "FILE");
+            const resourceHref = asset.asset_type === "link" ? asset.external_url : `/admin/courses/${course.id}/marketing-assets/${asset.id}/download`;
+            return `<article class="marketing-asset-card"><div class="marketing-asset-icon">${escapeHtml(typeLabel.slice(0, 5))}</div><div class="marketing-asset-body"><h3>${escapeHtml(asset.title)}</h3><p>${escapeHtml(asset.note || (asset.file_original_name || asset.external_url || "Marketing resource"))}</p><small>Added ${escapeHtml(dateTime(asset.created_at))}${asset.uploader_first_name ? ` by ${escapeHtml([asset.uploader_first_name, asset.uploader_last_name].filter(Boolean).join(" "))}` : ""}</small><div class="actions"><a class="button small" href="${escapeHtml(resourceHref)}" ${asset.asset_type === "link" ? `target="_blank" rel="noopener"` : ""}>${asset.asset_type === "link" ? "Open link" : "Download"}</a><form method="post" action="/admin/courses/${course.id}/marketing-assets/${asset.id}/remove" onsubmit="return confirm('Remove this marketing resource?');"><button class="small ghost danger" type="submit">Remove</button></form></div></div></article>`;
+          }).join("") || `<div class="marketing-assets-empty"><strong>No marketing resources yet.</strong><p class="muted">Upload the first flyer, PDF, image, presentation, or add a link.</p></div>`}
+        </div>
+      </div>
     </section>
     ${liveClass ? `
       <section class="card" id="zoom-sync" style="margin-top:18px">
@@ -13752,6 +14497,85 @@ app.post("/admin/courses/:id/details", requireAuth, requireRole("admin", "instru
   res.redirect(redirectTo.startsWith(`/admin/courses/${course.id}`) ? redirectTo : `/admin/courses/${course.id}/manage#course-details`);
 });
 
+app.post("/admin/courses/:id/marketing-assets", requireAuth, requireRole("admin", "instructor"), receiveMarketingAsset, (req, res) => {
+  const cleanupUpload = () => {
+    if (!req.file?.filename) return;
+    const filePath = path.join(uploadDir, req.file.filename);
+    if (isPathInside(uploadDir, filePath) && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  };
+  const course = db.prepare("SELECT id, title FROM courses WHERE id = ?").get(Number(req.params.id));
+  if (!course) {
+    cleanupUpload();
+    return res.status(404).send("Course not found");
+  }
+  const title = String(req.body.title || "").trim().slice(0, 160);
+  const rawUrl = String(req.body.externalUrl || "").trim();
+  const externalUrl = rawUrl ? normalizeExternalUrl(rawUrl) : null;
+  const note = String(req.body.note || "").trim().slice(0, 1000);
+  const allowedMarketingExtensions = new Set([".pdf", ".png", ".jpg", ".jpeg", ".webp", ".ppt", ".pptx"]);
+  const extension = req.file ? path.extname(req.file.originalname || "").toLowerCase() : "";
+  if (!title || (!req.file && !externalUrl) || (rawUrl && !externalUrl) || (req.file && !allowedMarketingExtensions.has(extension))) {
+    cleanupUpload();
+    flash(req, !title ? "Enter a display title." : req.file && !allowedMarketingExtensions.has(extension) ? "Marketing files must be PDF, PNG, JPG, WEBP, PPT, or PPTX." : "Upload a marketing file or enter a valid external link.");
+    return res.redirect(`/admin/courses/${course.id}/manage#marketing-tools`);
+  }
+  const assetType = req.file ? "file" : "link";
+  let result;
+  try {
+    result = db.prepare(`
+      INSERT INTO course_marketing_assets (
+        course_id, title, asset_type, external_url, file_original_name, file_storage_name,
+        file_mime_type, file_size, note, uploaded_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      course.id, title, assetType, assetType === "link" ? externalUrl : null,
+      req.file?.originalname || null, req.file?.filename || null, req.file?.mimetype || null,
+      req.file?.size || null, note, req.user.id
+    );
+  } catch (error) {
+    cleanupUpload();
+    throw error;
+  }
+  recordSystemActivity(req, {
+    action: "added_marketing_asset",
+    summary: `Added marketing resource “${title}” to ${course.title}`,
+    entityType: "course_marketing_asset",
+    entityId: result.lastInsertRowid,
+    details: { course: course.title, resource: title, type: assetType }
+  });
+  flash(req, `${title} was added to Marketing Tools.`);
+  res.redirect(`/admin/courses/${course.id}/manage#marketing-tools`);
+});
+
+app.get("/admin/courses/:id/marketing-assets/:assetId/download", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const asset = db.prepare("SELECT * FROM course_marketing_assets WHERE id = ? AND course_id = ? AND asset_type = 'file'")
+    .get(Number(req.params.assetId), Number(req.params.id));
+  if (!asset?.file_storage_name) return res.status(404).send("Marketing file not found");
+  const filePath = path.join(uploadDir, asset.file_storage_name);
+  if (!isPathInside(uploadDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Marketing file not found");
+  res.download(filePath, asset.file_original_name || asset.file_storage_name);
+});
+
+app.post("/admin/courses/:id/marketing-assets/:assetId/remove", requireAuth, requireRole("admin", "instructor"), (req, res) => {
+  const course = db.prepare("SELECT id, title FROM courses WHERE id = ?").get(Number(req.params.id));
+  const asset = course ? db.prepare("SELECT * FROM course_marketing_assets WHERE id = ? AND course_id = ?").get(Number(req.params.assetId), course.id) : null;
+  if (!course || !asset) return res.status(404).send("Marketing resource not found");
+  db.prepare("DELETE FROM course_marketing_assets WHERE id = ?").run(asset.id);
+  if (asset.file_storage_name) {
+    const filePath = path.join(uploadDir, asset.file_storage_name);
+    if (isPathInside(uploadDir, filePath) && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
+  recordSystemActivity(req, {
+    action: "removed_marketing_asset",
+    summary: `Removed marketing resource “${asset.title}” from ${course.title}`,
+    entityType: "course_marketing_asset",
+    entityId: asset.id,
+    details: { course: course.title, resource: asset.title }
+  });
+  flash(req, `${asset.title} was removed from Marketing Tools.`);
+  res.redirect(`/admin/courses/${course.id}/manage#marketing-tools`);
+});
+
 app.post("/admin/courses/:id/live-class", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(Number(req.params.id));
   if (!course) return res.status(404).send("Course not found");
@@ -14807,7 +15631,7 @@ app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
           ${enrollments.map((row, index) => `
             <article class="student-course-card tone-${(index % 6) + 1}">
               <div class="student-course-card-banner">
-                <img src="/assets/healthcare-students-login.png" alt="">
+                <img src="${escapeHtml(courseThumbnailUrl(row))}" alt="" loading="lazy" decoding="async">
                 <span class="student-course-card-status ${escapeHtml(row.withdrawn_at ? "withdrawn" : row.status)}">${escapeHtml(row.withdrawn_at && row.status !== "withdrawn" ? "access withdrawn" : row.status)}</span>
                 <strong>${escapeHtml(row.category)}</strong>
               </div>

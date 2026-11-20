@@ -631,6 +631,7 @@ function migrate() {
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
+      login_username TEXT,
       personal_email TEXT,
       phone TEXT,
       password_hash TEXT NOT NULL,
@@ -653,6 +654,9 @@ function migrate() {
       photo_reviewed_at TEXT,
       photo_reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       notes TEXT,
+      removed_at TEXT,
+      removed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      removal_reason TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -707,6 +711,21 @@ function migrate() {
       note TEXT,
       uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS course_marketing_assets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      asset_type TEXT NOT NULL DEFAULT 'file' CHECK(asset_type IN ('file','link')),
+      external_url TEXT,
+      file_original_name TEXT,
+      file_storage_name TEXT,
+      file_mime_type TEXT,
+      file_size INTEGER,
+      note TEXT,
+      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS institution_catalogs (
@@ -1397,6 +1416,46 @@ function migrate() {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS staff_weekly_timesheets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      week_start TEXT NOT NULL,
+      week_end TEXT NOT NULL,
+      due_at TEXT NOT NULL,
+      submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      status TEXT NOT NULL DEFAULT 'submitted' CHECK(status IN ('submitted','approved','returned')),
+      approved_at TEXT,
+      approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      note TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, week_start)
+    );
+
+    CREATE TABLE IF NOT EXISTS system_activity_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      target_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL DEFAULT 'system',
+      entity_id TEXT,
+      summary TEXT NOT NULL,
+      details_json TEXT NOT NULL DEFAULT '{}',
+      route TEXT,
+      method TEXT,
+      status_code INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS staff_account_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      target_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      action TEXT NOT NULL,
+      details TEXT NOT NULL DEFAULT '',
+      changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS staff_pay_records (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1538,6 +1597,9 @@ function migrate() {
   if (!userColumns.includes("personal_email")) {
     db.exec("ALTER TABLE users ADD COLUMN personal_email TEXT;");
   }
+  if (!userColumns.includes("login_username")) {
+    db.exec("ALTER TABLE users ADD COLUMN login_username TEXT;");
+  }
   if (!userColumns.includes("withdrawal_effective_date")) {
     db.exec("ALTER TABLE users ADD COLUMN withdrawal_effective_date TEXT;");
   }
@@ -1592,6 +1654,51 @@ function migrate() {
   if (!userColumns.includes("photo_reviewed_by")) {
     db.exec("ALTER TABLE users ADD COLUMN photo_reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL;");
   }
+  if (!userColumns.includes("removed_at")) {
+    db.exec("ALTER TABLE users ADD COLUMN removed_at TEXT;");
+  }
+  if (!userColumns.includes("removed_by")) {
+    db.exec("ALTER TABLE users ADD COLUMN removed_by INTEGER REFERENCES users(id) ON DELETE SET NULL;");
+  }
+  if (!userColumns.includes("removal_reason")) {
+    db.exec("ALTER TABLE users ADD COLUMN removal_reason TEXT;");
+  }
+  db.exec(`
+    UPDATE users
+    SET login_username = lower(trim(email))
+    WHERE login_username IS NULL OR trim(login_username) = '';
+
+    UPDATE users
+    SET login_username = lower(trim(email)) || '.' || id
+    WHERE id NOT IN (
+      SELECT MIN(id) FROM users
+      GROUP BY lower(COALESCE(NULLIF(trim(login_username), ''), email))
+    )
+      AND lower(COALESCE(NULLIF(trim(login_username), ''), email)) IN (
+        SELECT lower(COALESCE(NULLIF(trim(login_username), ''), email))
+        FROM users
+        GROUP BY lower(COALESCE(NULLIF(trim(login_username), ''), email))
+        HAVING COUNT(*) > 1
+      );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_effective_login_username
+    ON users(lower(COALESCE(NULLIF(trim(login_username), ''), email)));
+
+    CREATE INDEX IF NOT EXISTS idx_system_activity_created
+    ON system_activity_log(created_at DESC, id DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_system_activity_actor
+    ON system_activity_log(actor_user_id, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_system_activity_target
+    ON system_activity_log(target_user_id, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_staff_account_events_target
+    ON staff_account_events(target_user_id, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_course_marketing_assets_course
+    ON course_marketing_assets(course_id, created_at DESC);
+  `);
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_users_student_number
     ON users(student_number)
@@ -1754,13 +1861,7 @@ function seed() {
   const upsertAdminAccessUser = db.prepare(`
     INSERT INTO users (role, first_name, last_name, email, phone, password_hash, status, organization_status, class_lock_reason)
     VALUES ('admin', ?, ?, ?, '', ?, 'active', 'organized', NULL)
-    ON CONFLICT(email) DO UPDATE SET
-      role = 'admin',
-      first_name = excluded.first_name,
-      last_name = excluded.last_name,
-      status = 'active',
-      organization_status = 'organized',
-      class_lock_reason = NULL
+    ON CONFLICT(email) DO NOTHING
   `);
   adminAccessAccounts.forEach((account) => {
     upsertAdminAccessUser.run(account.firstName, account.lastName, account.email, hash(adminAccessDefaultPassword));
