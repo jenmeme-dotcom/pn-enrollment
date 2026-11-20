@@ -13,6 +13,7 @@ const { createStudentGradePdfBuffer, gradePdfFilename } = require("./gradePdf");
 const quickbooks = require("./quickbooks");
 const { accountCharges, accountTotals } = require("./billingTotals");
 const { adminAccessAccounts, adminAccessDefaultPassword } = require("./adminAccess");
+const schoolDirectory = require("./schoolDirectory.json");
 const { db, initialize, databaseFile } = require("./db");
 const { isMidtermTitle, isProtectedMajorAssessmentTitle } = require("./courseworkAvailability");
 const { FUNDAMENTALS_SLUG, SUPPORTING_ACTIVITY_NOTE, markCoursePointActivities, summarizeCourseGradePoints } = require("./courseGradePolicy");
@@ -130,10 +131,10 @@ const port = Number(process.env.PORT || 4321);
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
 }
-const instituteName = process.env.INSTITUTE_NAME || "Broward-Miami Health Institute";
-const instituteAddress = process.env.INSTITUTE_ADDRESS || "6320 Miramar Pkwy Suite I, Miramar, FL 33023";
-const institutePhone = process.env.INSTITUTE_PHONE || "954-248-0669";
-const instituteEmail = process.env.INSTITUTE_EMAIL || "support@browardmiamihi.com";
+const instituteName = process.env.INSTITUTE_NAME || schoolDirectory.institution.name;
+const instituteAddress = process.env.INSTITUTE_ADDRESS || schoolDirectory.institution.address;
+const institutePhone = process.env.INSTITUTE_PHONE || schoolDirectory.institution.phone;
+const instituteEmail = process.env.INSTITUTE_EMAIL || schoolDirectory.institution.email;
 const publicAppUrl = (process.env.PUBLIC_APP_URL || `http://localhost:${port}`).replace(/\/$/, "");
 const ghlSubAccountName = process.env.GHL_SUB_ACCOUNT_NAME || "Broward-Miami Health Institute";
 const ghlSubAccountId = process.env.GHL_SUB_ACCOUNT_ID || "l0nuB5CyYhn0gJmoVobg";
@@ -4227,7 +4228,22 @@ function instructorPeopleRoster(course, enrollments = [], instructor) {
       section,
       status: "invited"
     }));
-  const teacher = instructor ? {
+  const configuredTeachers = course.slug === "medical-surgical-nursing-i-pn107-lab"
+    ? schoolDirectory.pn107LabFaculty.map((faculty) => ({
+        id: null,
+        first_name: faculty.firstName,
+        last_name: faculty.lastName,
+        email: faculty.email,
+        role: "Teacher",
+        section,
+        status: "active",
+        last_activity: "",
+        total_activity: "",
+        avatar: true
+      }))
+    : [];
+  const configuredTeacherEmails = new Set(configuredTeachers.map((teacher) => teacher.email.toLowerCase()));
+  const signedInTeacher = instructor && !configuredTeacherEmails.has(String(instructor.email || "").toLowerCase()) ? {
     id: instructor.id,
     first_name: instructor.first_name,
     last_name: instructor.last_name,
@@ -4239,7 +4255,7 @@ function instructorPeopleRoster(course, enrollments = [], instructor) {
     total_activity: "11:09:21",
     avatar: true
   } : null;
-  return [...roster, ...additions, ...(teacher ? [teacher] : [])];
+  return [...roster, ...additions, ...configuredTeachers, ...(signedInTeacher ? [signedInTeacher] : [])];
 }
 
 function renderInstructorPeoplePage({ course, courseCode, baseHref, enrollments = [], instructor }) {

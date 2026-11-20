@@ -27,6 +27,10 @@ LIGHT_BORDER = "D9D9D9"
 # the supplied 20-page Medical Surgical Nursing I Skills Lab syllabus.
 VIDEO_CATALOG_PATH = ROOT / "src" / "pn107LabVideoCatalog.json"
 VIDEO_CATALOG = json.loads(VIDEO_CATALOG_PATH.read_text(encoding="utf-8"))
+SCHOOL_DIRECTORY_PATH = ROOT / "src" / "schoolDirectory.json"
+SCHOOL_DIRECTORY = json.loads(SCHOOL_DIRECTORY_PATH.read_text(encoding="utf-8"))
+INSTITUTION = SCHOOL_DIRECTORY["institution"]
+PN107_LAB_FACULTY = SCHOOL_DIRECTORY["pn107LabFaculty"]
 WEEK_HOURS = ["3.5", "1.5", "1.5", "1.5", "1.5", "1.5", "1.5", "1.5", "0.75", "0.75", "1.5", "3.0"]
 WEEK_OUTCOMES = [
     [
@@ -231,19 +235,32 @@ def configure_styles(doc):
 
 
 def add_metadata_table(doc):
-    table = doc.add_table(rows=6, cols=2)
-    table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    table.autofit = False
-    table.columns[0].width = Inches(2.0)
-    table.columns[1].width = Inches(4.4)
+    faculty_entries = [
+        (
+            "Faculty" if faculty["title"] == "Professor" else "Director of Nursing",
+            f'{faculty["firstName"]} {faculty["lastName"]}, {faculty["credentials"]} - {faculty["title"]}\n'
+            f'{faculty["email"]}  |  School phone: {INSTITUTION["phone"]}',
+        )
+        for faculty in PN107_LAB_FACULTY
+    ]
     entries = [
         ("Course number", "PN 107 Lab"),
         ("Course title", "Medical-Surgical Nursing Skills Lab"),
         ("Length", "12 weeks  |  20 on-campus lab hours with online preparation"),
         ("Relationship to PN 107", "Companion lab for the 20 hours already included in PN 107; these are not additional program hours."),
-        ("Faculty", "Stacy Milan  |  (954) 558-5174  |  sabahadur84@gmail.com"),
+        (
+            "School contact",
+            f'{INSTITUTION["name"]}\n{INSTITUTION["address"]}\n'
+            f'Phone: {INSTITUTION["phone"]}  |  Email: {INSTITUTION["email"]}',
+        ),
+        *faculty_entries,
         ("Required product", "Lippincott Skills for Nursing Education 2.0"),
     ]
+    table = doc.add_table(rows=len(entries), cols=2)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+    table.columns[0].width = Inches(1.7)
+    table.columns[1].width = Inches(4.7)
     for index, (label, value) in enumerate(entries):
         left, right = table.rows[index].cells
         shade_cell(left, PALE_BLUE)
@@ -255,8 +272,8 @@ def add_metadata_table(doc):
             cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
         left.paragraphs[0].paragraph_format.space_after = Pt(0)
         right.paragraphs[0].paragraph_format.space_after = Pt(0)
-        set_font(left.paragraphs[0].add_run(label), size=10.5, bold=True)
-        set_font(right.paragraphs[0].add_run(value), size=10.5)
+        set_font(left.paragraphs[0].add_run(label), size=9.5, bold=True)
+        set_font(right.paragraphs[0].add_run(value), size=9.5)
     doc.add_paragraph()
 
 

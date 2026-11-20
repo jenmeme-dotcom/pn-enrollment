@@ -1,6 +1,31 @@
 const LIPPINCOTT_GATEWAY = "https://thepoint.lww.com/gateway";
 const SYLLABUS_PDF = "/course-materials/medical-surgical-nursing-i-pn107-lab/PN107-Lab-Syllabus-12-Weeks.pdf";
 const pn107LabVideoCatalog = require("./pn107LabVideoCatalog.json");
+const schoolDirectory = require("./schoolDirectory.json");
+const pn107LabFaculty = schoolDirectory.pn107LabFaculty;
+
+function facultyDisplayName(faculty) {
+  return `${faculty.firstName} ${faculty.lastName}, ${faculty.credentials} - ${faculty.title}`;
+}
+
+function pn107LabFacultyContactContent() {
+  const institution = schoolDirectory.institution;
+  const facultyLines = pn107LabFaculty.map((faculty) => (
+    `${facultyDisplayName(faculty)}\nEmail: ${faculty.email}\nSchool phone: ${institution.phone}`
+  )).join("\n\n");
+
+  return `PN 107 Lab Faculty and School Contact Information
+
+${facultyLines}
+
+School contact
+${institution.name}
+${institution.address}
+Phone: ${institution.phone}
+Email: ${institution.email}
+
+Use the school phone and school email addresses above for all course communication. Personal phone numbers and personal email addresses are not used for this course.`;
+}
 
 // The source Skills Lab outline spans fourteen instructional blocks. The BMHI
 // course keeps every block while presenting a twelve-week calendar by merging
@@ -691,7 +716,8 @@ const medicalSurgicalNursingLabCourse = {
   deliveryMode: "20 on-campus skills lab hours with online preparation",
   description: "A 12-week companion shell for the 20 campus lab hours already included in PN 107 Medical-Surgical Nursing I. Students prepare with licensed Lippincott Skills resources, submit preparation evidence, and complete supervised BMHI competency checkoffs. These are not additional Practical Nursing program hours.",
   ghlProductKeys: [],
-  seedVersion: "pn107-lab-complete-191-video-index-2026-11-20",
+  seedVersion: "pn107-lab-faculty-directory-2026-11-20",
+  faculty: pn107LabFaculty,
   syllabusPdf: SYLLABUS_PDF,
   gradeItems: checklistLessons.map((lesson) => ({
     title: lesson.gradeItemTitle,
@@ -704,7 +730,20 @@ const medicalSurgicalNursingLabCourse = {
         {
           title: "PN 107 Lab Course Overview",
           durationMinutes: 20,
-          content: "PN 107 Lab: Medical-Surgical Nursing Skills Lab\n\n12 weeks | 20 on-campus lab hours with online preparation\nCompanion course: PN 107 Medical-Surgical Nursing I\nRequired licensed product: Lippincott Skills for Nursing Education 2.0\n\nThis companion shell organizes the supervised laboratory skills already included in PN 107. Students prepare online, practice in the lab, submit approved evidence, and receive instructor checkoffs. Portal completion never replaces hands-on observation or authorizes independent practice."
+          content: `PN 107 Lab: Medical-Surgical Nursing Skills Lab
+
+12 weeks | 20 on-campus lab hours with online preparation
+Companion course: PN 107 Medical-Surgical Nursing I
+Required licensed product: Lippincott Skills for Nursing Education 2.0
+
+This companion shell organizes the supervised laboratory skills already included in PN 107. Students prepare online, practice in the lab, submit approved evidence, and receive instructor checkoffs. Portal completion never replaces hands-on observation or authorizes independent practice.
+
+${pn107LabFacultyContactContent()}`
+        },
+        {
+          title: "Faculty and School Contact Information",
+          durationMinutes: 10,
+          content: pn107LabFacultyContactContent()
         },
         {
           title: "Official PN 107 Lab 12-Week Syllabus",
@@ -715,6 +754,8 @@ const medicalSurgicalNursingLabCourse = {
 Course length: 12 weeks
 Lab hours: 20 on-campus hours already included in PN 107 Medical-Surgical Nursing I
 Required product: Lippincott Skills for Nursing Education 2.0
+
+${pn107LabFacultyContactContent()}
 
 Course purpose
 Students use licensed Lippincott skill overviews, videos, quizzes, and checklists to prepare for supervised BMHI laboratory practice. The instructor observes performance and records competency status. Students must not treat online completion as authorization to perform a skill independently.
@@ -739,7 +780,7 @@ Download the complete syllabus using the resource button on this page.`
           title: "Faculty Setup and Lippincott Assignment Map",
           durationMinutes: 15,
           instructorOnly: true,
-          content: "Confirm the BMHI Skills Lab course and licensed Lippincott Skills for Nursing Education 2.0 assignment set before publishing dates. Verify each search title against the current publisher library, assign the required video/checklist/quiz, schedule 20 campus lab hours, and record competency only after direct observation. Edit a portal resource if the publisher renames or retires a skill. Do not copy licensed checklist text or host publisher video files in the BMHI portal."
+          content: `${pn107LabFacultyContactContent()}\n\nConfirm the BMHI Skills Lab course and licensed Lippincott Skills for Nursing Education 2.0 assignment set before publishing dates. Verify each search title against the current publisher library, assign the required video/checklist/quiz, schedule 20 campus lab hours, and record competency only after direct observation. Edit a portal resource if the publisher renames or retires a skill. Do not copy licensed checklist text or host publisher video files in the BMHI portal.`
         }
       ]
     },
@@ -767,8 +808,11 @@ Download the complete syllabus using the resource button on this page.`
 module.exports = {
   LIPPINCOTT_GATEWAY,
   SYLLABUS_PDF,
+  facultyDisplayName,
   medicalSurgicalNursingLabCourse,
   pn107LabVideoCatalog,
+  pn107LabFaculty,
+  pn107LabFacultyContactContent,
   requiredVideoLesson,
   requiredVideoPageContent,
   requiredVideoPageTitle,

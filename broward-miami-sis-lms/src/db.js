@@ -4606,6 +4606,93 @@ function seed() {
       }
     }
 
+    // Enrolled PN 107 Lab courses retain their lesson IDs so student history is
+    // never replaced by a catalog refresh. Apply faculty and school contact
+    // changes in place, adding only newly introduced orientation lessons.
+    const labFacultySeedKey = "pn107-lab:faculty-school-contacts-v1";
+    if (!seedVersionExists.get(pn107LabRow.id, labFacultySeedKey)) {
+      const orientationModule = pn107LabDefinition.modules.find(
+        (module) => module.title === "Start Here: PN 107 Lab Orientation"
+      );
+      const storedOrientation = orientationModule
+        ? db.prepare(`
+            SELECT id
+            FROM modules
+            WHERE course_id = ? AND title = ?
+            ORDER BY id
+            LIMIT 1
+          `).get(pn107LabRow.id, orientationModule.title)
+        : null;
+
+      if (orientationModule && storedOrientation) {
+        db.exec("SAVEPOINT pn107_lab_faculty_school_contacts");
+        try {
+          const storedOrientationLesson = db.prepare(`
+            SELECT id
+            FROM lessons
+            WHERE module_id = ? AND title = ?
+            ORDER BY id
+            LIMIT 1
+          `);
+          const updateOrientationLesson = db.prepare(`
+            UPDATE lessons
+            SET content = ?, external_url = ?, duration_minutes = ?, position = ?,
+              published = ?, instructor_only = ?, item_type = ?, grade_item_id = NULL
+            WHERE id = ? AND module_id = ?
+          `);
+          const insertOrientationLesson = db.prepare(`
+            INSERT INTO lessons (
+              module_id, title, content, external_url, duration_minutes, position,
+              published, instructor_only, item_type, grade_item_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+          `);
+
+          orientationModule.lessons.forEach((lesson, index) => {
+            const published = lesson.published === false ? 0 : 1;
+            const instructorOnly = lesson.instructorOnly ? 1 : 0;
+            const itemType = lesson.itemType || "page";
+            const externalUrl = lesson.externalUrl || null;
+            const durationMinutes = lesson.durationMinutes || 45;
+            const position = index + 1;
+            const storedLesson = storedOrientationLesson.get(storedOrientation.id, lesson.title);
+
+            if (storedLesson) {
+              updateOrientationLesson.run(
+                lesson.content,
+                externalUrl,
+                durationMinutes,
+                position,
+                published,
+                instructorOnly,
+                itemType,
+                storedLesson.id,
+                storedOrientation.id
+              );
+            } else {
+              insertOrientationLesson.run(
+                storedOrientation.id,
+                lesson.title,
+                lesson.content,
+                externalUrl,
+                durationMinutes,
+                position,
+                published,
+                instructorOnly,
+                itemType
+              );
+            }
+          });
+
+          insertSeedVersion.run(pn107LabRow.id, labFacultySeedKey);
+          db.exec("RELEASE SAVEPOINT pn107_lab_faculty_school_contacts");
+        } catch (error) {
+          db.exec("ROLLBACK TO SAVEPOINT pn107_lab_faculty_school_contacts");
+          db.exec("RELEASE SAVEPOINT pn107_lab_faculty_school_contacts");
+          throw error;
+        }
+      }
+    }
+
     const storedLabLesson = db.prepare(`
       SELECT l.id
       FROM lessons l

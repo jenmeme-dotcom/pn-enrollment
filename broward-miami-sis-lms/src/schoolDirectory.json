@@ -1,0 +1,34 @@
+{
+  "institution": {
+    "name": "Broward-Miami Health Institute",
+    "address": "6320 Miramar Pkwy, Suite I, Miramar, FL 33023",
+    "phone": "954-248-0669",
+    "email": "support@browardmiamihi.com"
+  },
+  "pn107LabFaculty": [
+    {
+      "firstName": "Stacy",
+      "lastName": "Milan",
+      "credentials": "MSN, RN",
+      "title": "Professor",
+      "email": "stacy@browardmiamihi.com",
+      "phone": "954-248-0669"
+    },
+    {
+      "firstName": "Marilu",
+      "lastName": "Suarez",
+      "credentials": "MSN, FNP",
+      "title": "Professor",
+      "email": "marilu.suarez@browardmiamihi.com",
+      "phone": "954-248-0669"
+    },
+    {
+      "firstName": "Dorthia",
+      "lastName": "Daudier",
+      "credentials": "MSN-Ed, MHA, APRN, PMHNP-BC, RN, CNML, CCM",
+      "title": "Director of Nursing",
+      "email": "dorthia.daudier@browardmiamihi.com",
+      "phone": "954-248-0669"
+    }
+  ]
+}

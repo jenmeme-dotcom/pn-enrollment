@@ -5,7 +5,13 @@ const os = require("node:os");
 const path = require("node:path");
 const { after, before, test } = require("node:test");
 const { DatabaseSync } = require("node:sqlite");
+const {
+  medicalSurgicalNursingLabCourse,
+  pn107LabFaculty,
+  pn107LabFacultyContactContent
+} = require("../src/medicalSurgicalNursingLabBuildout");
 const videoCatalog = require("../src/pn107LabVideoCatalog.json");
+const schoolDirectory = require("../src/schoolDirectory.json");
 
 const projectRoot = path.resolve(__dirname, "..");
 const labSlug = "medical-surgical-nursing-i-pn107-lab";
@@ -118,14 +124,106 @@ before(() => {
     )
   `).run(labCourse.id);
   database.prepare(`
+    DELETE FROM lessons
+    WHERE id = (
+      SELECT lessons.id
+      FROM lessons
+      JOIN modules ON modules.id = lessons.module_id
+      WHERE modules.course_id = ?
+        AND modules.title = 'Start Here: PN 107 Lab Orientation'
+        AND lessons.title = 'Faculty and School Contact Information'
+      LIMIT 1
+    )
+  `).run(labCourse.id);
+  database.prepare(`
     DELETE FROM course_seed_versions
-    WHERE course_id = ? AND seed_key = 'pn107-lab:complete-required-lippincott-video-index-v2'
+    WHERE course_id = ? AND seed_key IN (
+      'pn107-lab:complete-required-lippincott-video-index-v2',
+      'pn107-lab:faculty-school-contacts-v1'
+    )
   `).run(labCourse.id);
   database.close();
   database = null;
 
   seed();
   database = new DatabaseSync(databaseFile);
+});
+
+test("the Skills Lab directory stores the official school and faculty contacts", () => {
+  assert.deepEqual(schoolDirectory.institution, {
+    name: "Broward-Miami Health Institute",
+    address: "6320 Miramar Pkwy, Suite I, Miramar, FL 33023",
+    phone: "954-248-0669",
+    email: "support@browardmiamihi.com"
+  });
+  assert.deepEqual(pn107LabFaculty, [
+    {
+      firstName: "Stacy",
+      lastName: "Milan",
+      credentials: "MSN, RN",
+      title: "Professor",
+      email: "stacy@browardmiamihi.com",
+      phone: "954-248-0669"
+    },
+    {
+      firstName: "Marilu",
+      lastName: "Suarez",
+      credentials: "MSN, FNP",
+      title: "Professor",
+      email: "marilu.suarez@browardmiamihi.com",
+      phone: "954-248-0669"
+    },
+    {
+      firstName: "Dorthia",
+      lastName: "Daudier",
+      credentials: "MSN-Ed, MHA, APRN, PMHNP-BC, RN, CNML, CCM",
+      title: "Director of Nursing",
+      email: "dorthia.daudier@browardmiamihi.com",
+      phone: "954-248-0669"
+    }
+  ]);
+  assert.ok(pn107LabFaculty.every((faculty) => faculty.phone === schoolDirectory.institution.phone));
+
+  const serializedCourse = JSON.stringify(medicalSurgicalNursingLabCourse);
+  const contactContent = pn107LabFacultyContactContent();
+  for (const faculty of pn107LabFaculty) {
+    assert.ok(serializedCourse.includes(faculty.email), faculty.email);
+    assert.ok(contactContent.includes(faculty.email), faculty.email);
+  }
+  assert.ok(contactContent.includes(schoolDirectory.institution.address));
+  assert.ok(contactContent.includes(schoolDirectory.institution.email));
+  assert.ok(contactContent.includes(schoolDirectory.institution.phone));
+  assert.doesNotMatch(serializedCourse, /sabahadur84@gmail\.com/i);
+  assert.doesNotMatch(serializedCourse, /(?:\(954\)\s*558-5174|954-558-5174)/);
+});
+
+test("students receive a published PN 107 Lab faculty and school contact page", () => {
+  const row = database.prepare(`
+    SELECT lessons.content, lessons.item_type, lessons.published,
+      lessons.instructor_only, lessons.external_url
+    FROM lessons
+    JOIN modules ON modules.id = lessons.module_id
+    JOIN courses ON courses.id = modules.course_id
+    WHERE courses.slug = ?
+      AND modules.title = 'Start Here: PN 107 Lab Orientation'
+      AND lessons.title = 'Faculty and School Contact Information'
+  `).get(labSlug);
+
+  assert.ok(row);
+  assert.equal(row.item_type, "page");
+  assert.equal(row.published, 1);
+  assert.equal(row.instructor_only, 0);
+  assert.equal(row.external_url, null);
+  for (const faculty of pn107LabFaculty) {
+    assert.ok(row.content.includes(`${faculty.firstName} ${faculty.lastName}`));
+    assert.ok(row.content.includes(faculty.title));
+    assert.ok(row.content.includes(faculty.email));
+  }
+  assert.ok(row.content.includes(schoolDirectory.institution.address));
+  assert.ok(row.content.includes(schoolDirectory.institution.phone));
+  assert.ok(row.content.includes(schoolDirectory.institution.email));
+  assert.doesNotMatch(row.content, /sabahadur84@gmail\.com/i);
+  assert.doesNotMatch(row.content, /(?:\(954\)\s*558-5174|954-558-5174)/);
 });
 
 after(() => {
@@ -338,6 +436,13 @@ test("the targeted 12-week reflow preserves existing lesson and grade-item IDs",
     database.prepare(`
       SELECT COUNT(*) AS count FROM course_seed_versions
       WHERE course_id = ? AND seed_key = 'pn107-lab:complete-required-lippincott-video-index-v2'
+    `).get(course.id).count,
+    1
+  );
+  assert.equal(
+    database.prepare(`
+      SELECT COUNT(*) AS count FROM course_seed_versions
+      WHERE course_id = ? AND seed_key = 'pn107-lab:faculty-school-contacts-v1'
     `).get(course.id).count,
     1
   );
