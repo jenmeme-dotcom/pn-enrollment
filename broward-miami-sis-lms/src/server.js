@@ -819,7 +819,7 @@ function eligibleWithdrawalEnrollmentsByStudent(studentIds = []) {
   if (!normalizedIds.length) return grouped;
   const placeholders = normalizedIds.map(() => "?").join(",");
   db.prepare(`
-    SELECT e.id, e.user_id, e.course_id, e.status, e.start_date, e.progress, c.title, c.category
+    SELECT e.id, e.user_id, e.course_id, e.status, e.start_date, e.progress, c.title, c.slug, c.category
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     WHERE e.user_id IN (${placeholders}) AND e.status IN ('active','hold') AND e.withdrawn_at IS NULL
@@ -876,7 +876,7 @@ function renderStudentWithdrawalControl(student, enrollments = [], { returnTo = 
             ${currentCourses.map((enrollment) => `
               <label>
                 <input type="checkbox" name="courseIds" value="${enrollment.course_id}">
-                <span><strong>${escapeHtml(enrollment.title)}</strong><small>${escapeHtml(enrollment.status)} · ${escapeHtml(enrollment.progress || 0)}% complete${enrollment.recordCount > 1 ? ` · ${escapeHtml(enrollment.recordCount)} enrollment records affected` : ""}</small></span>
+                <span><strong>${escapeHtml(courseDisplayTitle(enrollment))}</strong><small>${escapeHtml(enrollment.status)} · ${escapeHtml(enrollment.progress || 0)}% complete${enrollment.recordCount > 1 ? ` · ${escapeHtml(enrollment.recordCount)} enrollment records affected` : ""}</small></span>
               </label>
             `).join("")}
           </fieldset>
@@ -1526,7 +1526,7 @@ function weeklyReminderContent(course, weekStart, weekEnd) {
     ? items.map((item) => `• ${item.title} — due ${reminderDateLabel(item.due_date)}${Number(item.points_possible || 0) > 0 ? ` — ${rubricPoints(item.points_possible)} points` : ""}`)
     : ["• No graded assignments are due this week. Continue completing the lessons and activities listed in Modules."];
   const body = [
-    `This reminder follows the published ${course.title} syllabus and gradebook for ${range}.`,
+    `This reminder follows the published ${courseDisplayTitle(course)} syllabus and gradebook for ${range}.`,
     "",
     "Due this week:",
     ...itemLines,
@@ -1680,7 +1680,7 @@ function renderTuitionFeesSection(courses = [], { compact = false } = {}) {
           <tbody>
             ${programRows.map((course) => `
               <tr>
-                <td><strong>${escapeHtml(course.title)}</strong></td>
+                <td><strong>${escapeHtml(courseDisplayTitle(course))}</strong></td>
                 <td>${money(course.tuition_cents)}</td>
                 <td>${money(course.books_supplies_cents)}</td>
                 <td>${money(course.registration_fee_cents)}</td>
@@ -1772,9 +1772,11 @@ function recentInstitutionCatalogs(limit = 5) {
 }
 
 function canvasCourseCode(course = {}) {
-  if ((course.slug || course.course_slug) === "introductory-clinical-pharmacology-pn106") return "PN 106";
-  if (course.slug === "medical-surgical-nursing-i-pn107") return "PN 107";
+  const explicitCode = String(course.code || course.course_code || course.courseCode || "").trim();
+  if (explicitCode) return explicitCode;
   const slug = course.slug || course.course_slug;
+  if (slug === "introductory-clinical-pharmacology-pn106") return "PN 106";
+  if (slug === "medical-surgical-nursing-i-pn107") return "PN 107";
   if (slug === "medical-surgical-nursing-i-pn107-lab") return "PN 107 Lab";
   if (slug === "home-health-aide") return "HHA 75";
   if (slug === "home-health-aide-creole") return "HHA 75 Kreyol";
@@ -1784,8 +1786,33 @@ function canvasCourseCode(course = {}) {
   if (slug === "anatomy-and-physiology") return "PN 104";
   if (slug === FUNDAMENTALS_SLUG) return "PN 105";
   const id = course.course_id || course.id || 0;
-  if (course.category === "Practical Nursing Course") return `PN-${String(id).padStart(3, "0")}`;
+  if ((course.category || course.course_category) === "Practical Nursing Course") return `PN-${String(id).padStart(3, "0")}`;
   return `BMHI-${String(id).padStart(3, "0")}`;
+}
+
+function courseBaseTitle(course = {}) {
+  const title = String(course.title || course.course_title || "").trim();
+  if (!title) return "";
+  const code = canvasCourseCode(course);
+  const flexibleCode = [...code].map((character) => {
+    if (/\s|-/.test(character)) return "[\\s-]*";
+    return character.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }).join("");
+  return title
+    .replace(new RegExp(`^\\s*${flexibleCode}\\s*(?:[:|·–—-]\\s*)?`, "i"), "")
+    .trim();
+}
+
+function courseDisplayTitle(course = {}, separator = ": ") {
+  const title = String(course.title || course.course_title || "").trim();
+  const hasCourseIdentity = Boolean(
+    course.code || course.course_code || course.courseCode || course.slug || course.course_slug
+      || course.id || course.course_id || course.category || course.course_category
+  );
+  if (!hasCourseIdentity) return title;
+  const code = canvasCourseCode(course);
+  const baseTitle = courseBaseTitle(course);
+  return baseTitle ? `${code}${separator}${baseTitle}` : code;
 }
 
 const courseThumbnailUrls = Object.freeze({
@@ -2025,9 +2052,10 @@ function renderInstructorCanvasRail(user, active = "courses") {
 function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = [], {
   editHref = "",
   editLabel = "Edit Course",
-  manageHref = ""
+  manageHref = "",
+  courseLabel = courseCode
 } = {}) {
-  const crumbTrail = breadcrumbs.length ? breadcrumbs : [{ label: courseCode, href: baseHref }];
+  const crumbTrail = breadcrumbs.length ? breadcrumbs : [{ label: courseLabel, href: baseHref }];
   const courseMenuItems = studentCourseNavItems.map((label) => ({
     label,
     href: courseNavHref(baseHref, label)
@@ -2049,7 +2077,7 @@ function renderStudentCanvasHeader(courseCode, baseHref, breadcrumbs = [], {
         <button class="canvas-top-button" type="submit">Sign out</button>
       </form>
     </header>
-    <nav id="canvas-course-submenu" class="canvas-course-submenu" aria-label="${escapeHtml(courseCode)} course menu" hidden>
+    <nav id="canvas-course-submenu" class="canvas-course-submenu" aria-label="${escapeHtml(courseLabel)} course menu" hidden>
       ${courseMenuItems.map((item) => `<a href="${escapeHtml(item.href)}">${escapeHtml(item.label)}</a>`).join("")}
     </nav>
   `;
@@ -3850,7 +3878,7 @@ function renderCourseFilesPage({ course, courseCode, files = [] }) {
         <span></span>
         <strong>${escapeHtml(courseCode)}</strong>
       </div>
-      <h1>${escapeHtml(course.title)} Files</h1>
+      <h1>${escapeHtml(courseDisplayTitle({ ...course, code: courseCode }))} Files</h1>
       <div class="canvas-rule"></div>
       <section class="canvas-module-block">
         <header class="canvas-module-header">
@@ -4342,14 +4370,15 @@ function instructorPeopleRoster(course, enrollments = [], instructor) {
     { first_name: "J Laurie", last_name: "Robert", email: "", invite_status: "pending", last_activity: "", total_activity: "" },
     { first_name: "Rekena", last_name: "Williams", email: "kena_wims@yahoo.com", last_activity: "Jul 2 at 5:04pm", total_activity: "32:25" }
   ];
+  const courseLabel = courseDisplayTitle(course);
   const sectionFor = (row = {}) => {
-    if (!row.cohort_name) return course.title;
+    if (!row.cohort_name) return courseLabel;
     const dates = row.cohort_start_date || row.cohort_end_date
       ? ` (${date(row.cohort_start_date)} - ${date(row.cohort_end_date)})`
       : "";
-    return `${row.cohort_name}${dates} · ${course.title}`;
+    return `${row.cohort_name}${dates} · ${courseLabel}`;
   };
-  const section = course.title;
+  const section = courseLabel;
   const roster = enrollments.map((row, index) => ({
     id: row.user_id,
     student_number: row.student_number,
@@ -4406,7 +4435,7 @@ function renderInstructorPeoplePage({ course, courseCode, baseHref, enrollments 
   const people = instructorPeopleRoster(course, enrollments, instructor);
   const pendingCount = people.filter((person) => person.invite_status === "pending").length;
   const sections = people.reduce((groups, person) => {
-    const key = person.section || course.title;
+    const key = person.section || courseDisplayTitle(course);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(person);
     return groups;
@@ -4480,7 +4509,7 @@ function renderInstructorPeoplePage({ course, courseCode, baseHref, enrollments 
                 </td>
                 <td>${escapeHtml(person.email || "")}</td>
                 <td>${person.id && person.role === "Student" ? escapeHtml(displayStudentNumber(person)) : ""}</td>
-                <td>${escapeHtml(person.section || course.title)}</td>
+                <td>${escapeHtml(person.section || courseDisplayTitle(course))}</td>
                 <td>${escapeHtml(person.role)}</td>
                 <td>${escapeHtml(person.last_activity || "")}</td>
                 <td>${escapeHtml(person.total_activity || "")}</td>
@@ -4672,7 +4701,7 @@ function renderInstructorSettingsPage({ course, courseCode, baseHref, enrollment
         <section class="settings-section-panel" id="sections">
           <h2>Sections</h2>
           <div class="settings-section-card">
-            <strong>${escapeHtml(course.title)}</strong>
+            <strong>${escapeHtml(courseDisplayTitle(course))}</strong>
             <span>${escapeHtml(studentCount)} enrolled students · ${instructor ? "1 teacher" : "0 teachers"}</span>
           </div>
         </section>
@@ -5076,7 +5105,7 @@ function renderCanvasDashboardPage({ user, data }) {
             <span>▦</span>
             <div>
               <a href="/student/calendar">${escapeHtml(row.title)}</a>
-              <small>${escapeHtml(row.course_title || "Course")} · ${escapeHtml(formatAnnouncementDate(row.start_at))}</small>
+              <small>${escapeHtml(row.course_title ? courseDisplayTitle(row) : "Course")} · ${escapeHtml(formatAnnouncementDate(row.start_at))}</small>
             </div>
           </article>
         `).join("") || `<p class="empty compact">Nothing coming up yet.</p>`}
@@ -5282,7 +5311,7 @@ function renderMonthCalendarPage({ events = [], courses = [], currentCourseId = 
           <h2>Add Calendar Event</h2>
           <input name="title" required maxlength="160" placeholder="Event title">
           <select name="courseId">
-            ${courses.map((course) => `<option value="${course.id}" ${Number(currentCourseId) === Number(course.id) ? "selected" : ""}>${escapeHtml(canvasCourseCode(course))} - ${escapeHtml(course.title)}</option>`).join("")}
+            ${courses.map((course) => `<option value="${course.id}" ${Number(currentCourseId) === Number(course.id) ? "selected" : ""}>${escapeHtml(courseDisplayTitle(course))}</option>`).join("")}
           </select>
           <input name="startAt" type="datetime-local" required value="${escapeHtml(toDateTimeLocalValue("2026-07-08 18:00:00"))}">
           <textarea name="description" rows="3" placeholder="Event details"></textarea>
@@ -5313,7 +5342,7 @@ function renderMonthCalendarPage({ events = [], courses = [], currentCourseId = 
         ${courses.slice(0, 10).map((course, index) => `
           <label>
             <input type="checkbox" ${!currentCourseId || Number(currentCourseId) === Number(course.id) || index < 3 ? "checked" : ""}>
-            <span>${escapeHtml(canvasCourseCode(course))} ${escapeHtml(course.title)}</span>
+            <span>${escapeHtml(courseDisplayTitle(course))}</span>
             <b>⋮</b>
           </label>
         `).join("") || `<p class="empty compact">No calendars available.</p>`}
@@ -5363,7 +5392,7 @@ function buildCourseSyllabusModel({
     instituteAddress,
     institutePhone,
     instituteEmail,
-    courseTitle,
+    courseTitle: courseBaseTitle({ title: courseTitle, slug: courseSlug, code: courseCode }),
     courseDescription,
     courseCode,
     courseHours,
@@ -5388,6 +5417,7 @@ function buildCourseSyllabusModel({
 }
 
 function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, courseHours, courseCategory, courseCredential = "", courseDelivery = "", courseSlug = "", gradeItems = [], lessons = [], baseHref, pdfHref = "" }) {
+  const displayCourseTitle = courseDisplayTitle({ title: courseTitle, slug: courseSlug, code: courseCode });
   const model = buildCourseSyllabusModel({
     courseTitle,
     courseDescription,
@@ -5415,7 +5445,7 @@ function renderCourseSyllabus({ courseTitle, courseDescription, courseCode, cour
   return `
     <main class="canvas-course-main canvas-syllabus-main">
       <div class="canvas-mini-head">
-        <h1>${escapeHtml(courseCode)} &gt; Syllabus</h1>
+        <h1>${escapeHtml(displayCourseTitle)} &gt; Syllabus</h1>
         <button class="immersive-reader" type="button">Immersive Reader</button>
       </div>
       <div class="syllabus-layout">
@@ -6068,7 +6098,8 @@ function renderAssignmentGradeEntry(item, courseId, lessons = []) {
     </section>`;
 }
 
-function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons = [], instructor = false, preview = false, studentScore = null, studentGrade = null, courseId = null, enrollmentId = null, submission = null }) {
+function renderCourseAssignmentDetailPage({ courseTitle = "", courseCode, baseHref, item, lessons = [], instructor = false, preview = false, studentScore = null, studentGrade = null, courseId = null, enrollmentId = null, submission = null }) {
+  const displayCourseTitle = courseDisplayTitle({ title: courseTitle, code: courseCode });
   const type = assignmentTypeLabel(item);
   const evidenceLesson = item.accepts_assignment_evidence
     ? lessons.find((lesson) => Number(lesson.grade_item_id) === Number(item.id) && lesson.item_type === "assignment" && String(lesson.content || "").trim())
@@ -6093,7 +6124,7 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
     <main class="canvas-course-main canvas-page-main">
       <div class="canvas-mini-head">
         <span></span>
-        <strong>${escapeHtml(courseCode)} &gt; Assignments</strong>
+        <strong>${escapeHtml(displayCourseTitle)} &gt; Assignments</strong>
       </div>
       <article class="canvas-page-content">
         <p class="canvas-page-breadcrumb">
@@ -6144,6 +6175,7 @@ function renderCourseAssignmentDetailPage({ courseCode, baseHref, item, lessons 
 }
 
 function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeItems = [], lessons = [], quizzesOnly = false, instructor = false }) {
+  const displayCourseTitle = courseDisplayTitle({ title: courseTitle, code: courseCode });
   const contextualHref = (href) => instructor && !href.includes("mode=edit") ? `${href}${href.includes("?") ? "&" : "?"}mode=edit` : href;
   const decoratedGradeItems = gradeItems.map((item) => decorateGradeItemForCourse(item, lessons));
   const filteredItems = decoratedGradeItems.filter((item) => {
@@ -6233,7 +6265,7 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
     <main class="canvas-course-main canvas-assignments-main">
       <div class="canvas-mini-head">
         <span></span>
-        <strong>${escapeHtml(courseCode)} &gt; ${escapeHtml(title)}</strong>
+        <strong>${escapeHtml(displayCourseTitle)} &gt; ${escapeHtml(title)}</strong>
         ${instructor ? `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=modules&mode=edit">Manage Modules</a>` : `<a class="canvas-top-button" href="${escapeHtml(baseHref)}?view=modules">View Modules</a>`}
       </div>
       <section class="syllabus-card assignment-page-intro">
@@ -6251,7 +6283,7 @@ function renderCourseAssignmentsPage({ courseTitle, courseCode, baseHref, gradeI
            ${renderAssignmentTable("Exams", "Open the scheduled Midterm and Final Exam here.", examRows)}`
         : renderAssignmentTable("Course Assignments", "", rows)}
       <section class="syllabus-card">
-        <h2>${escapeHtml(courseTitle)}</h2>
+        <h2>${escapeHtml(displayCourseTitle)}</h2>
         <p>Use Modules for weekly directions and Files for supporting handouts, worksheets, slides, and readings.</p>
       </section>
     </main>
@@ -6908,7 +6940,7 @@ function messageDeliveryLabel(message = {}) {
 
 function messageCourseLabel(message = {}) {
   if (!message.course_title) return "General";
-  return message.course_code ? `${message.course_code} · ${message.course_title}` : message.course_title;
+  return courseDisplayTitle(message);
 }
 
 function messageUrl(basePath, params = {}) {
@@ -6949,6 +6981,8 @@ function messageRowsForViewer(viewerId, filters = {}) {
       r.email AS recipient_email,
       r.role AS recipient_role,
       c.title AS course_title,
+      c.slug AS course_slug,
+      c.category AS course_category,
       NULL AS course_code
     FROM messages m
     JOIN users s ON s.id = m.sender_id
@@ -6986,6 +7020,8 @@ function messageThread(threadId, viewerId) {
       r.email AS recipient_email,
       r.role AS recipient_role,
       c.title AS course_title,
+      c.slug AS course_slug,
+      c.category AS course_category,
       NULL AS course_code
     FROM messages m
     JOIN users s ON s.id = m.sender_id
@@ -7000,7 +7036,7 @@ function messageThread(threadId, viewerId) {
 function messageCourseOptions(user) {
   if (user.role === "student") {
     return db.prepare(`
-      SELECT DISTINCT c.id, c.title, NULL AS code
+      SELECT DISTINCT c.id, c.title, c.slug, c.category, NULL AS code
       FROM enrollments e
       JOIN courses c ON c.id = e.course_id
       WHERE e.user_id = ? AND e.status IN ('active', 'completed') AND e.withdrawn_at IS NULL
@@ -7008,7 +7044,7 @@ function messageCourseOptions(user) {
     `).all(user.id);
   }
   return db.prepare(`
-    SELECT id, title, NULL AS code
+    SELECT id, title, slug, category, NULL AS code
     FROM courses
     ORDER BY title
   `).all();
@@ -7033,7 +7069,7 @@ function messageComposeForm({ action, recipients, courses, selectedRecipientId =
       <label>Course</label>
       <select name="courseId">
         <option value="">General message</option>
-        ${courses.map((course) => `<option value="${course.id}" ${Number(selectedCourseId) === Number(course.id) ? "selected" : ""}>${escapeHtml(course.code ? `${course.code} · ${course.title}` : course.title)}</option>`).join("")}
+        ${courses.map((course) => `<option value="${course.id}" ${Number(selectedCourseId) === Number(course.id) ? "selected" : ""}>${escapeHtml(courseDisplayTitle(course))}</option>`).join("")}
       </select>
       <label>Subject</label>
       <input name="subject" maxlength="140" required value="${escapeHtml(subject)}" placeholder="Question about class">
@@ -7342,7 +7378,7 @@ function publicProgramOptions(selectedSlug = "") {
   `).all();
   return courses.map((course) => {
     const total = Number(course.tuition_cents || 0) + Number(course.books_supplies_cents || 0) + Number(course.registration_fee_cents || 0);
-    const label = `${course.title} · ${course.hours} hours · ${course.credential_type}${total ? ` · ${money(total)}` : ""}`;
+    const label = `${courseDisplayTitle(course)} · ${course.hours} hours · ${course.credential_type}${total ? ` · ${money(total)}` : ""}`;
     return `<option value="${escapeHtml(course.slug)}" ${selectedSlug === course.slug ? "selected" : ""}>${escapeHtml(label)}</option>`;
   }).join("");
 }
@@ -9116,7 +9152,7 @@ function renderAdminCourseDashboardSidebar({ pendingSubmissions = [], upcoming =
               <span class="course-dashboard-side-icon" aria-hidden="true">▦</span>
               <div>
                 <a href="${item.course_id ? `/admin/courses/${item.course_id}/student-view?view=${item.item_kind === "assignment" ? "assignments" : "calendar"}` : "/admin/schedule"}">${escapeHtml(item.title)}</a>
-                <em>${escapeHtml(item.course_title || "School calendar")}</em>
+                <em>${escapeHtml(item.course_title ? courseDisplayTitle(item) : "School calendar")}</em>
                 <small>${escapeHtml(item.item_kind === "assignment" ? date(item.scheduled_at) : formatAnnouncementDate(item.scheduled_at))}</small>
               </div>
             </article>
@@ -9196,6 +9232,22 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
     LIMIT 100
   `;
   const recent = selectedCohort ? db.prepare(recentSql).all(selectedCohort) : db.prepare(recentSql).all();
+  if (recent.length) {
+    const recentIds = recent.map((student) => student.user_id);
+    const recentPlaceholders = recentIds.map(() => "?").join(",");
+    const titlesByStudent = new Map(recentIds.map((studentId) => [studentId, []]));
+    db.prepare(`
+      SELECT e.user_id, e.course_id, c.title, c.slug, c.category
+      FROM enrollments e
+      JOIN courses c ON c.id = e.course_id
+      WHERE e.user_id IN (${recentPlaceholders})
+        AND e.status IN ('active','completed') AND e.withdrawn_at IS NULL
+      ORDER BY e.user_id, c.title
+    `).all(...recentIds).forEach((course) => titlesByStudent.get(course.user_id)?.push(courseDisplayTitle(course)));
+    recent.forEach((student) => {
+      student.course_titles = [...new Set(titlesByStudent.get(student.user_id) || [])].join(", ");
+    });
+  }
   const withdrawalEnrollments = req.user.role === "admin"
     ? eligibleWithdrawalEnrollmentsByStudent(recent.map((student) => student.user_id))
     : new Map();
@@ -9272,7 +9324,7 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
               <td>${req.user.role === "admin" ? `<a class="student-record-link" href="/admin/students/${row.user_id}/registrar-checklist"><strong>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</strong></a>` : `<strong>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</strong>`}<br><span class="muted">${escapeHtml(row.email)}</span></td>
               <td class="photo-review-cell">${renderPhotoReviewControls(student, { returnTo: "dashboard", canReview: req.user.role === "admin" })}</td>
               <td>${row.cohort_name ? `<span class="pill">${escapeHtml(row.cohort_name)}</span>` : `<span class="muted">Not assigned</span>`}</td>
-              <td>${row.course_titles ? escapeHtml(String(row.course_titles).split(",").join(", ")) : `<span class="muted">No active course</span>`}</td>
+              <td>${row.course_titles ? escapeHtml(row.course_titles) : `<span class="muted">No active course</span>`}</td>
               <td><span class="pill">${escapeHtml(row.student_status)}</span></td>
               <td>${progressBar(row.progress)}<span class="muted">${escapeHtml(row.progress)}%</span></td>
               <td>${date(row.start_date)}</td>
@@ -9458,7 +9510,7 @@ function renderAdminSchedule(req, res) {
         <div>
           <label for="schedule-course">Course</label>
           <select id="schedule-course" name="course">
-            ${scheduleRows.map((row) => `<option value="${escapeHtml(row.slug)}" ${row.slug === selectedRow.slug ? "selected" : ""}>${escapeHtml(`${row.code} · ${row.title}`)}</option>`).join("")}
+            ${scheduleRows.map((row) => `<option value="${escapeHtml(row.slug)}" ${row.slug === selectedRow.slug ? "selected" : ""}>${escapeHtml(courseDisplayTitle(row))}</option>`).join("")}
           </select>
         </div>
         <button type="submit">View schedule</button>
@@ -9467,7 +9519,7 @@ function renderAdminSchedule(req, res) {
     <section class="table-card" style="margin-top:18px">
       <div class="table-card-head">
         <div>
-          <h2>${escapeHtml(selectedRow.code)} · ${escapeHtml(selectedRow.title)}</h2>
+          <h2>${escapeHtml(courseDisplayTitle(selectedRow))}</h2>
           <p class="muted">${escapeHtml(selectedRow.format)} · ${escapeHtml(selectedRow.meeting)}</p>
         </div>
         <div class="actions">
@@ -9480,7 +9532,7 @@ function renderAdminSchedule(req, res) {
         <thead><tr><th>Course</th><th>12-week date range</th><th>Status</th><th>Meeting pattern</th></tr></thead>
         <tbody>
           <tr>
-            <td><strong>${escapeHtml(selectedRow.code)} · ${escapeHtml(selectedRow.title)}</strong></td>
+            <td><strong>${escapeHtml(courseDisplayTitle(selectedRow))}</strong></td>
             <td>${escapeHtml(date(selectedRow.start))} - ${escapeHtml(date(selectedRow.end))}</td>
             <td><span class="pill ${selectedRow.status === "Upcoming" ? "" : "orange"}">${escapeHtml(selectedRow.status)}</span></td>
             <td>${escapeHtml(selectedRow.meeting)}</td>
@@ -10656,7 +10708,7 @@ app.get("/admin/messages", requireAuth, requireRole("admin", "instructor"), (req
         <form class="message-toolbar" method="get" action="/admin/messages">
           <select name="courseId">
             <option value="">All courses</option>
-            ${courses.map((course) => `<option value="${course.id}" ${Number(courseId) === Number(course.id) ? "selected" : ""}>${escapeHtml(course.code ? `${course.code} · ${course.title}` : course.title)}</option>`).join("")}
+            ${courses.map((course) => `<option value="${course.id}" ${Number(courseId) === Number(course.id) ? "selected" : ""}>${escapeHtml(courseDisplayTitle(course))}</option>`).join("")}
           </select>
           <select name="box">
             <option value="inbox" ${box === "inbox" ? "selected" : ""}>Inbox</option>
@@ -11270,7 +11322,7 @@ app.get("/admin/assignment-submissions", requireAuth, requireRole("admin", "inst
   const q = String(req.query.q || "").trim().slice(0, 100);
   const submissions = db.prepare(`
     SELECT assignment_submissions.*, grade_items.title AS assignment_title, grade_items.points_possible,
-      courses.id AS course_id, courses.title AS course_title,
+      courses.id AS course_id, courses.title AS course_title, courses.slug AS course_slug, courses.category AS course_category,
       users.id AS student_id, users.first_name, users.last_name, users.email,
       grades.score, grades.note AS grade_feedback, grades.updated_at AS graded_at
     FROM assignment_submissions
@@ -11325,7 +11377,7 @@ app.get("/admin/assignment-submissions", requireAuth, requireRole("admin", "inst
             <div>
               <p class="eyebrow">${approvalPending ? "Auto grade needs approval" : hasPostedGrade ? "Graded" : "Awaiting grade"}</p>
               <h2>${escapeHtml(submission.assignment_title)}</h2>
-              <p>${escapeHtml(submission.course_title)}</p>
+              <p>${escapeHtml(courseDisplayTitle(submission))}</p>
             </div>
             <span class="pill ${hasPostedGrade ? "" : "orange"}">${approvalPending ? `Review ${escapeHtml(submission.score)} / ${escapeHtml(submission.points_possible)}` : hasPostedGrade ? `${escapeHtml(submission.score)} / ${escapeHtml(submission.points_possible)}` : "New submission"}</span>
           </header>
@@ -11361,7 +11413,8 @@ app.get("/admin/assignment-submissions/:id/file", requireAuth, requireRole("admi
 app.post("/admin/assignment-submissions/:id/grade", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const submission = db.prepare(`
     SELECT assignment_submissions.*, grade_items.title AS assignment_title, grade_items.points_possible,
-      enrollments.user_id, courses.id AS course_id, courses.title AS course_title
+      enrollments.user_id, courses.id AS course_id, courses.title AS course_title,
+      courses.slug AS course_slug, courses.category AS course_category
     FROM assignment_submissions
     JOIN grade_items ON grade_items.id = assignment_submissions.grade_item_id
     JOIN enrollments ON enrollments.id = assignment_submissions.enrollment_id
@@ -11385,7 +11438,7 @@ app.post("/admin/assignment-submissions/:id/grade", requireAuth, requireRole("ad
     recipientId: submission.user_id,
     courseId: submission.course_id,
     subject: `Assignment graded: ${submission.assignment_title}`,
-    body: `Your ${submission.assignment_title} submission in ${submission.course_title} was graded ${score} out of ${submission.points_possible}.${feedback ? ` Feedback: ${feedback}` : ""}`
+    body: `Your ${submission.assignment_title} submission in ${courseDisplayTitle(submission)} was graded ${score} out of ${submission.points_possible}.${feedback ? ` Feedback: ${feedback}` : ""}`
   });
   flash(req, `Grade posted for ${submission.assignment_title}. The student was notified.`);
   res.redirect("/admin/assignment-submissions");
@@ -11393,7 +11446,8 @@ app.post("/admin/assignment-submissions/:id/grade", requireAuth, requireRole("ad
 
 app.get("/admin/student-evaluations", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   const enrollments = db.prepare(`
-    SELECT e.*, c.title AS course_title, u.first_name, u.last_name, u.email
+    SELECT e.*, c.title AS course_title, c.slug AS course_slug, c.category AS course_category,
+      u.first_name, u.last_name, u.email
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     JOIN users u ON u.id = e.user_id
@@ -11442,7 +11496,7 @@ app.get("/admin/student-evaluations", requireAuth, requireRole("admin", "instruc
       ${visibleEnrollments.map((enrollment) => `
         <article class="card staff-evaluation-enrollment">
           <header>
-            <div><p class="eyebrow">${escapeHtml(enrollment.status)}</p><h2>${escapeHtml(enrollment.last_name)}, ${escapeHtml(enrollment.first_name)}</h2><p>${escapeHtml(enrollment.course_title)} · Started ${escapeHtml(date(enrollment.start_date))}</p></div>
+            <div><p class="eyebrow">${escapeHtml(enrollment.status)}</p><h2>${escapeHtml(enrollment.last_name)}, ${escapeHtml(enrollment.first_name)}</h2><p>${escapeHtml(courseDisplayTitle(enrollment))} · Started ${escapeHtml(date(enrollment.start_date))}</p></div>
             <span>${escapeHtml(enrollment.progress)}% course progress</span>
           </header>
           <div class="staff-evaluation-milestones">
@@ -11523,7 +11577,8 @@ app.post("/admin/student-evaluations/:enrollmentId/:weekNumber", requireAuth, re
   const enrollmentId = Number(req.params.enrollmentId);
   const weekNumber = Number(req.params.weekNumber);
   const enrollment = db.prepare(`
-    SELECT e.*, c.title AS course_title, u.first_name, u.last_name
+    SELECT e.*, c.title AS course_title, c.slug AS course_slug, c.category AS course_category,
+      u.first_name, u.last_name
     FROM enrollments e JOIN courses c ON c.id = e.course_id JOIN users u ON u.id = e.user_id
     WHERE e.id = ? AND e.status IN ('active', 'completed') AND e.withdrawn_at IS NULL AND u.role = 'student'
   `).get(enrollmentId);
@@ -11578,12 +11633,13 @@ app.post("/admin/student-evaluations/:enrollmentId/:weekNumber", requireAuth, re
     req.body.releasedToStudent === "1" ? 1 : 0
   );
   if (req.body.releasedToStudent === "1") {
+    const courseLabel = courseDisplayTitle(enrollment);
     savePortalMessage({
       senderId: req.user.id,
       recipientId: enrollment.user_id,
       courseId: enrollment.course_id,
-      subject: `Student evaluation completed: Week ${weekNumber} ${enrollment.course_title}`,
-      body: `Your instructor completed and released your Week ${weekNumber} evaluation for ${enrollment.course_title}. Open Student Evaluations in the student portal to review the scores, feedback, and action plan.`
+      subject: `Student evaluation completed: Week ${weekNumber} ${courseLabel}`,
+      body: `Your instructor completed and released your Week ${weekNumber} evaluation for ${courseLabel}. Open Student Evaluations in the student portal to review the scores, feedback, and action plan.`
     });
   }
   flash(req, `Week ${weekNumber} evaluation saved for ${enrollment.first_name} ${enrollment.last_name}.`);
@@ -11650,9 +11706,8 @@ app.get("/admin/lpn-enrollment", requireAuth, requireRole("admin"), (req, res) =
             <div class="actions lpn-course-select-actions"><button class="small ghost" type="button" data-select-lpn-core>Select PN 101–104</button><button class="small ghost" type="button" data-select-lpn-all>Select all LPN courses</button><button class="small ghost" type="button" data-clear-lpn>Clear</button></div>
             <div class="lpn-course-checklist">
               ${lpnCourses.map((course, index) => {
-                const code = canvasCourseCode(course);
                 const alreadyEnrolled = activeCourseIds.has(course.id);
-                return `<label class="lpn-course-option ${alreadyEnrolled ? "is-enrolled" : ""}"><input type="checkbox" name="courseIds" value="${course.id}" data-lpn-position="${index + 1}" ${index < 4 && !alreadyEnrolled ? "checked" : ""} ${alreadyEnrolled ? "disabled" : ""}><span><strong>${escapeHtml(code)} · ${escapeHtml(course.title)}</strong><small>${escapeHtml(course.hours)} hours${alreadyEnrolled ? " · Already enrolled" : ""}</small></span></label>`;
+                return `<label class="lpn-course-option ${alreadyEnrolled ? "is-enrolled" : ""}"><input type="checkbox" name="courseIds" value="${course.id}" data-lpn-position="${index + 1}" ${index < 4 && !alreadyEnrolled ? "checked" : ""} ${alreadyEnrolled ? "disabled" : ""}><span><strong>${escapeHtml(courseDisplayTitle(course))}</strong><small>${escapeHtml(course.hours)} hours${alreadyEnrolled ? " · Already enrolled" : ""}</small></span></label>`;
               }).join("")}
             </div>
           </fieldset>
@@ -11673,7 +11728,7 @@ app.get("/admin/lpn-enrollment", requireAuth, requireRole("admin"), (req, res) =
         </script>
       ` : `<div class="empty"><h2>Enrollment setup is not ready</h2><p>${students.length ? "No published LPN course shells were found." : "Create an active student before starting LPN enrollment."}</p><a class="button" href="/admin/students">Open Students</a></div>`}
     </section>
-    ${selectedStudent ? `<section class="table-card" style="margin-top:18px"><div class="table-card-head"><div><h2>Current LPN enrollments for ${escapeHtml(personName(selectedStudent))}</h2><p class="muted">These courses are protected from duplicate enrollment.</p></div></div><table><thead><tr><th>Course</th><th>Status</th><th>Started</th></tr></thead><tbody>${activeEnrollments.map((row) => `<tr><td>${escapeHtml(canvasCourseCode(row))} · ${escapeHtml(row.title)}</td><td><span class="pill">${escapeHtml(row.status)}</span></td><td>${escapeHtml(date(row.start_date))}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">No LPN course enrollments yet.</td></tr>`}</tbody></table></section>` : ""}
+    ${selectedStudent ? `<section class="table-card" style="margin-top:18px"><div class="table-card-head"><div><h2>Current LPN enrollments for ${escapeHtml(personName(selectedStudent))}</h2><p class="muted">These courses are protected from duplicate enrollment.</p></div></div><table><thead><tr><th>Course</th><th>Status</th><th>Started</th></tr></thead><tbody>${activeEnrollments.map((row) => `<tr><td>${escapeHtml(courseDisplayTitle(row))}</td><td><span class="pill">${escapeHtml(row.status)}</span></td><td>${escapeHtml(date(row.start_date))}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">No LPN course enrollments yet.</td></tr>`}</tbody></table></section>` : ""}
   `;
   render(req, res, "LPN Enrollment", body);
 });
@@ -11795,7 +11850,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
     return;
   }
 
-  const courses = db.prepare("SELECT id, title FROM courses WHERE published = 1 ORDER BY title").all();
+  const courses = db.prepare("SELECT id, title, slug, category FROM courses WHERE published = 1 ORDER BY title").all();
   const body = `
     <div class="page-head">
       <div>
@@ -11827,7 +11882,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
               <option value="organized">Organized / ready for class</option>
             </select>
           </div>
-          <div><label>Enroll in course</label><select name="courseId"><option value="">No enrollment yet</option>${courses.map((course) => `<option value="${course.id}">${escapeHtml(course.title)}</option>`).join("")}</select></div>
+          <div><label>Enroll in course</label><select name="courseId"><option value="">No enrollment yet</option>${courses.map((course) => `<option value="${course.id}">${escapeHtml(courseDisplayTitle(course))}</option>`).join("")}</select></div>
           <div class="span-2"><label>Lock reason</label><input name="classLockReason" value="Pending registrar organization and clearance."></div>
         </div>
         <button type="submit">Create student</button>
@@ -11961,15 +12016,17 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
     LIMIT 20
   `).all(student.id);
   const withdrawalEvents = db.prepare(`
-    SELECT e.*, TRIM(COALESCE(a.first_name, '') || ' ' || COALESCE(a.last_name, '')) AS actor_name
+    SELECT e.*, c.slug AS course_slug, c.category AS course_category,
+      TRIM(COALESCE(a.first_name, '') || ' ' || COALESCE(a.last_name, '')) AS actor_name
     FROM student_withdrawal_events e
     LEFT JOIN users a ON a.id = e.withdrawn_by
+    LEFT JOIN courses c ON c.id = e.course_id
     WHERE e.student_id = ?
     ORDER BY e.created_at DESC, e.id DESC
     LIMIT 50
   `).all(student.id);
   const enrollmentRows = db.prepare(`
-    SELECT e.*, c.title, c.category
+    SELECT e.*, c.title, c.slug, c.category
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     WHERE e.user_id = ?
@@ -12008,7 +12065,7 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
           ${checklist.map((item) => `<a href="#${escapeHtml(item.item_key)}">${escapeHtml(item.title)}</a>`).join("")}
         </div>
         <div class="registrar-timeline">
-          ${enrollmentRows.map((row) => `<p><strong>${escapeHtml(row.title)}</strong><span>${escapeHtml(row.status)} · ${escapeHtml(row.progress)}% complete</span></p>`).join("") || `<p><strong>No enrollments</strong><span>Add the student to a course when ready.</span></p>`}
+          ${enrollmentRows.map((row) => `<p><strong>${escapeHtml(courseDisplayTitle(row))}</strong><span>${escapeHtml(row.status)} · ${escapeHtml(row.progress)}% complete</span></p>`).join("") || `<p><strong>No enrollments</strong><span>Add the student to a course when ready.</span></p>`}
         </div>
       </article>
 
@@ -12029,7 +12086,7 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
               <h3>Course enrollment record</h3>
               ${enrollmentRows.map((row) => `
                 <p class="${escapeHtml(row.withdrawn_at ? "withdrawn" : row.status)}">
-                  <strong>${escapeHtml(row.title)}</strong>
+                  <strong>${escapeHtml(courseDisplayTitle(row))}</strong>
                   <span>${escapeHtml(row.status)}${row.withdrawn_at && row.status !== "withdrawn" ? " · access withdrawn" : ""} · ${escapeHtml(row.progress || 0)}% complete${row.withdrawal_effective_date ? ` · Effective ${escapeHtml(date(row.withdrawal_effective_date))}` : ""}</span>
                 </p>
               `).join("") || `<p class="empty compact">No enrollment records.</p>`}
@@ -12040,7 +12097,7 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
             <div>
               ${withdrawalEvents.map((event) => `
                 <p>
-                  <strong>${event.scope === "school" ? "Entire school" : escapeHtml(event.course_title || "Course")}</strong>
+                  <strong>${event.scope === "school" ? "Entire school" : escapeHtml(courseDisplayTitle(event) || "Course")}</strong>
                   <span>Effective ${escapeHtml(date(event.effective_date))} · Recorded ${escapeHtml(formatMessageDate(event.created_at))}${event.actor_name ? ` · ${escapeHtml(event.actor_name)}` : ""}</span>
                   <span>${escapeHtml(event.reason)}</span>
                   ${event.scope === "school" ? `<small>${escapeHtml(event.affected_enrollment_count)} current course enrollment${Number(event.affected_enrollment_count) === 1 ? "" : "s"} withdrawn; completed courses preserved.</small>` : ""}
@@ -13221,7 +13278,8 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
   const sidebarData = adminCourseDashboardSidebarData();
   const renderCoursePickerCard = (course) => {
     const isPublished = Number(course.published) === 1;
-    const openLabel = `Open ${course.title}`;
+    const displayTitle = courseDisplayTitle(course);
+    const openLabel = `Open ${displayTitle}`;
     return `
       <article class="course-picker-card ${isPublished ? "is-published" : "is-unpublished"}">
         <a class="course-picker-thumbnail" href="/admin/courses/${course.id}/student-view" aria-label="${escapeHtml(openLabel)}">
@@ -13233,14 +13291,14 @@ app.get("/admin/courses", requireAuth, requireRole("admin", "instructor"), (req,
             <span class="course-picker-code">${escapeHtml(canvasCourseCode(course))}</span>
             <p class="course-picker-category">${escapeHtml(course.category)}</p>
           </div>
-          <h3><a href="/admin/courses/${course.id}/student-view">${escapeHtml(course.title)}</a></h3>
+          <h3><a href="/admin/courses/${course.id}/student-view">${escapeHtml(displayTitle)}</a></h3>
           <dl class="course-picker-meta">
             <div><dt>Hours</dt><dd>${escapeHtml(course.hours)}</dd></div>
             <div><dt>Students</dt><dd>${escapeHtml(course.enrollments)}</dd></div>
             <div><dt>Format</dt><dd>${escapeHtml(course.delivery_mode)}</dd></div>
           </dl>
           <div class="course-picker-actions">
-            <a class="button small" href="/admin/courses/${course.id}/manage" aria-label="Open actions for ${escapeHtml(course.title)}">Actions</a>
+            <a class="button small" href="/admin/courses/${course.id}/manage" aria-label="Open actions for ${escapeHtml(displayTitle)}">Actions</a>
           </div>
         </div>
       </article>
@@ -13398,7 +13456,7 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
   const body = `
     <div class="page-head">
       <div>
-        <h1>${escapeHtml(course.title)}</h1>
+        <h1>${escapeHtml(courseDisplayTitle(course))}</h1>
         <p>${escapeHtml(course.description)}</p>
       </div>
       <div class="actions">
@@ -13475,7 +13533,7 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
           ${childCourses.map((child) => `
             <div class="program-subcourse">
               <div>
-                <strong>${escapeHtml(child.title)}</strong>
+                <strong>${escapeHtml(courseDisplayTitle(child))}</strong>
                 <small>${escapeHtml(child.hours)} hours · ${escapeHtml(child.credential_type)} · ${escapeHtml(child.enrollments)} enrollments · ${escapeHtml(child.credentials)} credentials</small>
               </div>
               <div class="actions">
@@ -13676,7 +13734,7 @@ app.get("/admin/courses/:id/manage", requireAuth, requireRole("admin", "instruct
       </table>
     </section>
   `;
-  render(req, res, course.title, body);
+  render(req, res, courseDisplayTitle(course), body);
 });
 
 app.post("/admin/courses/:id/assessment-access", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -13943,7 +14001,7 @@ app.get("/admin/courses/:id/tools", requireAuth, requireRole("admin", "instructo
     <div class="page-head">
       <div>
         <h1>Course Construction Toolkit</h1>
-        <p>${escapeHtml(course.title)} tools for content, assessment, collaboration, outcomes, analytics, and integrations.</p>
+        <p>${escapeHtml(courseDisplayTitle(course))} tools for content, assessment, collaboration, outcomes, analytics, and integrations.</p>
       </div>
       <div class="actions">
         <a class="button" href="/admin/courses/${course.id}/student-view">Student View</a>
@@ -13953,7 +14011,7 @@ app.get("/admin/courses/:id/tools", requireAuth, requireRole("admin", "instructo
     </div>
 
     <section class="grid cols-3">
-      ${stat("Course", course.title)}
+      ${stat("Course", courseDisplayTitle(course))}
       ${stat("Clock hours", String(course.hours))}
       ${stat("Credential", course.credential_type)}
     </section>
@@ -14015,7 +14073,7 @@ app.get("/admin/courses/:id/tools", requireAuth, requireRole("admin", "instructo
       </div>
     </section>
   `;
-  render(req, res, `${course.title} Tools`, body);
+  render(req, res, `${courseDisplayTitle(course)} Tools`, body);
 });
 
 app.get("/admin/courses/:id/syllabus.pdf", requireAuth, requireRole("admin", "instructor"), async (req, res) => {
@@ -14159,6 +14217,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   const navItems = studentCourseNavItems;
   const adminCourseBaseHref = `/admin/courses/${course.id}/student-view`;
   const courseCode = canvasCourseCode(course);
+  const courseDisplayName = courseDisplayTitle(course);
   const contextParams = new URLSearchParams();
   if (activeView) contextParams.set("view", activeView);
   if (req.query.lesson) contextParams.set("lesson", String(req.query.lesson));
@@ -14169,20 +14228,18 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
   const editParams = new URLSearchParams(contextParams);
   editParams.set("mode", "edit");
   const editCourseHref = `${adminCourseBaseHref}?${editParams.toString()}`;
-  const previewHeader = (breadcrumbs = []) => renderStudentCanvasHeader(courseCode, adminCourseBaseHref, breadcrumbs, {
-    editHref: editing ? previewContextHref : editCourseHref,
-    editLabel: editing ? "Done" : "Edit Course",
-    manageHref: editing ? `/admin/courses/${course.id}/manage` : ""
-  });
-  const courseHomeTitle = course.slug === "introduction-to-nursing-practical-nursing"
-    ? "Introduction to Nursing for Practical Nursing Students"
-    : course.slug === "medical-terminology"
-      ? "Medical Terminology for Practical Nursing Students"
-    : course.slug === "home-health-aide"
-      ? "Home Health Aide 75 Hour Course"
-    : course.slug === "home-health-aide-creole"
-      ? "Kou Asistan Sante Lakay 75 Edtan"
-    : `${course.title} Course Home`;
+  const previewHeader = (breadcrumbs = []) => {
+    const normalizedBreadcrumbs = breadcrumbs.map((crumb, index) => (
+      index === 0 && crumb.label === courseCode ? { ...crumb, label: courseDisplayName } : crumb
+    ));
+    return renderStudentCanvasHeader(courseCode, adminCourseBaseHref, normalizedBreadcrumbs, {
+      editHref: editing ? previewContextHref : editCourseHref,
+      editLabel: editing ? "Done" : "Edit Course",
+      manageHref: editing ? `/admin/courses/${course.id}/manage` : "",
+      courseLabel: courseDisplayName
+    });
+  };
+  const courseHomeTitle = courseDisplayName;
   const courseFocus = course.slug === "introduction-to-nursing-practical-nursing"
     ? "Nursing history, nursing leaders, purpose of nursing, practical nurse role, ethics, legal responsibilities, professionalism, and student impact."
     : course.slug === "medical-terminology"
@@ -14197,7 +14254,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
     <aside class="course-outline-panel" aria-label="Course outline">
       <section class="course-outline-card">
         <div class="course-outline-head">
-          <h2>${escapeHtml(course.title)}</h2>
+          <h2>${escapeHtml(courseDisplayName)}</h2>
           <button class="course-outline-icon" type="button" data-toggle-course-sidebar aria-expanded="false" aria-controls="canvas-course-navigation" aria-label="Expand course navigation" title="Expand course navigation">&gt;</button>
         </div>
         ${progressBar(0)}
@@ -14268,6 +14325,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
       ${courseOutlinePanel}
 
       ${renderCourseAssignmentDetailPage({
+        courseTitle: course.title,
         courseCode,
         baseHref: adminCourseBaseHref,
         item: selectedAssignment,
@@ -14561,7 +14619,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
           <div class="course-welcome-content">
             <span>Welcome to your course</span>
             <h1 id="course-welcome-title">Welcome, Student!</h1>
-            <p>${escapeHtml(course.title)}</p>
+            <p>${escapeHtml(courseDisplayName)}</p>
             <a class="button course-start-button" href="${firstLesson ? `${adminCourseBaseHref}?lesson=${firstLesson.id}` : `${adminCourseBaseHref}?view=modules`}">Start Here</a>
           </div>
           <div class="course-banner-progress" aria-label="0 percent course progress">
@@ -14604,11 +14662,11 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
           <a href="${adminCourseBaseHref}?view=calendar">View Course Calendar</a>
           <a href="/admin/messages">View Course Notifications</a>
         </div>
-        ${renderCourseToDo(gradeItems, adminCourseBaseHref, { limit: 6, courseTitle: course.title })}
+        ${renderCourseToDo(gradeItems, adminCourseBaseHref, { limit: 6, courseTitle: courseDisplayName })}
       </aside>
     </section>
   `;
-  render(req, res, `${course.title} Student View`, body, { courseCanvas: true });
+  render(req, res, `${courseDisplayName} Student View`, body, { courseCanvas: true });
 });
 
 app.post("/admin/courses/:id/announcements", requireAuth, requireRole("admin", "instructor"), (req, res) => {
@@ -15336,7 +15394,8 @@ app.post("/admin/enrollments/:id/issue-credential", requireAuth, requireRole("ad
 
 app.get("/credentials/:id/print", requireAuth, (req, res) => {
   const credential = db.prepare(`
-    SELECT cr.*, e.completion_date, e.final_grade, u.id AS user_id, u.first_name, u.last_name, c.title AS course_title, c.hours
+    SELECT cr.*, e.course_id, e.completion_date, e.final_grade, u.id AS user_id, u.first_name, u.last_name,
+      c.title AS course_title, c.slug AS course_slug, c.category AS course_category, c.hours
     FROM credentials cr
     JOIN enrollments e ON e.id = cr.enrollment_id
     JOIN users u ON u.id = e.user_id
@@ -15359,7 +15418,7 @@ app.get("/credentials/:id/print", requireAuth, (req, res) => {
       <p>This certifies that</p>
       <h2>${escapeHtml(credential.first_name)} ${escapeHtml(credential.last_name)}</h2>
       <p>has successfully completed</p>
-      <h2>${escapeHtml(credential.course_title)}</h2>
+      <h2>${escapeHtml(courseDisplayTitle(credential))}</h2>
       <p>${escapeHtml(credential.hours)} clock hours · Completed ${date(credential.completion_date || credential.issued_at)}</p>
       <p><strong>Credential No.</strong> ${escapeHtml(credential.number)}</p>
       <p><strong>Issued</strong> ${date(credential.issued_at)} · <strong>Authorized by</strong> ${escapeHtml(credential.issuer_name)}</p>
@@ -15454,7 +15513,7 @@ app.get("/student", requireAuth, (req, res) => {
           <tbody>
             ${subjectRows.map((row) => `
               <tr>
-                <td>${escapeHtml(row.title)}</td>
+                <td>${escapeHtml(courseDisplayTitle(row))}</td>
                 <td><span>${escapeHtml(row.progress || 0)}%</span>${progressBar(row.progress || 0)}</td>
               </tr>
             `).join("") || `<tr><td class="empty" colspan="2">No current courses.</td></tr>`}
@@ -15467,7 +15526,7 @@ app.get("/student", requireAuth, (req, res) => {
         ${upcomingRows.map((row, index) => `
           <div class="class-row">
             <span class="teacher-avatar">IN</span>
-            <div><strong>Instructor</strong><small>${escapeHtml(row.title)}</small></div>
+            <div><strong>Instructor</strong><small>${escapeHtml(courseDisplayTitle(row))}</small></div>
             <div><strong>Room No.: ${index % 2 === 0 ? "Humerus" : "Femur"}</strong><small>${escapeHtml(times[index] || times[0])}</small></div>
           </div>
         `).join("") || `<p class="empty">No upcoming classes.</p>`}
@@ -15477,7 +15536,7 @@ app.get("/student", requireAuth, (req, res) => {
         <h2>Homework</h2>
         ${homeworkRows.map((row, index) => `
           <div class="homework-row">
-            <h3>${escapeHtml(row.title)}</h3>
+            <h3>${escapeHtml(courseDisplayTitle(row))}</h3>
             <p>Homework Date: 07/${String(18 + index).padStart(2, "0")}/2026, Submission Date: 07/${String(24 + index).padStart(2, "0")}/2026, Status: <span>Pending</span></p>
           </div>
         `).join("") || `<p class="empty">No current homework.</p>`}
@@ -15489,7 +15548,7 @@ app.get("/student", requireAuth, (req, res) => {
           ${enrollments.map((row) => `
             <div class="student-course-row">
               <div>
-                <strong>${escapeHtml(row.title)}</strong>
+                <strong>${escapeHtml(courseDisplayTitle(row))}</strong>
                 <small>${escapeHtml(row.category)} · ${escapeHtml(row.hours)} clock hours · ${escapeHtml(row.status)}</small>
               </div>
               <div>
@@ -15595,7 +15654,7 @@ app.get("/student/lesson-plan", requireAuth, requireRole("student"), (req, res) 
           <article class="student-panel lesson-plan-course">
             <header class="lesson-plan-course-head">
               <div>
-                <h2>${escapeHtml(enrollment.title)}</h2>
+                <h2>${escapeHtml(courseDisplayTitle(enrollment))}</h2>
                 <p>${escapeHtml(enrollment.category)} · ${escapeHtml(enrollment.hours)} clock hours · ${escapeHtml(enrollment.status)}</p>
               </div>
               <a class="button small" href="/student/enrollments/${enrollment.id}?view=modules">Open Modules</a>
@@ -15688,7 +15747,7 @@ app.get("/student/homework", requireAuth, requireRole("student"), (req, res) => 
                 const isComplete = row.score !== null && row.score !== undefined;
                 return `
                   <tr>
-                    <td>${escapeHtml(row.course_title)}</td>
+                    <td>${escapeHtml(courseDisplayTitle(row))}</td>
                     <td>
                       <strong>${escapeHtml(row.title)}</strong>
                       <small>${escapeHtml(assignmentTypeLabel(row))}</small>
@@ -15783,7 +15842,7 @@ app.get("/student/syllabus-status", requireAuth, requireRole("student"), (req, r
           <article class="student-panel syllabus-status-card">
             <header class="syllabus-status-head">
               <div>
-                <h2>${escapeHtml(enrollment.title)}</h2>
+                <h2>${escapeHtml(courseDisplayTitle(enrollment))}</h2>
                 <p>${escapeHtml(enrollment.category)} · ${escapeHtml(enrollment.hours)} clock hours · ${escapeHtml(enrollment.status)}</p>
               </div>
               <span class="syllabus-status-pill ${isComplete ? "complete" : "pending"}">${isComplete ? "Complete" : "Pending"}</span>
@@ -15922,7 +15981,7 @@ app.get("/student/courses", requireAuth, requireRole("student"), (req, res) => {
                 <strong>${escapeHtml(row.category)}</strong>
               </div>
               <div class="student-course-card-body">
-                <h3>${escapeHtml(row.title)}</h3>
+                <h3>${escapeHtml(courseDisplayTitle(row))}</h3>
                 <p>${escapeHtml(row.description || "Open the course to review lessons, assignments, and learning resources.")}</p>
                 <dl class="student-course-card-meta">
                   <div><dt>Hours</dt><dd>${escapeHtml(row.hours)} clock hours</dd></div>
@@ -15970,7 +16029,7 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
   }
   const admissionsChecklist = admissionsDocumentChecklistForStudent(req.user.id);
   const enrollments = db.prepare(`
-    SELECT e.*, c.title, c.category, c.hours, c.credential_type, c.delivery_mode
+    SELECT e.*, c.title, c.slug, c.category, c.hours, c.credential_type, c.delivery_mode
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     WHERE e.user_id = ?
@@ -16089,7 +16148,7 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
                 <section class="program-card">
                   <div class="program-card-head">
                     <div>
-                      <h3>${escapeHtml(program.title)}</h3>
+                      <h3>${escapeHtml(program.isGroup ? program.title : courseDisplayTitle(program))}</h3>
                       <p>${escapeHtml(program.category)} · ${escapeHtml(program.credential_type)} · ${escapeHtml(program.hours)} hours · ${escapeHtml(program.delivery_mode)}</p>
                       ${courseTotalCost(program) ? `<p class="program-cost">${money(courseTotalCost(program))} total · ${money(program.tuition_cents)} tuition</p>` : ""}
                     </div>
@@ -16103,7 +16162,7 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
                       return `
                         <div class="program-subcourse ${enrollment ? "registered" : ""}">
                           <div>
-                            <strong>${escapeHtml(isProgramShell ? `${course.title} Program Shell` : course.title)}</strong>
+                            <strong>${escapeHtml(`${courseDisplayTitle(course)}${isProgramShell ? " Program Shell" : ""}`)}</strong>
                             <small>${escapeHtml(course.category)} · ${escapeHtml(course.credential_type)} · ${escapeHtml(course.hours)} hours</small>
                           </div>
                           ${renderCourseAction(course)}
@@ -16125,7 +16184,7 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
             <tbody>
               ${enrollments.map((row) => `
                 <tr>
-                  <td><strong>${escapeHtml(row.title)}</strong><br><span class="muted">${escapeHtml(row.category)} · ${escapeHtml(row.credential_type)}</span></td>
+                  <td><strong>${escapeHtml(courseDisplayTitle(row))}</strong><br><span class="muted">${escapeHtml(row.category)} · ${escapeHtml(row.credential_type)}</span></td>
                   <td>${escapeHtml(row.status)}</td>
                   <td>${escapeHtml(row.progress)}%</td>
                   <td>
@@ -16426,7 +16485,7 @@ function transcriptCourseRows(records, { printable = false } = {}) {
     <tr class="transcript-term-row"><th colspan="7">${escapeHtml(term)}</th></tr>
     ${rows.map((row) => `
       <tr>
-        <td><strong>${escapeHtml(`${canvasCourseCode(row)} · ${row.title}`)}</strong><br><span>${escapeHtml(row.credential_type || row.category || "Course")}</span></td>
+        <td><strong>${escapeHtml(courseDisplayTitle(row))}</strong><br><span>${escapeHtml(row.credential_type || row.category || "Course")}</span></td>
         <td>${escapeHtml(row.hours)}</td>
         <td>${row.percentage === null ? "—" : `${escapeHtml(row.percentage.toFixed(1))}%`}</td>
         <td><strong>${escapeHtml(row.letter)}</strong></td>
@@ -16445,7 +16504,7 @@ function transcriptCompactRows(records) {
     <tr class="transcript-term-row"><th colspan="5">${escapeHtml(term)}</th></tr>
     ${rows.map((row) => `
       <tr>
-        <td><strong>${escapeHtml(row.title)}</strong><span>${escapeHtml(row.credential_type || row.category || "Course")}</span></td>
+        <td><strong>${escapeHtml(courseDisplayTitle(row))}</strong><span>${escapeHtml(row.credential_type || row.category || "Course")}</span></td>
         <td>${escapeHtml(row.hours)}</td>
         <td>${transcriptEarnsCredit(row) ? escapeHtml(row.hours) : "0"}</td>
         <td><strong>${escapeHtml(row.letter)}</strong>${row.percentage === null ? "" : `<span>${escapeHtml(row.percentage.toFixed(1))}%</span>`}</td>
@@ -16463,7 +16522,7 @@ function currentGradeReportRows(records) {
     const status = String(row.status || "not recorded").replaceAll("_", " ");
     return `
       <tr>
-        <td><strong>${escapeHtml(`${canvasCourseCode(row)} · ${row.title}`)}</strong><br><span>${escapeHtml(row.credential_type || row.category || "Course")}</span></td>
+        <td><strong>${escapeHtml(courseDisplayTitle(row))}</strong><br><span>${escapeHtml(row.credential_type || row.category || "Course")}</span></td>
         <td>${escapeHtml(row.term)}</td>
         <td><strong>${escapeHtml(status)}</strong></td>
         <td>${gradedCount ? escapeHtml(gradedCount) : "0"}</td>
@@ -16726,7 +16785,7 @@ app.get("/student/email", requireAuth, requireRole("student"), (req, res) => {
           <form class="message-toolbar" method="get" action="/student/email">
             <select name="courseId">
               <option value="">All courses</option>
-              ${courses.map((course) => `<option value="${course.id}" ${Number(courseId) === Number(course.id) ? "selected" : ""}>${escapeHtml(course.code ? `${course.code} · ${course.title}` : course.title)}</option>`).join("")}
+              ${courses.map((course) => `<option value="${course.id}" ${Number(courseId) === Number(course.id) ? "selected" : ""}>${escapeHtml(courseDisplayTitle(course))}</option>`).join("")}
             </select>
             <select name="box">
               <option value="inbox" ${box === "inbox" ? "selected" : ""}>Inbox</option>
@@ -16811,7 +16870,7 @@ function renderStudentSelfEvaluationCard(enrollment, weekNumber, selfEvaluation,
     return `
       <article class="student-self-eval-card submitted">
         <header>
-          <div><span>Week ${weekNumber} Self-Evaluation</span><h4>${escapeHtml(enrollment.title)}</h4></div>
+          <div><span>Week ${weekNumber} Self-Evaluation</span><h4>${escapeHtml(courseDisplayTitle(enrollment))}</h4></div>
           <span class="pill">${finalEvaluation ? "Instructor completed" : "Sent to instructor"}</span>
         </header>
         <p>Your self-evaluation was submitted on ${escapeHtml(date(selfEvaluation.submitted_at.slice(0, 10)))}. ${finalEvaluation ? "Your instructor has completed the evaluation." : "Your instructor has been notified and will complete the final evaluation."}</p>
@@ -16827,7 +16886,7 @@ function renderStudentSelfEvaluationCard(enrollment, weekNumber, selfEvaluation,
   if (!available) {
     return `
       <article class="student-self-eval-card locked">
-        <header><div><span>Week ${weekNumber} Self-Evaluation</span><h4>${escapeHtml(enrollment.title)}</h4></div><span class="pill orange">Opens ${escapeHtml(date(availableDate.toISOString().slice(0, 10)))}</span></header>
+        <header><div><span>Week ${weekNumber} Self-Evaluation</span><h4>${escapeHtml(courseDisplayTitle(enrollment))}</h4></div><span class="pill orange">Opens ${escapeHtml(date(availableDate.toISOString().slice(0, 10)))}</span></header>
         <p>Complete this self-evaluation during Week ${weekNumber}. It will then be sent to your instructor.</p>
       </article>
     `;
@@ -16841,7 +16900,7 @@ function renderStudentSelfEvaluationCard(enrollment, weekNumber, selfEvaluation,
   `;
   return `
     <article class="student-self-eval-card available">
-      <header><div><span>Week ${weekNumber} Self-Evaluation</span><h4>${escapeHtml(enrollment.title)}</h4></div><span class="pill">Action required</span></header>
+      <header><div><span>Week ${weekNumber} Self-Evaluation</span><h4>${escapeHtml(courseDisplayTitle(enrollment))}</h4></div><span class="pill">Action required</span></header>
       <p>Rate your own progress honestly. After submission, this evaluation is sent to your instructor for completion.</p>
       <form class="course-survey-form" method="post" action="/student/self-evaluations/${enrollment.id}/${weekNumber}">
         ${ratingQuestion("academicProgress", "How would you rate your academic progress?")}
@@ -16865,7 +16924,7 @@ app.post("/student/self-evaluations/:enrollmentId/:weekNumber", requireAuth, req
   const enrollmentId = Number(req.params.enrollmentId);
   const weekNumber = Number(req.params.weekNumber);
   const enrollment = db.prepare(`
-    SELECT e.*, c.title AS course_title
+    SELECT e.*, c.title AS course_title, c.slug AS course_slug, c.category AS course_category
     FROM enrollments e JOIN courses c ON c.id = e.course_id
     WHERE e.id = ? AND e.user_id = ? AND e.status IN ('active', 'completed') AND e.withdrawn_at IS NULL
   `).get(enrollmentId, req.user.id);
@@ -16898,12 +16957,13 @@ app.post("/student/self-evaluations/:enrollmentId/:weekNumber", requireAuth, req
   `).run(enrollmentId, weekNumber, ...ratings, accomplishments, challenges, goals, supportNeeded, additionalNotes);
   const staffRecipients = db.prepare("SELECT id FROM users WHERE role IN ('admin', 'instructor') AND status = 'active'").all();
   const studentName = `${req.user.first_name} ${req.user.last_name}`.trim() || req.user.email;
+  const courseLabel = courseDisplayTitle(enrollment);
   staffRecipients.forEach((staff) => savePortalMessage({
     senderId: req.user.id,
     recipientId: staff.id,
     courseId: enrollment.course_id,
-    subject: `Self-evaluation submitted: Week ${weekNumber} ${enrollment.course_title}`,
-    body: `${studentName} submitted the Week ${weekNumber} self-evaluation for ${enrollment.course_title}. Open Student Evals to review the student's reflection and complete the instructor evaluation.`
+    subject: `Self-evaluation submitted: Week ${weekNumber} ${courseLabel}`,
+    body: `${studentName} submitted the Week ${weekNumber} self-evaluation for ${courseLabel}. Open Student Evals to review the student's reflection and complete the instructor evaluation.`
   }));
   flash(req, `Your Week ${weekNumber} self-evaluation was sent to your instructor for completion.`);
   res.redirect("/student/evaluations#self-evaluations");
@@ -16916,7 +16976,7 @@ function renderCourseSurveyForm(enrollment, weekNumber, response) {
     return `
       <article class="course-survey-card submitted">
         <div class="course-survey-card-head">
-          <div><span>Week ${weekNumber}</span><h3>${escapeHtml(enrollment.title)}</h3></div>
+          <div><span>Week ${weekNumber}</span><h3>${escapeHtml(courseDisplayTitle(enrollment))}</h3></div>
           <span class="pill">Submitted</span>
         </div>
         <p>Thank you. Your Week ${weekNumber} course evaluation was submitted on ${escapeHtml(date(response.submitted_at.slice(0, 10)))}.</p>
@@ -16932,7 +16992,7 @@ function renderCourseSurveyForm(enrollment, weekNumber, response) {
     return `
       <article class="course-survey-card locked">
         <div class="course-survey-card-head">
-          <div><span>Week ${weekNumber}</span><h3>${escapeHtml(enrollment.title)}</h3></div>
+          <div><span>Week ${weekNumber}</span><h3>${escapeHtml(courseDisplayTitle(enrollment))}</h3></div>
           <span class="pill orange">Opens ${escapeHtml(date(availableDate.toISOString().slice(0, 10)))}</span>
         </div>
         <p>This survey becomes available during Week ${weekNumber} of your course.</p>
@@ -16953,7 +17013,7 @@ function renderCourseSurveyForm(enrollment, weekNumber, response) {
   return `
     <article class="course-survey-card available">
       <div class="course-survey-card-head">
-        <div><span>Week ${weekNumber}</span><h3>${escapeHtml(enrollment.title)}</h3></div>
+        <div><span>Week ${weekNumber}</span><h3>${escapeHtml(courseDisplayTitle(enrollment))}</h3></div>
         <span class="pill">Ready</span>
       </div>
       <p>Share your experience so the school can improve teaching, course materials, and student support.</p>
@@ -16995,7 +17055,7 @@ function renderCourseSurveyForm(enrollment, weekNumber, response) {
 
 function loadStudentEvaluationData(userId) {
   const enrollments = db.prepare(`
-    SELECT e.*, c.title, c.category, c.hours, c.credential_type, c.delivery_mode
+    SELECT e.*, c.title, c.slug, c.category, c.hours, c.credential_type, c.delivery_mode
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     WHERE e.user_id = ?
@@ -17009,7 +17069,8 @@ function loadStudentEvaluationData(userId) {
     ORDER BY csr.submitted_at DESC
   `).all(userId);
   const releasedEvaluations = db.prepare(`
-    SELECT sce.*, c.title AS course_title, u.first_name AS evaluator_first_name, u.last_name AS evaluator_last_name
+    SELECT sce.*, e.course_id, c.title AS course_title, c.slug AS course_slug, c.category AS course_category,
+      u.first_name AS evaluator_first_name, u.last_name AS evaluator_last_name
     FROM student_course_evaluations sce
     JOIN enrollments e ON e.id = sce.enrollment_id
     JOIN courses c ON c.id = e.course_id
@@ -17071,7 +17132,7 @@ function renderStudentEvaluationsContent({
         return `
           <article class="student-evaluation-result ${escapeHtml(evaluation.overall_status)}">
             <header>
-              <div><span>Week ${escapeHtml(evaluation.week_number)} Evaluation</span><h4>${escapeHtml(evaluation.course_title)}</h4></div>
+              <div><span>Week ${escapeHtml(evaluation.week_number)} Evaluation</span><h4>${escapeHtml(courseDisplayTitle(evaluation))}</h4></div>
               <strong>${escapeHtml(String(evaluation.overall_status).replaceAll("_", " "))}</strong>
             </header>
             <div class="student-evaluation-scores">
@@ -17131,7 +17192,7 @@ app.post("/student/evaluations/:enrollmentId/:weekNumber", requireAuth, requireR
   const enrollmentId = Number(req.params.enrollmentId);
   const weekNumber = Number(req.params.weekNumber);
   const enrollment = db.prepare(`
-    SELECT e.*, c.title
+    SELECT e.*, c.title, c.slug, c.category
     FROM enrollments e JOIN courses c ON c.id = e.course_id
     WHERE e.id = ? AND e.user_id = ? AND e.status IN ('active', 'completed') AND e.withdrawn_at IS NULL
   `).get(enrollmentId, req.user.id);
@@ -17168,13 +17229,13 @@ app.post("/student/evaluations/:enrollmentId/:weekNumber", requireAuth, requireR
     String(req.body.improvementSuggestion || "").trim().slice(0, 2000),
     String(req.body.additionalComments || "").trim().slice(0, 2000)
   );
-  flash(req, `Thank you. Your Week ${weekNumber} ${enrollment.title} survey was submitted.`);
+  flash(req, `Thank you. Your Week ${weekNumber} ${courseDisplayTitle(enrollment)} survey was submitted.`);
   res.redirect("/student/evaluations#course-surveys");
 });
 
 app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
   const enrollments = db.prepare(`
-    SELECT e.*, c.title, c.category, c.hours, c.credential_type, c.delivery_mode, cr.id AS credential_id
+    SELECT e.*, c.title, c.slug, c.category, c.hours, c.credential_type, c.delivery_mode, cr.id AS credential_id
     FROM enrollments e
     JOIN courses c ON c.id = e.course_id
     LEFT JOIN credentials cr ON cr.enrollment_id = e.id
@@ -17183,7 +17244,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
   `).all(req.user.id);
 
   const attendanceRows = db.prepare(`
-    SELECT a.*, c.title AS course_title
+    SELECT a.*, e.course_id, c.title AS course_title, c.slug AS course_slug, c.category AS course_category
     FROM attendance a
     JOIN enrollments e ON e.id = a.enrollment_id
     JOIN courses c ON c.id = e.course_id
@@ -17208,7 +17269,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
     ["Email", req.user.email],
     ["Personal reminder email", req.user.personal_email || "Not set"],
     ["Phone", req.user.phone || "Not on file"],
-    ["Program", activeEnrollment?.title || "Not enrolled"],
+    ["Program", activeEnrollment ? courseDisplayTitle(activeEnrollment) : "Not enrolled"],
     ["Student Type", activeEnrollment ? `${activeEnrollment.category} Student` : "BMHI Student"],
     ["Status", req.user.status],
     ["Registered", date(req.user.created_at?.slice(0, 10))]
@@ -17220,7 +17281,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
         <img class="profile-photo has-photo" src="/students/${req.user.id}/photo" alt="${escapeHtml(name || "Student")} profile photo">
         <div>
           <h1>${escapeHtml(name || "Student")}</h1>
-          <p>${escapeHtml(activeEnrollment?.title || "Broward-Miami Health Institute student")}</p>
+          <p>${escapeHtml(activeEnrollment ? courseDisplayTitle(activeEnrollment) : "Broward-Miami Health Institute student")}</p>
           <div class="profile-badges">
             <span>Student ID ${escapeHtml(studentNumber)}</span>
             <span>${escapeHtml(req.user.status)}</span>
@@ -17283,7 +17344,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
             <tbody>
               ${enrollments.map((row) => `
                 <tr>
-                  <td>${escapeHtml(row.title)}</td>
+                  <td>${escapeHtml(courseDisplayTitle(row))}</td>
                   <td>${escapeHtml(row.credential_type)}</td>
                   <td>${escapeHtml(row.final_grade || "Not posted")}</td>
                   <td>${escapeHtml(row.status)}</td>
@@ -17301,7 +17362,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
               ${attendanceRows.map((row) => `
                 <tr>
                   <td>${date(row.meeting_date)}</td>
-                  <td>${escapeHtml(row.course_title)}</td>
+                  <td>${escapeHtml(courseDisplayTitle(row))}</td>
                   <td>${escapeHtml(row.status)}</td>
                   <td>${escapeHtml(row.minutes)}</td>
                 </tr>
@@ -17334,7 +17395,7 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
           <h2>Timeline</h2>
           <div class="timeline-list">
             <p><strong>Account created</strong><span>${date(req.user.created_at?.slice(0, 10))}</span></p>
-            ${enrollments.map((row) => `<p><strong>Enrolled in ${escapeHtml(row.title)}</strong><span>${date(row.start_date)}</span></p>`).join("")}
+            ${enrollments.map((row) => `<p><strong>Enrolled in ${escapeHtml(courseDisplayTitle(row))}</strong><span>${date(row.start_date)}</span></p>`).join("")}
           </div>
         </article>
 
@@ -17511,7 +17572,7 @@ app.get("/student/financial", requireAuth, requireRole("student"), (req, res) =>
             <tbody>
               ${enrollments.map((row) => `
                 <tr>
-                  <td>${escapeHtml(row.title)}</td>
+                  <td>${escapeHtml(courseDisplayTitle(row))}</td>
                   <td>${escapeHtml(row.category)}</td>
                   <td>${escapeHtml(row.status)}</td>
                   <td>${escapeHtml(row.progress)}%</td>
@@ -17637,7 +17698,7 @@ app.get("/student/enrollments/:id/grades.pdf", requireAuth, requireRole("student
   const finalGrade = String(enrollment.final_grade || "").trim();
   try {
     const pdf = await createStudentGradePdfBuffer({
-      instituteName, courseTitle: enrollment.title, courseCode,
+      instituteName, courseTitle: courseBaseTitle(enrollment), courseCode,
       studentName: personName(req.user), studentNumber: displayStudentNumber(req.user), studentEmail: req.user.email,
       rows, summary: courseGradeSummary(rows),
       officialFinalGrade: enrollment.status === "completed" && isValidTranscriptFinalGrade(finalGrade) ? finalGrade : "",
@@ -17790,15 +17851,8 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
 
   const totalMinutes = lessons.reduce((total, lesson) => total + Number(lesson.duration_minutes || 0), 0);
   const courseCode = canvasCourseCode(enrollment);
-  const courseHomeTitle = enrollment.slug === "introduction-to-nursing-practical-nursing"
-    ? "Introduction to Nursing for Practical Nursing Students"
-    : enrollment.slug === "medical-terminology"
-      ? "Medical Terminology for Practical Nursing Students"
-    : enrollment.slug === "home-health-aide"
-      ? "Home Health Aide 75 Hour Course"
-    : enrollment.slug === "home-health-aide-creole"
-      ? "Kou Asistan Sante Lakay 75 Edtan"
-    : `${enrollment.title} Course Home`;
+  const courseDisplayName = courseDisplayTitle(enrollment);
+  const courseHomeTitle = courseDisplayName;
   const courseFocus = enrollment.slug === "introduction-to-nursing-practical-nursing"
     ? "Nursing history, nursing leaders, purpose of nursing, practical nurse role, ethics, legal responsibilities, professionalism, and student impact."
     : enrollment.slug === "medical-terminology"
@@ -17827,7 +17881,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     const emptyBody = `
       <div class="page-head">
         <div>
-          <h1>${escapeHtml(enrollment.title)}</h1>
+          <h1>${escapeHtml(courseDisplayName)}</h1>
           <p>${escapeHtml(enrollment.description)}</p>
         </div>
         <div class="page-head-actions">
@@ -17837,13 +17891,19 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       </div>
       <section class="card"><p class="empty">No lessons have been added to this course yet.</p></section>
     `;
-    return render(req, res, enrollment.title, emptyBody);
+    return render(req, res, courseDisplayName, emptyBody);
   }
 
   const firstLesson = lessons[0];
   const continueLesson = lessons.find((lesson) => !completedLessonIds.has(lesson.id)) || firstLesson;
   const upcomingLessons = lessons.slice(0, 3);
   const courseBaseHref = `/student/enrollments/${enrollment.id}`;
+  const studentCourseHeader = (breadcrumbs = []) => {
+    const normalizedBreadcrumbs = breadcrumbs.map((crumb, index) => (
+      index === 0 && crumb.label === courseCode ? { ...crumb, label: courseDisplayName } : crumb
+    ));
+    return renderStudentCanvasHeader(courseCode, courseBaseHref, normalizedBreadcrumbs, { courseLabel: courseDisplayName });
+  };
   const activeView = String(req.query.view || "");
   const startTiles = [
     { icon: "book", label: "Course Syllabus", href: `${courseBaseHref}?view=syllabus`, image: "/assets/start-tile-syllabus.svg" },
@@ -17858,7 +17918,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
     <aside class="course-outline-panel" aria-label="Course outline">
       <section class="course-outline-card">
         <div class="course-outline-head">
-          <h2>${escapeHtml(enrollment.title)}</h2>
+          <h2>${escapeHtml(courseDisplayName)}</h2>
           <button class="course-outline-icon" type="button" data-toggle-course-sidebar aria-expanded="false" aria-controls="canvas-course-navigation" aria-label="Expand course navigation" title="Expand course navigation">&gt;</button>
         </div>
         ${progressBar(enrollment.progress)}
@@ -17890,7 +17950,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   const body = selectedAssignment ? `
     <section class="canvas-course-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+      ${studentCourseHeader([
         { label: courseCode, href: courseBaseHref },
         { label: selectedAssignmentNav, href: `${courseBaseHref}?view=${selectedAssignmentNav.toLowerCase()}` },
         { label: selectedAssignment.title }
@@ -17902,6 +17962,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
       <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
       ${courseOutlinePanel}
       ${renderCourseAssignmentDetailPage({
+        courseTitle: enrollment.title,
         courseCode,
         baseHref: courseBaseHref,
         item: selectedAssignment,
@@ -17916,7 +17977,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   ` : activeView === "modules" ? `
     <section class="canvas-course-shell canvas-modules-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+      ${studentCourseHeader([
         { label: courseCode, href: courseBaseHref },
         { label: "Modules" }
       ])}
@@ -17940,7 +18001,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   ` : activeView === "assignments" || activeView === "quizzes" ? `
     <section class="canvas-course-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+      ${studentCourseHeader([
         { label: courseCode, href: courseBaseHref },
         { label: activeView === "quizzes" ? "Quizzes" : "Assignments" }
       ])}
@@ -17963,7 +18024,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   ` : activeView === "rubrics" ? `
     <section class="canvas-course-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [{ label: courseCode, href: courseBaseHref }, { label: "Rubrics" }])}
+      ${studentCourseHeader([{ label: courseCode, href: courseBaseHref }, { label: "Rubrics" }])}
       <aside class="canvas-course-nav" id="canvas-course-navigation">${renderCourseNav(studentCourseNavItems, courseBaseHref, "Rubrics", firstLesson.id)}</aside>
       <button class="canvas-sidebar-toggle" type="button" data-toggle-course-sidebar aria-expanded="true" aria-controls="canvas-course-navigation" aria-label="Collapse course navigation" title="Collapse course navigation">&lt;</button>
       ${courseOutlinePanel}
@@ -17972,7 +18033,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   ` : activeView === "announcements" ? `
     <section class="canvas-course-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+      ${studentCourseHeader([
         { label: courseCode, href: courseBaseHref },
         { label: "Announcements" }
       ])}
@@ -17993,7 +18054,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   ` : activeView === "discussions" ? `
     <section class="canvas-course-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+      ${studentCourseHeader([
         { label: courseCode, href: courseBaseHref },
         { label: "Discussions" }
       ])}
@@ -18017,7 +18078,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   ` : activeView === "calendar" ? `
     <section class="canvas-course-shell canvas-course-calendar-shell student-course-shell">
       ${renderStudentCanvasRail("calendar")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+      ${studentCourseHeader([
         { label: courseCode, href: courseBaseHref },
         { label: "Calendar" }
       ])}
@@ -18037,7 +18098,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   ` : activeView === "conferences" ? `
     <section class="canvas-course-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+      ${studentCourseHeader([
         { label: courseCode, href: courseBaseHref },
         { label: "Conferences" }
       ])}
@@ -18057,7 +18118,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   ` : activeView === "files" ? `
     <section class="canvas-course-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+      ${studentCourseHeader([
         { label: courseCode, href: courseBaseHref },
         { label: "Files" }
       ])}
@@ -18076,7 +18137,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   ` : activeView === "grades" ? `
     <section class="canvas-course-shell canvas-grades-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+      ${studentCourseHeader([
         { label: courseCode, href: courseBaseHref },
         { label: "Grades", href: `${courseBaseHref}?view=grades` },
         { label: personName(req.user) }
@@ -18102,7 +18163,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   ` : activeView === "syllabus" ? `
     <section class="canvas-course-shell canvas-syllabus-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref)}
+      ${studentCourseHeader()}
 
       <aside class="canvas-course-nav" id="canvas-course-navigation">
         ${renderCourseNav(studentCourseNavItems, courseBaseHref, "Syllabus", firstLesson.id)}
@@ -18127,7 +18188,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   ` : req.query.lesson ? `
     <section class="canvas-course-shell canvas-lesson-shell student-course-shell">
       ${renderStudentCanvasRail("courses")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref, [
+      ${studentCourseHeader([
         { label: courseCode, href: courseBaseHref },
         { label: "Modules", href: `${courseBaseHref}?view=modules` },
         { label: "Item" }
@@ -18159,7 +18220,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
   ` : `
     <section class="canvas-course-shell student-course-shell student-course-home">
       ${renderStudentCanvasRail("courses")}
-      ${renderStudentCanvasHeader(courseCode, courseBaseHref)}
+      ${studentCourseHeader()}
 
       <aside class="canvas-course-nav" id="canvas-course-navigation">
         ${renderCourseNav(studentCourseNavItems, courseBaseHref, "Home", firstLesson.id)}
@@ -18174,7 +18235,7 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
           <div class="course-welcome-content">
             <span>Welcome to your course</span>
             <h1 id="course-welcome-title">Welcome, ${escapeHtml(req.user.first_name || "Student")}!</h1>
-            <p>${escapeHtml(enrollment.title)}</p>
+            <p>${escapeHtml(courseDisplayName)}</p>
             <a class="button course-start-button" href="${courseBaseHref}?lesson=${continueLesson.id}">${completedLessonIds.size ? "Continue Learning" : "Start Here"}</a>
           </div>
           <div class="course-banner-progress" aria-label="${escapeHtml(enrollment.progress)} percent course progress">
@@ -18217,11 +18278,11 @@ app.get("/student/enrollments/:id", requireAuth, requireRole("student"), (req, r
           <a href="/student/enrollments/${enrollment.id}?view=calendar">View Course Calendar</a>
           <a href="/student/profile">View Course Notifications</a>
         </div>
-        ${renderCourseToDo(gradeItems, courseBaseHref, { limit: 6, courseTitle: enrollment.title })}
+        ${renderCourseToDo(gradeItems, courseBaseHref, { limit: 6, courseTitle: courseDisplayName })}
       </aside>
     </section>
   `;
-  render(req, res, enrollment.title, body, { courseCanvas: true });
+  render(req, res, courseDisplayName, body, { courseCanvas: true });
 });
 
 app.get("/student/assignment-submissions/:id/file", requireAuth, requireRole("student"), (req, res) => {
@@ -18250,7 +18311,8 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
     return res.redirect("/student");
   }
   const assignment = db.prepare(`
-    SELECT grade_items.*, enrollments.id AS enrollment_id, courses.title AS course_title, courses.slug AS course_slug
+    SELECT grade_items.*, enrollments.id AS enrollment_id, courses.title AS course_title,
+      courses.slug AS course_slug, courses.category AS course_category
     FROM enrollments
     JOIN grade_items ON grade_items.course_id = enrollments.course_id
     JOIN courses ON courses.id = enrollments.course_id
@@ -18362,12 +18424,13 @@ app.post("/student/enrollments/:id/assignments/:assignmentId/submit", requireAut
   } else {
     const staffRecipients = db.prepare("SELECT id FROM users WHERE role IN ('admin', 'instructor') AND status = 'active'").all();
     const studentName = `${req.user.first_name} ${req.user.last_name}`.trim() || req.user.email;
+    const courseLabel = courseDisplayTitle(assignment);
     staffRecipients.forEach((staff) => savePortalMessage({
       senderId: req.user.id,
       recipientId: staff.id,
       courseId: assignment.course_id,
       subject: `${previous ? "Assignment resubmitted" : "Assignment submitted"}: ${assignment.title}`,
-      body: `${studentName} ${previous ? "replaced the submission for" : "submitted"} ${assignment.title} in ${assignment.course_title}. Open Assignment Inbox to review and grade the work.`
+      body: `${studentName} ${previous ? "replaced the submission for" : "submitted"} ${assignment.title} in ${courseLabel}. Open Assignment Inbox to review and grade the work.`
     }));
     flash(req, "Assignment submitted successfully. Staff were notified and the work was added to the grading queue.");
   }

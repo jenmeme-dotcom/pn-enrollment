@@ -140,8 +140,8 @@ function createStudentGradePdfBuffer(model) {
         .text(pdfText(model.instituteName || "Broward-Miami Health Institute"), left, 20, { width });
       doc.font("Helvetica").fontSize(10).fillColor("#D9EDF1").text("STUDENT GRADE REPORT", left, 48, { width });
       doc.y = 98;
-      paragraph(model.courseTitle, { bold: true, size: 17, color: palette.navy });
-      paragraph(`${courseCode} | ${student} | Student ID: ${model.studentNumber || "Not recorded"}`, { bold: true });
+      paragraph(`${courseCode}: ${model.courseTitle}`, { bold: true, size: 17, color: palette.navy });
+      paragraph(`${student} | Student ID: ${model.studentNumber || "Not recorded"}`, { bold: true });
       paragraph(model.studentEmail, { color: palette.muted });
       const generated = new Date(model.generatedAt || Date.now());
       paragraph(`Generated ${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York" }).format(generated)} (Eastern Time)`, { size: 8, color: palette.muted });
