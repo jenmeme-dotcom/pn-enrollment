@@ -4419,6 +4419,65 @@ function seed() {
   // the first student submission responsible for discovering and storing the
   // link at runtime. Repair only unlinked, unambiguous exact-title matches so
   // existing instructor links and all academic records remain untouched.
+  const pn107LabDefinition = courses.find((course) => course.slug === "medical-surgical-nursing-i-pn107-lab");
+  const pn107LabRow = db.prepare("SELECT id FROM courses WHERE slug = 'medical-surgical-nursing-i-pn107-lab'").get();
+  if (pn107LabDefinition && pn107LabRow) {
+    const storedLabLesson = db.prepare(`
+      SELECT l.id
+      FROM lessons l
+      JOIN modules m ON m.id = l.module_id
+      WHERE m.course_id = ? AND m.title = ? AND l.title = ?
+      ORDER BY l.id
+      LIMIT 1
+    `);
+    const storedLabGradeItem = db.prepare(`
+      SELECT id
+      FROM grade_items
+      WHERE course_id = ? AND title = ?
+      ORDER BY id
+      LIMIT 1
+    `);
+    const linkLabAssignment = db.prepare(`
+      UPDATE lessons
+      SET item_type = 'assignment', grade_item_id = ?, published = 1, instructor_only = 0
+      WHERE id = ?
+    `);
+
+    pn107LabDefinition.modules.forEach((module) => {
+      module.lessons.forEach((lesson) => {
+        if (lesson.itemType !== "assignment" || !lesson.gradeItemTitle) return;
+        const storedLesson = storedLabLesson.get(pn107LabRow.id, module.title, lesson.title);
+        const gradeItem = storedLabGradeItem.get(pn107LabRow.id, lesson.gradeItemTitle);
+        if (storedLesson && gradeItem) linkLabAssignment.run(gradeItem.id, storedLesson.id);
+      });
+    });
+
+    // The lab shell accompanies PN 107. Enroll each currently active PN 107
+    // student once, while preserving any lab withdrawal or historical record.
+    db.prepare(`
+      INSERT OR IGNORE INTO enrollments (
+        user_id, course_id, status, start_date, progress, source, external_order_id
+      )
+      SELECT DISTINCT theory.user_id, lab.id, 'active', theory.start_date, 0,
+        'linked-course', 'linked-pn107-lab-' || theory.user_id
+      FROM enrollments theory
+      JOIN courses main ON main.id = theory.course_id
+      JOIN courses lab ON lab.slug = 'medical-surgical-nursing-i-pn107-lab'
+      JOIN users student ON student.id = theory.user_id
+      WHERE main.slug = 'medical-surgical-nursing-i-pn107'
+        AND theory.status = 'active'
+        AND theory.withdrawn_at IS NULL
+        AND student.role = 'student'
+        AND student.status = 'active'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM enrollments existing
+          WHERE existing.user_id = theory.user_id
+            AND existing.course_id = lab.id
+        )
+    `).run();
+  }
+
   linkQuizLessonsToExactGradeItems();
 
   // Reopen the current PN 101-104 coursework once without changing due dates,

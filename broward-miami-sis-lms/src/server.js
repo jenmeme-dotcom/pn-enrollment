@@ -1737,6 +1737,7 @@ function canvasCourseCode(course = {}) {
   if ((course.slug || course.course_slug) === "introductory-clinical-pharmacology-pn106") return "PN 106";
   if (course.slug === "medical-surgical-nursing-i-pn107") return "PN 107";
   const slug = course.slug || course.course_slug;
+  if (slug === "medical-surgical-nursing-i-pn107-lab") return "PN 107 Lab";
   if (slug === "home-health-aide") return "HHA 75";
   if (slug === "home-health-aide-creole") return "HHA 75 Kreyol";
   if (slug === "medical-terminology") return "PN 101";
@@ -1764,6 +1765,7 @@ const courseThumbnailUrls = Object.freeze({
   "medical-assistant": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/medical-assistant-hero-16fp.jpeg",
   "medical-billing-and-coding": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/medical-billing-coding-hero-sbqj.jpeg",
   "medical-surgical-nursing-i-pn107": "/assets/course-thumbnails/02-pn-107-medical-surgical-nursing-i.png",
+  "medical-surgical-nursing-i-pn107-lab": "/assets/course-thumbnails/02-pn-107-medical-surgical-nursing-i.png",
   "medical-terminology": "https://images.leadconnectorhq.com/image/f_webp/q_80/r_320/u_https://files.leadconnectorhq.com/file/6ac6affbd66e1673fe124e8d/medical-records.webp",
   "patient-care-technician": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/patient-care-technician-hero-k03k.jpeg",
   "pediatric-advanced-life-support": "https://cdn.courses.apisystem.tech/memberships/l0nuB5CyYhn0gJmoVobg/courses/pals-hero-qio8.jpg",
@@ -11446,6 +11448,7 @@ app.get("/admin/lpn-enrollment", requireAuth, requireRole("admin"), (req, res) =
       WHEN 'fundamental-nursing-skills-and-concepts-new-cohort' THEN 5
       WHEN 'introductory-clinical-pharmacology-pn106' THEN 6
       WHEN 'medical-surgical-nursing-i-pn107' THEN 7
+      WHEN 'medical-surgical-nursing-i-pn107-lab' THEN 8
       ELSE 99 END, title
   `).all();
   const selectedStudentId = Number(req.query.studentId || 0);
@@ -15828,6 +15831,7 @@ app.get("/student/registration", requireAuth, requireRole("student"), (req, res)
   const programCourseSlugs = {
     "practical-nursing": [
       "medical-surgical-nursing-i-pn107",
+      "medical-surgical-nursing-i-pn107-lab",
       "introductory-clinical-pharmacology-pn106",
       "introduction-to-nursing-practical-nursing",
       "medical-terminology",
