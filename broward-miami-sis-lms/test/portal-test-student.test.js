@@ -285,7 +285,14 @@ test("PN106 students can submit chapter cases while answer guides remain instruc
     headers: { cookie: instructorCookie }
   });
   assert.equal(instructorModules.status, 200);
-  assert.match(await instructorModules.text(), /Chapter 1 Instructor Answer Guide: General Principles of Pharmacology/);
+  const instructorModulesHtml = await instructorModules.text();
+  assert.match(instructorModulesHtml, /Chapter 1 Instructor Answer Guide: General Principles of Pharmacology/);
+  const guideEditHref = `/admin/courses/${course.id}/student-view?lesson=${guideLesson.id}&mode=edit`;
+  assert.equal(
+    instructorModulesHtml.split(`href="${guideEditHref}"`).length - 1,
+    2,
+    "the module row and course outline must both preserve instructor edit mode"
+  );
   const guidePage = await fetch(`${baseUrl}/admin/courses/${course.id}/student-view?lesson=${guideLesson.id}&mode=edit`, {
     headers: { cookie: instructorCookie }
   });

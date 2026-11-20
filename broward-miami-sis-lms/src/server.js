@@ -2385,7 +2385,7 @@ function renderCanvasModulesPage({ courseCode, courseSlug = "", baseHref, course
                   });
                 }
                 return `
-                  <a class="canvas-module-row ${isPublished ? "" : "is-unpublished"}" href="${escapeHtml(baseHref)}?lesson=${lesson.id}">
+                  <a class="canvas-module-row ${isPublished ? "" : "is-unpublished"}" href="${escapeHtml(baseHref)}?lesson=${lesson.id}${instructor ? "&mode=edit" : ""}">
                     <span class="module-drag">⁝</span>
                     <span class="module-type ${escapeHtml(kind)}">${escapeHtml(moduleItemIcon(kind))}</span>
                     <span class="module-title">
@@ -14205,7 +14205,7 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
           <section>
             <h3>${escapeHtml(module.position)}. ${escapeHtml(module.title)}</h3>
             ${module.lessons.map((lesson) => `
-              <a class="${lesson.id === currentLessonId ? "active" : ""}" href="${adminCourseBaseHref}?lesson=${lesson.id}">
+              <a class="${lesson.id === currentLessonId ? "active" : ""}" href="${adminCourseBaseHref}?lesson=${lesson.id}${editing ? "&mode=edit" : ""}">
                 <span class="outline-dot"></span>
                 <span>${escapeHtml(courseLessonDisplayTitle(course.slug, lesson.title, lesson))}</span>
               </a>
