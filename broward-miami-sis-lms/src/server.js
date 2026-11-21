@@ -53,6 +53,8 @@ const {
   registerPnOrientationMediaRoutes
 } = require("./pnOrientation");
 const { registerPnOrientationUploadRoutes } = require("./pnOrientationUpload");
+const { renderOperationsDashboard } = require("./operationsDashboard");
+const { validateStudentPhone, requireStudentPhone, renderContactDirectory, studentContactsCsrfToken, registerStudentContactRoutes } = require("./studentContacts");
 
 initialize();
 
@@ -641,7 +643,8 @@ function takeFlash(req) {
 function render(req, res, title, body, options = {}) {
   const user = currentUser(req);
   res.send(layout({ title, user, flash: takeFlash(req), body,
-    pendingAssignmentReviewCount: pendingAssignmentReviewCount(user), ...options }));
+    pendingAssignmentReviewCount: pendingAssignmentReviewCount(user),
+    staffWorkspace: user?.role === "instructor" || /^\/admin\/(courses|assignment-submissions|schedule|hesi|student-evaluations)(?:\/|$)/.test(req.path) ? "teaching" : "operations", ...options }));
 }
 
 function pendingAssignmentReviewCount(user) {
@@ -9242,6 +9245,11 @@ function renderAdminCourseDashboardSidebar({ pendingSubmissions = [], upcoming =
   `;
 }
 
+registerStudentContactRoutes(app, {
+  db, requireAuth, render, flash, recordSystemActivity,
+  renderAvatar: (student) => studentPhotoThumb(student, "student-thumb")
+});
+
 app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) => {
   if (req.user.role === "instructor") return res.redirect("/admin/courses");
   const cohorts = db.prepare(`
@@ -9320,23 +9328,25 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
     WHERE urgency = 'urgent' AND status <> 'done'
   `).get().count;
 
-  const body = `
-    ${renderAdminDashboardToggle("operations")}
-    <div class="page-head">
-      <div>
-        <h1>Operations Dashboard</h1>
-        <p>Monitor enrollment activity, completion progress, and credential readiness. Showing ${escapeHtml(cohortLabel)}.</p>
-      </div>
-      <div class="actions">
-        ${req.user.role === "admin" ? `<a class="button ghost" href="/admin/features">Admin features</a>` : ""}
-        ${req.user.role === "admin" ? `<a class="button ghost" href="/admin/admin-roles">Admin roles</a>` : ""}
-        ${req.user.role === "admin" ? `<a class="button ghost" href="/admin/instructor-roles">Instructor roles</a>` : ""}
-        <a class="button ghost" href="/admin/staff-portal">Staff time</a>
-        ${req.user.role === "admin" ? `<a class="button" href="/admin/instructor-roles#create-instructor">Add instructor</a>` : ""}
-        ${req.user.role === "admin" ? `<a class="button lpn-enrollment-button" href="/admin/lpn-enrollment">LPN Enrollment</a>` : ""}
-        <a class="button" href="/admin/students">Add student</a>
-      </div>
-    </div>
+  const contactsMarkup = renderContactDirectory(db, {
+    query: req.query.contactQuery,
+    cohort: selectedCohort,
+    status: req.query.contactStatus,
+    phone: req.query.contactPhone,
+    page: req.query.contactPage,
+    pageSize: 12,
+    basePath: "/admin",
+    user: req.user,
+    canEdit: true,
+    csrfToken: studentContactsCsrfToken(req),
+    renderAvatar: (student) => studentPhotoThumb(student, "student-thumb"),
+    hiddenFields: { cohort: selectedCohort },
+    showCohortFilter: false
+  });
+  const body = renderOperationsDashboard({
+    cohortLabel,
+    contactsMarkup,
+    urgentMarkup: `
     ${urgentTicketCount ? `
       <section class="staff-urgent-banner" role="alert">
         <div>
@@ -9354,6 +9364,8 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
         <a class="button urgent-banner-action" href="/admin/tickets">Open Task Tickets</a>
       </section>
     ` : ""}
+`,
+    filterMarkup: `
     <section class="card dashboard-filter-card">
       <form method="get" action="/admin" class="dashboard-cohort-filter">
         <div>
@@ -9367,12 +9379,16 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
         ${selectedCohort ? `<a class="button ghost" href="/admin">Clear filter</a>` : ""}
       </form>
     </section>
+`,
+    statsMarkup: `
     <section class="grid cols-4">
       ${renderDashboardStudentStat(stats.students, stats.studentStatuses, cohortLabel)}
-      ${stat("Admissions", stats.admissions)}
-      ${stat("Published courses", stats.courses)}
+      ${stat("Admissions · school-wide", stats.admissions)}
+      ${stat("Published courses · school-wide", stats.courses)}
       ${stat("Active enrollments", stats.active)}
     </section>
+`,
+    rosterMarkup: `
     <section class="table-card student-roster-table-card" style="margin-top:18px">
       <table class="student-roster-table">
         <thead><tr><th>Photo</th><th>Student</th><th>Photo review</th><th>Cohort</th><th>Courses</th><th>Status</th><th>Progress</th><th>Started</th>${req.user.role === "admin" ? "<th>Withdrawal</th>" : ""}</tr></thead>
@@ -9394,9 +9410,9 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
           `; }).join("") || `<tr><td class="empty" colspan="${req.user.role === "admin" ? 9 : 8}">No enrollments yet.</td></tr>`}
         </tbody>
       </table>
-    </section>
-  `;
-  render(req, res, "Dashboard", body);
+    </section>`
+  });
+  render(req, res, "Dashboard", body, { operationsDashboard: true });
 });
 
 function addScheduleDays(value, days) {
@@ -11930,7 +11946,7 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
           <div><label>Last name</label><input name="lastName" required></div>
           <div><label>Portal login email</label><input name="email" type="email" required></div>
           <div><label>Personal email for reminders</label><input name="personalEmail" type="email" required></div>
-          <div><label>Phone</label><input name="phone"></div>
+          <div><label for="new-student-phone">Phone (required)</label><input id="new-student-phone" name="phone" type="tel" autocomplete="tel" required placeholder="(954) 555-0123"><small class="muted">Include the country code for numbers outside the US or Canada.</small></div>
           <div><label>Password</label><input name="password" value="StudentPass123!" required></div>
           <div><label>Uniform size</label><select name="uniformSize">${uniformSizeOptions()}</select></div>
           <div><label>Cohort</label><input name="cohortName" value="Cohort 2"></div>
@@ -12094,12 +12110,34 @@ app.get("/admin/students/:id/registrar-checklist", requireAuth, requireRole("adm
     ORDER BY e.created_at DESC
   `).all(student.id);
 
+  const registrarPhone = validateStudentPhone(student.phone, { required: false });
+  const registrarContactEmail = String(student.personal_email || "").trim() || String(student.email || "").trim();
+  const registrarStudentName = `${student.first_name} ${student.last_name}`.trim();
   const body = `
-    <div class="page-head">
-      <div>
+    <div class="page-head registrar-identity-header">
+      <div class="registrar-identity-main">
         <p class="eyebrow">Registrar Checklist</p>
         <h1>${escapeHtml(student.first_name)} ${escapeHtml(student.last_name)}</h1>
-        <p>${escapeHtml(student.email)} · Student ID ${escapeHtml(displayStudentNumber(student))}</p>
+        <div class="registrar-identity-profile">
+          <a class="registrar-identity-photo-link" href="#photo-review" aria-label="Review photo for ${escapeHtml(registrarStudentName)}">
+            ${studentHasUsablePhoto(student)
+              ? studentPhotoThumb(student, "registrar-identity-photo")
+              : `<span class="registrar-identity-photo registrar-identity-photo-missing" role="img" aria-label="No student photo on file for ${escapeHtml(registrarStudentName)}"><span aria-hidden="true">${escapeHtml(initialsFor(student))}</span><small aria-hidden="true">No photo on file</small></span>`}
+          </a>
+          <div class="registrar-identity-contact">
+            <dl>
+              <div><dt>Phone</dt><dd>${String(student.phone || "").trim()
+                ? registrarPhone.valid
+                  ? `<a href="${escapeHtml(registrarPhone.tel)}">${escapeHtml(registrarPhone.display)}</a>`
+                  : `${escapeHtml(student.phone)} <span class="registrar-identity-notice">Needs review</span>`
+                : `<span class="registrar-identity-notice">Not on file</span>`}</dd></div>
+              <div><dt>Contact email</dt><dd>${registrarContactEmail ? `<a href="mailto:${escapeHtml(encodeURIComponent(registrarContactEmail))}">${escapeHtml(registrarContactEmail)}</a>` : "Not on file"}</dd></div>
+              <div><dt>Student ID</dt><dd>${escapeHtml(displayStudentNumber(student))}</dd></div>
+              ${student.email && registrarContactEmail.toLowerCase() !== student.email.toLowerCase() ? `<div><dt>Portal email</dt><dd>${escapeHtml(student.email)}</dd></div>` : ""}
+            </dl>
+            <a class="registrar-identity-edit" href="/admin/student-contacts/${student.id}">Edit phone / view contact card</a>
+          </div>
+        </div>
       </div>
       <div class="actions">
         <a class="button" href="/admin/students/${student.id}/current-grade-report" target="_blank" rel="noopener">Current Grade Report</a>
@@ -12427,6 +12465,7 @@ app.get("/admin/students/:id/registrar-checklist/:itemKey/file", requireAuth, re
 app.post("/admin/students", requireAuth, requireRole("admin"), (req, res) => {
   const password = String(req.body.password || "StudentPass123!");
   try {
+    const studentPhone = requireStudentPhone(req.body.phone);
     const organizationStatus = req.body.organizationStatus === "organized" ? "organized" : "not_organized";
     const classLockReason = organizationStatus === "not_organized"
       ? String(req.body.classLockReason || "Pending registrar organization and clearance.").trim()
@@ -12442,7 +12481,7 @@ app.post("/admin/students", requireAuth, requireRole("admin"), (req, res) => {
       String(req.body.lastName || "").trim(),
       String(req.body.email || "").trim().toLowerCase(),
       String(req.body.personalEmail || req.body.email || "").trim().toLowerCase(),
-      String(req.body.phone || "").trim(),
+      studentPhone,
       bcrypt.hashSync(password, 12),
       organizationStatus,
       classLockReason,

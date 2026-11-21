@@ -1,0 +1,236 @@
+/* Dashboard-only workspace; other SIS pages keep their existing layout. */
+body.dashboard-mode { background: #eaf0f5; }
+.dashboard-mode .sis-subbar { display: none; }
+.dashboard-mode .sis-header { background: #153c60; box-shadow: 0 1px 0 #10324f; }
+.dashboard-mode .sis-topbar { background: linear-gradient(110deg, #123654, #1b4d70); }
+.dashboard-mode .shell { margin: 0; max-width: none; padding: 0; }
+.dashboard-mode .shell > .flash { margin: 16px; }
+
+.operations-dashboard {
+  --ops-ink: #23394b;
+  --ops-muted: #576e80;
+  --ops-line: #d7e2eb;
+  --ops-blue: #17628e;
+  --ops-teal: #146c73;
+  color: var(--ops-ink);
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+  min-height: calc(100vh - 88px);
+}
+.operations-dashboard *, .student-contact-profile * { box-sizing: border-box; }
+.operations-dashboard a { text-decoration: none; }
+.operations-dashboard :is(a, button, input, select, summary):focus-visible,
+.contact-directory-mode :is(a, button, input, select, summary):focus-visible,
+.student-contact-profile :is(a, button, input, select, summary):focus-visible {
+  outline: 3px solid #1489be;
+  outline-offset: 3px;
+}
+.ops-icon { flex: 0 0 18px; height: 18px; width: 18px; }
+.ops-skip-link { background: white; color: #174b70; left: 12px; padding: 12px 18px; position: fixed; top: -100px; z-index: 100; }
+.ops-skip-link:focus { top: 12px; }
+.ops-rail { background: #1d3547; color: #dbe7ef; min-width: 0; padding: 22px 12px 18px; }
+.ops-rail-brand { align-items: center; display: flex; gap: 11px; margin: 0 10px 23px; }
+.ops-rail-brand > .ops-icon { color: #8dd8d5; height: 29px; width: 29px; flex-basis: 29px; }
+.ops-rail-brand strong { color: white; display: block; font-size: 20px; letter-spacing: .08em; line-height: 1.2; }
+.ops-rail-brand span { color: #bdd0df; display: block; font-size: 11px; margin-top: 4px; }
+.ops-nav-toggle { display: none; }
+.ops-nav-group { border-bottom: 1px solid #365062; margin: 0 0 16px; padding: 0 0 15px; }
+.ops-nav-label { color: #a6c0d1; font-size: 10px; font-weight: 800; letter-spacing: .13em; line-height: 1.5; margin: 0 11px 7px; text-transform: uppercase; }
+.ops-nav-link { align-items: center; border-radius: 5px; color: #e0e9f0; display: flex; font-size: 12px; font-weight: 550; gap: 10px; line-height: 1.35; min-height: 38px; padding: 9px 10px; }
+.ops-nav-link .ops-icon { color: #a9c1d2; height: 16px; width: 16px; flex-basis: 16px; }
+.ops-nav-link:hover { background: #2b4a60; color: #fff; }
+.ops-nav-link.is-current { background: #2d5974; box-shadow: inset 3px 0 #78d1d2; color: #fff; }
+.ops-nav-link.is-current .ops-icon { color: #a8ece8; }
+.ops-rail .ops-enrollment-link { background: #dbf0ee; border: 1px solid #a7d5d2; border-radius: 5px; color: #164a52; display: flex; font-size: 12px; justify-content: center; margin: 10px 3px 0; min-height: 38px; padding: 8px; width: calc(100% - 6px); }
+.ops-rail .ops-enrollment-link:hover { background: white; }
+.ops-secondary-nav > summary { align-items: center; cursor: pointer; display: flex; justify-content: space-between; list-style: none; margin-bottom: 0; min-height: 28px; }
+.ops-secondary-nav > summary::-webkit-details-marker { display: none; }
+.ops-secondary-nav[open] > summary { margin-bottom: 8px; }
+.ops-secondary-nav[open] > summary > span { transform: rotate(180deg); }
+.ops-rail-resources { display: grid; gap: 11px; padding: 0 11px; }
+.ops-rail-resources a { color: #b8cfdf; font-size: 11px; }
+.ops-rail-resources a:hover { color: #fff; text-decoration: underline; }
+.ops-workspace { min-width: 0; }
+.ops-context-band { align-items: center; background: linear-gradient(115deg, #204c73, #246787 65%, #2c7e91); color: white; display: flex; gap: 20px; justify-content: space-between; padding: 24px 30px; }
+.ops-context-title { min-width: 0; }
+.ops-eyebrow { color: #c3e0ef; font-size: 10px; font-weight: 800; letter-spacing: .11em; margin: 0 0 7px; text-transform: uppercase; }
+.ops-context-band h1 { color: #fff; font-size: clamp(22px, 2.1vw, 29px); letter-spacing: -.035em; line-height: 1.2; margin: 0; }
+.ops-context-title > p:last-child { color: #d6e8f2; font-size: 12px; line-height: 1.5; margin: 8px 0 0; }
+.ops-context-actions { align-items: flex-end; display: flex; flex-direction: column; gap: 11px; flex-shrink: 0; }
+.ops-cohort-context { align-items: center; color: #e6f4fc; display: flex; font-size: 11px; font-weight: 600; gap: 7px; }
+.ops-cohort-context .ops-icon { flex-basis: 15px; height: 15px; width: 15px; }
+.ops-context-actions .ops-add-student { align-items: center; background: #fff; border: 1px solid #fff; border-radius: 5px; color: #205476; display: inline-flex; font-size: 12px; gap: 6px; min-height: 36px; padding: 8px 12px; }
+.ops-context-actions .ops-add-student:hover { background: #e6f5fa; }
+.ops-workspace-tabs { align-items: stretch; background: #fff; border-bottom: 1px solid #ccdbe6; display: flex; gap: 25px; min-height: 48px; padding: 0 30px; }
+.ops-workspace-tabs a { align-items: center; border-bottom: 3px solid transparent; color: #586f81; display: flex; font-size: 12px; font-weight: 700; gap: 7px; padding: 13px 0 10px; }
+.ops-workspace-tabs a:hover { color: #0e5b83; }
+.ops-workspace-tabs a.is-current { border-bottom-color: #16828a; color: #175b70; }
+.ops-workspace-tabs .ops-icon { height: 16px; width: 16px; flex-basis: 16px; }
+.ops-workspace-tabs .admin-dashboard-toggle { background: transparent; border: 0; border-radius: 0; display: flex; gap: 24px; margin: 0; padding: 0; }
+.ops-workspace-tabs .admin-dashboard-toggle-option { border-bottom: 3px solid transparent; border-radius: 0; box-shadow: none; min-height: 48px; padding: 13px 0 10px; }
+.ops-workspace-tabs .admin-dashboard-toggle-option.is-active { background: transparent; border-bottom-color: #16828a; color: #175b70; }
+.ops-workspace-tabs .admin-dashboard-toggle-option:hover { background: transparent; color: #0e5b83; }
+.ops-workspace-tabs .ops-roster-jump { font-size: 11px; font-weight: 500; margin-left: auto; }
+.ops-workspace-body { display: grid; gap: 18px; min-width: 0; padding: 22px 28px 26px; }
+.ops-overview { min-width: 0; }
+.ops-section-heading { align-items: baseline; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; margin-bottom: 9px; }
+.ops-section-heading h2 { color: #425c70; font-size: 11px; font-weight: 800; letter-spacing: .06em; margin: 0; text-transform: uppercase; }
+.ops-section-heading > span { color: #647c8f; font-size: 11px; }
+.ops-stats { background: #fff; border: 1px solid var(--ops-line); border-radius: 7px; box-shadow: 0 2px 4px #21445d05; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; }
+.ops-stats > :is(.grid, section) { display: contents; }
+.ops-stats .stat { background: transparent; border: 0; border-right: 1px solid #e4ecf2; border-radius: 0; box-shadow: none; min-width: 0; padding: 15px 18px 13px; }
+.ops-stats .stat:last-child { border-right: 0; }
+.ops-stats .stat > span { color: #5e7485; font-size: 10px; font-weight: 750; letter-spacing: .035em; text-transform: uppercase; }
+.ops-stats .stat > strong { color: #244e6b; font-size: 28px; font-weight: 650; line-height: 1.15; margin: 6px 0; }
+.ops-stats .stat small { color: #6d8090; font-size: 10px; }
+.ops-stats .dashboard-status-breakdown { gap: 3px 7px; margin-top: 6px; }
+.ops-stats .dashboard-status-item { background: transparent; border: 0; font-size: 10px; padding: 0; }
+.ops-cohort-filter:empty { display: none; }
+.ops-cohort-filter .dashboard-filter-card { background: transparent; border: 0; box-shadow: none; margin: 0; padding: 0; }
+.ops-cohort-filter .dashboard-cohort-filter { gap: 10px; }
+.ops-cohort-filter .dashboard-cohort-filter > div { min-width: 180px; }
+.ops-cohort-filter :is(input, select, button, .button) { font-size: 12px; min-height: 35px; padding: 7px 10px; }
+.ops-alerts .staff-urgent-banner { background: #fff7e4; border: 1px solid #ead39b; border-left: 4px solid #be8b2b; border-radius: 6px; box-shadow: none; color: #694c1d; gap: 14px; margin: 0; padding: 13px 16px; }
+.ops-alerts .staff-urgent-banner :is(.eyebrow, h2, ul, li, li span) { color: #694c1d; }
+.ops-alerts .staff-urgent-banner h2 { font-size: 15px; }
+.ops-alerts .staff-urgent-banner .eyebrow { font-size: 9px; }
+.ops-alerts .staff-urgent-banner ul { font-size: 11px; }
+.ops-alerts .urgent-banner-action { border-color: #dec68d; color: #694c1d; font-size: 11px; padding: 8px 10px; }
+.ops-contact-panel { min-width: 0; }
+
+/* Contact directory and profile share a single, responsive card language. */
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-directory { background: white; border: 1px solid #cfdee7; border-radius: 7px; min-width: 0; overflow: hidden; scroll-margin-top: 104px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-directory-head { align-items: center; background: #e5f2f1; border-bottom: 1px solid #c7dddb; display: flex; flex-wrap: wrap; gap: 7px 16px; justify-content: space-between; padding: 14px 18px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-directory-head h2 { color: #245d63; font-size: 16px; letter-spacing: -.015em; margin: 0; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-directory-head :is(p, span, small) { color: #527477; font-size: 11px; margin: 0; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-filters { align-items: end; background: #f8fafc; border-bottom: 1px solid #e0e8ef; display: grid; gap: 9px; grid-template-columns: minmax(180px, 1.5fr) repeat(3, minmax(110px, 1fr)) auto; padding: 14px 18px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-filters label { color: #536e81; display: grid; font-size: 10px; gap: 5px; margin: 0; min-width: 0; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-filters :is(input, select) { background: white; border-color: #cbd9e4; border-radius: 4px; font-size: 12px; font-weight: 400; max-width: 100%; min-height: 35px; min-width: 0; padding: 7px 9px; width: 100%; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-filters :is(button, .button) { background: #236784; border: 1px solid #236784; border-radius: 4px; font-size: 12px; min-height: 35px; padding: 7px 13px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-grid { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 18px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-card { background: #fff; border: 1px solid #d8e3eb; border-radius: 6px; box-shadow: 0 2px 4px #183e5606; display: flex; flex-direction: column; margin: 0; min-width: 0; overflow: hidden; padding: 16px; scroll-margin-top: 104px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-card-head { align-items: center; display: flex; gap: 11px; min-width: 0; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-avatar { align-items: center; background: #e8f0f7; border: 1px solid #d0dfec; border-radius: 50%; color: #315d7a; display: inline-flex; flex: 0 0 44px; font-size: 15px; font-weight: 700; height: 44px; justify-content: center; object-fit: cover; width: 44px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-avatar img { border-radius: 50%; height: 100%; object-fit: cover; width: 100%; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-identity { min-width: 0; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-identity h3 { color: #23445c; font-size: 14px; font-weight: 750; line-height: 1.35; margin: 0 0 3px; overflow-wrap: anywhere; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-identity h3 a { color: inherit; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-identity h3 a:hover { color: #147080; text-decoration: underline; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-identity :is(p, small, span) { color: #6c8090; font-size: 10px; margin: 0; overflow-wrap: anywhere; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-badges { align-items: center; display: flex; flex-wrap: wrap; gap: 5px; margin: 12px 0 4px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) :is(.student-contact-status, .student-contact-cohort) { background: #eef3f7; border: 1px solid #dbe5ed; border-radius: 4px; color: #526c80; font-size: 9px; font-weight: 700; padding: 3px 6px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-status.active { background: #eaf5ef; border-color: #c9e5d5; color: #266349; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-status.withdrawn,
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-status.inactive { background: #fbefee; border-color: #eddbd7; color: #8a4944; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-details { display: grid; gap: 9px; margin: 13px 0 16px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-details > div { display: grid; gap: 3px; min-width: 0; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-details dt { color: #788b99; font-size: 10px; line-height: 1.6; margin: 0; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-details dd { color: #36576d; font-size: 11px; line-height: 1.5; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-details a { color: #275f81; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-details a:hover { text-decoration: underline; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-missing { color: #8c6118; font-size: 10px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-card-actions { border-top: 1px solid #e7edf2; display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-card-actions :is(a, button) { align-items: center; background: #edf5f8; border: 1px solid #d3e4eb; border-radius: 4px; color: #2c667d; display: inline-flex; font-size: 10px; font-weight: 700; justify-content: center; min-height: 32px; padding: 6px 10px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-edit { margin-top: 10px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-edit > summary { color: #526f82; cursor: pointer; font-size: 10px; min-height: 25px; padding: 4px 0; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-phone-form { background: #f6f9fb; border: 1px solid #dce6ee; border-radius: 4px; display: grid; gap: 8px; margin-top: 7px; padding: 10px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-phone-form label { color: #4f687a; display: grid; font-size: 10px; gap: 5px; margin: 0; min-width: 0; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-phone-form input { border-radius: 4px; font-size: 12px; font-weight: 400; min-height: 35px; min-width: 0; padding: 7px; width: 100%; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-phone-form button { border-radius: 4px; font-size: 11px; min-height: 34px; padding: 7px 10px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-phone-form small { color: #60798b; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-error { background: #fff1ee; border-left: 3px solid #a74436; border-radius: 3px; color: #8a392f; font-size: 11px; line-height: 1.5; margin: 0; padding: 8px; overflow-wrap: anywhere; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-pagination { align-items: center; border-top: 1px solid #e1e9f0; display: flex; flex-wrap: wrap; font-size: 11px; gap: 8px 15px; justify-content: center; padding: 13px 18px; }
+:is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-pagination a { background: #f5f8fa; border: 1px solid #d3e0e9; border-radius: 4px; color: #38617b; font-size: 11px; min-height: 32px; padding: 7px 10px; }
+.student-contact-profile { margin: 0 auto; max-width: 760px; }
+.student-contact-profile > .student-contact-card { padding: 24px; }
+.student-contact-profile .student-contact-identity h3 { font-size: 20px; }
+.student-contact-profile .student-contact-details { gap: 10px; }
+.student-contact-profile .student-contact-details > div { gap: 10px; grid-template-columns: 100px minmax(0, 1fr); }
+.student-contact-profile .student-contact-details :is(dt, dd) { font-size: 13px; }
+
+.ops-roster-panel { background: #fff; border: 1px solid #ccdce8; border-radius: 7px; min-width: 0; overflow: hidden; scroll-margin-top: 104px; }
+.ops-roster-heading { align-items: center; background: #eaf2f9; cursor: pointer; display: grid; gap: 12px; grid-template-columns: 30px minmax(0, 1fr) 18px; list-style: none; padding: 15px 18px; }
+.ops-roster-heading::-webkit-details-marker { display: none; }
+.ops-roster-heading-icon { align-items: center; background: #dce9f4; border-radius: 5px; color: #456e8c; display: flex; height: 30px; justify-content: center; }
+.ops-roster-heading strong { color: #355b77; display: block; font-size: 13px; }
+.ops-roster-heading small { color: #688297; display: block; font-size: 10px; margin-top: 4px; }
+.ops-disclosure-chevron { color: #567b94; font-size: 19px; }
+.ops-roster-panel[open] .ops-disclosure-chevron { transform: rotate(180deg); }
+.ops-roster-content { min-width: 0; padding: 0 16px 16px; }
+.ops-roster-content .table-card { border: 0; border-radius: 0; box-shadow: none; max-width: 100%; }
+.ops-roster-content .student-roster-table-card { overflow-x: auto; }
+.ops-roster-content .student-roster-table { font-size: 12px; }
+.ops-workspace-footer { align-items: center; color: #7a8e9d; display: flex; flex-wrap: wrap; font-size: 10px; gap: 8px; justify-content: space-between; padding: 1px 2px; }
+.ops-workspace-footer a { align-items: center; color: #54768c; display: flex; gap: 5px; }
+.ops-workspace-footer .ops-icon { flex-basis: 13px; height: 13px; width: 13px; }
+
+@media (min-width: 1600px) {
+  .ops-workspace-body { padding-left: 36px; padding-right: 36px; }
+  :is(.operations-dashboard, .contact-directory-mode) .student-contact-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 1200px) {
+  .operations-dashboard { grid-template-columns: 184px minmax(0, 1fr); }
+  .ops-context-band { padding: 22px; }
+  .ops-workspace-body { padding: 18px; }
+  .ops-workspace-tabs { padding: 0 22px; }
+  :is(.operations-dashboard, .contact-directory-mode) .student-contact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :is(.operations-dashboard, .contact-directory-mode) .student-contact-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  :is(.operations-dashboard, .contact-directory-mode) .student-contact-filters > label:first-child { grid-column: span 2; }
+  .ops-stats .stat { padding: 13px 12px; }
+}
+@media (max-width: 900px) {
+  .operations-dashboard { display: block; }
+  .ops-rail { padding: 0 18px; }
+  .ops-rail-brand { display: none; }
+  .ops-nav-toggle { align-items: center; color: #e3edf5; cursor: pointer; display: flex; font-size: 12px; font-weight: 700; justify-content: space-between; list-style: none; min-height: 43px; padding: 8px 3px; }
+  .ops-nav-toggle::-webkit-details-marker { display: none; }
+  .ops-nav-content { display: grid; gap: 18px; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 12px 0; }
+  .ops-nav-group { margin-bottom: 0; }
+  .ops-rail-resources { align-items: center; display: flex; flex-wrap: wrap; grid-column: 1 / -1; }
+  .ops-navigation[open] > .ops-nav-toggle > span { transform: rotate(180deg); }
+  .ops-workspace-tabs { gap: 22px; }
+}
+@media (max-width: 640px) {
+  .ops-context-band { align-items: flex-start; flex-direction: column; gap: 15px; padding: 20px 16px; }
+  .ops-context-actions { align-items: center; flex-direction: row; flex-wrap: wrap; justify-content: space-between; width: 100%; }
+  .ops-context-band h1 { font-size: 24px; }
+  .ops-workspace-tabs { gap: 16px; padding: 0 15px; }
+  .ops-workspace-tabs a { font-size: 10px; gap: 5px; line-height: 1.4; min-width: 0; }
+  .ops-workspace-tabs .ops-icon { display: none; }
+  .ops-workspace-tabs .admin-dashboard-toggle { gap: 18px; }
+  .ops-workspace-tabs .ops-roster-jump { font-size: 9px; }
+  .ops-workspace-body { gap: 14px; padding: 15px 12px 22px; }
+  .ops-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ops-stats .stat { border-bottom: 1px solid #e4ecf2; padding: 13px 14px; }
+  .ops-stats .stat:nth-child(2n) { border-right: 0; }
+  .ops-stats .stat:nth-last-child(-n + 2) { border-bottom: 0; }
+  .ops-stats .stat > strong { font-size: 25px; }
+  .ops-alerts .staff-urgent-banner { align-items: flex-start; flex-direction: column; }
+  .ops-nav-content { gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ops-admin-nav { grid-column: 1 / -1; }
+  .ops-cohort-filter .dashboard-cohort-filter > div { flex: 1; min-width: 0; }
+  :is(.operations-dashboard, .contact-directory-mode) .student-contact-grid { gap: 12px; grid-template-columns: minmax(0, 1fr); padding: 12px; }
+  :is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-directory-head { align-items: flex-start; padding: 13px 14px; }
+  :is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-filters { gap: 9px; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; }
+  :is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-filters > label:first-child { grid-column: 1 / -1; }
+  :is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-card { padding: 15px; }
+  :is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-identity h3 { font-size: 15px; }
+  :is(.operations-dashboard, .contact-directory-mode, .student-contact-profile) .student-contact-details dd { font-size: 12px; }
+  .ops-roster-heading { gap: 9px; padding: 13px 12px; }
+  .ops-roster-content { padding: 0 10px 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .operations-dashboard *, .student-contact-profile * { scroll-behavior: auto; transition: none; }
+}
+
+/* Phone numbers remain the clearest action in each contact card. */
+:is(.operations-dashboard, .contact-directory-mode) .student-contact-identity h3 { font-size: 16px; }
+:is(.operations-dashboard, .contact-directory-mode) .student-contact-details dd { font-size: 13px; }
+:is(.operations-dashboard, .contact-directory-mode) .student-contact-details a[href^="tel:"] { color: #125b7d; font-size: 19px; font-weight: 750; letter-spacing: -.02em; }
+:is(.operations-dashboard, .contact-directory-mode) .student-contact-details dt { color: #5b7180; font-size: 11px; }
+:is(.operations-dashboard, .contact-directory-mode) .student-contact-missing { color: #80540f; font-size: 13px; font-weight: 650; }
+:is(.operations-dashboard, .contact-directory-mode) .student-contact-card-actions a { font-size: 11px; }
+:is(.operations-dashboard, .contact-directory-mode) .student-contact-edit > summary { font-size: 12px; }
+:is(.operations-dashboard, .contact-directory-mode) .student-contact-filters { grid-template-columns: minmax(180px, 1.5fr) repeat(2, minmax(105px, 1fr)) auto; }
+@media (max-width: 1100px) { :is(.operations-dashboard, .contact-directory-mode) .student-contact-filters { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 560px) { :is(.operations-dashboard, .contact-directory-mode) .student-contact-filters { grid-template-columns: 1fr; } }

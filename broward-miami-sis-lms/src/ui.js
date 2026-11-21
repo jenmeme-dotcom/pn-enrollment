@@ -23,53 +23,57 @@ function percent(value = 0) {
   return `${Math.max(0, Math.min(100, Number(value) || 0))}%`;
 }
 
-function navFor(user, pendingAssignmentReviewCount = 0) {
+function navFor(user, pendingAssignmentReviewCount = 0, staffWorkspace = "operations") {
   if (!user) return "";
   const reviewCount = user.role === "instructor" && String(user.email || "").toLowerCase() === "dayana.diaz@browardmiamihi.com"
     ? Math.max(0, Number(pendingAssignmentReviewCount) || 0) : 0;
   const assignmentInboxLink = `<a class="${reviewCount ? "assignment-review-alert" : ""}" href="/admin/assignment-submissions">Assignment Inbox${reviewCount ? ` <b class="assignment-review-count" aria-label="${escapeHtml(reviewCount)} assignments need review">${escapeHtml(reviewCount)}</b>` : ""}</a>`;
-  const rolesDropdown = user.role === "admin" ? `
-    <label class="sis-role-menu">
-      <span class="sr-only">Choose a staff role page</span>
-      <select aria-label="Roles" onchange="if (this.value) window.location.assign(this.value)">
-        <option value="" selected>Roles</option>
-        <option value="/admin/admin-roles">Admin</option>
-        <option value="/admin/instructor-roles">Instructor</option>
-      </select>
-    </label>
-  ` : "";
-  const adminLinks = `
-    <a href="/admin">Dashboard</a>
-    <a href="/admin/admissions">Admissions</a>
-    <a href="/admin/features">Features</a>
-    ${rolesDropdown}
-    <a href="/admin/students">Students</a>
-    <a href="/admin/student-evaluations">Student Evals</a>
-    ${assignmentInboxLink}
-    <a href="/admin/help">SOPs</a>
-    <a href="/admin/schedule">Schedule</a>
-    <a href="/admin/hesi">HESI Scores</a>
+  const teachingLinks = `
     <a href="/admin/courses">Courses</a>
-    <a href="/admin/onsite-visit">OSV Visit</a>
-    <a href="/admin/financial-aid">Financial Aid</a>
-    <a href="/admin/billing">Billing</a>
-    <a href="/admin/staff-portal">Staff Portal</a>
+    ${assignmentInboxLink}
+    <a href="/admin/student-contacts">Student contacts</a>
+    <a href="/admin/schedule">Schedule</a>
     <a href="/admin/messages">Inbox</a>
+  `;
+  const operationsLinks = `
+    <a href="/admin/students">Students</a>
+    <a href="/admin/student-contacts">Student contacts</a>
+    <a href="/admin/admissions">Admissions</a>
+    <a href="/admin/billing">Billing</a>
+    <a href="/admin/messages">Inbox</a>
+  `;
+  const sharedMore = `
+    <a href="/admin/student-evaluations">Student Evals</a>
+    <a href="/admin/hesi">HESI Scores</a>
+    <a href="/admin/staff-portal">Staff Portal</a>
+    <a href="/admin/help">SOPs</a>
     <a href="/catalog">Catalog</a>
-    <a href="/admin/ghl">GHL</a>
+  `;
+  const adminLinks = `
+    <a href="${staffWorkspace === "teaching" ? "/admin/courses" : "/admin"}">Dashboard</a>
+    ${staffWorkspace === "teaching" ? teachingLinks : operationsLinks}
+    <details class="sis-more-menu">
+      <summary>More</summary>
+      <div class="sis-more-links">
+        <span class="sis-menu-label">Switch workspace</span>
+        <a href="${staffWorkspace === "teaching" ? "/admin" : "/admin/courses"}">${staffWorkspace === "teaching" ? "Operations" : "Online Courses"}</a>
+        <span class="sis-menu-label">${staffWorkspace === "teaching" ? "Student administration" : "Teaching"}</span>
+        ${staffWorkspace === "teaching" ? '<a href="/admin/students">Students</a><a href="/admin/admissions">Admissions</a><a href="/admin/billing">Billing</a>' : '<a href="/admin/courses">Courses</a>' + assignmentInboxLink + '<a href="/admin/schedule">Schedule</a>'}
+        ${sharedMore}
+        <span class="sis-menu-label">Administration</span>
+        <a href="/admin/features">Features</a>
+        <a href="/admin/admin-roles">Admin roles</a>
+        <a href="/admin/instructor-roles">Instructor roles</a>
+        <a href="/admin/onsite-visit">OSV Visit</a>
+        <a href="/admin/financial-aid">Financial Aid</a>
+        <a href="/admin/ghl">GHL</a>
+      </div>
+    </details>
   `;
   const instructorLinks = `
     <a href="/admin/courses">Dashboard</a>
-    <a href="/admin/students">Students</a>
-    <a href="/admin/student-evaluations">Student Evals</a>
-    ${assignmentInboxLink}
-    <a href="/admin/help">SOPs</a>
-    <a href="/admin/schedule">Schedule</a>
-    <a href="/admin/hesi">HESI Scores</a>
-    <a href="/admin/courses">Courses</a>
-    <a href="/admin/staff-portal">Staff Portal</a>
-    <a href="/admin/messages">Inbox</a>
-    <a href="/catalog">Catalog</a>
+    ${teachingLinks}
+    <details class="sis-more-menu"><summary>More</summary><div class="sis-more-links"><a href="/admin/students">Students</a>${sharedMore}</div></details>
   `;
   const studentLinks = `
     <a href="/student/dashboard">Dashboard</a>
@@ -113,11 +117,11 @@ function studentPortalLinks(activeStudentNav) {
   return studentNavItems.map((item) => studentPortalLink(activeStudentNav, item)).join("");
 }
 
-function layout({ title, user, flash, body, full = false, studentPortal = false, activeStudentNav = "dashboard", courseCanvas = false, pendingAssignmentReviewCount = 0 }) {
+function layout({ title, user, flash, body, full = false, studentPortal = false, activeStudentNav = "dashboard", courseCanvas = false, pendingAssignmentReviewCount = 0, operationsDashboard = false, studentContacts = false, staffWorkspace = "operations" }) {
   const institute = escapeHtml(process.env.INSTITUTE_NAME || "Broward-Miami Health Institute");
   const isSis = Boolean(user && user.role !== "student" && !full);
   const isStudentPortal = Boolean(user && user.role === "student" && studentPortal && !full && !courseCanvas);
-  const bodyClass = full ? "credential-page" : courseCanvas ? "course-canvas-mode" : isSis ? "sis-mode" : isStudentPortal ? "student-portal-mode" : "";
+  const bodyClass = (full ? "credential-page" : courseCanvas ? "course-canvas-mode" : isSis ? "sis-mode" : isStudentPortal ? "student-portal-mode" : "") + (isSis && operationsDashboard ? " dashboard-mode" : isSis && studentContacts ? " contact-directory-mode" : "");
   const studentNav = studentPortalLinks(activeStudentNav);
   const courseCanvasScript = courseCanvas ? `
   <script>
@@ -223,25 +227,24 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
         <a class="sis-logo" href="${user.role === "instructor" ? "/admin/courses" : "/admin"}">
           <img src="/assets/bmhi-wordmark.jpeg" alt="${institute}">
         </a>
-        <form class="sis-search" action="${user.role === "instructor" ? "/admin/courses" : "/admin/features"}" method="get">
+        <form class="sis-search" action="/admin/student-contacts" method="get">
           <label class="sr-only" for="sis-search">Search</label>
-          <input id="sis-search" type="search" placeholder="Search students, courses, reports">
+          <input id="sis-search" name="contactQuery" type="search" placeholder="Find student by name, email or phone">
         </form>
         <span class="sis-topbar-spacer" aria-hidden="true"></span>
-        <div class="sis-tools">
+        <div class="sis-tools-block"><div class="sis-tools">
           <a class="sis-tool task-tickets-link" href="/admin/tickets" title="Task Tickets">Task Tickets</a>
           ${user.role === "admin" ? `<a class="sis-tool" href="/admin/features/system-settings" title="Settings">Settings</a>` : ""}
           <span class="sis-avatar" title="${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)}">${escapeHtml(initialsFor(user))}</span>
           <form method="post" action="/logout">
             <button class="sis-signout" type="submit">Sign out</button>
           </form>
-        </div>
+        </div><span class="sis-session">Current session: 2026-27</span></div>
       </div>
       <div class="sis-subbar">
         <nav class="sis-subnav" aria-label="Admin portal menu">
-          ${navFor(user, pendingAssignmentReviewCount)}
+          ${navFor(user, pendingAssignmentReviewCount, staffWorkspace)}
         </nav>
-        <span class="sis-session">Current session: 2026-27</span>
       </div>
     </header>
   ` : isStudentPortal ? `
@@ -279,7 +282,7 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
         <img class="brand-logo" src="/assets/bmhi-wordmark.jpeg" alt="${institute}">
         <span class="brand-text"><strong>${institute}</strong><small>SIS + LMS</small></span>
       </a>
-      <nav>${navFor(user, pendingAssignmentReviewCount)}</nav>
+      <nav>${navFor(user, pendingAssignmentReviewCount, staffWorkspace)}</nav>
       ${user ? `
         <form method="post" action="/logout">
           <button class="button ghost" type="submit">Sign out</button>
@@ -296,6 +299,7 @@ function layout({ title, user, flash, body, full = false, studentPortal = false,
   <link rel="icon" type="image/png" href="/assets/bmhi-favicon.png">
   <link rel="apple-touch-icon" href="/assets/bmhi-favicon.png">
   <link rel="stylesheet" href="/styles.css">
+  ${isSis && (operationsDashboard || studentContacts) ? '<link rel="stylesheet" href="/operations-dashboard.css">' : ""}
 </head>
 <body class="${bodyClass}">
   ${header}

@@ -169,6 +169,7 @@ test("LPN Enrollment adds selected course shells once and preserves repeat submi
     lastName: "Test Student",
     email,
     personalEmail: email,
+    phone: "954-555-0199",
     organizationStatus: "organized",
     cohortName: "Cohort Test"
   });
