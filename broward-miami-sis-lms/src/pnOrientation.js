@@ -56,14 +56,13 @@ function renderPnOrientationPageContent(transcript = "") {
         <p class="pn-orientation-meta">4 minutes 16 seconds · Captions included</p>
       </header>
       <div class="pn-orientation-player">
-        <video controls preload="metadata" playsinline poster="${PN_ORIENTATION_PATH}/poster" aria-label="LPN program orientation with Nurse Joy">
+        <video controls controlslist="nodownload" oncontextmenu="return false;" preload="metadata" playsinline poster="${PN_ORIENTATION_PATH}/poster" aria-label="LPN program orientation with Nurse Joy">
           <source src="${PN_ORIENTATION_PATH}/video" type="video/mp4">
-          Your browser cannot play this video. Use the download link below to watch it on your device.
+          Your browser cannot play this video. Please try a different browser.
         </video>
       </div>
       <p class="pn-orientation-reminder"><strong>Complete Complio requirements before starting clinicals.</strong> Check your account early and follow up on outstanding items.</p>
       <div class="pn-orientation-actions">
-        <a href="${PN_ORIENTATION_PATH}/video" download="Nurse_Joy_LPN_Program_Welcome.mp4">Download video</a>
         <a href="${PN_ORIENTATION_PATH}/transcript" download="LPN_Program_Orientation_Transcript.txt">Download transcript</a>
         <a href="/student/dashboard">Back to Dashboard</a>
       </div>

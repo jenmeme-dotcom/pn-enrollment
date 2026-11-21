@@ -27,6 +27,10 @@ let lockedCookie;
 let photoRequiredCookie;
 let initialAcademicState;
 let privateOrientationDirectory;
+let pnVideoLessonId;
+const courseStorageSlug = "introduction-to-nursing-practical-nursing";
+const courseVideoRoute = `/course-materials/${courseStorageSlug}/lecture.mp4`;
+const courseVideoBytes = Buffer.from("private-course-video-fixture-for-range-seeking");
 
 async function reservePort() {
   const socket = net.createServer();
@@ -157,6 +161,22 @@ before(async () => {
   const locked = createFixture("locked", "introduction-to-nursing-practical-nursing", { locked: true });
   const photoRequired = createFixture("photo-required", "introduction-to-nursing-practical-nursing", { approved: false });
   pnEnrollmentId = pn.enrollmentId;
+  const courseMediaDirectory = path.join(temporaryDirectory, "course-media", courseStorageSlug);
+  const courseMaterialDirectory = path.join(materialsDirectory, courseStorageSlug);
+  fs.mkdirSync(courseMediaDirectory, { recursive: true });
+  fs.mkdirSync(courseMaterialDirectory, { recursive: true });
+  fs.writeFileSync(path.join(courseMediaDirectory, "lecture.mp4"), courseVideoBytes);
+  fs.writeFileSync(path.join(courseMediaDirectory, "lecture.poster.jpg"), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+  fs.writeFileSync(path.join(courseMaterialDirectory, "legacy.webm"), "legacy course video fixture");
+  fs.writeFileSync(path.join(courseMaterialDirectory, "course-book.pdf"), "%PDF-1.7 course book fixture");
+  const module = database.prepare("SELECT id FROM modules WHERE course_id = ? ORDER BY position LIMIT 1").get(pnCourseId);
+  const videoLesson = database.prepare(`
+    INSERT INTO lessons (module_id, title, item_type, content, external_url, position, published)
+    VALUES (?, 'Course video fixture', 'video', ?, ?, 1000, 1)
+  `).run(module.id,
+    `<p><a href="/course-materials/${courseStorageSlug}/course-book.pdf">Course book</a></p><p><a href="${courseVideoRoute}?inline=1">Lecture video</a></p>`,
+    courseVideoRoute);
+  pnVideoLessonId = Number(videoLesson.lastInsertRowid);
   const lesson = database.prepare("SELECT l.id FROM lessons l JOIN modules m ON m.id = l.module_id WHERE m.course_id = ? ORDER BY l.id LIMIT 1").get(pnCourseId);
   const gradeItem = database.prepare("SELECT id FROM grade_items WHERE course_id = ? ORDER BY id LIMIT 1").get(pnCourseId);
   assert.ok(lesson && gradeItem, "Expected PN102 lessons and grades for preservation checks");
@@ -220,9 +240,73 @@ test("the orientation page uses protected video and poster and safely displays t
   assert.doesNotMatch(body, /<script>not markup/);
   assert.doesNotMatch(body, /<video\b[^>]*\bautoplay\b/);
   assert.doesNotMatch(body, /<track\b/);
+  assert.match(body, /<video\b[^>]*controlslist="nodownload"/);
+  assert.match(body, /<video\b[^>]*oncontextmenu="return false;"/);
+  assert.doesNotMatch(body, /<a\b[^>]*href="\/student\/lpn-orientation\/video"|Download video/i);
+  assert.match(body, /Download transcript/);
   const response = await request(`${orientationPath}/transcript`, pnCookie);
   assert.equal(response.status, 200);
   assert.equal(await response.text(), transcript);
+});
+
+test("student course players keep playback controls without video download controls or attachment buttons", async () => {
+  const body = await html(`/student/enrollments/${pnEnrollmentId}?lesson=${pnVideoLessonId}`, pnCookie);
+  const player = body.match(/<video\b[^>]*>/)?.[0];
+  assert.ok(player, "The lesson must still embed its video player");
+  assert.match(player, /\bcontrols\b/);
+  assert.match(player, /controlslist="nodownload"/);
+  assert.match(player, /oncontextmenu="return false;"/);
+  assert.match(player, /src="[^\"]*lecture\.mp4\?inline=1"/);
+  assert.doesNotMatch(player, /\bautoplay\b/);
+  const fileActions = body.match(/<div class="lesson-file-actions">([\s\S]*?)<\/div>/)?.[1];
+  assert.ok(fileActions);
+  assert.match(fileActions, /course-book\.pdf[^>]*download/);
+  assert.doesNotMatch(fileActions, /lecture\.mp4/);
+});
+
+test("student Course Files retain book downloads and omit course-video downloads", async () => {
+  const body = await html(`/student/enrollments/${pnEnrollmentId}?view=files`, pnCookie);
+  assert.match(body, /href="\/course-materials\/introduction-to-nursing-practical-nursing\/course-book\.pdf"/);
+  assert.doesNotMatch(body, /legacy\.webm/);
+});
+
+test("course videos reject student attachment requests while authenticated inline playback and seeking work", async () => {
+  for (const suffix of ["", "?download=1"]) {
+    const attachment = await request(courseVideoRoute + suffix, pnCookie);
+    assert.equal(attachment.status, 403);
+    assert.doesNotMatch(attachment.headers.get("content-disposition") || "", /attachment/i);
+  }
+  const video = await request(`${courseVideoRoute}?inline=1`, pnCookie, { headers: { range: "bytes=3-11" } });
+  assert.equal(video.status, 206);
+  assert.equal(video.headers.get("content-type"), "video/mp4");
+  assert.match(video.headers.get("content-disposition"), /^inline;/);
+  assert.equal(video.headers.get("content-range"), `bytes 3-11/${courseVideoBytes.length}`);
+  assert.deepEqual(Buffer.from(await video.arrayBuffer()), courseVideoBytes.subarray(3, 12));
+  const head = await request(`${courseVideoRoute}?inline=1`, pnCookie, { method: "HEAD" });
+  assert.equal(head.status, 200);
+  assert.equal(Number(head.headers.get("content-length")), courseVideoBytes.length);
+  assert.equal((await head.arrayBuffer()).byteLength, 0);
+  const legacyRoute = `/course-materials/${courseStorageSlug}/legacy.webm`;
+  assert.equal((await request(legacyRoute, pnCookie)).status, 403);
+  const legacy = await request(`${legacyRoute}?inline=1`, pnCookie);
+  assert.equal(legacy.status, 200);
+  assert.equal(legacy.headers.get("content-type"), "video/webm");
+});
+
+test("course video access remains restricted and book attachments remain downloadable", async () => {
+  const anonymous = await request(`${courseVideoRoute}?inline=1`);
+  assert.equal(anonymous.status, 302);
+  assert.equal(anonymous.headers.get("location"), "/login");
+  for (const cookie of [nonPnCookie, lockedCookie]) {
+    assert.equal((await request(`${courseVideoRoute}?inline=1`, cookie)).status, 403);
+  }
+  const book = await request(`/course-materials/${courseStorageSlug}/course-book.pdf`, pnCookie);
+  assert.equal(book.status, 200);
+  assert.match(book.headers.get("content-disposition"), /^attachment;/);
+  assert.match(await book.text(), /^%PDF-/);
+  const inlineBook = await request(`/course-materials/${courseStorageSlug}/course-book.pdf?inline=1`, pnCookie);
+  assert.equal(inlineBook.status, 200);
+  assert.equal(inlineBook.headers.get("content-type"), "application/pdf");
 });
 
 test("actual application media routes support Range/HEAD and reject anonymous access", async () => {

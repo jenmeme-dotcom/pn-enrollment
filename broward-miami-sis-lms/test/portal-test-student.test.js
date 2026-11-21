@@ -95,6 +95,7 @@ before(async () => {
   seed();
   seed();
   database = new DatabaseSync(databaseFile);
+  database.exec("PRAGMA busy_timeout = 5000;");
   const port = await reservePort();
   baseUrl = `http://127.0.0.1:${port}`;
   await startServer(port);
@@ -484,6 +485,50 @@ test("PN107 Lab gives every skill its own student upload target while staff prev
   assert.equal(savedSubmissions.length, 2);
   assert.equal(new Set(savedSubmissions.map((row) => row.grade_item_id)).size, 2);
   assert.equal(new Set(savedSubmissions.map((row) => row.file_storage_name)).size, 2);
+
+  const module = database.prepare("SELECT id FROM modules WHERE course_id = ? ORDER BY position LIMIT 1").get(course.id);
+  const videoLesson = database.prepare(`
+    INSERT INTO lessons (module_id, title, item_type, content, position, published)
+    VALUES (?, 'Video submission playback fixture', 'video', 'Submit your practice recording.', 1000, 1)
+  `).run(module.id);
+  const videoAssignment = database.prepare(`
+    INSERT INTO video_assignments (lesson_id, course_id, instructions, allow_upload, allow_recording)
+    VALUES (?, ?, 'Submit your practice recording.', 1, 1)
+  `).run(videoLesson.lastInsertRowid, course.id);
+  const videoBytes = Buffer.from("student video upload and seeking fixture");
+  const videoForm = new FormData();
+  videoForm.set("submissionMethod", "upload");
+  videoForm.set("video", new Blob([videoBytes], { type: "video/mp4" }), "practice.mp4");
+  const uploadedVideo = await fetch(
+    `${baseUrl}/student/enrollments/${enrollment.id}/video-assignments/${videoAssignment.lastInsertRowid}/submit`,
+    { method: "POST", headers: { cookie: studentCookie }, body: videoForm, redirect: "manual" }
+  );
+  assert.equal(uploadedVideo.status, 302, "Students can still submit their video files");
+  const videoReceipt = await fetch(
+    `${baseUrl}/student/enrollments/${enrollment.id}?lesson=${videoLesson.lastInsertRowid}`,
+    { headers: { cookie: studentCookie } }
+  );
+  assert.equal(videoReceipt.status, 200);
+  const videoReceiptHtml = await videoReceipt.text();
+  const studentPlayer = videoReceiptHtml.match(/<section class="video-submission-receipt">\s*(<video\b[^>]*>)/)?.[1];
+  assert.ok(studentPlayer, "The submitted video retains its student playback control");
+  assert.match(studentPlayer, /\bcontrols\b/);
+  assert.match(studentPlayer, /controlslist="nodownload"/);
+  assert.match(studentPlayer, /oncontextmenu="return false;"/);
+  assert.match(videoReceiptHtml, /Upload and Submit Video/);
+  assert.match(videoReceiptHtml, /data-record-start/);
+  const submittedVideo = database.prepare(`
+    SELECT id FROM video_submissions WHERE video_assignment_id = ? AND enrollment_id = ?
+  `).get(videoAssignment.lastInsertRowid, enrollment.id);
+  const submittedMediaRoute = `/video-submissions/${submittedVideo.id}/media`;
+  const submittedMedia = await fetch(`${baseUrl}${submittedMediaRoute}`, {
+    headers: { cookie: studentCookie, range: "bytes=3-10" }
+  });
+  assert.equal(submittedMedia.status, 206, "The submitted video remains seekable");
+  assert.deepEqual(Buffer.from(await submittedMedia.arrayBuffer()), videoBytes.subarray(3, 11));
+  assert.match(submittedMedia.headers.get("content-disposition"), /^inline;/);
+  const anonymousMedia = await fetch(`${baseUrl}${submittedMediaRoute}`, { redirect: "manual" });
+  assert.equal(anonymousMedia.status, 302, "The submitted video still requires sign-in");
 
   const staffAccounts = [
     { email: "instructor@browardmiamihi.com", password: "InstructorPass123!" },

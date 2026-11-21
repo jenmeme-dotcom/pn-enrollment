@@ -1327,6 +1327,9 @@ app.get("/course-materials/:courseSlug/:fileName", requireAuth, (req, res) => {
   const filePath = path.join(materialDir, fileName);
   if (!isPathInside(materialDir, filePath) || !fs.existsSync(filePath)) return res.status(404).send("Course material not found");
   const fileExtension = path.extname(fileName).toLowerCase();
+  if (req.user.role === "student" && isVideoFileExtension(fileExtension) && req.query.inline !== "1") {
+    return res.status(403).send("Course videos are available for playback in their lessons.");
+  }
   if (req.query.inline === "1" && (persistentMedia || fileExtension === ".pdf" || isVideoFileExtension(fileExtension))) {
     const contentType = persistentMedia ? privateType
       : fileExtension === ".pdf" ? "application/pdf" : videoContentType(fileExtension);
@@ -3488,7 +3491,7 @@ function renderVideoAssignmentPanel({ lesson, enrollmentId = null, instructor = 
       <p class="video-requirements">Accepted formats: MP4, WebM, MOV, or M4V · Maximum 100 MB · Recording limit ${maxMinutes} minute${maxMinutes === 1 ? "" : "s"}</p>
       ${submission ? `
         <section class="video-submission-receipt">
-          <video controls preload="metadata" src="/video-submissions/${submission.id}/media">Your browser does not support video playback.</video>
+          <video controls controlslist="nodownload" oncontextmenu="return false;" preload="metadata" src="/video-submissions/${submission.id}/media">Your browser does not support video playback.</video>
           <p><strong>Submitted ${escapeHtml(date(submission.submitted_at))}</strong> · ${escapeHtml(formatBytes(submission.file_size))} · ${submission.submission_method === "recording" ? "Recorded in portal" : "Uploaded file"}</p>
           ${submission.score === null ? `<p>Awaiting instructor grade.</p>` : `<p class="video-grade"><strong>Grade: ${escapeHtml(submission.score)}</strong>${submission.instructor_feedback ? ` · ${escapeHtml(submission.instructor_feedback)}` : ""}</p>`}
         </section>
@@ -3580,7 +3583,7 @@ function renderLessonActionPanel({ lesson, baseHref, enrollmentId = null, enroll
   const title = String(lesson.title || "");
   const lower = title.toLowerCase();
   const kind = lessonItemKind(lesson);
-  const materialLinks = lessonMaterialLinks(lesson);
+  const materialLinks = lessonMaterialLinks(lesson).filter((file) => instructor || !isVideoResourceUrl(file.href));
   const inlinePdfs = materialLinks.map(inlinePdfForMaterial).filter(Boolean).filter((file, index, files) => files.findIndex((candidate) => candidate.viewerHref === file.viewerHref) === index);
   const fileButtons = materialLinks.length ? `
     <div class="lesson-action-card">
@@ -3874,7 +3877,7 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
           ${selectedLessonVideoUrl ? `
             <section class="video-recording" aria-label="Class recording">
               <div class="video-recording-frame">
-                <video controls preload="metadata" playsinline src="${escapeHtml(selectedLessonVideoUrl)}"${videoPoster ? ` poster="${escapeHtml(videoPoster)}"` : ""}>
+                <video controls controlslist="nodownload" oncontextmenu="return false;" preload="metadata" playsinline src="${escapeHtml(selectedLessonVideoUrl)}"${videoPoster ? ` poster="${escapeHtml(videoPoster)}"` : ""}>
                   Your browser cannot play this video.
                 </video>
               </div>
@@ -3934,7 +3937,8 @@ function renderCourseLessonPage({ courseCode, courseSlug = "", baseHref, lessons
   `;
 }
 
-function renderCourseFilesPage({ course, courseCode, files = [] }) {
+function renderCourseFilesPage({ course, courseCode, files = [], instructor = false }) {
+  const downloadableFiles = files.filter((file) => instructor || !isVideoFileExtension(path.extname(file.name)));
   return `
     <main class="canvas-course-main canvas-modules-main">
       <div class="canvas-mini-head">
@@ -3954,7 +3958,7 @@ function renderCourseFilesPage({ course, courseCode, files = [] }) {
           </div>
         </header>
         <div class="canvas-module-items">
-          ${files.map((file) => `
+          ${downloadableFiles.map((file) => `
             <a class="canvas-module-row" href="${escapeHtml(file.href)}">
               <span class="module-drag">⁝</span>
               <span class="module-type file">${escapeHtml(moduleItemIcon("file"))}</span>
@@ -6563,6 +6567,15 @@ function panoptoEmbedUrl(value = "") {
 
 function isVideoFileExtension(extension = "") {
   return [".mp4", ".webm", ".ogg", ".ogv", ".mov", ".m4v"].includes(String(extension || "").toLowerCase());
+}
+
+function isVideoResourceUrl(value = "") {
+  try {
+    const pathname = decodeURIComponent(new URL(String(value), externalBaseUrl).pathname);
+    return isVideoFileExtension(path.extname(pathname));
+  } catch {
+    return false;
+  }
 }
 
 function videoContentType(extension = "") {
@@ -14953,7 +14966,8 @@ app.get("/admin/courses/:id/student-view", requireAuth, requireRole("admin", "in
       ${renderCourseFilesPage({
         course,
         courseCode,
-        files: materialFiles
+        files: materialFiles,
+        instructor: editing
       })}
     </section>
   ` : activeView === "grades" ? `

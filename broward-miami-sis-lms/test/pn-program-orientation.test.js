@@ -167,6 +167,11 @@ test("orientation UI supplies an opt-in video, the closed-mouth poster route, tr
 
   const page = renderPnOrientationPageContent(transcript);
   assert.match(page, /<video\b[^>]*\bcontrols\b/);
+  assert.match(page, /<video\b[^>]*controlslist="nodownload"/);
+  assert.match(page, /<video\b[^>]*oncontextmenu="return false;"/);
+  assert.doesNotMatch(page, /Download video|Use the download link/i);
+  assert.doesNotMatch(page, /<a\b[^>]*href="\/student\/lpn-orientation\/video"/);
+  assert.match(page, /<a\b[^>]*href="\/student\/lpn-orientation\/transcript"[^>]*download=/);
   assert.match(page, /\bplaysinline\b/);
   assert.ok(page.includes(`${PN_ORIENTATION_PATH}/video`));
   assert.ok(page.includes(`${PN_ORIENTATION_PATH}/poster`));
