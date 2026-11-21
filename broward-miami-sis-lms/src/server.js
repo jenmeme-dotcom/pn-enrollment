@@ -11886,6 +11886,71 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
     ? eligibleWithdrawalEnrollmentsByStudent(students.map((student) => student.id))
     : new Map();
 
+  const programMemberships = db.prepare(`
+    SELECT DISTINCT e.user_id, c.title, c.slug, c.category
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    WHERE e.status IN ('active', 'hold', 'completed')
+      AND e.withdrawn_at IS NULL
+    ORDER BY c.category, c.title
+  `).all();
+  const programMembershipsByStudent = new Map();
+  programMemberships.forEach((membership) => {
+    const memberships = programMembershipsByStudent.get(membership.user_id) || [];
+    memberships.push(membership);
+    programMembershipsByStudent.set(membership.user_id, memberships);
+  });
+  const admissionProgramByStudent = new Map();
+  db.prepare(`
+    SELECT created_student_id, program_slug, program_title
+    FROM admission_applications
+    WHERE created_student_id IS NOT NULL
+    ORDER BY datetime(updated_at) DESC, id DESC
+  `).all().forEach((application) => {
+    if (!admissionProgramByStudent.has(application.created_student_id)) {
+      admissionProgramByStudent.set(application.created_student_id, application);
+    }
+  });
+
+  const programForStudent = (student) => {
+    const memberships = programMembershipsByStudent.get(student.id) || [];
+    if (memberships.some((membership) => membership.slug === "practical-nursing" || membership.category === "Practical Nursing Course")) {
+      return { key: "practical-nursing", label: "Practical Nursing (LPN)", priority: 0 };
+    }
+    const admissionProgram = admissionProgramByStudent.get(student.id);
+    if (admissionProgram?.program_slug === "practical-nursing") {
+      return { key: "practical-nursing", label: "Practical Nursing (LPN)", priority: 0 };
+    }
+    if (admissionProgram?.program_title) {
+      return {
+        key: String(admissionProgram.program_slug || admissionProgram.program_title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "program",
+        label: admissionProgram.program_title,
+        priority: 5
+      };
+    }
+    const categoryPriority = ["Diploma Program", "Certificate Program", "Exam Prep", "Continuing Education"];
+    const primary = [...memberships].sort((left, right) => {
+      const leftPriority = categoryPriority.indexOf(left.category);
+      const rightPriority = categoryPriority.indexOf(right.category);
+      const normalizedLeft = leftPriority < 0 ? categoryPriority.length : leftPriority;
+      const normalizedRight = rightPriority < 0 ? categoryPriority.length : rightPriority;
+      return normalizedLeft - normalizedRight || String(left.title).localeCompare(String(right.title));
+    })[0];
+    if (!primary) return { key: "unassigned", label: "Program Not Yet Assigned", priority: 99 };
+    return {
+      key: String(primary.slug || primary.title || "program").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "program",
+      label: primary.title,
+      priority: 10
+    };
+  };
+  const studentProgramGroups = [...students.reduce((groups, student) => {
+    const program = programForStudent(student);
+    const group = groups.get(program.key) || { ...program, students: [] };
+    group.students.push(student);
+    groups.set(program.key, group);
+    return groups;
+  }, new Map()).values()].sort((left, right) => left.priority - right.priority || left.label.localeCompare(right.label));
+
   if (req.user.role === "instructor") {
     const body = `
       <div class="page-head">
@@ -11973,39 +12038,63 @@ app.get("/admin/students", requireAuth, requireRole("admin", "instructor"), (req
         <p class="muted registrar-mini-help">Select a student below, then click any checklist item to upload or review documents.</p>
       </div>
     </section>
-    <section class="table-card registrar-upload-matrix" id="registrar-upload-matrix" style="margin-top:18px">
+    <section class="card registrar-upload-matrix" id="registrar-upload-matrix" style="margin-top:18px">
       <div class="table-card-head">
         <div>
-          <h2>Actual Registrar Document Checklist</h2>
-          <p class="muted">Click an item to open that student file, upload documents, add notes, and mark status.</p>
+          <h2>Registrar Document Checklist by Program</h2>
+          <p class="muted">Students are separated by program. Open a student's Checklist menu to upload documents, add notes, or mark an item complete.</p>
         </div>
       </div>
-      <table>
-        <thead><tr><th>Student</th><th>Progress</th><th>Checklist upload buttons</th></tr></thead>
-        <tbody>
-          ${students.map((student) => {
-            const admissionsComplete = Number(student.admissions_document_complete || 0);
-            const admissionsTotal = admissionsDocumentChecklistItems.length;
-            const admissionsReady = admissionsComplete === admissionsTotal;
-            return `
-            <tr>
-              <td><strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br><span class="muted">${escapeHtml(displayStudentNumber(student))}</span><br><span class="muted">${escapeHtml(student.email)}</span></td>
-              <td>
-                <strong>${escapeHtml(student.checklist_complete || 0)}/${escapeHtml(registrarChecklistItems.length)}</strong> ready<br>
-                <span class="muted">${escapeHtml(student.checklist_uploads || 0)} uploaded</span><br>
-                <span class="admissions-complete-badge ${admissionsReady ? "complete" : "incomplete"}">${admissionsReady ? "Admissions Complete" : `${admissionsComplete}/${admissionsTotal} admissions`}</span>
-              </td>
-              <td>
-                <div class="registrar-checklist-buttons">
-                  ${registrarChecklistItems.map((item) => `
-                    <a class="button small ghost" href="/admin/students/${student.id}/registrar-checklist#${escapeHtml(item.key)}">${escapeHtml(item.title)}</a>
-                  `).join("")}
-                </div>
-              </td>
-            </tr>
-          `; }).join("") || `<tr><td class="empty" colspan="3">Create a student first, then registrar upload buttons will appear here.</td></tr>`}
-        </tbody>
-      </table>
+      <div class="registrar-program-groups">
+        ${studentProgramGroups.map((program) => `
+          <section class="registrar-program-group" id="registrar-program-${escapeHtml(program.key)}" aria-labelledby="registrar-program-${escapeHtml(program.key)}-title">
+            <div class="registrar-program-group-head">
+              <div>
+                <p class="eyebrow">Program</p>
+                <h3 id="registrar-program-${escapeHtml(program.key)}-title">${escapeHtml(program.label)}</h3>
+              </div>
+              <span class="pill">${escapeHtml(program.students.length)} student${program.students.length === 1 ? "" : "s"}</span>
+            </div>
+            <div class="registrar-program-table-wrap">
+              <table>
+                <thead><tr><th>Student</th><th>Progress</th><th>Checklist</th></tr></thead>
+                <tbody>
+                  ${program.students.map((student) => {
+                    const admissionsComplete = Number(student.admissions_document_complete || 0);
+                    const admissionsTotal = admissionsDocumentChecklistItems.length;
+                    const admissionsReady = admissionsComplete === admissionsTotal;
+                    const studentName = `${student.first_name || ""} ${student.last_name || ""}`.trim();
+                    return `
+                    <tr>
+                      <td>
+                        <div class="registrar-student-identity">
+                          ${studentPhotoThumb(student, "student-thumb registrar-student-photo")}
+                          <div><strong>${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</strong><br><span class="muted">${escapeHtml(displayStudentNumber(student))}</span><br><span class="muted">${escapeHtml(student.email)}</span></div>
+                        </div>
+                      </td>
+                      <td>
+                        <strong>${escapeHtml(student.checklist_complete || 0)}/${escapeHtml(registrarChecklistItems.length)}</strong> ready<br>
+                        <span class="muted">${escapeHtml(student.checklist_uploads || 0)} uploaded</span><br>
+                        <span class="admissions-complete-badge ${admissionsReady ? "complete" : "incomplete"}">${admissionsReady ? "Admissions Complete" : `${admissionsComplete}/${admissionsTotal} admissions`}</span>
+                      </td>
+                      <td>
+                        <details class="registrar-checklist-dropdown">
+                          <summary class="button small ghost">Checklist (${escapeHtml(registrarChecklistItems.length)} items)<span class="sr-only"> for ${escapeHtml(studentName)}</span></summary>
+                          <nav class="registrar-checklist-dropdown-menu" aria-label="Checklist items for ${escapeHtml(studentName)}">
+                            ${registrarChecklistItems.map((item) => `
+                              <a class="button small ghost" href="/admin/students/${student.id}/registrar-checklist#${escapeHtml(item.key)}">${escapeHtml(item.title)}</a>
+                            `).join("")}
+                          </nav>
+                        </details>
+                      </td>
+                    </tr>
+                  `; }).join("")}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        `).join("") || `<div class="empty">Create a student first, then registrar checklist controls will appear here.</div>`}
+      </div>
     </section>
     <section class="table-card student-roster-table-card" style="margin-top:18px">
       <table class="student-roster-table">

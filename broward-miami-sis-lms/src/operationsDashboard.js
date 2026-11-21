@@ -41,8 +41,8 @@ function renderOperationsDashboard({
         <details class="ops-navigation" id="operations-navigation" open>
           <summary class="ops-nav-toggle">Workspace navigation <span aria-hidden="true">⌄</span></summary>
           <nav class="ops-nav-content" aria-label="Operations">
-            <div class="ops-nav-group">
-              <p class="ops-nav-label">Operations</p>
+            <details class="ops-nav-group ops-secondary-nav ops-primary-nav" open>
+              <summary class="ops-nav-label">Operations <span aria-hidden="true">⌄</span></summary>
               ${navLink("/admin#student-contacts", "Student contacts", "people", true)}
               ${navLink("/admin/students", "Student records", "folder")}
               ${navLink("/admin/admissions", "Admissions", "check")}
@@ -50,7 +50,7 @@ function renderOperationsDashboard({
               ${navLink("/admin/messages", "School inbox", "inbox")}
               ${navLink("/admin/tickets", "Task tickets", "check")}
               <a class="button ops-enrollment-link" href="/admin/lpn-enrollment">LPN Enrollment</a>
-            </div>
+            </details>
             <details class="ops-nav-group ops-secondary-nav">
               <summary class="ops-nav-label">Teaching <span aria-hidden="true">⌄</span></summary>
               ${navLink("/admin/courses", "Course library", "book")}

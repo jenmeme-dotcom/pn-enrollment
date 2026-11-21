@@ -93,6 +93,9 @@ before(async () => {
   db.prepare("UPDATE users SET photo_storage_name=?,photo_original_name=?,photo_review_status='approved' WHERE id=?").run(photoName, photoName, studentIds.match);
   studentIds.unmatched = Number(insert.run('NoahContact', 'Bennett', 'noah-contact@example.test', 'noah-contact@example.test', '', hash, cohort).lastInsertRowid);
   studentIds.otherCohort = Number(insert.run('AvaContact', 'Othercohort', 'ava-other@example.test', 'ava-other@example.test', '+19545550102', hash, 'Dashboard Contact Test B').lastInsertRowid);
+  const addEnrollment = db.prepare("INSERT INTO enrollments (user_id, course_id, source) VALUES (?, ?, 'manual')");
+  addEnrollment.run(studentIds.match, db.prepare("SELECT id FROM courses WHERE slug='medical-terminology'").get().id);
+  addEnrollment.run(studentIds.otherCohort, db.prepare("SELECT id FROM courses WHERE slug='home-health-aide'").get().id);
   for (let n = 0; n < 12; n++) insert.run(`Pager${String(n).padStart(2,'0')}`, 'Dashboard', `dashboard-pager-${n}@example.test`, `dashboard-pager-${n}@example.test`, '+19545550103', hash, cohort);
   adminCookie = await login('admin@browardmiamihi.com', 'AdminPass123!');
   instructorCookie = await login('instructor@browardmiamihi.com', 'InstructorPass123!');
@@ -140,6 +143,52 @@ test('Operations keeps authentication and instructor redirection', async () => {
   const instructor = await get('/admin', instructorCookie);
   assert.equal(instructor.status, 302);
   assert.equal(instructor.headers.get('location'), '/admin/courses');
+});
+
+test('Registrar checklist students are separated by program with one compact checklist dropdown each', async () => {
+  const response = await get('/admin/students');
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /<h2>Registrar Document Checklist by Program<\/h2>/);
+  assert.doesNotMatch(html, /registrar-checklist-buttons/);
+
+  const programSection = (key) => {
+    const marker = `<section class="registrar-program-group" id="registrar-program-${key}"`;
+    const start = html.indexOf(marker);
+    assert.ok(start >= 0, `Expected ${key} program section`);
+    const next = html.indexOf('<section class="registrar-program-group"', start + marker.length);
+    const roster = html.indexOf('<section class="table-card student-roster-table-card"', start);
+    return html.slice(start, next >= 0 ? next : roster);
+  };
+
+  const lpn = programSection('practical-nursing');
+  assert.match(lpn, /Practical Nursing \(LPN\)/);
+  assert.match(lpn, /Mercer, AvaContact/);
+  assert.doesNotMatch(lpn, /Bennett, NoahContact/);
+
+  const hha = programSection('home-health-aide');
+  assert.match(hha, /Home Health Aide 75 Hour Course/);
+  assert.match(hha, /Othercohort, AvaContact/);
+
+  const unassigned = programSection('unassigned');
+  assert.match(unassigned, /Program Not Yet Assigned/);
+  assert.match(unassigned, /Bennett, NoahContact/);
+
+  const matchName = lpn.indexOf('Mercer, AvaContact');
+  const matchRowStart = lpn.lastIndexOf('<tr>', matchName);
+  const matchRowEnd = lpn.indexOf('</tr>', matchName);
+  const matchRow = lpn.slice(matchRowStart, matchRowEnd);
+  const dropdownStart = matchRow.indexOf('<details class="registrar-checklist-dropdown">');
+  const dropdownEnd = matchRow.indexOf('</details>', dropdownStart);
+  assert.ok(dropdownStart >= 0 && dropdownEnd > dropdownStart);
+  const dropdown = matchRow.slice(dropdownStart, dropdownEnd);
+  assert.match(dropdown, /Checklist \(8 items\)/);
+  for (const key of ['admissions_documents', 'payment_plan', 'clinical_requirements', 'immunizations', 'signed_handbook', 'transcript_upload', 'attendance_audit', 'graduation_approval']) {
+    assert.ok(links(dropdown).includes(`/admin/students/${studentIds.match}/registrar-checklist#${key}`), `Expected ${key} in the student's checklist menu`);
+  }
+
+  const instructorHtml = await (await get('/admin/students', instructorCookie)).text();
+  assert.doesNotMatch(instructorHtml, /registrar-upload-matrix|registrar-checklist-dropdown/);
 });
 
 test('The student file shows the selected name, photo and contact details in its identity header', async () => {

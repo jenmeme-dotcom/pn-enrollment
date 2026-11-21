@@ -392,6 +392,29 @@ test("the admin dashboard toggle switches between Operations and Online Courses"
   );
   assert.deepEqual(instructorCourseLinks.map((link) => link.active), [true]);
   assert.ok(instructorCourseLinks[0].classes.includes("is-active"));
+
+  const sharedStyles = fs.readFileSync(path.join(projectRoot, "src", "public", "styles.css"), "utf8");
+  const operationsStyles = fs.readFileSync(path.join(projectRoot, "src", "public", "operations-dashboard.css"), "utf8");
+  const sharedToggleRule = sharedStyles.match(/\.admin-dashboard-toggle\s*\{([^}]*)\}/);
+  assert.ok(sharedToggleRule, "Expected shared pill-toggle styling");
+  assert.match(sharedToggleRule[1], /background:\s*#dfe8eb/);
+  assert.match(sharedToggleRule[1], /border-radius:\s*12px/);
+  assert.match(sharedToggleRule[1], /padding:\s*4px/);
+  assert.match(
+    operationsStyles,
+    /\.ops-workspace-tabs \.admin-dashboard-toggle\s*\{\s*margin:\s*0;\s*\}/,
+    "Operations should keep only its local spacing override so the shared pill treatment remains visible"
+  );
+  assert.doesNotMatch(
+    operationsStyles,
+    /\.ops-workspace-tabs \.admin-dashboard-toggle\s*\{[^}]*background:\s*transparent/,
+    "Operations must not flatten the shared dashboard toggle into text tabs"
+  );
+  assert.doesNotMatch(
+    operationsStyles,
+    /\.ops-workspace-tabs \.admin-dashboard-toggle-option(?:\.is-active)?\s*\{/,
+    "Operations must not override the shared pill options with underline-tab styling"
+  );
 });
 
 test("the Online Courses view renders each course as a visual picker card with direct actions", async () => {

@@ -121,6 +121,11 @@ test("Operations Dashboard gives admins one prominent LPN Enrollment entry point
   const adminResponse = await get("/admin", adminCookie);
   assert.equal(adminResponse.status, 200);
   const adminHtml = await adminResponse.text();
+  assert.match(
+    adminHtml,
+    /<details class="ops-nav-group ops-secondary-nav ops-primary-nav" open>\s*<summary class="ops-nav-label">Operations <span aria-hidden="true">⌄<\/span><\/summary>/,
+    "Expected Operations to have an accessible expandable caret matching the other navigation groups"
+  );
   const matchingLinks = [...adminHtml.matchAll(/<a\b[^>]*\bhref="\/admin\/lpn-enrollment"[^>]*>\s*LPN Enrollment\s*<\/a>/g)];
   assert.equal(matchingLinks.length, 1, "Expected exactly one LPN Enrollment button on the Operations Dashboard");
   assert.match(matchingLinks[0][0], /class="[^"]*\bbutton\b[^"]*"/, "Expected the LPN entry point to render as a button");

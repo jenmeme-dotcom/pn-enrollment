@@ -1247,9 +1247,9 @@ nav a {
 }
 
 .student-thumb.small {
-  height: 34px;
+  height: 48px;
   margin-bottom: 6px;
-  width: 34px;
+  width: 48px;
 }
 
 .student-thumb.fallback {
@@ -3355,18 +3355,160 @@ nav a {
 }
 
 .registrar-upload-matrix table {
-  min-width: 900px;
+  min-width: 680px;
 }
 
-.registrar-checklist-buttons {
+.registrar-program-groups {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.registrar-program-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.registrar-program-group-head {
+  align-items: center;
+  background: #eef5f7;
+  border-bottom: 1px solid var(--line);
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  max-width: 760px;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 14px 16px;
 }
 
-.registrar-checklist-buttons .button {
+.registrar-program-group-head .eyebrow {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  margin: 0 0 3px;
+  text-transform: uppercase;
+}
+
+.registrar-program-group-head h3 {
+  color: var(--brand-dark);
   margin: 0;
+}
+
+.registrar-program-table-wrap {
+  overflow-x: auto;
+}
+
+.registrar-student-identity {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-width: 260px;
+}
+
+.registrar-student-photo {
+  flex: 0 0 56px;
+  height: 56px;
+  margin: 0;
+  width: 56px;
+}
+
+.registrar-checklist-dropdown {
+  max-width: 340px;
+  min-width: 190px;
+}
+
+.registrar-checklist-dropdown > summary {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: space-between;
+  list-style: none;
+  margin: 0;
+  width: 100%;
+}
+
+.registrar-checklist-dropdown > summary::-webkit-details-marker {
+  display: none;
+}
+
+.registrar-checklist-dropdown > summary::after {
+  content: "⌄";
+  font-size: 16px;
+  line-height: 1;
+  margin-left: 10px;
+  transition: transform .16s ease;
+}
+
+.registrar-checklist-dropdown[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.registrar-checklist-dropdown-menu {
+  background: #f8fafb;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px;
+}
+
+.registrar-checklist-dropdown-menu .button {
+  justify-content: flex-start;
+  margin: 0;
+  text-align: left;
+  white-space: normal;
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .registrar-program-table-wrap {
+    overflow: visible;
+  }
+
+  .registrar-upload-matrix table {
+    min-width: 0;
+  }
+
+  .registrar-upload-matrix thead {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+
+  .registrar-upload-matrix tbody,
+  .registrar-upload-matrix tr,
+  .registrar-upload-matrix td {
+    display: block;
+    width: 100%;
+  }
+
+  .registrar-upload-matrix tbody tr {
+    border-bottom: 1px solid var(--line);
+    padding: 10px 0;
+  }
+
+  .registrar-upload-matrix tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .registrar-upload-matrix td {
+    border-bottom: 0;
+    padding: 6px 14px;
+  }
+
+  .registrar-student-identity {
+    min-width: 0;
+  }
+
+  .registrar-checklist-dropdown {
+    max-width: none;
+    width: 100%;
+  }
 }
 
 .registrar-anchor-list {
