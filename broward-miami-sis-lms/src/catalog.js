@@ -45,6 +45,16 @@ const courses = [
     ghlProductKeys: ["CNA Exam Prep", "CNA", "cna-exam-prep"]
   },
   {
+    title: "NCLEX Remedial Course",
+    slug: "nclex-remedial-course",
+    category: "Exam Prep",
+    hours: 0,
+    credentialType: "Certificate",
+    deliveryMode: "Online / blended",
+    description: "Instructor-managed NCLEX remediation course shell for targeted content review, clinical judgment practice, assignments, videos, files, quizzes, and learner progress monitoring.",
+    ghlProductKeys: ["NCLEX Remedial Course", "NCLEX Remedial", "nclex-remedial-course"]
+  },
+  {
     title: "Basic Life Support",
     slug: "basic-life-support",
     category: "Continuing Education",
