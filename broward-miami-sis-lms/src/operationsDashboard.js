@@ -29,6 +29,7 @@ function renderOperationsDashboard({
   cohortLabel = "All cohorts",
   statsMarkup = "",
   filterMarkup = "",
+  tuitionMarkup = "",
   contactsMarkup = "",
   rosterMarkup = "",
   urgentMarkup = ""
@@ -46,7 +47,8 @@ function renderOperationsDashboard({
               ${navLink("/admin#student-contacts", "Student contacts", "people", true)}
               ${navLink("/admin/students", "Student records", "folder")}
               ${navLink("/admin/admissions", "Admissions", "check")}
-              ${navLink("/admin/billing", "Billing", "folder")}
+              ${navLink("/admin/billing", "Tuition & Billing", "folder")}
+              ${navLink("/admin/billing#school-vault", "School Vault", "shield")}
               ${navLink("/admin/messages", "School inbox", "inbox")}
               ${navLink("/admin/tickets", "Task tickets", "check")}
               <a class="button ops-enrollment-link" href="/admin/lpn-enrollment">LPN Enrollment</a>
@@ -106,6 +108,7 @@ function renderOperationsDashboard({
             <div class="ops-stats">${statsMarkup}</div>
           </section>
           ${filterMarkup ? `<div class="ops-cohort-filter">${filterMarkup}</div>` : ""}
+          ${tuitionMarkup}
           <section class="ops-contact-panel" aria-label="Student contact workspace">${contactsMarkup}</section>
           <details class="ops-roster-panel" id="operations-roster">
             <summary class="ops-roster-heading">

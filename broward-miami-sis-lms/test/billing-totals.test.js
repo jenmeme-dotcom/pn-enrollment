@@ -22,8 +22,8 @@ test('posted tuition and adjustments remain authoritative',()=>{
  const charges=accountCharges(pn,[{category:'Tuition',description:'Agreed tuition',amount_cents:1400000},{category:'Adjustment',description:'Scholarship',amount_cents:-100000}]);
  assert.equal(accountTotals(charges,[]).totalCharges,1315000);
 });
-test('offered and scheduled aid do not falsely mark tuition paid',()=>{
- assert.equal(accountTotals(accountCharges(pn,[]),[],[{status:'scheduled',amount_cents:100000},{status:'disbursed',amount_cents:25000}]).balance,1490000);
+test('only posted aid reduces the balance',()=>{
+ assert.equal(accountTotals(accountCharges(pn,[]),[],[{status:'scheduled',amount_cents:100000},{status:'posted',amount_cents:25000}]).balance,1490000);
 });
 test('other courses and other terms receive no nursing program charge',()=>{
  assert.deepEqual(accountCharges([{slug:'home-health-aide'}],[]),[]);

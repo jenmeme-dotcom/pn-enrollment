@@ -5941,6 +5941,477 @@ button.danger {
   margin-top: 4px;
 }
 
+/* Tuition and School Vault workspace, based on the approved green/magenta reference. */
+.tuition-admin-page,
+.tuition-student-financial,
+.payment-statement,
+.payment-options {
+  --tuition-green: #3ca03e;
+  --tuition-green-dark: #26752d;
+  --tuition-green-soft: #eef8ef;
+  --tuition-magenta: #983878;
+  --tuition-magenta-soft: #f8edf4;
+  --tuition-charcoal: #2c2a2b;
+  --tuition-line: #dfe5df;
+}
+
+.tuition-admin-page {
+  display: grid;
+  gap: 18px;
+}
+
+.tuition-page-head {
+  background: linear-gradient(110deg, var(--tuition-charcoal), #403b3e);
+  border-left: 5px solid var(--tuition-green);
+  border-radius: 10px;
+  color: white;
+  margin: 0;
+  padding: 24px 26px;
+}
+
+.tuition-page-head :is(h1, p) {
+  color: white;
+}
+
+.tuition-page-head .eyebrow {
+  color: #bfe8c1;
+}
+
+.tuition-page-head .button.ghost {
+  background: white;
+  border-color: white;
+  color: var(--tuition-charcoal);
+}
+
+.tuition-section-nav {
+  align-items: center;
+  background: white;
+  border: 1px solid var(--tuition-line);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 7px;
+  position: sticky;
+  top: 8px;
+  z-index: 8;
+}
+
+.tuition-section-nav a {
+  border-radius: 6px;
+  color: #4d4a4c;
+  font-size: 13px;
+  font-weight: 750;
+  padding: 9px 12px;
+}
+
+.tuition-section-nav a:hover,
+.tuition-section-nav a:focus-visible {
+  background: var(--tuition-green-soft);
+  color: var(--tuition-green-dark);
+}
+
+.tuition-kpi-grid .stat {
+  border-top: 4px solid var(--tuition-green);
+  border-radius: 8px;
+}
+
+.tuition-kpi-grid .stat:nth-child(2n) {
+  border-top-color: var(--tuition-magenta);
+}
+
+.billing-vault {
+  background: white;
+  border: 1px solid var(--tuition-line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(44, 42, 43, .06);
+  overflow: hidden;
+  scroll-margin-top: 80px;
+}
+
+.billing-vault-head {
+  align-items: center;
+  background: linear-gradient(95deg, var(--tuition-green-soft), white 70%);
+  border-bottom: 1px solid var(--tuition-line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 22px 24px;
+}
+
+.billing-vault-head h2 {
+  color: var(--tuition-charcoal);
+  margin: 3px 0 5px;
+}
+
+.billing-vault-head p {
+  color: #626062;
+  margin: 0;
+}
+
+.tuition-eyebrow {
+  color: var(--tuition-magenta);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .1em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.billing-vault table {
+  min-width: 960px;
+}
+
+.billing-vault th {
+  background: #f6f7f6;
+  color: #5b585a;
+  font-size: 11px;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+.billing-vault td {
+  min-width: 150px;
+  vertical-align: top;
+}
+
+.billing-vault td:first-child {
+  min-width: 215px;
+}
+
+.billing-vault td small {
+  color: #6c696b;
+  display: block;
+  line-height: 1.45;
+  margin-top: 7px;
+}
+
+.tuition-status {
+  background: #f5f1f3;
+  border: 1px solid #e6d8df;
+  border-radius: 999px;
+  color: #74566a;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+}
+
+.tuition-status.is-ready {
+  background: #e7f6e8;
+  border-color: #bde2bf;
+  color: #226c29;
+}
+
+.tuition-account-card,
+.tuition-admin-page #quickbooks,
+.tuition-admin-page #billing-actions,
+.tuition-admin-page #payment-plans {
+  scroll-margin-top: 80px;
+}
+
+.tuition-admin-page .card {
+  border-color: var(--tuition-line);
+  border-radius: 9px;
+}
+
+.tuition-plan-row {
+  align-items: end;
+  border-bottom: 1px solid #eceaec;
+  display: grid;
+  gap: 15px;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, auto);
+  padding: 12px 0;
+}
+
+.tuition-plan-row:last-child {
+  border-bottom: 0;
+}
+
+.tuition-plan-row p {
+  margin: 0;
+}
+
+.tuition-plan-status-form {
+  align-items: end;
+  display: flex;
+  gap: 8px;
+}
+
+.tuition-plan-status-form label {
+  display: grid;
+  flex: 1;
+  font-size: 11px;
+  gap: 4px;
+  margin: 0;
+}
+
+.tuition-plan-status-form select {
+  min-height: 36px;
+  min-width: 135px;
+}
+
+.tuition-student-financial .financial-head {
+  background: linear-gradient(110deg, var(--tuition-charcoal), #413b3f);
+  border: 0;
+  border-left: 5px solid var(--tuition-green);
+  border-radius: 10px;
+  color: white;
+  padding: 24px;
+}
+
+.tuition-student-financial .financial-head :is(h1, p, .eyebrow) {
+  color: white;
+}
+
+.tuition-student-financial .financial-head .button {
+  background: var(--tuition-green);
+  border-color: var(--tuition-green);
+}
+
+.tuition-student-financial .financial-head .button.ghost {
+  background: white;
+  border-color: white;
+  color: var(--tuition-charcoal);
+}
+
+.tuition-student-financial .financial-stats .stat {
+  border-top: 4px solid var(--tuition-green);
+  border-radius: 8px;
+}
+
+.tuition-student-financial .financial-stats .stat:nth-child(2n) {
+  border-top-color: var(--tuition-magenta);
+}
+
+.payment-statement,
+.payment-options {
+  background: #fff;
+  border: 1px solid var(--tuition-line);
+  border-top: 8px solid var(--tuition-green);
+  border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(44, 42, 43, .12);
+  color: var(--tuition-charcoal);
+  margin: 28px auto;
+  max-width: 1060px;
+  padding: clamp(22px, 4vw, 48px);
+  width: calc(100% - 32px);
+}
+
+.payment-statement > header,
+.payment-options > header {
+  border-bottom: 2px solid var(--tuition-magenta);
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+}
+
+.payment-statement h1,
+.payment-options h2 {
+  color: var(--tuition-charcoal);
+  font-size: clamp(30px, 5vw, 48px);
+  letter-spacing: -.04em;
+  margin: 6px 0 8px;
+}
+
+.payment-statement header p,
+.payment-options header p {
+  color: #666164;
+  margin: 3px 0;
+}
+
+.payment-statement-actions {
+  justify-content: flex-end;
+  margin: 0 0 22px;
+}
+
+.payment-statement-due,
+.payment-options-summary {
+  background: linear-gradient(115deg, var(--tuition-green-dark), var(--tuition-green));
+  border-radius: 10px;
+  color: white;
+  display: grid;
+  gap: 5px;
+  margin: 22px 0;
+  padding: 20px 24px;
+}
+
+.payment-statement-due span,
+.payment-options-summary span {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.payment-statement-due strong,
+.payment-options-summary strong {
+  color: white;
+  font-size: clamp(32px, 6vw, 52px);
+  line-height: 1;
+}
+
+.payment-statement-due small,
+.payment-options-summary small {
+  color: #e9f8e9;
+}
+
+.payment-statement-details {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 22px 0;
+}
+
+.payment-statement-details > div {
+  background: #f7f8f7;
+  border: 1px solid #e5e7e5;
+  border-radius: 7px;
+  padding: 12px;
+}
+
+.payment-statement-details dt {
+  color: #747074;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.payment-statement-details dd {
+  font-weight: 750;
+  margin: 5px 0 0;
+}
+
+.payment-statement-ledgers {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 24px 0;
+}
+
+.payment-statement-ledgers section {
+  border: 1px solid var(--tuition-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.payment-statement-ledgers h2 {
+  background: var(--tuition-magenta-soft);
+  color: #6e2b58;
+  font-size: 16px;
+  margin: 0;
+  padding: 13px 15px;
+}
+
+.payment-statement-ledgers table {
+  min-width: 520px;
+}
+
+.payment-statement-totals {
+  border-bottom: 2px solid var(--tuition-charcoal);
+  border-top: 2px solid var(--tuition-charcoal);
+  margin-left: auto;
+  max-width: 430px;
+  padding: 8px 0;
+}
+
+.payment-statement-totals p {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  padding: 7px 4px;
+}
+
+.payment-statement-totals p:last-child {
+  background: var(--tuition-green-soft);
+  color: var(--tuition-green-dark);
+  font-size: 18px;
+}
+
+.payment-statement-action,
+.payment-options-action {
+  background: var(--tuition-green);
+  border-color: var(--tuition-green);
+  display: inline-flex;
+  margin-top: 22px;
+}
+
+.payment-statement-help,
+.payment-options-note {
+  color: #6d696b;
+  font-size: 13px;
+}
+
+.payment-option-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.payment-option-grid article {
+  background: #f8f8f7;
+  border: 1px solid var(--tuition-line);
+  border-left: 4px solid var(--tuition-magenta);
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.payment-option-grid h3 {
+  margin-top: 0;
+}
+
+.payment-options-contact {
+  background: #fff6ee;
+  border: 1px solid #f0d4b8;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  margin-top: 22px;
+  padding: 16px;
+}
+
+@media (max-width: 760px) {
+  .tuition-page-head,
+  .financial-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tuition-section-nav {
+    position: static;
+  }
+
+  .tuition-plan-row,
+  .payment-statement-ledgers,
+  .payment-option-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .payment-statement-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .payment-statement,
+  .payment-options {
+    border-radius: 0;
+    margin: 0;
+    width: 100%;
+  }
+
+  .payment-statement-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tuition-plan-status-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 .login-wrap {
   align-items: center;
   display: grid;
@@ -13043,12 +13514,16 @@ button.small {
 
 .credential {
   align-items: center;
-  border: 12px solid var(--brand);
+  background: linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(135deg, #3ca03e, #983878) border-box;
+  border: 12px solid transparent;
   display: flex;
   flex-direction: column;
   justify-content: center;
   margin: 28px auto;
   min-height: 720px;
+  outline: 2px solid #2c2a2b;
+  outline-offset: -22px;
   padding: 48px;
   text-align: center;
   width: min(980px, calc(100vw - 32px));
@@ -13062,12 +13537,13 @@ button.small {
 }
 
 .credential h1 {
+  color: #2c2a2b;
   font-size: 52px;
   margin: 10px 0;
 }
 
 .credential h2 {
-  color: var(--brand-dark);
+  color: #26752d;
   font-size: 34px;
   margin: 18px 0;
 }
@@ -14697,6 +15173,37 @@ button.small {
     margin: 0;
     min-height: 100vh;
     width: 100%;
+  }
+
+  .payment-statement {
+    border: 0;
+    border-top: 6px solid #3ca03e;
+    border-radius: 0;
+    box-shadow: none;
+    margin: 0;
+    max-width: none;
+    padding: .2in;
+    width: 100%;
+  }
+
+  .payment-statement-due,
+  .payment-statement-details > div,
+  .payment-statement-ledgers h2,
+  .payment-statement-totals p:last-child {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .payment-statement-ledgers {
+    gap: 10px;
+  }
+
+  .payment-statement-ledgers table {
+    min-width: 0;
+  }
+
+  .payment-statement-action {
+    display: none;
   }
 }
 

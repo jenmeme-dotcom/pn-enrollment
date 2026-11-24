@@ -20,7 +20,9 @@ function accountTotals(charges, payments, disbursements = []) {
   const sum = rows => rows.reduce((total, row) => total + Number(row.amount_cents || 0), 0);
   const totalCharges = sum(charges);
   const appliedPayments = sum(payments);
-  const financialAid = sum(disbursements.filter(row => row.status === "disbursed"));
+  // The database records completed disbursements as `posted`; accept the old
+  // `disbursed` label as well so imported/legacy rows remain creditable.
+  const financialAid = sum(disbursements.filter(row => ["posted", "disbursed"].includes(row.status)));
   return { totalCharges, appliedPayments, financialAid, balance: Math.max(0, totalCharges - appliedPayments - financialAid) };
 }
 module.exports = { PN_TERM, PN_CHARGES, accountCharges, accountTotals };

@@ -54,6 +54,14 @@ const {
 } = require("./pnOrientation");
 const { registerPnOrientationUploadRoutes } = require("./pnOrientationUpload");
 const { renderOperationsDashboard } = require("./operationsDashboard");
+const {
+  tuitionDashboardData,
+  billingVaultRows,
+  renderTuitionDashboardPanel,
+  renderBillingVault,
+  renderPaymentStatement,
+  renderPaymentOptions
+} = require("./tuitionWorkspace");
 const { validateStudentPhone, requireStudentPhone, renderContactDirectory, studentContactsCsrfToken, registerStudentContactRoutes } = require("./studentContacts");
 
 initialize();
@@ -9356,9 +9364,19 @@ app.get("/admin", requireAuth, requireRole("admin", "instructor"), (req, res) =>
     hiddenFields: { cohort: selectedCohort },
     showCohortFilter: false
   });
+  const dashboardDate = easternDateParts().date;
+  const dashboardDayStart = easternMidnightUtc(dashboardDate);
+  const dashboardDayEnd = easternMidnightUtc(addCalendarDays(dashboardDate, 1));
+  const tuitionData = tuitionDashboardData(db, {
+    today: dashboardDate,
+    monthKey: dashboardDate.slice(0, 7),
+    dayStartAt: dashboardDayStart ? sqlUtcTimestamp(dashboardDayStart) : undefined,
+    dayEndAt: dashboardDayEnd ? sqlUtcTimestamp(dashboardDayEnd) : undefined
+  });
   const body = renderOperationsDashboard({
     cohortLabel,
     contactsMarkup,
+    tuitionMarkup: renderTuitionDashboardPanel(tuitionData),
     urgentMarkup: `
     ${urgentTicketCount ? `
       <section class="staff-urgent-banner" role="alert">
@@ -13170,6 +13188,57 @@ app.post("/admin/financial-aid/:id/disbursements", requireAuth, requireRole("adm
   res.redirect("/admin/financial-aid");
 });
 
+function billingStatementModel(userId, termName = "2026-27 Practical Nursing Term") {
+  const student = db.prepare(`
+    SELECT id, first_name, last_name, email, phone, status, student_number, created_at
+    FROM users
+    WHERE id = ? AND role = 'student'
+  `).get(Number(userId));
+  if (!student) return null;
+  const enrollments = db.prepare(`
+    SELECT e.*, c.title, c.category, c.hours, c.credential_type, c.tuition_cents, c.slug
+    FROM enrollments e
+    JOIN courses c ON c.id = e.course_id
+    WHERE e.user_id = ?
+    ORDER BY e.start_date DESC, e.created_at DESC
+  `).all(student.id);
+  const postedCharges = db.prepare(`
+    SELECT * FROM billing_charges
+    WHERE user_id = ? AND term = ? AND status = 'posted'
+    ORDER BY due_date, created_at
+  `).all(student.id, termName);
+  const payments = db.prepare(`
+    SELECT * FROM billing_payments
+    WHERE user_id = ? AND term = ?
+    ORDER BY paid_at, created_at
+  `).all(student.id, termName);
+  const aid = db.prepare(`
+    SELECT d.*, a.aid_type, a.term
+    FROM financial_aid_disbursements d
+    JOIN financial_aid_awards a ON a.id = d.award_id
+    WHERE a.user_id = ? AND a.term = ? AND d.status = 'posted'
+    ORDER BY d.disbursement_date
+  `).all(student.id, termName);
+  const plans = db.prepare(`
+    SELECT * FROM billing_payment_plans
+    WHERE user_id = ? AND term = ?
+    ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END, next_due_date
+  `).all(student.id, termName);
+  const effectiveCharges = accountCharges(enrollments, postedCharges, termName);
+  const totals = accountTotals(effectiveCharges, payments, aid);
+  return {
+    student,
+    termName,
+    enrollments,
+    charges: effectiveCharges,
+    payments,
+    aid,
+    plans,
+    ...totals,
+    studentNumber: displayStudentNumber(student)
+  };
+}
+
 app.get("/admin/billing", requireAuth, requireRole("admin"), (req, res) => {
   const students = db.prepare(`
     SELECT id, first_name, last_name, email
@@ -13220,32 +13289,48 @@ app.get("/admin/billing", requireAuth, requireRole("admin"), (req, res) => {
     FROM quickbooks_entity_links
   `).get();
   const quickbooksLogs = db.prepare("SELECT * FROM quickbooks_sync_log ORDER BY id DESC LIMIT 5").all();
+  const vaultRows = billingVaultRows(db);
 
   const studentOptions = students.map((student) => `<option value="${student.id}">${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)} · ${escapeHtml(student.email)}</option>`).join("");
   const body = `
-    <div class="page-head">
+    <div class="tuition-admin-page">
+    <div class="page-head tuition-page-head">
       <div>
+        <p class="eyebrow">Tuition &amp; records</p>
         <h1>Student Billing</h1>
-        <p>Set tuition and fees, post charges, record payments, manage payment plans, and review refund policy.</p>
+        <p>Manage student accounts, statements, payments, payment plans, financial records, and QuickBooks synchronization.</p>
       </div>
-      <a class="button ghost" href="/admin/financial-aid">Financial Aid</a>
+      <div class="actions">
+        <a class="button ghost" href="#school-vault">School Vault</a>
+        <a class="button ghost" href="/admin/financial-aid">Financial Aid</a>
+      </div>
     </div>
 
-    <section class="grid cols-4">
+    <nav class="tuition-section-nav" aria-label="Billing workspace sections">
+      <a href="#student-accounts">Accounts</a>
+      <a href="#billing-actions">Post transactions</a>
+      <a href="#payment-plans">Payment plans</a>
+      <a href="#school-vault">School Vault</a>
+      <a href="#quickbooks">QuickBooks</a>
+    </nav>
+
+    <section class="grid cols-4 tuition-kpi-grid">
       ${stat("Charges", money(totalCharges))}
       ${stat("Payments", money(totalPayments))}
       ${stat("Receivable", money(receivable))}
       ${stat("Payment plans", String(plans.length))}
     </section>
 
-    <section class="card" style="margin-top:18px">
+    ${renderBillingVault(vaultRows)}
+
+    <section class="card tuition-account-card" id="student-accounts" style="margin-top:18px">
       <h2>Student account balances</h2>
       <p>Practical Nursing: $15,000 tuition + $150 registration = $15,150. The entrance exam fee is optional and is not automatically added. Recorded payments and disbursed aid reduce the balance. Posted tuition adjustments take precedence.</p>
-      <table><thead><tr><th>Student</th><th>Charges</th><th>Recorded payments</th><th>Disbursed aid</th><th>Balance</th></tr></thead>
-      <tbody>${accountRows.filter(row => row.totalCharges || row.appliedPayments).map(row => `<tr><td>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</td><td>${money(row.totalCharges)}</td><td>${money(row.appliedPayments)}</td><td>${money(row.financialAid)}</td><td>${money(row.balance)}</td></tr>`).join("")}</tbody></table>
+      <div class="table-scroll"><table><thead><tr><th>Student</th><th>Charges</th><th>Recorded payments</th><th>Disbursed aid</th><th>Balance</th><th>Statement</th></tr></thead>
+      <tbody>${accountRows.filter(row => row.totalCharges || row.appliedPayments).map(row => `<tr><td>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</td><td>${money(row.totalCharges)}</td><td>${money(row.appliedPayments)}</td><td>${money(row.financialAid)}</td><td><strong>${money(row.balance)}</strong></td><td><a href="/admin/billing/students/${row.id}/statement">View statement</a></td></tr>`).join("") || `<tr><td class="empty" colspan="6">No student account activity yet.</td></tr>`}</tbody></table></div>
     </section>
 
-    <section class="card" style="margin-top:18px">
+    <section class="card" id="quickbooks" style="margin-top:18px">
       <div class="page-head compact">
         <div>
           <p class="eyebrow">Accounting integration</p>
@@ -13280,7 +13365,7 @@ app.get("/admin/billing", requireAuth, requireRole("admin"), (req, res) => {
       ` : ""}
     </section>
 
-    <section class="grid cols-3 billing-workbench" style="margin-top:18px">
+    <section class="grid cols-3 billing-workbench" id="billing-actions" style="margin-top:18px">
       <form class="card" method="post" action="/admin/billing/charges">
         <h2>Post charge</h2>
         <label>Student</label><select name="userId" required>${studentOptions}</select>
@@ -13350,11 +13435,21 @@ app.get("/admin/billing", requireAuth, requireRole("admin"), (req, res) => {
     </section>
 
     <section class="grid cols-2" style="margin-top:18px">
-      <article class="card">
+      <article class="card" id="payment-plans">
         <h2>Payment plans</h2>
         ${plans.map((plan) => `
-          <p><strong>${escapeHtml(plan.first_name)} ${escapeHtml(plan.last_name)} · ${escapeHtml(plan.name)}</strong><br>
-          <span class="muted">${money(plan.total_cents)} total · ${money(plan.installment_cents)} installment · Next due ${date(plan.next_due_date)} · ${escapeHtml(plan.status)}</span></p>
+          <div class="tuition-plan-row">
+            <p><strong>${escapeHtml(plan.first_name)} ${escapeHtml(plan.last_name)} · ${escapeHtml(plan.name)}</strong><br>
+            <span class="muted">${money(plan.total_cents)} total · ${money(plan.installment_cents)} installment · Next due ${date(plan.next_due_date)}</span></p>
+            <form method="post" action="/admin/billing/payment-plans/${plan.id}/status" class="tuition-plan-status-form">
+              <label>Status<span class="sr-only"> for ${escapeHtml(plan.first_name)} ${escapeHtml(plan.last_name)}</span>
+                <select name="status">
+                  ${["active", "completed", "canceled"].map((status) => `<option value="${status}" ${plan.status === status ? "selected" : ""}>${status}</option>`).join("")}
+                </select>
+              </label>
+              <button class="small" type="submit">Save</button>
+            </form>
+          </div>
         `).join("") || `<p class="empty">No payment plans.</p>`}
       </article>
       <article class="card">
@@ -13363,8 +13458,51 @@ app.get("/admin/billing", requireAuth, requireRole("admin"), (req, res) => {
         <p class="muted">${escapeHtml(policy?.description || "Add a refund policy to complete billing setup.")}</p>
       </article>
     </section>
+    </div>
   `;
   render(req, res, "Student Billing", body);
+});
+
+app.get("/admin/billing/students/:id/statement", requireAuth, requireRole("admin"), (req, res) => {
+  const termName = String(req.query.term || "2026-27 Practical Nursing Term").trim().slice(0, 120);
+  const statement = billingStatementModel(req.params.id, termName);
+  if (!statement) return res.status(404).send("Student account not found");
+  const body = renderPaymentStatement({
+    ...statement,
+    studentName: `${statement.student.first_name} ${statement.student.last_name}`.trim(),
+    institutionName: schoolDirectory.institution.name,
+    institutionAddress: schoolDirectory.institution.address,
+    contactEmail: schoolDirectory.institution.email,
+    statementDate: easternDateParts().date,
+    programName: [...new Set(statement.enrollments.map((row) => row.category).filter(Boolean))].join(", ") || "Program",
+    paymentHref: "/admin/billing",
+    backHref: "/admin/billing",
+    backLabel: "Back to Billing"
+  });
+  render(req, res, "Account Statement", body, { full: true });
+});
+
+app.post("/admin/billing/payment-plans/:id/status", requireAuth, requireRole("admin"), (req, res) => {
+  const status = String(req.body.status || "").trim();
+  if (!["active", "completed", "canceled"].includes(status)) return res.status(422).send("Invalid payment plan status");
+  const plan = db.prepare(`
+    SELECT p.*, u.first_name, u.last_name
+    FROM billing_payment_plans p
+    JOIN users u ON u.id = p.user_id
+    WHERE p.id = ?
+  `).get(Number(req.params.id));
+  if (!plan) return res.status(404).send("Payment plan not found");
+  db.prepare("UPDATE billing_payment_plans SET status = ? WHERE id = ?").run(status, plan.id);
+  recordSystemActivity(req, {
+    action: "payment_plan_status_changed",
+    summary: `Changed ${plan.first_name} ${plan.last_name}'s payment plan to ${status}`,
+    targetUserId: plan.user_id,
+    entityType: "billing_payment_plan",
+    entityId: plan.id,
+    details: { previousStatus: plan.status, status, term: plan.term, plan: plan.name }
+  });
+  flash(req, `Payment plan marked ${status}.`);
+  res.redirect("/admin/billing#payment-plans");
 });
 
 app.post("/admin/billing/charges", requireAuth, requireRole("admin"), (req, res) => {
@@ -17917,6 +18055,47 @@ app.get("/student/profile", requireAuth, requireRole("student"), (req, res) => {
   render(req, res, "My Profile", body, { studentPortal: true, activeStudentNav: "profile" });
 });
 
+app.get("/student/financial/statement", requireAuth, requireRole("student"), (req, res) => {
+  const termName = String(req.query.term || "2026-27 Practical Nursing Term").trim().slice(0, 120);
+  const statement = billingStatementModel(req.user.id, termName);
+  if (!statement) return res.status(404).send("Student account not found");
+  const securePaymentUrl = /^https:\/\//i.test(String(process.env.TUITION_PAYMENT_URL || "").trim())
+    ? String(process.env.TUITION_PAYMENT_URL).trim()
+    : "";
+  const body = renderPaymentStatement({
+    ...statement,
+    studentName: `${statement.student.first_name} ${statement.student.last_name}`.trim(),
+    institutionName: schoolDirectory.institution.name,
+    institutionAddress: schoolDirectory.institution.address,
+    contactEmail: schoolDirectory.institution.email,
+    statementDate: easternDateParts().date,
+    programName: [...new Set(statement.enrollments.map((row) => row.category).filter(Boolean))].join(", ") || "Program",
+    paymentHref: securePaymentUrl || `/student/financial/payment-options?term=${encodeURIComponent(termName)}`,
+    securePaymentConfigured: Boolean(securePaymentUrl),
+    backHref: "/student/financial",
+    backLabel: "Back to Financial"
+  });
+  render(req, res, "Account Statement", body, { full: true });
+});
+
+app.get("/student/financial/payment-options", requireAuth, requireRole("student"), (req, res) => {
+  const termName = String(req.query.term || "2026-27 Practical Nursing Term").trim().slice(0, 120);
+  const statement = billingStatementModel(req.user.id, termName);
+  if (!statement) return res.status(404).send("Student account not found");
+  const activePlan = statement.plans.find((plan) => plan.status === "active") || statement.plans[0];
+  const securePaymentUrl = /^https:\/\//i.test(String(process.env.TUITION_PAYMENT_URL || "").trim())
+    ? String(process.env.TUITION_PAYMENT_URL).trim()
+    : "";
+  const body = renderPaymentOptions({
+    amountDueCents: statement.balance,
+    dueDate: activePlan?.next_due_date,
+    paymentHref: securePaymentUrl,
+    contactPhone: schoolDirectory.institution.phone,
+    contactEmail: schoolDirectory.institution.email
+  });
+  render(req, res, "Payment Options", body, { studentPortal: true, activeStudentNav: "fees" });
+});
+
 app.get("/student/financial", requireAuth, requireRole("student"), (req, res) => {
   const enrollments = db.prepare(`
     SELECT e.*, c.title, c.category, c.hours, c.credential_type, c.tuition_cents, c.slug
@@ -17968,7 +18147,7 @@ app.get("/student/financial", requireAuth, requireRole("student"), (req, res) =>
   const studentNumber = displayStudentNumber(req.user);
 
   const body = `
-    <section class="financial-term">
+    <section class="financial-term tuition-student-financial">
       <div class="financial-head">
         <div>
           <p class="eyebrow">Financial</p>
@@ -17981,8 +18160,8 @@ app.get("/student/financial", requireAuth, requireRole("student"), (req, res) =>
             <option>2026 Summer Term</option>
             <option>2026 Fall Term</option>
           </select>
-          <button class="button ghost" type="button">Print Statement</button>
-          <button class="button" type="button">Make Payment</button>
+          <a class="button ghost" href="/student/financial/statement?term=${encodeURIComponent(termName)}">Print Statement</a>
+          <a class="button" href="/student/financial/payment-options?term=${encodeURIComponent(termName)}">Make Payment</a>
         </div>
       </div>
 
